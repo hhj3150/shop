@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Reveal } from "./Reveal";
-import { BLOCK_WEEKS, SUB_MIN_DELIVERIES } from "@/lib/products";
 
 const STEPS = [
   {
@@ -11,13 +10,13 @@ const STEPS = [
   },
   {
     n: "02",
-    t: `${BLOCK_WEEKS}주분을 먼저 모십니다`,
-    d: `${BLOCK_WEEKS}주분(${SUB_MIN_DELIVERIES}회)을 무통장으로 먼저 입금해 주시면, 확인되는 즉시 첫 발송을 준비합니다.`,
+    t: "기간을 정해 한 번에",
+    d: "1·3·6·12개월 가운데 구독 기간을 고르고, 그 기간분을 무통장으로 한 번에 입금해 주시면 확인되는 즉시 첫 발송을 준비합니다.",
   },
   {
     n: "03",
-    t: "오래 함께할수록",
-    d: `6개월 이상 ${15}%, 1년 이상 ${20}% — 곁에 오래 두실수록 더 귀하게 모십니다. ${SUB_MIN_DELIVERIES}회 이후 언제든 해지하실 수 있습니다.`,
+    t: "길게 함께할수록",
+    d: "1개월 10% · 3개월 15% · 6개월 20% · 12개월 25% — 곁에 오래 두실수록 더 귀하게 모십니다.",
   },
 ];
 

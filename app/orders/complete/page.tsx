@@ -111,14 +111,14 @@ function Complete() {
 
       <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
         <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
-          자동이체 등록 계좌
+          무통장입금 계좌
         </p>
         <p className="mt-2 font-serif-kr text-lg text-ink">
           {DEPOSIT.bank} {DEPOSIT.account}
         </p>
         <p className="mt-0.5 text-[14px] text-mute">예금주 {DEPOSIT.holder}</p>
         <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
-          위 계좌로 4주마다 자동이체를 등록해 주세요. 목장에서 자동이체를 확인한 뒤
+          위 계좌로 선택하신 구독 기간분을 한 번에 입금해 주세요. 목장에서 입금을 확인한 뒤
           발송을 준비하고, 등록하신 번호로 안내드립니다.
         </p>
       </div>

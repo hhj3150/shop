@@ -82,7 +82,9 @@ alter table public.orders
   add column if not exists order_type text not null default '구독'
     check (order_type in ('구독','단품')),
   add column if not exists ship_date date,
-  add column if not exists shipping_fee integer not null default 0;
+  add column if not exists shipping_fee integer not null default 0,
+  -- 구독 기간(개월). 1/3/6/12 중 하나. 전체 기간분(주 1회 × 4주 × 개월)을 한 번에 입금.
+  add column if not exists period_months integer not null default 1;
 
 alter table public.orders enable row level security;
 

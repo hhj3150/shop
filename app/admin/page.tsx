@@ -331,7 +331,7 @@ export default function AdminPage() {
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">요일</th>
               <th className="py-2 text-right font-normal">모집(신청+활성)</th>
-              <th className="py-2 text-right font-normal">활성(자동이체확인)</th>
+              <th className="py-2 text-right font-normal">활성(입금확인)</th>
               <th className="py-2 text-right font-normal">잔여</th>
               <th className="py-2 text-right font-normal">대기자</th>
             </tr>
@@ -352,7 +352,7 @@ export default function AdminPage() {
 
       {/* 요일별·제품별 주간 필요 수량 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별·제품별 주간 필요 수량</h2>
-      <p className="mt-1 text-[13px] text-mute">확정 구독(자동이체 확인) 기준, 1회(매주) 발송 수량입니다.</p>
+      <p className="mt-1 text-[13px] text-mute">확정 구독(입금 확인) 기준, 1회(매주) 발송 수량입니다.</p>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[560px] border-collapse text-[14px]">
           <thead>
@@ -482,7 +482,7 @@ export default function AdminPage() {
 
       {/* 주문 관리 — 상태 변경 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">주문 관리</h2>
-      <p className="mt-1 text-[13px] text-mute">상태를 변경하면 저장됩니다. ‘입금확인’으로 바꾸면 자동이체가 확인된 것으로 보고 구독이 활성화됩니다.</p>
+      <p className="mt-1 text-[13px] text-mute">상태를 변경하면 저장됩니다. ‘입금확인’으로 바꾸면 입금이 확인된 것으로 보고 구독이 활성화됩니다.</p>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-[14px]">
           <thead>

@@ -4,19 +4,22 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
   type Product,
+  type SubPeriod,
   PRODUCTS,
+  SUB_PERIODS,
+  PERIOD_LABEL,
   formatKRW,
   subscribePrice,
-  BASE_DISCOUNT,
-  SUB_MIN_DELIVERIES,
-  BLOCK_WEEKS,
+  discountForPeriod,
+  periodWeeks,
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/subscriptions";
 
 export function PurchasePanel({ product }: { product: Product }) {
-  const { add } = useCart();
+  const { add, setPeriod } = useCart();
   const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("mon");
+  const [period, setPeriodLocal] = useState<SubPeriod>(1);
   const [qty, setQty] = useState(1);
   const [extras, setExtras] = useState<Record<string, number>>({});
   const [counts, setCounts] = useState<DayCounts | null>(null);
@@ -28,18 +31,22 @@ export function PurchasePanel({ product }: { product: Product }) {
   // 함께 담을 수 있는 다른 제품들(같은 요일 배송).
   const addons = PRODUCTS.filter((p) => p.id !== product.id);
 
-  const unitPrice = subscribePrice(product.price);
+  const rate = discountForPeriod(period);
+  const weeks = periodWeeks(period);
+
+  const unitPrice = subscribePrice(product.price, rate);
   const mainPerDelivery = unitPrice * qty;
   const extrasPerDelivery = addons.reduce(
-    (sum, p) => sum + subscribePrice(p.price) * (extras[p.id] ?? 0),
+    (sum, p) => sum + subscribePrice(p.price, rate) * (extras[p.id] ?? 0),
     0
   );
   const perDelivery = mainPerDelivery + extrasPerDelivery;
-  const blockTotal = perDelivery * BLOCK_WEEKS;
+  const periodTotal = perDelivery * weeks;
 
   const origPerDelivery =
     product.price * qty +
     addons.reduce((sum, p) => sum + p.price * (extras[p.id] ?? 0), 0);
+  const origPeriodTotal = origPerDelivery * weeks;
 
   const selected = counts?.[deliveryDay] ?? null;
   const selectedRemaining = selected ? remaining(selected) : null;
@@ -49,11 +56,12 @@ export function PurchasePanel({ product }: { product: Product }) {
     setExtras((prev) => ({ ...prev, [id]: Math.max(0, q) }));
 
   const handleAdd = () => {
-    add({ productId: product.id, deliveryDay, qty, unitPrice });
+    setPeriod(period);
+    add({ productId: product.id, deliveryDay, qty });
     addons.forEach((p) => {
       const eq = extras[p.id] ?? 0;
       if (eq > 0) {
-        add({ productId: p.id, deliveryDay, qty: eq, unitPrice: subscribePrice(p.price) });
+        add({ productId: p.id, deliveryDay, qty: eq });
       }
     });
     setExtras({});
@@ -66,8 +74,35 @@ export function PurchasePanel({ product }: { product: Product }) {
           Members Only · 정기구독
         </p>
         <span className="rounded-full bg-gold/12 px-3 py-1 text-[12px] font-medium text-gold-deep">
-          −{Math.round(BASE_DISCOUNT * 100)}%
+          −{Math.round(rate * 100)}%
         </span>
+      </div>
+
+      {/* 구독 기간 — 전체 기간분을 한 번에 입금 */}
+      <p className="mt-6 text-[13px] uppercase tracking-[0.18em] text-mute">
+        구독 기간 · 선택한 기간만큼 한 번에 입금
+      </p>
+      <div className="mt-3 grid grid-cols-4 gap-1.5">
+        {SUB_PERIODS.map((m) => {
+          const active = period === m;
+          return (
+            <button
+              key={m}
+              onClick={() => setPeriodLocal(m)}
+              aria-pressed={active}
+              className={`flex flex-col items-center rounded-xl border py-2 text-[14px] transition-all ${
+                active
+                  ? "border-gold bg-gold/10 text-ink"
+                  : "border-line text-ink-soft hover:border-gold/50"
+              }`}
+            >
+              <span>{PERIOD_LABEL[m]}</span>
+              <span className="mt-0.5 text-[10px] tabular-nums text-gold-deep">
+                −{Math.round(discountForPeriod(m) * 100)}%
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* 배송 요일 (매주 1회 고정) */}
@@ -151,7 +186,7 @@ export function PurchasePanel({ product }: { product: Product }) {
         </p>
         <ul className="mt-4 space-y-3">
           {addons.map((p) => {
-            const ep = subscribePrice(p.price);
+            const ep = subscribePrice(p.price, rate);
             const eq = extras[p.id] ?? 0;
             return (
               <li key={p.id} className="flex items-center gap-3">
@@ -221,10 +256,22 @@ export function PurchasePanel({ product }: { product: Product }) {
           {product.taxFree ? "면세품 · 부가세 없음" : "과세품 · 부가세 포함 가격"}
         </p>
 
-        <p className="mt-1 text-[13px] text-ink-soft tabular-nums">
-          {BLOCK_WEEKS}주분({SUB_MIN_DELIVERIES}회) 선입금 기준{" "}
-          <span className="font-semibold text-ink">{formatKRW(blockTotal)}</span>
-        </p>
+        <div className="mt-3 rounded-2xl bg-paper-2 px-4 py-3">
+          <div className="flex items-center justify-between text-[13px] text-ink-soft">
+            <span>
+              {PERIOD_LABEL[period]} · 매주 {weeks}회 배송
+            </span>
+            <span className="text-[12px] text-mute line-through tabular-nums">
+              {formatKRW(origPeriodTotal)}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center justify-between">
+            <span className="text-[13px] text-mute">한 번에 입금</span>
+            <span className="font-serif-kr text-xl text-ink tabular-nums">
+              {formatKRW(periodTotal)}
+            </span>
+          </div>
+        </div>
 
         <button
           onClick={handleAdd}
@@ -234,8 +281,8 @@ export function PurchasePanel({ product }: { product: Product }) {
         </button>
 
         <p className="mt-4 text-center text-[11.5px] leading-relaxed text-mute">
-          매주 {DELIVERY_DAY_LABEL[deliveryDay]} 배송 · {BLOCK_WEEKS}주 단위 입금 확인 후 발송 ·
-          최소 {SUB_MIN_DELIVERIES}회
+          매주 {DELIVERY_DAY_LABEL[deliveryDay]} 배송 · {PERIOD_LABEL[period]}분({weeks}회)
+          한 번에 무통장입금 확인 후 발송
         </p>
       </div>
     </div>

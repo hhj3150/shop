@@ -8,7 +8,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { BLOCK_WEEKS } from "./products";
+import {
+  getProduct,
+  subscribePrice,
+  discountForPeriod,
+  periodWeeks,
+  type SubPeriod,
+} from "./products";
 
 // 매주 1회 배송, 요일은 월–금 중 하나 선택.
 export type DeliveryDay = "mon" | "tue" | "wed" | "thu" | "fri";
@@ -28,17 +34,20 @@ export type CartItem = {
   productId: string;
   deliveryDay: DeliveryDay;
   qty: number; // 매주 회당 수량
-  unitPrice: number; // 할인 적용된 1회(병당) 가격
 };
 
 type CartContextValue = {
   items: CartItem[];
   isOpen: boolean;
   count: number;
-  perDelivery: number; // 1회(매주) 합계
-  blockTotal: number; // 4주분(=4회) 합계 = 실제 입금 금액
+  period: SubPeriod; // 구독 기간(개월) — 장바구니 전체에 하나
+  weeks: number; // 기간 → 총 배송 회수(= 주분)
+  perDelivery: number; // 1회(매주) 합계 (기간 할인 적용)
+  periodTotal: number; // 전체 기간분 = 한 번에 입금할 금액
+  weeklyPrice: (productId: string) => number; // 제품별 1회(병당) 회원가
   open: () => void;
   close: () => void;
+  setPeriod: (months: SubPeriod) => void;
   add: (item: Omit<CartItem, "key">) => void;
   setQty: (key: string, qty: number) => void;
   remove: (key: string) => void;
@@ -46,7 +55,12 @@ type CartContextValue = {
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
-const STORAGE_KEY = "sys-cart-v2";
+const STORAGE_KEY = "sys-cart-v3";
+
+type StoredCart = {
+  items: CartItem[];
+  period: SubPeriod;
+};
 
 function itemKey(i: Omit<CartItem, "key">): string {
   return `${i.productId}:${i.deliveryDay}`;
@@ -54,13 +68,18 @@ function itemKey(i: Omit<CartItem, "key">): string {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [period, setPeriodState] = useState<SubPeriod>(1);
   const [isOpen, setIsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setItems(JSON.parse(raw));
+      if (raw) {
+        const parsed: StoredCart = JSON.parse(raw);
+        if (Array.isArray(parsed.items)) setItems(parsed.items);
+        if (parsed.period) setPeriodState(parsed.period);
+      }
     } catch {
       // ignore corrupt storage
     }
@@ -70,24 +89,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      const payload: StoredCart = { items, period };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // ignore quota / private mode
     }
-  }, [items, hydrated]);
+  }, [items, period, hydrated]);
 
   const value = useMemo<CartContextValue>(() => {
+    const rate = discountForPeriod(period);
+    const weeklyPrice = (productId: string) => {
+      const p = getProduct(productId);
+      return p ? subscribePrice(p.price, rate) : 0;
+    };
     const count = items.reduce((n, i) => n + i.qty, 0);
-    const perDelivery = items.reduce((n, i) => n + i.qty * i.unitPrice, 0);
+    const perDelivery = items.reduce(
+      (n, i) => n + i.qty * weeklyPrice(i.productId),
+      0
+    );
+    const weeks = periodWeeks(period);
 
     return {
       items,
       isOpen,
       count,
+      period,
+      weeks,
       perDelivery,
-      blockTotal: perDelivery * BLOCK_WEEKS,
+      periodTotal: perDelivery * weeks,
+      weeklyPrice,
       open: () => setIsOpen(true),
       close: () => setIsOpen(false),
+      setPeriod: (months) => setPeriodState(months),
       add: (incoming) => {
         const key = itemKey(incoming);
         setItems((prev) => {
@@ -110,7 +143,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       remove: (key) => setItems((prev) => prev.filter((i) => i.key !== key)),
       clear: () => setItems([]),
     };
-  }, [items, isOpen]);
+  }, [items, period, isOpen]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

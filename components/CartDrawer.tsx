@@ -4,12 +4,30 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
-import { getProduct, formatKRW, BLOCK_WEEKS, SUB_MIN_DELIVERIES } from "@/lib/products";
+import {
+  getProduct,
+  formatKRW,
+  discountForPeriod,
+  SUB_PERIODS,
+  PERIOD_LABEL,
+} from "@/lib/products";
 
 export function CartDrawer() {
   const router = useRouter();
   const { user } = useAuth();
-  const { items, isOpen, close, perDelivery, blockTotal, setQty, remove } = useCart();
+  const {
+    items,
+    isOpen,
+    close,
+    period,
+    weeks,
+    perDelivery,
+    periodTotal,
+    weeklyPrice,
+    setPeriod,
+    setQty,
+    remove,
+  } = useCart();
 
   function goCheckout() {
     close();
@@ -109,7 +127,7 @@ export function CartDrawer() {
                           </button>
                         </div>
                         <span className="text-sm tabular-nums text-ink">
-                          {formatKRW(item.unitPrice * item.qty)}
+                          {formatKRW(weeklyPrice(item.productId) * item.qty)}
                         </span>
                       </div>
                     </div>
@@ -122,21 +140,48 @@ export function CartDrawer() {
 
         {items.length > 0 && (
           <div className="border-t border-line px-6 py-5">
-            <div className="flex items-center justify-between">
+            {/* 구독 기간 선택 — 전체 장바구니에 적용 */}
+            <p className="text-[12px] uppercase tracking-[0.18em] text-mute">
+              구독 기간 · 한 번에 입금
+            </p>
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
+              {SUB_PERIODS.map((m) => {
+                const active = period === m;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setPeriod(m)}
+                    aria-pressed={active}
+                    className={`flex flex-col items-center rounded-xl border py-1.5 text-[13px] transition-all ${
+                      active
+                        ? "border-gold bg-gold/10 text-ink"
+                        : "border-line text-ink-soft hover:border-gold/50"
+                    }`}
+                  >
+                    <span>{PERIOD_LABEL[m]}</span>
+                    <span className="mt-0.5 text-[10px] tabular-nums text-gold-deep">
+                      −{Math.round(discountForPeriod(m) * 100)}%
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between">
               <span className="text-sm text-mute">회당(매주) 합계</span>
               <span className="text-sm tabular-nums text-ink-soft">
                 {formatKRW(perDelivery)}
               </span>
             </div>
             <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-sm text-mute">{BLOCK_WEEKS}주분({SUB_MIN_DELIVERIES}회) 입금액</span>
+              <span className="text-sm text-mute">{PERIOD_LABEL[period]}분({weeks}회) 입금액</span>
               <span className="font-serif-kr text-xl text-ink tabular-nums">
-                {formatKRW(blockTotal)}
+                {formatKRW(periodTotal)}
               </span>
             </div>
             <p className="mt-2 text-[13px] leading-relaxed text-gold-deep">
-              매주 같은 요일에 받으시며, {BLOCK_WEEKS}주 단위로 입금 확인 후 발송됩니다.
-              최소 {SUB_MIN_DELIVERIES}회 이후 해지할 수 있습니다.
+              매주 같은 요일에 받으시며, 선택하신 {PERIOD_LABEL[period]}분({weeks}회)을
+              한 번에 입금 확인 후 발송됩니다.
             </p>
             <button
               onClick={goCheckout}
