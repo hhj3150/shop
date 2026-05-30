@@ -1,0 +1,40 @@
+import type { Metadata } from "next";
+import { LegalLayout, Article } from "@/components/LegalLayout";
+import { DEPOSIT, BUSINESS } from "@/lib/site";
+
+export const metadata: Metadata = { title: "배송 · 교환/환불 안내" };
+
+export default function GuidePage() {
+  return (
+    <LegalLayout eyebrow="Guide" title="배송 · 교환/환불 안내" updated="2026-05-30">
+      <Article heading="주문 및 결제">
+        <p>본 몰은 회원에게만 판매하며, 결제는 무통장입금으로만 진행됩니다.</p>
+        <p>주문 후 아래 계좌로 입금해 주시면, 목장에서 입금을 확인한 뒤 발송을 준비하고 등록하신 번호로 문자 안내를 보내 드립니다.</p>
+        <p className="font-medium text-ink">
+          {DEPOSIT.bank} {DEPOSIT.account} · 예금주 {DEPOSIT.holder}
+        </p>
+        <p>입금자명은 주문 시 입력하신 입금자명과 동일하게 입금해 주시면 확인이 빠릅니다.</p>
+      </Article>
+
+      <Article heading="배송">
+        <p>신선식품 특성에 맞추어 콜드체인으로 배송합니다. 입금 확인 후 순차적으로 발송됩니다.</p>
+        <p>정기구독은 선택하신 주기(매주·격주·4주마다)와 요일(화·목)에 맞추어 반복 배송됩니다.</p>
+      </Article>
+
+      <Article heading="교환 및 환불">
+        <p>신선식품의 특성상 단순 변심에 의한 교환·환불은 제한될 수 있습니다.</p>
+        <p>상품에 하자가 있거나 배송 중 문제가 발생한 경우, 수령 후 빠른 시일 내에 고객센터로 연락 주시면 교환 또는 환불해 드립니다.</p>
+        <p>입금 후 발송 준비 전 취소를 원하시는 경우 전액 환불해 드리며, 환불은 입금하신 계좌로 처리됩니다.</p>
+      </Article>
+
+      <Article heading="정기구독 해지">
+        <p>정기구독은 선착순 1,000명 한정으로 운영되며, 최소 4회 이후 언제든 해지하실 수 있습니다. 해지는 고객센터로 연락 주시면 처리해 드립니다.</p>
+      </Article>
+
+      <Article heading="고객센터">
+        <p>전화: {BUSINESS.tel} · {BUSINESS.mobile}</p>
+        <p>운영시간: 평일 10:00–17:00 (점심 12:00–13:00, 주말·공휴일 휴무)</p>
+      </Article>
+    </LegalLayout>
+  );
+}

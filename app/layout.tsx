@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Noto_Sans_KR, Noto_Serif_KR, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/lib/cart";
+import { AuthProvider } from "@/lib/auth";
 import { Nav } from "@/components/Nav";
 import { CartDrawer } from "@/components/CartDrawer";
 
@@ -54,11 +55,13 @@ export default function RootLayout({
       className={`${notoSans.variable} ${notoSerif.variable} ${cormorant.variable} h-full`}
     >
       <body className="min-h-full flex flex-col bg-paper text-ink-soft">
-        <CartProvider>
-          <Nav />
-          <main className="flex-1">{children}</main>
-          <CartDrawer />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Nav />
+            <main className="flex-1">{children}</main>
+            <CartDrawer />
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );

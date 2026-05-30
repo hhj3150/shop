@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BRAND_HOME } from "@/lib/site";
+import { BRAND_HOME, BUSINESS, DEPOSIT } from "@/lib/site";
 
 export function Footer() {
   return (
@@ -30,25 +30,34 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5 text-[13px] text-ink-soft">
               <li><Link href="/#subscribe" className="hover:text-gold">정기구독</Link></li>
               <li><a href={BRAND_HOME} target="_blank" rel="noopener noreferrer" className="hover:text-gold">목장 이야기</a></li>
-              <li><span className="text-mute">배송 · 교환/환불</span></li>
-              <li><span className="text-mute">자주 묻는 질문</span></li>
+              <li><Link href="/guide" className="hover:text-gold">배송 · 교환/환불 안내</Link></li>
+              <li><Link href="/terms" className="hover:text-gold">이용약관</Link></li>
+              <li><Link href="/privacy" className="hover:text-gold">개인정보처리방침</Link></li>
             </ul>
           </div>
 
           <div>
             <p className="text-[12px] uppercase tracking-[0.18em] text-gold-deep">고객센터</p>
-            <p className="mt-4 font-serif-kr text-lg text-ink">평일 10:00–17:00</p>
-            <p className="mt-1 text-[13px] text-mute">점심 12:00–13:00 · 주말·공휴일 휴무</p>
+            <p className="mt-4 font-serif-kr text-lg text-ink">{BUSINESS.tel}</p>
+            <p className="mt-1 text-[13px] text-mute">{BUSINESS.mobile}</p>
+            <p className="mt-3 text-[13px] text-mute">평일 10:00–17:00 · 점심 12:00–13:00</p>
+            <p className="mt-3 text-[12px] text-mute">
+              입금계좌 {DEPOSIT.bank} {DEPOSIT.account}
+              <br />예금주 {DEPOSIT.holder}
+            </p>
           </div>
         </div>
 
         <div className="mt-14 border-t border-line pt-8 text-[11.5px] leading-relaxed text-mute">
           <p>
-            농업회사법인 (주)디투오 · 대표 송영신 · 경기도 안성시 미양면 미양로 466
+            {BUSINESS.company} · 대표 {BUSINESS.ceo} · {BUSINESS.address}
           </p>
           <p className="mt-1">
-            사업자등록번호 000-00-00000 · 통신판매업신고 제0000-경기안성-0000호 ·
-            개인정보관리책임자 송영신
+            사업자등록번호 {BUSINESS.bizNo} · 통신판매업신고 {BUSINESS.mailOrderNo} ·
+            개인정보관리책임자 {BUSINESS.privacyManager}
+          </p>
+          <p className="mt-1">
+            대표전화 {BUSINESS.tel} · {BUSINESS.mobile}
           </p>
           <p className="mt-4 text-mute/80">
             © {new Date().getFullYear()} Song Yeong Shin Farm. All rights reserved.

@@ -1,13 +1,22 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useCart, DELIVERY_DAY_LABEL, FREQUENCY_LABEL } from "@/lib/cart";
+import { useAuth } from "@/lib/auth";
 import { getProduct, formatKRW } from "@/lib/products";
 
 export function CartDrawer() {
+  const router = useRouter();
+  const { user } = useAuth();
   const { items, isOpen, close, subtotal, setQty, remove } = useCart();
 
   const hasSub = items.some((i) => i.mode === "sub");
+
+  function goCheckout() {
+    close();
+    router.push(user ? "/checkout" : "/login?next=/checkout");
+  }
 
   return (
     <>
@@ -125,22 +134,18 @@ export function CartDrawer() {
             </div>
             {hasSub && (
               <p className="mt-2 text-[12px] leading-relaxed text-gold-deep">
-                정기구독 상품이 포함되어 있어요. 선택한 주기·요일에 자동 결제·배송되며, 최소 4회
+                정기구독 상품이 포함되어 있어요. 선택한 주기·요일로 받으시며, 최소 4회
                 이후 해지할 수 있습니다.
               </p>
             )}
             <button
-              onClick={() =>
-                alert(
-                  "결제 단계입니다.\n\n실제 결제(포트원/토스 빌링키 정기결제)는 PG 계약·키 발급 후 이 지점에 연동됩니다.\n현재는 디자인 프로토타입입니다."
-                )
-              }
+              onClick={goCheckout}
               className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
             >
-              {hasSub ? "구독 시작하고 결제하기" : "결제하기"}
+              {user ? "주문하기 (무통장입금)" : "로그인하고 주문하기"}
             </button>
             <p className="mt-3 text-center text-[11px] text-mute">
-              안전한 결제 · 정기구독은 언제든 해지 가능
+              회원 전용 · 입금 확인 후 발송 · 문자 안내
             </p>
           </div>
         )}
