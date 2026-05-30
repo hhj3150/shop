@@ -6,9 +6,17 @@ export function Hero() {
     <section className="relative overflow-hidden">
       <div className="mx-auto grid max-w-7xl items-center gap-6 px-5 pt-28 pb-14 sm:px-8 sm:pt-32 lg:min-h-[88svh] lg:grid-cols-2 lg:gap-8 lg:pb-16">
         {/* Copy */}
-        <div className="text-center lg:text-left">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-mute sm:text-[12px]">
-            A2 Jersey · Hay-Fed · Single Farm
+        <div className="flex flex-col items-center lg:items-start lg:text-left">
+          <Image
+            src="/brand/logo.png"
+            alt="송영신목장 A2 Jersey Hay Milk 로고"
+            width={200}
+            height={200}
+            priority
+            className="mb-5 h-20 w-20 object-contain sm:h-24 sm:w-24"
+          />
+          <p className="font-display text-[12px] uppercase tracking-[0.28em] text-gold-deep sm:text-[13px]">
+            송영신목장 · A2 Jersey Hay Milk
           </p>
           <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.14] tracking-[-0.02em] text-ink">
             한 모금에 담긴

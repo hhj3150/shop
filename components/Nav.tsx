@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useCart } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
@@ -27,12 +28,22 @@ export function Nav() {
       }`}
     >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
-        <Link href="/" className="flex items-center gap-2.5">
-          <span className="font-display text-[15px] uppercase tracking-[0.2em] text-ink">
-            송영신목장
-          </span>
-          <span className="hidden text-[10px] uppercase tracking-[0.3em] text-mute sm:inline">
-            A2 Jersey
+        <Link href="/" aria-label="송영신목장 A2 Jersey Hay Milk 홈" className="flex items-center gap-2.5">
+          <Image
+            src="/brand/logo.png"
+            alt="송영신목장 A2 Jersey Hay Milk"
+            width={80}
+            height={80}
+            priority
+            className="h-9 w-9 object-contain"
+          />
+          <span className="flex flex-col leading-none">
+            <span className="font-display text-[15px] uppercase tracking-[0.18em] text-ink">
+              송영신목장
+            </span>
+            <span className="mt-0.5 text-[9px] uppercase tracking-[0.32em] text-mute">
+              A2 Jersey Hay Milk
+            </span>
           </span>
         </Link>
 
