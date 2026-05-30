@@ -90,7 +90,7 @@ function downloadCsv(filename: string, rows: string[][]) {
 
 export default function AdminPage() {
   const router = useRouter();
-  const { ready, user, profile } = useAuth();
+  const { ready, user, profile, profileLoaded } = useAuth();
 
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [items, setItems] = useState<ItemRow[]>([]);
@@ -267,7 +267,7 @@ export default function AdminPage() {
     downloadCsv(`배송명단_${DELIVERY_DAY_LABEL[day]}.csv`, rows);
   }
 
-  if (!ready || (user && profile === null)) {
+  if (!ready || (user && !profileLoaded)) {
     return <div className="mx-auto max-w-md px-5 pt-28 text-center text-mute">불러오는 중…</div>;
   }
   if (!user) return null;
@@ -275,7 +275,11 @@ export default function AdminPage() {
     return (
       <div className="mx-auto max-w-md px-5 pt-28 text-center">
         <p className="font-serif-kr text-lg text-ink">관리자 전용 페이지입니다.</p>
-        <p className="mt-2 text-[14px] text-mute">접근 권한이 없습니다.</p>
+        <p className="mt-2 text-[14px] text-mute">
+          {profile === null
+            ? "프로필이 아직 없습니다. 가입을 완료했는지 확인해 주세요."
+            : "접근 권한이 없습니다."}
+        </p>
       </div>
     );
   }

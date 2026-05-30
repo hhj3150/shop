@@ -27,6 +27,7 @@ type AuthContextValue = {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  profileLoaded: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   async function loadProfile(userId: string) {
     try {
@@ -49,12 +51,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("프로필 조회 실패:", error);
       setProfile(null);
+    } finally {
+      setProfileLoaded(true);
     }
   }
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setReady(true);
+      setProfileLoaded(true);
       return;
     }
     const supabase = getSupabase();
@@ -62,13 +67,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       if (data.session?.user) loadProfile(data.session.user.id);
+      else setProfileLoaded(true);
       setReady(true);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
-      if (next?.user) loadProfile(next.user.id);
-      else setProfile(null);
+      if (next?.user) {
+        setProfileLoaded(false);
+        loadProfile(next.user.id);
+      } else {
+        setProfile(null);
+        setProfileLoaded(true);
+      }
     });
 
     return () => sub.subscription.unsubscribe();
@@ -81,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       session,
       profile,
+      profileLoaded,
       signOut: async () => {
         await getSupabase().auth.signOut();
         setSession(null);
@@ -90,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) await loadProfile(session.user.id);
       },
     }),
-    [ready, session, profile]
+    [ready, session, profile, profileLoaded]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
