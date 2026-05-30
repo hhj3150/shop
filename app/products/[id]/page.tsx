@@ -63,7 +63,7 @@ export default async function ProductPage({
                 height={1200}
                 priority
                 sizes="(max-width:1024px) 92vw, 46vw"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain p-8 sm:p-10"
               />
             </div>
           </div>
@@ -157,7 +157,7 @@ export default async function ProductPage({
                     width={600}
                     height={600}
                     sizes="(max-width:640px) 90vw, 30vw"
-                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.06]"
+                    className="h-full w-full object-contain p-4 transition-transform duration-700 group-hover:scale-[1.05]"
                   />
                 </div>
                 <div className="border-t border-line p-5">

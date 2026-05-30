@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { PRODUCTS, formatKRW, subscribePrice, type ProductLine } from "@/lib/products";
 import { Reveal } from "./Reveal";
+import { Scatter, HEY, type ConfettiItem } from "./Confetti";
 
 type Filter = "all" | ProductLine;
 
@@ -14,12 +15,24 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "yogurt", label: "요거트" },
 ];
 
+const PRODUCTS_CONFETTI: ConfettiItem[] = [
+  { shape: "heart", color: HEY.rose, size: 26, top: "8%", left: "5%", rotate: -14, opacity: 0.5 },
+  { shape: "squiggle", color: HEY.green, size: 40, top: "18%", right: "7%", rotate: 12, opacity: 0.45 },
+  { shape: "dot", color: HEY.orange, size: 16, top: "42%", left: "3%", opacity: 0.55 },
+  { shape: "comma", color: HEY.blue, size: 30, bottom: "22%", right: "4%", rotate: -8, opacity: 0.45 },
+  { shape: "blob", color: HEY.deepOrange, size: 34, bottom: "8%", left: "8%", rotate: 18, opacity: 0.4 },
+  { shape: "arc", color: HEY.blue, size: 38, top: "55%", right: "10%", rotate: 24, opacity: 0.4 },
+  { shape: "tilde", color: HEY.rose, size: 34, bottom: "38%", left: "2%", rotate: -10, opacity: 0.45 },
+];
+
 export function ProductShowcase() {
   const [filter, setFilter] = useState<Filter>("all");
   const shown = filter === "all" ? PRODUCTS : PRODUCTS.filter((p) => p.line === filter);
 
   return (
-    <section id="products" className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
+    <section id="products" className="relative overflow-hidden">
+      <Scatter items={PRODUCTS_CONFETTI} />
+      <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
       {/* Store greeting */}
       <Reveal>
         <p className="eyebrow">Collection</p>
@@ -81,7 +94,7 @@ export function ProductShowcase() {
                     width={720}
                     height={720}
                     sizes="(max-width:640px) 88vw, 40vw"
-                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]"
+                    className="h-full w-full object-contain p-3 transition-transform duration-700 group-hover:scale-[1.04] sm:p-4"
                   />
                 </div>
                 <p className="mt-8 max-w-xs text-[14px] leading-relaxed text-ink-soft">
@@ -113,6 +126,7 @@ export function ProductShowcase() {
             </article>
           </Reveal>
         ))}
+      </div>
       </div>
     </section>
   );
