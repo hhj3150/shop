@@ -73,7 +73,7 @@ export function CartDrawer() {
                           <p className="text-sm font-medium text-ink">
                             {p.name} {p.volume}
                           </p>
-                          <p className="mt-0.5 text-[11px] uppercase tracking-[0.18em] text-gold-deep">
+                          <p className="mt-0.5 text-[12px] uppercase tracking-[0.18em] text-gold-deep">
                             정기구독 · 매주 {DELIVERY_DAY_LABEL[item.deliveryDay]}
                           </p>
                         </div>
@@ -134,7 +134,7 @@ export function CartDrawer() {
                 {formatKRW(blockTotal)}
               </span>
             </div>
-            <p className="mt-2 text-[12px] leading-relaxed text-gold-deep">
+            <p className="mt-2 text-[13px] leading-relaxed text-gold-deep">
               매주 같은 요일에 받으시며, {BLOCK_WEEKS}주 단위로 입금 확인 후 발송됩니다.
               최소 {SUB_MIN_DELIVERIES}회 이후 해지할 수 있습니다.
             </p>
@@ -144,7 +144,7 @@ export function CartDrawer() {
             >
               {user ? "주문하기 (무통장입금)" : "로그인하고 주문하기"}
             </button>
-            <p className="mt-3 text-center text-[11px] text-mute">
+            <p className="mt-3 text-center text-[12px] text-mute">
               회원 전용 · 입금 확인 후 발송 · 문자 안내
             </p>
           </div>

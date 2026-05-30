@@ -39,7 +39,7 @@ function NewsCard({ row }: { row: NewsRow }) {
       ) : null}
 
       <div className="p-6 sm:p-7">
-        <p className="text-[12px] text-mute">
+        <p className="text-[13px] text-mute">
           {new Date(row.created_at).toLocaleDateString("ko-KR", {
             year: "numeric",
             month: "long",
@@ -58,7 +58,7 @@ function NewsCard({ row }: { row: NewsRow }) {
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="mt-3 text-[13px] text-gold-deep underline-offset-4 hover:underline"
+            className="mt-3 text-[14px] text-gold-deep underline-offset-4 hover:underline"
           >
             {open ? "접기" : "더보기 →"}
           </button>

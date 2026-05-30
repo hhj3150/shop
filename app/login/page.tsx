@@ -57,7 +57,7 @@ function LoginForm() {
       </h1>
 
       {!configured && (
-        <p className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[13px] text-gold-deep">
+        <p className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] text-gold-deep">
           현재 회원 시스템 연결이 설정되지 않았습니다.
         </p>
       )}
@@ -83,7 +83,7 @@ function LoginForm() {
         />
 
         {error && (
-          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
             {error}
           </p>
         )}
@@ -97,7 +97,7 @@ function LoginForm() {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-[13px] text-mute">
+      <p className="mt-6 text-center text-[14px] text-mute">
         아직 회원이 아니신가요?{" "}
         <Link href="/signup" className="text-gold-deep underline hover:text-gold">
           회원가입

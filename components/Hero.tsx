@@ -31,7 +31,7 @@ export function Hero() {
             priority
             className="mb-6 w-[176px] max-w-full sm:w-[208px]"
           />
-          <p className="font-display text-[12px] uppercase tracking-[0.28em] text-gold-deep sm:text-[13px]">
+          <p className="font-display text-[13px] uppercase tracking-[0.28em] text-gold-deep sm:text-[14px]">
             A2 Jersey Hay Milk
           </p>
           <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.14] tracking-[-0.02em] text-ink">

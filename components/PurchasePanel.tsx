@@ -62,16 +62,16 @@ export function PurchasePanel({ product }: { product: Product }) {
   return (
     <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
       <div className="flex items-center justify-between">
-        <p className="text-[12px] uppercase tracking-[0.2em] text-gold-deep">
+        <p className="text-[13px] uppercase tracking-[0.2em] text-gold-deep">
           Members Only · 정기구독
         </p>
-        <span className="rounded-full bg-gold/12 px-3 py-1 text-[11px] font-medium text-gold-deep">
+        <span className="rounded-full bg-gold/12 px-3 py-1 text-[12px] font-medium text-gold-deep">
           −{Math.round(BASE_DISCOUNT * 100)}%
         </span>
       </div>
 
       {/* 배송 요일 (매주 1회 고정) */}
-      <p className="mt-6 text-[12px] uppercase tracking-[0.18em] text-mute">
+      <p className="mt-6 text-[13px] uppercase tracking-[0.18em] text-mute">
         배송 요일 · 매주 · 요일별 100명 한정
       </p>
       <div className="mt-3 grid grid-cols-5 gap-1.5">
@@ -84,7 +84,7 @@ export function PurchasePanel({ product }: { product: Product }) {
               key={d}
               onClick={() => setDeliveryDay(d)}
               aria-pressed={deliveryDay === d}
-              className={`flex flex-col items-center rounded-xl border py-2 text-[13px] transition-all ${
+              className={`flex flex-col items-center rounded-xl border py-2 text-[14px] transition-all ${
                 deliveryDay === d
                   ? "border-gold bg-gold/10 text-ink"
                   : "border-line text-ink-soft hover:border-gold/50"
@@ -103,7 +103,7 @@ export function PurchasePanel({ product }: { product: Product }) {
         })}
       </div>
       {selected && (
-        <p className="mt-2 text-[12px] text-ink-soft">
+        <p className="mt-2 text-[13px] text-ink-soft">
           {selectedFull ? (
             <>
               {DELIVERY_DAY_LABEL[deliveryDay]} 정원 마감 — 신청 시{" "}
@@ -121,7 +121,7 @@ export function PurchasePanel({ product }: { product: Product }) {
 
       {/* 수량 (매주 회당) */}
       <div className="mt-6 flex items-center justify-between">
-        <p className="text-[12px] uppercase tracking-[0.18em] text-mute">회당 수량</p>
+        <p className="text-[13px] uppercase tracking-[0.18em] text-mute">회당 수량</p>
         <div className="flex items-center rounded-full border border-line">
           <button
             onClick={() => setQty((q) => Math.max(1, q - 1))}
@@ -143,7 +143,7 @@ export function PurchasePanel({ product }: { product: Product }) {
 
       {/* 함께 담기 — 같은 요일에 다른 제품도 추가 */}
       <div className="mt-7 border-t border-line pt-6">
-        <p className="text-[12px] uppercase tracking-[0.18em] text-mute">
+        <p className="text-[13px] uppercase tracking-[0.18em] text-mute">
           함께 담기 · 같은 요일 배송
         </p>
         <p className="mt-1 text-[11.5px] leading-relaxed text-ink-soft">
@@ -165,10 +165,10 @@ export function PurchasePanel({ product }: { product: Product }) {
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] text-ink">
+                  <p className="truncate text-[14px] text-ink">
                     {p.name} {p.volume}
                   </p>
-                  <p className="mt-0.5 text-[11px] tabular-nums text-gold-deep">
+                  <p className="mt-0.5 text-[12px] tabular-nums text-gold-deep">
                     {formatKRW(ep)} / 회
                   </p>
                 </div>
@@ -181,7 +181,7 @@ export function PurchasePanel({ product }: { product: Product }) {
                   >
                     −
                   </button>
-                  <span className="min-w-6 text-center text-[13px] tabular-nums text-ink">
+                  <span className="min-w-6 text-center text-[14px] tabular-nums text-ink">
                     {eq}
                   </span>
                   <button
@@ -202,26 +202,26 @@ export function PurchasePanel({ product }: { product: Product }) {
       <div className="mt-7 border-t border-line pt-6">
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[13px] text-mute line-through tabular-nums">
+            <p className="text-[14px] text-mute line-through tabular-nums">
               {formatKRW(origPerDelivery)} / 회
             </p>
             <p className="font-serif-kr text-2xl text-ink tabular-nums">
               {formatKRW(perDelivery)}
-              <span className="ml-1 text-[13px] font-sans text-mute">/ 회</span>
+              <span className="ml-1 text-[14px] font-sans text-mute">/ 회</span>
             </p>
           </div>
-          <p className="text-right text-[12px] text-ink-soft">
+          <p className="text-right text-[13px] text-ink-soft">
             매주 {DELIVERY_DAY_LABEL[deliveryDay]}
             <br />
             <span className="text-gold-deep">배송비 무료</span>
           </p>
         </div>
 
-        <p className="mt-2 text-[11px] text-mute">
+        <p className="mt-2 text-[12px] text-mute">
           {product.taxFree ? "면세품 · 부가세 없음" : "과세품 · 부가세 포함 가격"}
         </p>
 
-        <p className="mt-1 text-[12px] text-ink-soft tabular-nums">
+        <p className="mt-1 text-[13px] text-ink-soft tabular-nums">
           {BLOCK_WEEKS}주분({SUB_MIN_DELIVERIES}회) 선입금 기준{" "}
           <span className="font-semibold text-ink">{formatKRW(blockTotal)}</span>
         </p>

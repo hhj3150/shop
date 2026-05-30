@@ -46,7 +46,7 @@ export default async function ProductPage({
   return (
     <SwipeNav prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`}>
       <div className="mx-auto max-w-7xl px-5 pt-24 sm:px-8">
-        <nav className="py-5 text-[12px] tracking-wide text-mute">
+        <nav className="py-5 text-[13px] tracking-wide text-mute">
           <Link href="/" className="hover:text-gold">홈</Link>
           <span className="mx-2">/</span>
           <Link href="/#products" className="hover:text-gold">제품</Link>
@@ -76,7 +76,7 @@ export default async function ProductPage({
 
           {/* Detail */}
           <div className="flex flex-col">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-gold">
+            <p className="text-[12px] uppercase tracking-[0.24em] text-gold">
               {product.nameEn} · {product.volume} · {product.badge}
             </p>
             <h1 className="mt-4 font-serif-kr text-[clamp(2rem,4vw,3rem)] font-medium leading-[1.15] text-ink">
@@ -106,7 +106,7 @@ export default async function ProductPage({
             <dl className="mt-10 divide-y divide-line border-y border-line">
               {product.specs.map((s) => (
                 <div key={s.label} className="flex items-center justify-between py-4">
-                  <dt className="text-[12px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
+                  <dt className="text-[13px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
                   <dd className="text-[14px] text-ink">{s.value}</dd>
                 </div>
               ))}
@@ -142,7 +142,7 @@ export default async function ProductPage({
             ] as const
           ).map(([k, v]) => (
             <div key={k} className="grid grid-cols-[7rem_1fr] gap-4 py-3.5 sm:grid-cols-[9rem_1fr]">
-              <dt className="text-[12px] uppercase tracking-[0.14em] text-mute">{k}</dt>
+              <dt className="text-[13px] uppercase tracking-[0.14em] text-mute">{k}</dt>
               <dd className="text-ink-soft">{v}</dd>
             </div>
           ))}
@@ -177,7 +177,7 @@ export default async function ProductPage({
                   />
                 </div>
                 <div className="border-t border-line p-5">
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-mute">{p.volume}</p>
+                  <p className="text-[12px] uppercase tracking-[0.2em] text-mute">{p.volume}</p>
                   <h3 className="mt-2 font-serif-kr text-base text-ink">
                     {p.tagline}{" "}
                     <span className="font-display italic text-gold">{p.taglineEm}</span>

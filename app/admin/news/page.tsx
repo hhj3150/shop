@@ -178,7 +178,7 @@ export default function AdminNewsPage() {
         </div>
         <Link
           href="/admin"
-          className="rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft hover:border-gold hover:text-gold"
+          className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold"
         >
           ← 물류 ERP
         </Link>
@@ -187,7 +187,7 @@ export default function AdminNewsPage() {
       {/* 편집 폼 */}
       <div className="mt-8 space-y-5 rounded-3xl border border-line bg-cream p-5 sm:p-7">
         <label className="block">
-          <span className="text-[12px] uppercase tracking-[0.14em] text-mute">제목</span>
+          <span className="text-[13px] uppercase tracking-[0.14em] text-mute">제목</span>
           <input
             value={draft.title}
             onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
@@ -197,7 +197,7 @@ export default function AdminNewsPage() {
         </label>
 
         <label className="block">
-          <span className="text-[12px] uppercase tracking-[0.14em] text-mute">내용</span>
+          <span className="text-[13px] uppercase tracking-[0.14em] text-mute">내용</span>
           <textarea
             value={draft.body}
             onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
@@ -209,7 +209,7 @@ export default function AdminNewsPage() {
 
         {/* 이미지 */}
         <div>
-          <span className="text-[12px] uppercase tracking-[0.14em] text-mute">대표 사진</span>
+          <span className="text-[13px] uppercase tracking-[0.14em] text-mute">대표 사진</span>
           <div className="mt-2 flex items-center gap-4">
             {draft.cover_url ? (
               <div className="relative h-24 w-24 overflow-hidden rounded-xl border border-line bg-paper">
@@ -217,7 +217,7 @@ export default function AdminNewsPage() {
               </div>
             ) : null}
             <div className="flex flex-col gap-2">
-              <label className="inline-flex cursor-pointer rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft hover:border-gold hover:text-gold">
+              <label className="inline-flex cursor-pointer rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
                 {uploading ? "올리는 중…" : draft.cover_url ? "사진 변경" : "사진 올리기"}
                 <input type="file" accept="image/*" onChange={onUpload} className="hidden" disabled={uploading} />
               </label>
@@ -225,7 +225,7 @@ export default function AdminNewsPage() {
                 <button
                   type="button"
                   onClick={() => setDraft((d) => ({ ...d, cover_url: null }))}
-                  className="text-left text-[12px] text-mute underline-offset-2 hover:underline"
+                  className="text-left text-[13px] text-mute underline-offset-2 hover:underline"
                 >
                   사진 제거
                 </button>
@@ -236,7 +236,7 @@ export default function AdminNewsPage() {
 
         {/* 유튜브 */}
         <label className="block">
-          <span className="text-[12px] uppercase tracking-[0.14em] text-mute">유튜브 링크 (선택)</span>
+          <span className="text-[13px] uppercase tracking-[0.14em] text-mute">유튜브 링크 (선택)</span>
           <input
             value={draft.youtubeInput}
             onChange={(e) => setDraft((d) => ({ ...d, youtubeInput: e.target.value }))}
@@ -244,13 +244,13 @@ export default function AdminNewsPage() {
             className="mt-2 w-full rounded-xl border border-line bg-paper px-4 py-3 text-[14px] text-ink outline-none focus:border-gold"
           />
           {draft.youtubeInput && (
-            <span className={`mt-1 block text-[12px] ${ytPreview ? "text-gold-deep" : "text-mute"}`}>
+            <span className={`mt-1 block text-[13px] ${ytPreview ? "text-gold-deep" : "text-mute"}`}>
               {ytPreview ? `인식됨 · ${ytPreview}` : "유튜브 주소를 인식하지 못했습니다."}
             </span>
           )}
         </label>
 
-        {msg && <p className="text-[13px] text-gold-deep">{msg}</p>}
+        {msg && <p className="text-[14px] text-gold-deep">{msg}</p>}
 
         <div className="flex flex-wrap gap-2 pt-1">
           <button
@@ -270,7 +270,7 @@ export default function AdminNewsPage() {
           {draft.id && (
             <button
               onClick={resetDraft}
-              className="rounded-full px-4 py-3 text-[13px] text-mute hover:text-ink"
+              className="rounded-full px-4 py-3 text-[14px] text-mute hover:text-ink"
             >
               새 글로
             </button>
@@ -297,7 +297,7 @@ export default function AdminNewsPage() {
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] text-ink">{r.title}</p>
-                <p className="mt-0.5 text-[12px] text-mute">
+                <p className="mt-0.5 text-[13px] text-mute">
                   {new Date(r.created_at).toLocaleDateString("ko-KR")}
                   {r.youtube_id ? " · 영상" : ""}
                   {" · "}
@@ -309,19 +309,19 @@ export default function AdminNewsPage() {
               <div className="flex shrink-0 gap-1.5">
                 <button
                   onClick={() => editRow(r)}
-                  className="rounded-full border border-line px-3 py-1.5 text-[12px] text-ink-soft hover:border-gold hover:text-gold"
+                  className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft hover:border-gold hover:text-gold"
                 >
                   수정
                 </button>
                 <button
                   onClick={() => togglePublish(r)}
-                  className="rounded-full border border-line px-3 py-1.5 text-[12px] text-ink-soft hover:border-gold hover:text-gold"
+                  className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft hover:border-gold hover:text-gold"
                 >
                   {r.published ? "숨기기" : "게시"}
                 </button>
                 <button
                   onClick={() => remove(r)}
-                  className="rounded-full border border-line px-3 py-1.5 text-[12px] text-mute hover:border-red-300 hover:text-red-500"
+                  className="rounded-full border border-line px-3 py-1.5 text-[13px] text-mute hover:border-red-300 hover:text-red-500"
                 >
                   삭제
                 </button>

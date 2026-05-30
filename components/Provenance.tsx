@@ -37,7 +37,7 @@ export function Provenance() {
                 <p className="font-serif-kr text-[clamp(1.8rem,4vw,2.6rem)] font-medium text-gold-deep tabular-nums">
                   {s.v}
                 </p>
-                <p className="mt-2 text-[13px] tracking-wide text-mute">{s.l}</p>
+                <p className="mt-2 text-[14px] tracking-wide text-mute">{s.l}</p>
               </div>
             </Reveal>
           ))}
@@ -46,7 +46,7 @@ export function Provenance() {
         <Reveal delay={140}>
           <div className="mt-10 grid gap-x-12 gap-y-8 border-t border-line pt-9 sm:grid-cols-3">
             <div>
-              <p className="font-display text-[12px] uppercase tracking-[0.2em] text-gold-deep">
+              <p className="font-display text-[13px] uppercase tracking-[0.2em] text-gold-deep">
                 A2 / A2
               </p>
               <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
@@ -54,7 +54,7 @@ export function Provenance() {
               </p>
             </div>
             <div>
-              <p className="font-display text-[12px] uppercase tracking-[0.2em] text-gold-deep">
+              <p className="font-display text-[13px] uppercase tracking-[0.2em] text-gold-deep">
                 Hay-Fed
               </p>
               <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
@@ -62,7 +62,7 @@ export function Provenance() {
               </p>
             </div>
             <div>
-              <p className="font-display text-[12px] uppercase tracking-[0.2em] text-gold-deep">
+              <p className="font-display text-[13px] uppercase tracking-[0.2em] text-gold-deep">
                 Jersey
               </p>
               <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
@@ -74,14 +74,14 @@ export function Provenance() {
 
         <Reveal delay={200}>
           <div className="mt-10">
-            <p className="text-[12px] uppercase tracking-[0.2em] text-mute">
+            <p className="text-[13px] uppercase tracking-[0.2em] text-mute">
               국가·기관 인증
             </p>
             <ul className="mt-4 flex flex-wrap gap-2.5">
               {CERTS.map((c) => (
                 <li
                   key={c}
-                  className="rounded-full border border-gold/40 bg-gold/8 px-4 py-2 text-[13px] font-medium text-gold-deep"
+                  className="rounded-full border border-gold/40 bg-gold/8 px-4 py-2 text-[14px] font-medium text-gold-deep"
                 >
                   {c}
                 </li>

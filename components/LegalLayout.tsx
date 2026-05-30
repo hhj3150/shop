@@ -17,7 +17,7 @@ export function LegalLayout({
       <h1 className="mt-3 font-serif-kr text-[clamp(1.8rem,5vw,2.6rem)] font-medium text-ink">
         {title}
       </h1>
-      <p className="mt-2 text-[13px] text-mute">시행일 {updated}</p>
+      <p className="mt-2 text-[14px] text-mute">시행일 {updated}</p>
       <div className="legal mt-10 space-y-8 text-[14px] leading-loose text-ink-soft">
         {children}
       </div>

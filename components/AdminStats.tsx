@@ -121,7 +121,7 @@ export function AdminStats({
   return (
     <section id="stats" className="mt-12">
       <h2 className="font-serif-kr text-lg text-ink">통계 분석</h2>
-      <p className="mt-1 text-[12px] text-mute">
+      <p className="mt-1 text-[13px] text-mute">
         확정 구독(입금확인 이후) 기준입니다. 매출은 1회분 입금액 합계.
       </p>
 
@@ -144,11 +144,11 @@ export function AdminStats({
           <ul className="space-y-3">
             {dayOccupancy.map((d) => (
               <li key={d.day} className="flex items-center gap-3">
-                <span className="w-7 shrink-0 text-[13px] text-ink-soft">
+                <span className="w-7 shrink-0 text-[14px] text-ink-soft">
                   {DELIVERY_DAY_LABEL[d.day].charAt(0)}
                 </span>
                 <Bar pct={d.pct} />
-                <span className="w-16 shrink-0 text-right text-[12px] tabular-nums text-mute">
+                <span className="w-16 shrink-0 text-right text-[13px] tabular-nums text-mute">
                   {d.taken} / 100
                 </span>
               </li>
@@ -159,14 +159,14 @@ export function AdminStats({
         {/* 제품별 매출 비중 */}
         <Card title="제품별 매출 비중" sub="확정 구독 1회분">
           {productMix.length === 0 ? (
-            <p className="py-6 text-center text-[13px] text-mute">
+            <p className="py-6 text-center text-[14px] text-mute">
               확정 구독이 아직 없습니다.
             </p>
           ) : (
             <ul className="space-y-3">
               {productMix.map((p) => (
                 <li key={p.name}>
-                  <div className="flex items-baseline justify-between text-[13px]">
+                  <div className="flex items-baseline justify-between text-[14px]">
                     <span className="text-ink">{p.name}</span>
                     <span className="tabular-nums text-mute">
                       {formatKRW(p.revenue)} · {p.pct}%

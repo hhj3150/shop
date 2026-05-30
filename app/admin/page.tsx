@@ -298,13 +298,13 @@ export default function AdminPage() {
           </h1>
         </div>
         <div className="flex gap-2 no-print">
-          <Link href="/admin/news" className="rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft hover:border-gold hover:text-gold">
+          <Link href="/admin/news" className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
             소식 전하기
           </Link>
-          <button onClick={load} className="rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft hover:border-gold hover:text-gold">
+          <button onClick={load} className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
             새로고침
           </button>
-          <button onClick={() => window.print()} className="rounded-full bg-ink px-4 py-2 text-[13px] text-cream hover:bg-gold-deep">
+          <button onClick={() => window.print()} className="rounded-full bg-ink px-4 py-2 text-[14px] text-cream hover:bg-gold-deep">
             보고서 출력
           </button>
         </div>
@@ -326,7 +326,7 @@ export default function AdminPage() {
       {/* 요일별 모집 현황 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별 모집 현황 (정원 100명)</h2>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[480px] border-collapse text-[13px]">
+        <table className="w-full min-w-[480px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">요일</th>
@@ -352,9 +352,9 @@ export default function AdminPage() {
 
       {/* 요일별·제품별 주간 필요 수량 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별·제품별 주간 필요 수량</h2>
-      <p className="mt-1 text-[12px] text-mute">확정 구독(자동이체 확인) 기준, 1회(매주) 발송 수량입니다.</p>
+      <p className="mt-1 text-[13px] text-mute">확정 구독(자동이체 확인) 기준, 1회(매주) 발송 수량입니다.</p>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[560px] border-collapse text-[13px]">
+        <table className="w-full min-w-[560px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">제품</th>
@@ -395,13 +395,13 @@ export default function AdminPage() {
           onChange={(e) => setDate(e.target.value)}
           className="rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
         />
-        <span className="text-[13px] text-mute">
+        <span className="text-[14px] text-mute">
           {selectedWeekday ? `${DELIVERY_DAY_LABEL[selectedWeekday]} 배송분` : "주말은 배송이 없습니다"}
         </span>
         {selectedWeekday && deliveryList.length > 0 && (
           <button
             onClick={() => exportDayCsv(selectedWeekday)}
-            className="rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft hover:border-gold hover:text-gold-deep"
+            className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold-deep"
           >
             이 요일 명단 CSV
           </button>
@@ -411,7 +411,7 @@ export default function AdminPage() {
       {selectedWeekday && Object.keys(deliveryProductTotals).length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
           {Object.entries(deliveryProductTotals).map(([k, v]) => (
-            <span key={k} className="rounded-full bg-gold/10 px-3 py-1 text-[12px] text-gold-deep">
+            <span key={k} className="rounded-full bg-gold/10 px-3 py-1 text-[13px] text-gold-deep">
               {k} · {v}개
             </span>
           ))}
@@ -419,7 +419,7 @@ export default function AdminPage() {
       )}
 
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-[13px]">
+        <table className="w-full min-w-[640px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">이름</th>
@@ -454,7 +454,7 @@ export default function AdminPage() {
       {/* 대기자 명단 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">대기자 명단</h2>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[420px] border-collapse text-[13px]">
+        <table className="w-full min-w-[420px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">요일</th>
@@ -482,9 +482,9 @@ export default function AdminPage() {
 
       {/* 주문 관리 — 상태 변경 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">주문 관리</h2>
-      <p className="mt-1 text-[12px] text-mute">상태를 변경하면 저장됩니다. ‘입금확인’으로 바꾸면 자동이체가 확인된 것으로 보고 구독이 활성화됩니다.</p>
+      <p className="mt-1 text-[13px] text-mute">상태를 변경하면 저장됩니다. ‘입금확인’으로 바꾸면 자동이체가 확인된 것으로 보고 구독이 활성화됩니다.</p>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-[13px]">
+        <table className="w-full min-w-[640px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">주문번호</th>
@@ -508,7 +508,7 @@ export default function AdminPage() {
                     <select
                       value={o.status}
                       onChange={(e) => updateStatus(o, e.target.value)}
-                      className="rounded-lg border border-line bg-cream px-2 py-1 text-[13px] text-ink"
+                      className="rounded-lg border border-line bg-cream px-2 py-1 text-[14px] text-ink"
                     >
                       {STATUSES.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -525,7 +525,7 @@ export default function AdminPage() {
       {/* 상태별 요약 */}
       <div className="mt-8 flex flex-wrap gap-2">
         {STATUSES.map((s) => (
-          <span key={s} className="rounded-full border border-line px-3 py-1 text-[12px] text-ink-soft">
+          <span key={s} className="rounded-full border border-line px-3 py-1 text-[13px] text-ink-soft">
             {s} {statusCounts[s] ?? 0}
           </span>
         ))}
@@ -537,7 +537,7 @@ export default function AdminPage() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-line bg-cream p-4">
-      <p className="text-[12px] text-mute">{label}</p>
+      <p className="text-[13px] text-mute">{label}</p>
       <p className="mt-1 font-serif-kr text-xl text-ink tabular-nums">{value}</p>
     </div>
   );

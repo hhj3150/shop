@@ -39,7 +39,7 @@ export function Nav() {
           />
         </Link>
 
-        <div className="hidden items-center gap-9 text-[13px] tracking-wide text-ink-soft md:flex">
+        <div className="hidden items-center gap-9 text-[14px] tracking-wide text-ink-soft md:flex">
           <Link href="/#products" className="transition-colors hover:text-gold">
             제품
           </Link>
@@ -60,7 +60,7 @@ export function Nav() {
           <Link
             href={user ? "/account" : "/login"}
             aria-label={user ? "내 계정" : "로그인"}
-            className="flex items-center gap-1.5 rounded-full border border-line bg-cream/60 px-4 py-2 text-[12px] tracking-wide text-ink transition-all hover:border-gold hover:text-gold"
+            className="flex items-center gap-1.5 rounded-full border border-line bg-cream/60 px-4 py-2 text-[13px] tracking-wide text-ink transition-all hover:border-gold hover:text-gold"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <circle cx="12" cy="8" r="3.2" />
@@ -72,7 +72,7 @@ export function Nav() {
           <button
             onClick={open}
             aria-label="장바구니 열기"
-            className="group relative flex items-center gap-2 rounded-full border border-line bg-cream/60 px-4 py-2 text-[12px] tracking-wide text-ink transition-all hover:border-gold hover:text-gold"
+            className="group relative flex items-center gap-2 rounded-full border border-line bg-cream/60 px-4 py-2 text-[13px] tracking-wide text-ink transition-all hover:border-gold hover:text-gold"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M6 7h12l-1 13H7L6 7Z" strokeLinejoin="round" />

@@ -96,7 +96,7 @@ export default function SignupPage() {
       </p>
 
       {!configured && (
-        <p className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[13px] text-gold-deep">
+        <p className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] text-gold-deep">
           현재 회원 시스템(Supabase) 연결이 설정되지 않았습니다. 관리자에게
           문의해 주세요.
         </p>
@@ -175,7 +175,7 @@ export default function SignupPage() {
           onChange={(e) => update("addressDetail", e.target.value)}
         />
 
-        <label className="flex items-start gap-2.5 pt-1 text-[13px] leading-relaxed text-ink-soft">
+        <label className="flex items-start gap-2.5 pt-1 text-[14px] leading-relaxed text-ink-soft">
           <input
             type="checkbox"
             checked={agree}
@@ -195,12 +195,12 @@ export default function SignupPage() {
         </label>
 
         {error && (
-          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
             {error}
           </p>
         )}
         {info && (
-          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[13px] text-gold-deep">
+          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] text-gold-deep">
             {info}
           </p>
         )}
@@ -214,7 +214,7 @@ export default function SignupPage() {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-[13px] text-mute">
+      <p className="mt-6 text-center text-[14px] text-mute">
         이미 회원이신가요?{" "}
         <Link href="/login" className="text-gold-deep underline hover:text-gold">
           로그인

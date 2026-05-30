@@ -23,7 +23,7 @@ export function FarmBand() {
 
       <div className="absolute inset-x-0 bottom-0">
         <div className="mx-auto max-w-7xl px-5 pb-12 sm:px-8 sm:pb-16">
-          <p className="font-display text-[12px] uppercase tracking-[0.32em] text-cream/75 sm:text-[13px]">
+          <p className="font-display text-[13px] uppercase tracking-[0.32em] text-cream/75 sm:text-[14px]">
             Anseong · Made by Soil
           </p>
           <h2 className="mt-4 max-w-xl font-serif-kr text-[clamp(1.7rem,4.6vw,3rem)] font-medium leading-[1.18] text-cream">
@@ -31,7 +31,7 @@ export function FarmBand() {
             <br />
             <span className="text-gold">100% A2 저지.</span>
           </h2>
-          <p className="mt-4 text-[13px] tracking-wide text-cream/60">
+          <p className="mt-4 text-[14px] tracking-wide text-cream/60">
             경기도 안성 송영신목장에서 매주 갓 짜냅니다.
           </p>
         </div>

@@ -38,7 +38,7 @@ export function WhyHayMilk() {
           {NOTES.map((n, i) => (
             <Reveal key={n.k} delay={i * 80}>
               <div className="border-t border-line pt-6">
-                <p className="font-display text-[13px] uppercase tracking-[0.2em] text-gold-deep">
+                <p className="font-display text-[14px] uppercase tracking-[0.2em] text-gold-deep">
                   {n.k}
                 </p>
                 <h3 className="mt-3 font-serif-kr text-lg text-ink">{n.t}</h3>

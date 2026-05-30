@@ -85,11 +85,11 @@ export function ProductReviews({ productId }: { productId: string }) {
           <p className="font-serif-kr text-3xl tabular-nums text-ink">
             {reviews.length > 0 ? avg.toFixed(1) : "–"}
           </p>
-          <p className="mt-0.5 text-[11px] text-mute">/ 5.0</p>
+          <p className="mt-0.5 text-[12px] text-mute">/ 5.0</p>
         </div>
         <div>
           <Stars value={avg} size={20} />
-          <p className="mt-1 text-[12px] text-mute">
+          <p className="mt-1 text-[13px] text-mute">
             후기 {reviews.length}개
           </p>
         </div>
@@ -99,9 +99,9 @@ export function ProductReviews({ productId }: { productId: string }) {
       {user ? (
         <form onSubmit={onSubmit} className="mt-6 rounded-2xl border border-line bg-paper p-5">
           <div className="flex items-center gap-3">
-            <span className="text-[13px] text-ink-soft">별점</span>
+            <span className="text-[14px] text-ink-soft">별점</span>
             <Stars value={rating} onChange={setRating} size={24} />
-            <span className="text-[13px] tabular-nums text-gold-deep">{rating}.0</span>
+            <span className="text-[14px] tabular-nums text-gold-deep">{rating}.0</span>
           </div>
           <textarea
             value={body}
@@ -111,17 +111,17 @@ export function ProductReviews({ productId }: { productId: string }) {
             placeholder="제품에 대한 솔직한 후기를 남겨 주세요."
             className="mt-4 w-full resize-none rounded-xl border border-line bg-cream px-4 py-3 text-[14px] text-ink outline-none focus:border-gold"
           />
-          {error && <p className="mt-2 text-[13px] text-red-700">{error}</p>}
+          {error && <p className="mt-2 text-[14px] text-red-700">{error}</p>}
           <button
             type="submit"
             disabled={busy || !body.trim()}
-            className="mt-3 rounded-full bg-ink px-6 py-2.5 text-[13px] font-medium text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-3 rounded-full bg-ink px-6 py-2.5 text-[14px] font-medium text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "등록 중…" : "후기 남기기"}
           </button>
         </form>
       ) : (
-        <p className="mt-6 rounded-2xl border border-line bg-paper px-5 py-4 text-[13px] text-mute">
+        <p className="mt-6 rounded-2xl border border-line bg-paper px-5 py-4 text-[14px] text-mute">
           후기는 회원만 작성할 수 있습니다.{" "}
           <Link href="/login" className="text-gold-deep underline-offset-4 hover:underline">
             로그인
@@ -142,9 +142,9 @@ export function ProductReviews({ productId }: { productId: string }) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Stars value={r.rating} size={15} />
-                <span className="text-[13px] text-ink-soft">{maskName(r.author_name)}</span>
+                <span className="text-[14px] text-ink-soft">{maskName(r.author_name)}</span>
               </div>
-              <span className="text-[12px] tabular-nums text-mute">
+              <span className="text-[13px] tabular-nums text-mute">
                 {formatReviewDate(r.created_at)}
               </span>
             </div>
@@ -155,7 +155,7 @@ export function ProductReviews({ productId }: { productId: string }) {
               <button
                 type="button"
                 onClick={() => onDelete(r.id)}
-                className="mt-2 text-[12px] text-mute underline-offset-4 hover:text-red-700 hover:underline"
+                className="mt-2 text-[13px] text-mute underline-offset-4 hover:text-red-700 hover:underline"
               >
                 삭제
               </button>

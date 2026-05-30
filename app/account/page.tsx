@@ -52,7 +52,7 @@ export default function AccountPage() {
         </div>
         <button
           onClick={() => signOut().then(() => router.push("/"))}
-          className="rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+          className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
         >
           로그아웃
         </button>
@@ -69,7 +69,7 @@ export default function AccountPage() {
           {profile.is_admin && (
             <Link
               href="/admin"
-              className="mt-4 inline-flex rounded-full bg-ink px-5 py-2.5 text-[13px] text-cream transition-colors hover:bg-gold-deep"
+              className="mt-4 inline-flex rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep"
             >
               관리자 모드
             </Link>
@@ -90,13 +90,13 @@ export default function AccountPage() {
           {orders.map((o) => (
             <li key={o.id} className="flex items-center justify-between px-5 py-4">
               <div>
-                <p className="text-[13px] tabular-nums text-ink">{o.order_no}</p>
-                <p className="mt-0.5 text-[12px] text-mute">
+                <p className="text-[14px] tabular-nums text-ink">{o.order_no}</p>
+                <p className="mt-0.5 text-[13px] text-mute">
                   {new Date(o.created_at).toLocaleDateString("ko-KR")}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[12px] font-medium text-gold-deep">{o.status}</p>
+                <p className="text-[13px] font-medium text-gold-deep">{o.status}</p>
                 <p className="mt-0.5 text-[14px] tabular-nums text-ink">
                   {formatKRW(o.total_amount)}
                 </p>

@@ -8,7 +8,7 @@ type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
 export function Field({ label, hint, id, className, ...rest }: FieldProps) {
   return (
     <label htmlFor={id} className="block">
-      <span className="block text-[12px] font-medium tracking-wide text-ink-soft">
+      <span className="block text-[13px] font-medium tracking-wide text-ink-soft">
         {label}
       </span>
       <input
@@ -16,7 +16,7 @@ export function Field({ label, hint, id, className, ...rest }: FieldProps) {
         className={`mt-2 w-full rounded-xl border border-line bg-cream px-4 py-3 text-[15px] text-ink outline-none transition-colors placeholder:text-mute/60 focus:border-gold ${className ?? ""}`}
         {...rest}
       />
-      {hint && <span className="mt-1.5 block text-[12px] text-mute">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-[13px] text-mute">{hint}</span>}
     </label>
   );
 }

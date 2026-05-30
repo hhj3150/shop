@@ -177,7 +177,7 @@ function OrderOnce() {
                 <p className="truncate text-[14px] text-ink">
                   {p.name} {p.volume}
                 </p>
-                <p className="mt-0.5 text-[12px] tabular-nums text-gold-deep">
+                <p className="mt-0.5 text-[13px] tabular-nums text-gold-deep">
                   {formatKRW(p.price)}
                   <span className="ml-1.5 text-mute">{p.taxFree ? "면세" : "과세"}</span>
                 </p>
@@ -224,7 +224,7 @@ function OrderOnce() {
           </span>
         </div>
         {!freeShip && subtotal > 0 && (
-          <p className="mt-1.5 text-[12px] text-mute">
+          <p className="mt-1.5 text-[13px] text-mute">
             {formatKRW(ONCE_FREE_SHIP_KRW)} 이상 구매 시 무료배송
             {` (${formatKRW(ONCE_FREE_SHIP_KRW - subtotal)} 더 담으면 무료)`}
           </p>
@@ -234,7 +234,7 @@ function OrderOnce() {
           <span className="font-serif-kr text-xl tabular-nums text-ink">{formatKRW(total)}</span>
         </div>
         {belowMin && (
-          <p className="mt-3 text-[12px] text-mute">
+          <p className="mt-3 text-[13px] text-mute">
             상품 합계 {formatKRW(ONCE_MIN_KRW)} 이상부터 주문할 수 있습니다.
             {subtotal > 0 && ` (${formatKRW(ONCE_MIN_KRW - subtotal)} 더 담아 주세요)`}
           </p>
@@ -243,12 +243,12 @@ function OrderOnce() {
 
       {/* 입금 계좌 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
-        <p className="text-[12px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
+        <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
         <p className="mt-2 font-serif-kr text-lg text-ink">
           {DEPOSIT.bank} {DEPOSIT.account}
         </p>
-        <p className="mt-0.5 text-[13px] text-mute">예금주 {DEPOSIT.holder}</p>
-        <p className="mt-3 text-[12px] leading-relaxed text-ink-soft">
+        <p className="mt-0.5 text-[14px] text-mute">예금주 {DEPOSIT.holder}</p>
+        <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
           주문 후 위 계좌로 {formatKRW(total)}을 입금해 주세요. 입금이 확인되면 발송됩니다.
         </p>
       </div>
@@ -275,7 +275,7 @@ function OrderOnce() {
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
         {error && (
-          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
             {error}
           </p>
         )}
@@ -287,10 +287,10 @@ function OrderOnce() {
         >
           {busy ? "주문 접수 중…" : `${formatKRW(total)} 입금하고 주문하기`}
         </button>
-        <p className="text-center text-[11px] text-mute">
+        <p className="text-center text-[12px] text-mute">
           무통장입금 주문입니다. 입금 확인 후 {dispatch}에 발송됩니다.
         </p>
-        <p className="text-center text-[12px] text-mute">
+        <p className="text-center text-[13px] text-mute">
           매주 받아보고 싶으시면{" "}
           <Link href="/#subscribe" className="text-gold-deep underline-offset-4 hover:underline">
             정기구독

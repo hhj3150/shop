@@ -131,7 +131,7 @@ export default function CheckoutPage() {
               <li key={item.key} className="flex justify-between py-3 text-[14px]">
                 <span className="text-ink-soft">
                   {p.name} {p.volume}
-                  <span className="ml-2 text-[12px] text-gold-deep">
+                  <span className="ml-2 text-[13px] text-gold-deep">
                     정기구독 · 매주 {DELIVERY_DAY_LABEL[item.deliveryDay]}
                   </span>
                   <span className="ml-2 text-mute">× {item.qty}</span>
@@ -157,14 +157,14 @@ export default function CheckoutPage() {
 
       {/* 자동이체 등록 계좌 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
-        <p className="text-[12px] uppercase tracking-[0.18em] text-gold-deep">
+        <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
           자동이체 등록 계좌
         </p>
         <p className="mt-2 font-serif-kr text-lg text-ink">
           {DEPOSIT.bank} {DEPOSIT.account}
         </p>
-        <p className="mt-0.5 text-[13px] text-mute">예금주 {DEPOSIT.holder}</p>
-        <p className="mt-3 text-[12px] leading-relaxed text-ink-soft">
+        <p className="mt-0.5 text-[14px] text-mute">예금주 {DEPOSIT.holder}</p>
+        <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
           은행 앱·창구에서 위 계좌로 4주마다 {formatKRW(blockTotal)} 자동이체를
           등록해 주세요. 자동이체 확인 후 발송이 시작됩니다.
         </p>
@@ -191,7 +191,7 @@ export default function CheckoutPage() {
         <Field id="depositorName" label="입금자명" hint="통장 입금 대조를 위해 실제 입금하실 분의 이름을 적어 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
-        <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[13px] leading-relaxed text-gold-deep">
+        <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
           선택하신 요일에 매주 한 번 받으시며, {BLOCK_WEEKS}주분({SUB_MIN_DELIVERIES}회)을
           먼저 입금해 주시면 입금 확인 후 발송이 시작됩니다. 최소 {SUB_MIN_DELIVERIES}회
           이후 언제든 해지하실 수 있습니다. 정기구독은 요일별 선착순 100명, 전체 500명
@@ -199,7 +199,7 @@ export default function CheckoutPage() {
         </p>
 
         {error && (
-          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
             {error}
           </p>
         )}
@@ -211,7 +211,7 @@ export default function CheckoutPage() {
         >
           {busy ? "신청 접수 중…" : "구독 신청하고 자동이체 안내 받기"}
         </button>
-        <p className="text-center text-[11px] text-mute">
+        <p className="text-center text-[12px] text-mute">
           신청 시 자동이체 확인 대기 상태로 접수됩니다. 자동이체 확인 후 발송됩니다.
         </p>
       </form>

@@ -52,7 +52,7 @@ export function ProductShowcase() {
               type="button"
               onClick={() => setFilter(f.key)}
               aria-pressed={filter === f.key}
-              className={`rounded-full px-5 py-2 text-[13px] font-medium tracking-wide transition-colors ${
+              className={`rounded-full px-5 py-2 text-[14px] font-medium tracking-wide transition-colors ${
                 filter === f.key ? "bg-ink text-cream" : "text-ink-soft hover:text-ink"
               }`}
             >
@@ -67,7 +67,7 @@ export function ProductShowcase() {
           <Reveal key={p.id} delay={(i % 2) * 80}>
             <article className="group flex h-full flex-col items-center rounded-[28px] bg-cream/60 px-6 pt-10 pb-8 text-center transition-all duration-500 hover:-translate-y-1.5 hover:bg-cream hover:shadow-[0_44px_90px_-34px_rgba(40,30,15,0.32)] sm:rounded-[32px] sm:px-8 sm:pt-12 sm:pb-9">
               <p
-                className="text-[12px] font-semibold uppercase tracking-[0.18em]"
+                className="text-[13px] font-semibold uppercase tracking-[0.18em]"
                 style={{ color: p.accent }}
               >
                 {p.badge}
@@ -118,7 +118,7 @@ export function ProductShowcase() {
                 </Link>
                 <Link
                   href={`/products/${p.id}`}
-                  className="text-[13px] tracking-wide text-gold-deep underline-offset-4 hover:underline"
+                  className="text-[14px] tracking-wide text-gold-deep underline-offset-4 hover:underline"
                 >
                   더 알아보기 →
                 </Link>

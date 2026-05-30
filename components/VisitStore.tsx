@@ -28,7 +28,7 @@ export function VisitStore() {
         <div className="mt-10 grid gap-x-12 gap-y-10 sm:grid-cols-2">
           <Reveal>
             <div className="border-t border-line pt-6">
-              <p className="font-display text-[13px] uppercase tracking-[0.2em] text-gold-deep">
+              <p className="font-display text-[14px] uppercase tracking-[0.2em] text-gold-deep">
                 Farm
               </p>
               <h3 className="mt-3 font-serif-kr text-lg text-ink">송영신목장 판매장</h3>
@@ -56,7 +56,7 @@ export function VisitStore() {
 
           <Reveal delay={100}>
             <div className="border-t border-line pt-6">
-              <p className="font-display text-[13px] uppercase tracking-[0.2em] text-gold-deep">
+              <p className="font-display text-[14px] uppercase tracking-[0.2em] text-gold-deep">
                 Café
               </p>
               <h3 className="mt-3 font-serif-kr text-lg text-ink">
@@ -76,7 +76,7 @@ export function VisitStore() {
                 href={CAFE_HOME}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-5 inline-flex text-[13px] tracking-wide text-gold-deep underline-offset-4 hover:underline"
+                className="mt-5 inline-flex text-[14px] tracking-wide text-gold-deep underline-offset-4 hover:underline"
               >
                 카페 안내 보기 →
               </a>

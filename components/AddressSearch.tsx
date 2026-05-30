@@ -50,7 +50,7 @@ export function AddressSearch({
         type="button"
         onClick={open}
         disabled={!loaded}
-        className="shrink-0 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
+        className="shrink-0 rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loaded ? "주소 검색" : "불러오는 중…"}
       </button>

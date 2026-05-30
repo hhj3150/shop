@@ -45,7 +45,7 @@ export function Maker() {
                   {p.k}
                 </p>
                 <h3 className="mt-3 font-serif-kr text-[16px] text-ink">{p.t}</h3>
-                <p className="mt-2.5 text-[13px] leading-relaxed text-ink-soft">{p.d}</p>
+                <p className="mt-2.5 text-[14px] leading-relaxed text-ink-soft">{p.d}</p>
               </div>
             </Reveal>
           ))}
