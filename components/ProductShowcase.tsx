@@ -52,7 +52,7 @@ export function ProductShowcase() {
       <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2">
         {shown.map((p, i) => (
           <Reveal key={p.id} delay={(i % 2) * 80}>
-            <article className="group flex h-full flex-col items-center rounded-[32px] bg-cream/60 px-8 pt-12 pb-9 text-center transition-all duration-500 hover:-translate-y-1.5 hover:bg-cream hover:shadow-[0_44px_90px_-34px_rgba(40,30,15,0.32)]">
+            <article className="group flex h-full flex-col items-center rounded-[28px] bg-cream/60 px-6 pt-10 pb-8 text-center transition-all duration-500 hover:-translate-y-1.5 hover:bg-cream hover:shadow-[0_44px_90px_-34px_rgba(40,30,15,0.32)] sm:rounded-[32px] sm:px-8 sm:pt-12 sm:pb-9">
               <p
                 className="text-[12px] font-semibold uppercase tracking-[0.18em]"
                 style={{ color: p.accent }}

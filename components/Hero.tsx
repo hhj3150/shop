@@ -8,15 +8,15 @@ export function Hero() {
         {/* Copy */}
         <div className="flex flex-col items-center lg:items-start lg:text-left">
           <Image
-            src="/brand/logo.png"
-            alt="송영신목장 A2 Jersey Hay Milk 로고"
-            width={200}
-            height={200}
+            src="/brand/logo-mark.png"
+            alt="송영신목장 A2 저지 헤이밀크 로고"
+            width={300}
+            height={242}
             priority
-            className="mb-5 h-20 w-20 object-contain sm:h-24 sm:w-24"
+            className="mb-6 w-[190px] max-w-full sm:w-[224px]"
           />
           <p className="font-display text-[12px] uppercase tracking-[0.28em] text-gold-deep sm:text-[13px]">
-            송영신목장 · A2 Jersey Hay Milk
+            A2 Jersey Hay Milk
           </p>
           <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.14] tracking-[-0.02em] text-ink">
             한 모금에 담긴

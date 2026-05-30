@@ -8,23 +8,13 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
-            <div className="flex items-center gap-2.5">
-              <Image
-                src="/brand/logo.png"
-                alt="송영신목장 A2 Jersey Hay Milk"
-                width={80}
-                height={80}
-                className="h-10 w-10 object-contain"
-              />
-              <span className="flex flex-col leading-none">
-                <span className="font-display text-base uppercase tracking-[0.2em] text-ink">
-                  송영신목장
-                </span>
-                <span className="mt-1 text-[9.5px] uppercase tracking-[0.32em] text-mute">
-                  A2 Jersey Hay Milk
-                </span>
-              </span>
-            </div>
+            <Image
+              src="/brand/logo-mark.png"
+              alt="송영신목장 A2 저지 헤이밀크"
+              width={260}
+              height={210}
+              className="w-[150px]"
+            />
             <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-mute">
               경기도 안성에서 A2 저지 헤이밀크를 직접 짓고 발효합니다.
             </p>

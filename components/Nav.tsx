@@ -28,23 +28,15 @@ export function Nav() {
       }`}
     >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
-        <Link href="/" aria-label="송영신목장 A2 Jersey Hay Milk 홈" className="flex items-center gap-2.5">
+        <Link href="/" aria-label="송영신목장 A2 저지 헤이밀크 홈" className="flex items-center">
           <Image
-            src="/brand/logo.png"
-            alt="송영신목장 A2 Jersey Hay Milk"
-            width={80}
-            height={80}
+            src="/brand/logo-mark.png"
+            alt="송영신목장 A2 저지 헤이밀크"
+            width={238}
+            height={192}
             priority
-            className="h-9 w-9 object-contain"
+            className="h-10 w-auto sm:h-11"
           />
-          <span className="flex flex-col leading-none">
-            <span className="font-display text-[15px] uppercase tracking-[0.18em] text-ink">
-              송영신목장
-            </span>
-            <span className="mt-0.5 text-[9px] uppercase tracking-[0.32em] text-mute">
-              A2 Jersey Hay Milk
-            </span>
-          </span>
         </Link>
 
         <div className="hidden items-center gap-9 text-[13px] tracking-wide text-ink-soft md:flex">
