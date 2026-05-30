@@ -204,3 +204,64 @@ create or replace view public.subscription_day_count as
 
 -- 뷰는 익명(미로그인) 방문자도 잔여 수량을 볼 수 있어야 하므로 읽기 권한 부여.
 grant select on public.subscription_day_count to anon, authenticated;
+
+-- ───────────────────────────────────────────────────────────
+-- 6. 소식 (관리자 공지 · 홈 게시)
+--    관리자가 제목/본문/사진/유튜브 링크를 올리고 published=true 로 게시.
+--    게시된 글은 누구나(미로그인 포함) 읽을 수 있다.
+--    이미지는 storage 'news' 버킷에 업로드, cover_url 에 공개 URL 저장.
+--    동영상은 youtube_id 만 저장하고 프론트에서 임베드.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.news (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null,
+  body        text not null,
+  cover_url   text,
+  youtube_id  text,
+  published   boolean not null default false,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.news enable row level security;
+
+-- 게시된 소식은 누구나 읽기.
+drop policy if exists "news_select_published" on public.news;
+create policy "news_select_published" on public.news
+  for select using (published = true);
+
+-- 관리자는 미게시 초안 포함 전체 조회/작성/수정/삭제.
+drop policy if exists "news_select_admin" on public.news;
+create policy "news_select_admin" on public.news
+  for select using (public.is_admin());
+
+drop policy if exists "news_insert_admin" on public.news;
+create policy "news_insert_admin" on public.news
+  for insert with check (public.is_admin());
+
+drop policy if exists "news_update_admin" on public.news;
+create policy "news_update_admin" on public.news
+  for update using (public.is_admin());
+
+drop policy if exists "news_delete_admin" on public.news;
+create policy "news_delete_admin" on public.news
+  for delete using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
+-- 6-1. 소식 이미지 스토리지 버킷 (공개 읽기, 관리자만 업로드)
+-- ───────────────────────────────────────────────────────────
+insert into storage.buckets (id, name, public)
+values ('news', 'news', true)
+on conflict (id) do nothing;
+
+drop policy if exists "news_obj_read" on storage.objects;
+create policy "news_obj_read" on storage.objects
+  for select using (bucket_id = 'news');
+
+drop policy if exists "news_obj_insert" on storage.objects;
+create policy "news_obj_insert" on storage.objects
+  for insert with check (bucket_id = 'news' and public.is_admin());
+
+drop policy if exists "news_obj_delete" on storage.objects;
+create policy "news_obj_delete" on storage.objects
+  for delete using (bucket_id = 'news' and public.is_admin());

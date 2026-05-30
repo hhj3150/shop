@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
@@ -297,6 +298,9 @@ export default function AdminPage() {
           </h1>
         </div>
         <div className="flex gap-2 no-print">
+          <Link href="/admin/news" className="rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft hover:border-gold hover:text-gold">
+            소식 전하기
+          </Link>
           <button onClick={load} className="rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft hover:border-gold hover:text-gold">
             새로고침
           </button>
