@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
@@ -88,6 +88,14 @@ function todayISO(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// 구성품(제품·용량·수량)을 정렬해 만든 표준 문자열. 같은 구성이면 같은 값이 나와 포장 묶음을 만든다.
+function compositionSignature(its: ItemRow[]): string {
+  return [...its]
+    .map((it) => `${it.product_name} ${it.volume}×${it.qty}`)
+    .sort((a, b) => a.localeCompare(b, "ko"))
+    .join(" / ");
 }
 
 function downloadCsv(filename: string, rows: string[][]) {
@@ -221,6 +229,7 @@ export default function AdminPage() {
     return JS_DAY_TO_KEY[new Date(y, mo - 1, da).getDay()];
   }, [date]);
 
+  // 같은 구성품끼리 묶어 정렬한다(포장 편의). 구성품 → 받는 사람 이름 순.
   const deliveryList = useMemo(() => {
     if (!selectedWeekday) return [];
     const byOrder = new Map<string, ItemRow[]>();
@@ -232,11 +241,28 @@ export default function AdminPage() {
       arr.push(it);
       byOrder.set(it.order_id, arr);
     }
-    return Array.from(byOrder.entries()).map(([orderId, its]) => ({
-      order: orderById.get(orderId)!,
-      items: its,
-    }));
+    return Array.from(byOrder.entries())
+      .map(([orderId, its]) => {
+        const order = orderById.get(orderId)!;
+        return { order, items: its, sig: compositionSignature(its) };
+      })
+      .sort(
+        (a, b) =>
+          a.sig.localeCompare(b.sig, "ko") ||
+          a.order.ship_name.localeCompare(b.order.ship_name, "ko")
+      );
   }, [selectedWeekday, items, confirmedOrderIds, pausedOrderIds, orderById]);
+
+  // 구성품이 같은 주문을 한 묶음으로. 포장 시 묶음 단위로 처리.
+  const deliveryGroups = useMemo(() => {
+    const groups: { sig: string; rows: typeof deliveryList }[] = [];
+    for (const row of deliveryList) {
+      const last = groups[groups.length - 1];
+      if (last && last.sig === row.sig) last.rows.push(row);
+      else groups.push({ sig: row.sig, rows: [row] });
+    }
+    return groups;
+  }, [deliveryList]);
 
   const deliveryProductTotals = useMemo(() => {
     const m: Record<string, number> = {};
@@ -313,14 +339,30 @@ export default function AdminPage() {
 
   function exportDayCsv(day: DeliveryDay) {
     const rows: string[][] = [
-      ["주문번호", "이름", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
+      ["포장묶음", "주문번호", "이름", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
     ];
-    for (const o of orders) {
-      if (!confirmedOrderIds.has(o.id)) continue;
-      if (pausedOrderIds.has(o.id)) continue;
-      const its = items.filter((it) => it.order_id === o.id && it.delivery_day === day);
-      if (its.length === 0) continue;
+    // 화면과 동일하게 구성품 묶음 순서로 정렬해 포장·검수에 그대로 쓰도록 한다.
+    const entries = orders
+      .filter((o) => confirmedOrderIds.has(o.id) && !pausedOrderIds.has(o.id))
+      .map((o) => {
+        const its = items.filter((it) => it.order_id === o.id && it.delivery_day === day);
+        return { order: o, items: its, sig: compositionSignature(its) };
+      })
+      .filter((e) => e.items.length > 0)
+      .sort(
+        (a, b) =>
+          a.sig.localeCompare(b.sig, "ko") ||
+          a.order.ship_name.localeCompare(b.order.ship_name, "ko")
+      );
+    let groupNo = 0;
+    let prevSig: string | null = null;
+    for (const { order: o, items: its, sig } of entries) {
+      if (sig !== prevSig) {
+        groupNo += 1;
+        prevSig = sig;
+      }
       rows.push([
+        String(groupNo),
         o.order_no,
         o.ship_name,
         o.ship_phone,
@@ -519,18 +561,27 @@ export default function AdminPage() {
             {!selectedWeekday || deliveryList.length === 0 ? (
               <tr><td colSpan={5} className="py-4 text-center text-mute">해당 날짜 배송분이 없습니다.</td></tr>
             ) : (
-              deliveryList.map(({ order, items: its }) => (
-                <tr key={order.id} className="border-b border-line/60 align-top">
-                  <td className="py-2.5 text-ink">{order.ship_name}</td>
-                  <td className="py-2.5 tabular-nums text-ink-soft">{order.ship_phone}</td>
-                  <td className="py-2.5 text-ink-soft">
-                    ({order.ship_postcode}) {order.ship_address} {order.ship_address_detail ?? ""}
-                  </td>
-                  <td className="py-2.5 text-ink-soft">
-                    {its.map((it) => `${it.product_name} ${it.volume}×${it.qty}`).join(", ")}
-                  </td>
-                  <td className="py-2.5 text-gold-deep">{order.status}</td>
-                </tr>
+              deliveryGroups.map((g, gi) => (
+                <Fragment key={g.sig}>
+                  <tr className="bg-gold/8">
+                    <td colSpan={5} className="px-1 py-2 text-[13px] font-medium text-gold-deep">
+                      포장 묶음 {gi + 1} · {g.sig} <span className="text-mute">({g.rows.length}건)</span>
+                    </td>
+                  </tr>
+                  {g.rows.map(({ order, items: its }) => (
+                    <tr key={order.id} className="border-b border-line/60 align-top">
+                      <td className="py-2.5 text-ink">{order.ship_name}</td>
+                      <td className="py-2.5 tabular-nums text-ink-soft">{order.ship_phone}</td>
+                      <td className="py-2.5 text-ink-soft">
+                        ({order.ship_postcode}) {order.ship_address} {order.ship_address_detail ?? ""}
+                      </td>
+                      <td className="py-2.5 text-ink-soft">
+                        {its.map((it) => `${it.product_name} ${it.volume}×${it.qty}`).join(", ")}
+                      </td>
+                      <td className="py-2.5 text-gold-deep">{order.status}</td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))
             )}
           </tbody>
