@@ -1,8 +1,8 @@
 import { Reveal } from "./Reveal";
 
 const STATS = [
-  { v: "38만 두", l: "국내 전체 젖소" },
-  { v: "1,000여 두", l: "그중 저지소" },
+  { v: "38만 두", l: "국내 젖소 · 대부분 홀스타인" },
+  { v: "1,000여 두", l: "그중 저지" },
   { v: "단 한 곳", l: "100% A2 저지 착유목장" },
 ];
 
@@ -21,11 +21,12 @@ export function Provenance() {
         <Reveal className="max-w-2xl">
           <p className="eyebrow text-gold-deep">Rarity</p>
           <h2 className="mt-4 font-serif-kr text-[clamp(1.7rem,4vw,2.6rem)] font-medium leading-tight text-ink">
-            희소함은 흉내 낼 수 없습니다.
+            드문 데는, 이유가 있습니다.
           </h2>
           <p className="mt-5 text-[14px] leading-loose text-ink-soft sm:text-[15px]">
-            국내 젖소 38만 두 가운데 저지소는 1,000여 두뿐. 그중 100% A2 저지만으로
-            착유하는 목장은 — 현재까지 — 우리가 유일합니다.
+            국내 젖소 38만 두는 대부분 홀스타인입니다. 저지는 1,000여 두.
+            그중 100% A2 저지만 골라, 사일리지 없이 풀과 건초로 기릅니다 —
+            알프스가 수백 년 이어온 헤이밀크의 방식 그대로.
           </p>
         </Reveal>
 
@@ -42,7 +43,36 @@ export function Provenance() {
           ))}
         </div>
 
-        <Reveal delay={120}>
+        <Reveal delay={140}>
+          <div className="mt-10 grid gap-x-12 gap-y-8 border-t border-line pt-9 sm:grid-cols-3">
+            <div>
+              <p className="font-display text-[12px] uppercase tracking-[0.2em] text-gold-deep">
+                A2 / A2
+              </p>
+              <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
+                A2 베타카세인만 지닌 원유. 소화 과정에서 펩타이드 BCM-7을 만들지 않습니다.
+              </p>
+            </div>
+            <div>
+              <p className="font-display text-[12px] uppercase tracking-[0.2em] text-gold-deep">
+                Hay-Fed
+              </p>
+              <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
+                발효사료 없이 풀과 건초만. 유럽이 전통특산물(TSG)로 지키는 헤이밀크의 방식입니다.
+              </p>
+            </div>
+            <div>
+              <p className="font-display text-[12px] uppercase tracking-[0.2em] text-gold-deep">
+                Jersey
+              </p>
+              <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
+                전체 젖소의 한 줌뿐인 희소 품종. 진한 유지방과 깊은 풍미가 한 병에 담깁니다.
+              </p>
+            </div>
+          </div>
+        </Reveal>
+
+        <Reveal delay={200}>
           <div className="mt-10">
             <p className="text-[12px] uppercase tracking-[0.2em] text-mute">
               국가·기관 인증
@@ -59,6 +89,10 @@ export function Provenance() {
             </ul>
             <p className="mt-4 text-[12.5px] leading-relaxed text-mute">
               모든 인증은 정식 인증번호를 보유하고 있으며, 요청 시 확인해 드립니다.
+            </p>
+            <p className="mt-3 text-[11.5px] leading-relaxed text-mute/80">
+              ※ A2·헤이밀크 관련 설명은 공개된 연구 자료에 근거한 일반 정보이며, 질병의
+              예방·치료 효과를 의미하지 않습니다.
             </p>
           </div>
         </Reveal>
