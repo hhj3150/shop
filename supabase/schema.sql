@@ -84,7 +84,11 @@ alter table public.orders
   add column if not exists ship_date date,
   add column if not exists shipping_fee integer not null default 0,
   -- 구독 기간(개월). 1/3/6/12 중 하나. 전체 기간분(주 1회 × 4주 × 개월)을 한 번에 입금.
-  add column if not exists period_months integer not null default 1;
+  add column if not exists period_months integer not null default 1,
+  -- 배송 추적: 관리자가 발송 시 택배사·송장번호 입력 → 고객 배송조회.
+  add column if not exists courier text,
+  add column if not exists tracking_no text,
+  add column if not exists shipped_at date;
 
 alter table public.orders enable row level security;
 

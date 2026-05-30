@@ -16,12 +16,15 @@ import {
   type MySubscription,
 } from "@/lib/subscriptions";
 import { computeSchedule } from "@/lib/subscription-schedule";
+import { courierLabel, trackingUrl } from "@/lib/couriers";
 
 type OrderRow = {
   id: string;
   order_no: string;
   status: string;
   total_amount: number;
+  courier: string | null;
+  tracking_no: string | null;
   created_at: string;
 };
 
@@ -52,7 +55,7 @@ export default function AccountPage() {
     if (!user) return;
     getSupabase()
       .from("orders")
-      .select("id, order_no, status, total_amount, created_at")
+      .select("id, order_no, status, total_amount, courier, tracking_no, created_at")
       .order("created_at", { ascending: false })
       .then(({ data }) => setOrders((data as OrderRow[]) ?? []));
   }, [user]);
@@ -354,22 +357,47 @@ export default function AccountPage() {
         </p>
       ) : (
         <ul className="mt-4 divide-y divide-line rounded-2xl border border-line bg-cream">
-          {orders.map((o) => (
-            <li key={o.id} className="flex items-center justify-between px-5 py-4">
-              <div>
-                <p className="text-[14px] tabular-nums text-ink">{o.order_no}</p>
-                <p className="mt-0.5 text-[13px] text-mute">
-                  {new Date(o.created_at).toLocaleDateString("ko-KR")}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[13px] font-medium text-gold-deep">{o.status}</p>
-                <p className="mt-0.5 text-[14px] tabular-nums text-ink">
-                  {formatKRW(o.total_amount)}
-                </p>
-              </div>
-            </li>
-          ))}
+          {orders.map((o) => {
+            const trackUrl = trackingUrl(o.courier, o.tracking_no);
+            return (
+              <li key={o.id} className="px-5 py-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[14px] tabular-nums text-ink">{o.order_no}</p>
+                    <p className="mt-0.5 text-[13px] text-mute">
+                      {new Date(o.created_at).toLocaleDateString("ko-KR")}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[13px] font-medium text-gold-deep">{o.status}</p>
+                    <p className="mt-0.5 text-[14px] tabular-nums text-ink">
+                      {formatKRW(o.total_amount)}
+                    </p>
+                  </div>
+                </div>
+                {o.tracking_no && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-paper-2 px-3 py-2.5">
+                    <p className="text-[13px] text-ink-soft">
+                      {courierLabel(o.courier)}{" "}
+                      <span className="tabular-nums text-ink">{o.tracking_no}</span>
+                    </p>
+                    {trackUrl ? (
+                      <a
+                        href={trackUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-cream transition-colors hover:bg-gold-deep"
+                      >
+                        배송조회 →
+                      </a>
+                    ) : (
+                      <span className="text-[12px] text-mute">택배사 사이트에서 조회</span>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

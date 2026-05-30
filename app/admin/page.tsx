@@ -12,6 +12,7 @@ import {
   type DeliveryDay,
 } from "@/lib/cart";
 import { firstSubscriptionDelivery, toISODate } from "@/lib/ship-date";
+import { COURIERS, COURIER_IDS } from "@/lib/couriers";
 import { AdminStats } from "@/components/AdminStats";
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
@@ -48,6 +49,9 @@ type OrderRow = {
   ship_address: string;
   ship_address_detail: string | null;
   memo: string | null;
+  courier: string | null;
+  tracking_no: string | null;
+  shipped_at: string | null;
   created_at: string;
 };
 
@@ -286,6 +290,24 @@ export default function AdminPage() {
           .eq("id", s.id);
       }
     }
+    await load();
+  }
+
+  // 택배사·송장번호 저장. 송장이 입력되면 상태를 자동으로 '배송중'으로 올리고 발송일 기록.
+  async function saveTracking(order: OrderRow, courier: string, trackingNo: string) {
+    const sb = getSupabase();
+    const tracking = trackingNo.trim();
+    const patch: Record<string, unknown> = {
+      courier: courier || null,
+      tracking_no: tracking || null,
+    };
+    if (tracking) {
+      patch.shipped_at = order.shipped_at ?? todayISO();
+      if (order.status === "입금확인" || order.status === "배송준비") {
+        patch.status = "배송중";
+      }
+    }
+    await sb.from("orders").update(patch).eq("id", order.id);
     await load();
   }
 
@@ -609,14 +631,15 @@ export default function AdminPage() {
               <th className="py-2 text-right font-normal">금액</th>
               <th className="py-2 font-normal">신청일</th>
               <th className="py-2 font-normal no-print">상태</th>
+              <th className="py-2 font-normal no-print">배송 추적 (택배사·송장)</th>
             </tr>
           </thead>
           <tbody>
             {orders.length === 0 ? (
-              <tr><td colSpan={5} className="py-4 text-center text-mute">주문이 없습니다.</td></tr>
+              <tr><td colSpan={6} className="py-4 text-center text-mute">주문이 없습니다.</td></tr>
             ) : (
               orders.map((o) => (
-                <tr key={o.id} className="border-b border-line/60">
+                <tr key={o.id} className="border-b border-line/60 align-top">
                   <td className="py-2.5 tabular-nums text-ink">{o.order_no}</td>
                   <td className="py-2.5 text-ink-soft">{o.depositor_name ?? o.ship_name}</td>
                   <td className="py-2.5 text-right tabular-nums text-ink-soft">{formatKRW(o.total_amount)}</td>
@@ -631,6 +654,9 @@ export default function AdminPage() {
                         <option key={s} value={s}>{s}</option>
                       ))}
                     </select>
+                  </td>
+                  <td className="py-2.5 no-print">
+                    <TrackingCell order={o} onSave={saveTracking} />
                   </td>
                 </tr>
               ))
@@ -656,6 +682,58 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-line bg-cream p-4">
       <p className="text-[13px] text-mute">{label}</p>
       <p className="mt-1 font-serif-kr text-xl text-ink tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function TrackingCell({
+  order,
+  onSave,
+}: {
+  order: OrderRow;
+  onSave: (order: OrderRow, courier: string, trackingNo: string) => Promise<void>;
+}) {
+  const [courier, setCourier] = useState(order.courier ?? "cj");
+  const [trackingNo, setTrackingNo] = useState(order.tracking_no ?? "");
+  const [saving, setSaving] = useState(false);
+  const dirty = courier !== (order.courier ?? "cj") || trackingNo !== (order.tracking_no ?? "");
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave(order, courier, trackingNo);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <select
+        value={courier}
+        onChange={(e) => setCourier(e.target.value)}
+        className="rounded-lg border border-line bg-cream px-2 py-1 text-[13px] text-ink"
+      >
+        {COURIER_IDS.map((id) => (
+          <option key={id} value={id}>
+            {COURIERS[id].label}
+          </option>
+        ))}
+      </select>
+      <input
+        type="text"
+        value={trackingNo}
+        onChange={(e) => setTrackingNo(e.target.value)}
+        placeholder="송장번호"
+        className="w-32 rounded-lg border border-line bg-cream px-2 py-1 text-[13px] tabular-nums text-ink"
+      />
+      <button
+        onClick={handleSave}
+        disabled={!dirty || saving}
+        className="rounded-lg bg-ink px-2.5 py-1 text-[13px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-30"
+      >
+        {saving ? "…" : "저장"}
+      </button>
     </div>
   );
 }
