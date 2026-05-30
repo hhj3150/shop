@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PRODUCTS, formatKRW, subscribePrice, type ProductLine } from "@/lib/products";
 import { Reveal } from "./Reveal";
 import { Scatter, HEY, type ConfettiItem } from "./Confetti";
+import { LogoBubbles } from "./LogoBubbles";
 
 type Filter = "all" | ProductLine;
 
@@ -32,6 +33,7 @@ export function ProductShowcase() {
   return (
     <section id="products" className="relative overflow-hidden">
       <Scatter items={PRODUCTS_CONFETTI} />
+      <LogoBubbles />
       <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
       {/* Store greeting */}
       <Reveal>
