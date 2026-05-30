@@ -33,7 +33,7 @@ export function Maker() {
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-[14px] leading-loose text-ink-soft sm:text-[15px]">
             소가 편안해야 우유가 정직해집니다. 사람의 편의가 아니라 소의 하루를 기준으로
-            목장을 운영하는 이유입니다. 장인의 품격은 보이지 않는 곳에서 완성됩니다.
+            목장을 운영하는 이유입니다. 좋은 것은 보이지 않는 곳에서 완성됩니다.
           </p>
         </Reveal>
 

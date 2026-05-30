@@ -10,6 +10,7 @@ import {
   DELIVERY_DAY_LABEL,
   type DeliveryDay,
 } from "@/lib/cart";
+import { AdminStats } from "@/components/AdminStats";
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
 const CONFIRMED = ["입금확인", "배송준비", "배송중", "배송완료"] as const;
@@ -314,6 +315,9 @@ export default function AdminPage() {
         <Stat label="확정 구독 매출" value={formatKRW(revenue)} />
         <Stat label="대기자" value={`${waitlist.length}명`} />
       </section>
+
+      {/* 통계 분석 */}
+      <AdminStats orders={orders} items={items} slots={slots} memberCount={profiles.length} />
 
       {/* 요일별 모집 현황 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별 모집 현황 (정원 100명)</h2>

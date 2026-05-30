@@ -30,15 +30,14 @@ export function SubscriptionBand() {
         <Reveal className="max-w-2xl">
           <p className="eyebrow text-gold">Members Only</p>
           <h2 className="mt-5 font-serif-kr text-[clamp(2rem,4.5vw,3.4rem)] font-medium leading-tight">
-            아무나 받지 않습니다,{" "}
-            <span className="font-display italic text-gold">귀한 분만.</span>
+            모두에게 열지 않았습니다,{" "}
+            <span className="font-display italic text-gold">귀한 분께만.</span>
           </h2>
           <p className="mt-6 text-[15px] leading-loose text-cream/70">
             가입과 결제를 조금 까다롭게 둔 것은 일부러입니다. 매주 한 병까지 정성으로
-            모시려면, 모실 수 있는 분의 수를 먼저 정해야 했습니다. 정기구독은 요일별
-            선착순 100명, 다섯 요일 통틀어 <span className="text-gold">단 500명</span>으로
-            한정합니다. 자리가 차면 대기자로 모시고, 한 자리가 비면 가장 먼저
-            안내드립니다.
+            모시려면, 모실 수 있는 분의 수를 먼저 정해야 했습니다. 요일별 선착순 100분,
+            다섯 요일 통틀어 <span className="text-gold">단 500분</span>. 자리가 차면
+            대기로 모시고, 한 자리가 비면 가장 먼저 안내드립니다.
           </p>
         </Reveal>
 
