@@ -39,7 +39,7 @@ export function ProductShowcase() {
               href={`/products/${p.id}`}
               className="group flex shrink-0 flex-col items-center text-center"
             >
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-paper-2 transition-transform duration-500 group-hover:-translate-y-1">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl transition-transform duration-500 group-hover:-translate-y-1">
                 <Image
                   src={p.image}
                   alt={`${p.name} ${p.volume}`}
@@ -78,7 +78,7 @@ export function ProductShowcase() {
       <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {shown.map((p, i) => (
           <Reveal key={p.id} delay={i * 70}>
-            <article className="group flex h-full flex-col rounded-3xl bg-cream p-7 text-center transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_30px_60px_-24px_rgba(40,30,15,0.28)]">
+            <article className="group flex h-full flex-col rounded-3xl bg-transparent p-7 text-center transition-all duration-500 hover:-translate-y-1.5 hover:bg-cream hover:shadow-[0_30px_60px_-24px_rgba(40,30,15,0.28)]">
               <Link href={`/products/${p.id}`} className="flex flex-1 flex-col">
                 <div className="relative mx-auto flex h-56 w-full items-center justify-center">
                   <Image

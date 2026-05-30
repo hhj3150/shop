@@ -120,7 +120,7 @@ export default async function ProductPage({
                 href={`/products/${p.id}`}
                 className="group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-cream transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_24px_48px_-20px_rgba(40,30,15,0.25)]"
               >
-                <div className="relative flex h-56 items-center justify-center bg-gradient-to-b from-paper-2 to-paper">
+                <div className="relative flex h-56 items-center justify-center">
                   <Image
                     src={p.image}
                     alt={`${p.name} ${p.volume}`}
