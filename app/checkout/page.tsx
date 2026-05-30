@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
 import { createOrder } from "@/lib/orders";
+import { notify } from "@/lib/notify";
 import { DEPOSIT } from "@/lib/site";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
@@ -64,7 +65,8 @@ export default function CheckoutPage() {
     }
     setBusy(true);
     try {
-      const { orderNo, slots } = await createOrder(user.id, items, period, ship);
+      const { orderId, orderNo, slots } = await createOrder(user.id, items, period, ship);
+      void notify({ kind: "order_received", orderId });
       clear();
       const first = slots[0];
       const params = new URLSearchParams({ no: orderNo });

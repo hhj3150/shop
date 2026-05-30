@@ -45,7 +45,7 @@ export async function createOrder(
   items: CartItem[],
   period: SubPeriod,
   ship: ShippingInfo
-): Promise<{ orderNo: string; slots: SlotResult[] }> {
+): Promise<{ orderId: string; orderNo: string; slots: SlotResult[] }> {
   if (items.length === 0) throw new Error("장바구니가 비어 있습니다.");
 
   const supabase = getSupabase();
@@ -109,7 +109,7 @@ export async function createOrder(
   const days = Array.from(new Set(items.map((i) => i.deliveryDay)));
   const slots = await registerSlots(userId, order.id, days);
 
-  return { orderNo: order.order_no, slots };
+  return { orderId: order.id as string, orderNo: order.order_no, slots };
 }
 
 // 단품(1회) 주문에 담는 항목.
@@ -125,7 +125,7 @@ export async function createOnceOrder(
   userId: string,
   items: OnceItem[],
   ship: ShippingInfo
-): Promise<{ orderNo: string; shipDate: string }> {
+): Promise<{ orderId: string; orderNo: string; shipDate: string }> {
   const filtered = items.filter((i) => i.qty > 0);
   if (filtered.length === 0) throw new Error("담은 제품이 없습니다.");
 
@@ -178,7 +178,7 @@ export async function createOnceOrder(
   const { error: itemsErr } = await supabase.from("order_items").insert(rows);
   if (itemsErr) throw new Error(itemsErr.message);
 
-  return { orderNo: order.order_no, shipDate };
+  return { orderId: order.id as string, orderNo: order.order_no, shipDate };
 }
 
 // 요일별 현재 점유 수를 보고 정원(100) 내면 '신청', 초과면 '대기'로 슬롯 등록.

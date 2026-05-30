@@ -13,6 +13,7 @@ import {
 } from "@/lib/cart";
 import { firstSubscriptionDelivery, toISODate } from "@/lib/ship-date";
 import { COURIERS, COURIER_IDS } from "@/lib/couriers";
+import { notify } from "@/lib/notify";
 import { AdminStats } from "@/components/AdminStats";
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
@@ -315,6 +316,7 @@ export default function AdminPage() {
           .update({ status: "활성", started_at: start })
           .eq("id", s.id);
       }
+      void notify({ kind: "payment_confirmed", orderId: order.id });
     }
     await load();
   }
@@ -334,6 +336,7 @@ export default function AdminPage() {
       }
     }
     await sb.from("orders").update(patch).eq("id", order.id);
+    if (tracking) void notify({ kind: "shipped", orderId: order.id });
     await load();
   }
 

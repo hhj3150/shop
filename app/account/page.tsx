@@ -17,6 +17,7 @@ import {
 } from "@/lib/subscriptions";
 import { computeSchedule } from "@/lib/subscription-schedule";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
+import { notify } from "@/lib/notify";
 
 type OrderRow = {
   id: string;
@@ -121,6 +122,7 @@ export default function AccountPage() {
     setBusy(slotId);
     try {
       await cancelSubscription(slotId, reason.trim(), refundAcct.trim(), refund);
+      void notify({ kind: "subscription_cancelled", slotId });
       setCancelSlot(null);
       setReason("");
       setRefundAcct("");

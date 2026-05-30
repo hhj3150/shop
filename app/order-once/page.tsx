@@ -15,6 +15,7 @@ import {
   onceShippingFee,
 } from "@/lib/products";
 import { createOnceOrder, type OnceItem } from "@/lib/orders";
+import { notify } from "@/lib/notify";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
 import { DEPOSIT } from "@/lib/site";
 import { Field } from "@/components/Field";
@@ -121,7 +122,8 @@ function OrderOnce() {
       const items: OnceItem[] = PRODUCTS.filter((p) => (qtys[p.id] ?? 0) > 0).map(
         (p) => ({ productId: p.id, qty: qtys[p.id], unitPrice: p.price })
       );
-      const { orderNo, shipDate } = await createOnceOrder(user.id, items, ship);
+      const { orderId, orderNo, shipDate } = await createOnceOrder(user.id, items, ship);
+      void notify({ kind: "order_received", orderId });
       const shipLabel = formatDispatch(new Date(`${shipDate}T00:00:00`));
       const params = new URLSearchParams({ no: orderNo, type: "once", ship: shipLabel });
       router.push(`/orders/complete?${params.toString()}`);
