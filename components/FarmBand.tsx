@@ -12,6 +12,15 @@ export function FarmBand() {
       />
       <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/25 to-ink/10" />
 
+      <Image
+        src="/brand/haymil_log.png"
+        alt=""
+        aria-hidden
+        width={800}
+        height={800}
+        className="pointer-events-none absolute right-5 top-20 z-10 w-16 drop-shadow-[0_6px_16px_rgba(0,0,0,0.35)] sm:right-8 sm:top-24 sm:w-20"
+      />
+
       <div className="absolute inset-x-0 bottom-0">
         <div className="mx-auto max-w-7xl px-5 pb-12 sm:px-8 sm:pb-16">
           <p className="font-display text-[12px] uppercase tracking-[0.32em] text-cream/75 sm:text-[13px]">

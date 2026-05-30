@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Reveal } from "./Reveal";
 import { BLOCK_WEEKS, SUB_MIN_DELIVERIES } from "@/lib/products";
@@ -25,6 +26,14 @@ export function SubscriptionBand() {
     <section id="subscribe" className="relative overflow-hidden bg-ink py-16 text-cream sm:py-24">
       <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-gold/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-gold/10 blur-3xl" />
+      <Image
+        src="/brand/haymil_log.png"
+        alt=""
+        aria-hidden
+        width={800}
+        height={800}
+        className="pointer-events-none absolute -bottom-10 -right-8 w-56 opacity-[0.22] sm:-bottom-14 sm:-right-10 sm:w-80"
+      />
 
       <div className="relative mx-auto max-w-7xl px-5 sm:px-8">
         <Reveal className="max-w-2xl">
