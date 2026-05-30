@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
   type Product,
+  PRODUCTS,
   formatKRW,
   subscribePrice,
   BASE_DISCOUNT,
@@ -16,22 +18,45 @@ export function PurchasePanel({ product }: { product: Product }) {
   const { add } = useCart();
   const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("mon");
   const [qty, setQty] = useState(1);
+  const [extras, setExtras] = useState<Record<string, number>>({});
   const [counts, setCounts] = useState<DayCounts | null>(null);
 
   useEffect(() => {
     getDayCounts().then(setCounts);
   }, []);
 
+  // 함께 담을 수 있는 다른 제품들(같은 요일 배송).
+  const addons = PRODUCTS.filter((p) => p.id !== product.id);
+
   const unitPrice = subscribePrice(product.price);
-  const perDelivery = unitPrice * qty;
+  const mainPerDelivery = unitPrice * qty;
+  const extrasPerDelivery = addons.reduce(
+    (sum, p) => sum + subscribePrice(p.price) * (extras[p.id] ?? 0),
+    0
+  );
+  const perDelivery = mainPerDelivery + extrasPerDelivery;
   const blockTotal = perDelivery * BLOCK_WEEKS;
+
+  const origPerDelivery =
+    product.price * qty +
+    addons.reduce((sum, p) => sum + p.price * (extras[p.id] ?? 0), 0);
 
   const selected = counts?.[deliveryDay] ?? null;
   const selectedRemaining = selected ? remaining(selected) : null;
   const selectedFull = selected ? isWaitlisted(selected) : false;
 
+  const setExtraQty = (id: string, q: number) =>
+    setExtras((prev) => ({ ...prev, [id]: Math.max(0, q) }));
+
   const handleAdd = () => {
     add({ productId: product.id, deliveryDay, qty, unitPrice });
+    addons.forEach((p) => {
+      const eq = extras[p.id] ?? 0;
+      if (eq > 0) {
+        add({ productId: p.id, deliveryDay, qty: eq, unitPrice: subscribePrice(p.price) });
+      }
+    });
+    setExtras({});
   };
 
   return (
@@ -116,12 +141,69 @@ export function PurchasePanel({ product }: { product: Product }) {
         </div>
       </div>
 
+      {/* 함께 담기 — 같은 요일에 다른 제품도 추가 */}
+      <div className="mt-7 border-t border-line pt-6">
+        <p className="text-[12px] uppercase tracking-[0.18em] text-mute">
+          함께 담기 · 같은 요일 배송
+        </p>
+        <p className="mt-1 text-[11.5px] leading-relaxed text-ink-soft">
+          다른 제품도 같은 요일에 함께 받으실 수 있습니다.
+        </p>
+        <ul className="mt-4 space-y-3">
+          {addons.map((p) => {
+            const ep = subscribePrice(p.price);
+            const eq = extras[p.id] ?? 0;
+            return (
+              <li key={p.id} className="flex items-center gap-3">
+                <div className="relative h-12 w-10 shrink-0 overflow-hidden rounded-lg bg-paper-2">
+                  <Image
+                    src={p.image}
+                    alt={`${p.name} ${p.volume}`}
+                    fill
+                    sizes="40px"
+                    className="object-contain p-1"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] text-ink">
+                    {p.name} {p.volume}
+                  </p>
+                  <p className="mt-0.5 text-[11px] tabular-nums text-gold-deep">
+                    {formatKRW(ep)} / 회
+                  </p>
+                </div>
+                <div className="flex items-center rounded-full border border-line">
+                  <button
+                    onClick={() => setExtraQty(p.id, eq - 1)}
+                    disabled={eq === 0}
+                    className="px-3 py-1.5 text-mute transition-colors hover:text-ink disabled:opacity-30"
+                    aria-label={`${p.name} 수량 감소`}
+                  >
+                    −
+                  </button>
+                  <span className="min-w-6 text-center text-[13px] tabular-nums text-ink">
+                    {eq}
+                  </span>
+                  <button
+                    onClick={() => setExtraQty(p.id, eq + 1)}
+                    className="px-3 py-1.5 text-mute transition-colors hover:text-ink"
+                    aria-label={`${p.name} 수량 증가`}
+                  >
+                    +
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
       {/* 금액 */}
       <div className="mt-7 border-t border-line pt-6">
         <div className="flex items-end justify-between">
           <div>
             <p className="text-[13px] text-mute line-through tabular-nums">
-              {formatKRW(product.price * qty)} / 회
+              {formatKRW(origPerDelivery)} / 회
             </p>
             <p className="font-serif-kr text-2xl text-ink tabular-nums">
               {formatKRW(perDelivery)}
