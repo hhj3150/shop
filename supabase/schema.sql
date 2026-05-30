@@ -3,21 +3,6 @@
 -- 인증(이메일/비밀번호)은 Supabase Auth(auth.users)가 담당합니다.
 
 -- ───────────────────────────────────────────────────────────
--- 0. 관리자 판별 함수 (RLS 재귀 방지를 위해 SECURITY DEFINER).
---    profiles.is_admin = true 인 계정만 관리자.
---    관리자 지정: update public.profiles set is_admin = true where id = '<auth uid>';
--- ───────────────────────────────────────────────────────────
-create or replace function public.is_admin()
-returns boolean
-language sql
-security definer
-stable
-set search_path = public
-as $$
-  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
-$$;
-
--- ───────────────────────────────────────────────────────────
 -- 1. 회원 프로필 (배송·문자 발송에 필요한 최소 정보)
 -- ───────────────────────────────────────────────────────────
 create table if not exists public.profiles (
@@ -32,6 +17,22 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles enable row level security;
+
+-- ───────────────────────────────────────────────────────────
+-- 1-1. 관리자 판별 함수 (RLS 재귀 방지를 위해 SECURITY DEFINER).
+--      profiles.is_admin = true 인 계정만 관리자.
+--      관리자 지정: update public.profiles set is_admin = true where id = '<auth uid>';
+--      ※ profiles 테이블이 먼저 존재해야 하므로 테이블 생성 뒤에 둔다.
+-- ───────────────────────────────────────────────────────────
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
+$$;
 
 -- 본인 프로필만 조회/수정. 관리자는 Phase 2에서 service role로 접근.
 drop policy if exists "profiles_select_own" on public.profiles;
