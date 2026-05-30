@@ -92,19 +92,47 @@ body {
   animation: float 7s var(--ease-soft) infinite;
 }
 
-@keyframes bubble {
+/* 비누방울: 화면 전체를 폭넓게 떠다니는 경로 (큰 것 / 작은 것) */
+@keyframes roam-lg {
   0% {
-    transform: translate(0, 0) scale(1) rotate(0deg);
+    transform: translate(0, 0) rotate(0deg);
   }
-  50% {
-    transform: translate(8px, -26px) scale(1.05) rotate(6deg);
+  22% {
+    transform: translate(58vw, 12vh) rotate(8deg);
+  }
+  46% {
+    transform: translate(72vw, -26vh) rotate(-6deg);
+  }
+  70% {
+    transform: translate(24vw, -34vh) rotate(10deg);
   }
   100% {
-    transform: translate(0, 0) scale(1) rotate(0deg);
+    transform: translate(0, 0) rotate(0deg);
   }
 }
-.animate-bubble {
-  animation: bubble 9s var(--ease-soft) infinite;
+.animate-roam-lg {
+  animation: roam-lg 26s var(--ease-soft) infinite;
+}
+
+@keyframes roam-sm {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(-32vw, 34vh) rotate(-12deg);
+  }
+  50% {
+    transform: translate(-64vw, 8vh) rotate(8deg);
+  }
+  75% {
+    transform: translate(-22vw, 46vh) rotate(-6deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+}
+.animate-roam-sm {
+  animation: roam-sm 21s var(--ease-soft) infinite;
 }
 
 @keyframes scrollcue {
@@ -136,7 +164,8 @@ body {
   }
   .animate-float,
   .animate-scrollcue,
-  .animate-bubble {
+  .animate-roam-lg,
+  .animate-roam-sm {
     animation: none;
   }
 }

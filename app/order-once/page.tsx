@@ -152,7 +152,7 @@ function OrderOnce() {
         배송비는 {formatKRW(ONCE_SHIPPING_KRW)}, {formatKRW(ONCE_FREE_SHIP_KRW)} 이상 구매 시 무료입니다.
         입금이 확인되면 <span className="text-ink-soft">{dispatch}</span>에 발송됩니다.
         <br />
-        전날 자정까지 주문하신 분께 다음 날 발송하며, 발송은 월–금에만 진행됩니다.
+        평일(월~목) 자정까지 주문하시면 다음 날, 금요일 주문은 월요일, 주말(토·일) 주문은 화요일에 발송됩니다. (발송은 월–금)
       </p>
 
       {/* 제품 선택 */}

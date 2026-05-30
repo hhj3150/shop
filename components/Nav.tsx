@@ -30,12 +30,12 @@ export function Nav() {
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
         <Link href="/" aria-label="송영신목장 A2 저지 헤이밀크 홈" className="flex items-center">
           <Image
-            src="/brand/heymilk-logo-h.png"
+            src="/brand/heymilk-logo.png"
             alt="송영신목장 A2 저지 헤이밀크"
-            width={2514}
-            height={1000}
+            width={800}
+            height={800}
             priority
-            className="h-9 w-auto sm:h-10"
+            className="h-10 w-auto sm:h-11"
           />
         </Link>
 
