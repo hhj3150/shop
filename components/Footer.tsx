@@ -9,11 +9,11 @@ export function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <Image
-              src="/brand/logo-mark.png"
+              src="/brand/heymilk-logo.png"
               alt="송영신목장 A2 저지 헤이밀크"
-              width={260}
-              height={210}
-              className="w-[150px]"
+              width={800}
+              height={800}
+              className="w-[132px]"
             />
             <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-mute">
               경기도 안성에서 A2 저지 헤이밀크를 직접 짓고 발효합니다.

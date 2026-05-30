@@ -4,6 +4,7 @@ import "./globals.css";
 import { CartProvider } from "@/lib/cart";
 import { AuthProvider } from "@/lib/auth";
 import { Nav } from "@/components/Nav";
+import { BottomNav } from "@/components/BottomNav";
 import { CartDrawer } from "@/components/CartDrawer";
 
 const notoSans = Noto_Sans_KR({
@@ -58,7 +59,8 @@ export default function RootLayout({
         <AuthProvider>
           <CartProvider>
             <Nav />
-            <main className="flex-1">{children}</main>
+            <main className="flex-1 pb-[68px] md:pb-0">{children}</main>
+            <BottomNav />
             <CartDrawer />
           </CartProvider>
         </AuthProvider>

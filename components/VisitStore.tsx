@@ -1,10 +1,19 @@
 import { Reveal } from "./Reveal";
 import { CAFE_HOME, BUSINESS } from "@/lib/site";
+import { Scatter, HEY, type ConfettiItem } from "./Confetti";
+
+const VISIT_CONFETTI: ConfettiItem[] = [
+  { shape: "tilde", color: HEY.green, size: 52, top: "12%", right: "6%", rotate: -10, opacity: 0.7, className: "hidden sm:block" },
+  { shape: "heart", color: HEY.rose, size: 30, top: "22%", left: "3%", rotate: 10, opacity: 0.7, className: "hidden sm:block" },
+  { shape: "dot", color: HEY.orange, size: 14, bottom: "18%", right: "12%", opacity: 0.7 },
+  { shape: "squiggle", color: HEY.blue, size: 48, bottom: "10%", left: "8%", rotate: 6, opacity: 0.6, className: "hidden sm:block" },
+];
 
 export function VisitStore() {
   return (
-    <section id="visit" className="border-t border-line bg-paper-2/40">
-      <div className="mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-20">
+    <section id="visit" className="relative overflow-hidden border-t border-line bg-paper-2/40">
+      <Scatter items={VISIT_CONFETTI} />
+      <div className="relative mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-20">
         <Reveal>
           <p className="eyebrow text-gold-deep">Visit</p>
           <h2 className="mt-4 font-serif-kr text-[clamp(1.7rem,4vw,2.6rem)] font-medium leading-tight text-ink">

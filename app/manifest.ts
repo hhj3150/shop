@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "경기도 안성 송영신목장의 A2 저지 헤이밀크 회원제 정기구독.",
     start_url: "/",
     display: "standalone",
-    background_color: "#faf6ee",
-    theme_color: "#dab782",
+    background_color: "#fffdf8",
+    theme_color: "#6BAB3A",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },

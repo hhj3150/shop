@@ -1,19 +1,33 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Scatter, HEY, type ConfettiItem } from "./Confetti";
+
+const HERO_CONFETTI: ConfettiItem[] = [
+  { shape: "blob", color: HEY.green, size: 84, top: "16%", left: "-2%", rotate: -12, opacity: 0.5, className: "hidden sm:block" },
+  { shape: "heart", color: HEY.rose, size: 40, top: "10%", left: "44%", rotate: 8 },
+  { shape: "squiggle", color: HEY.blue, size: 64, top: "6%", right: "10%", rotate: -6 },
+  { shape: "comma", color: HEY.orange, size: 34, top: "30%", right: "4%", rotate: 18, className: "hidden sm:block" },
+  { shape: "dot", color: HEY.deepOrange, size: 18, top: "52%", left: "6%" },
+  { shape: "arc", color: HEY.rose, size: 54, bottom: "16%", left: "40%", rotate: 4, className: "hidden sm:block" },
+  { shape: "tilde", color: HEY.green, size: 58, bottom: "8%", right: "14%", rotate: -8 },
+  { shape: "dot", color: HEY.blue, size: 14, bottom: "26%", right: "6%" },
+  { shape: "comma", color: HEY.deepOrange, size: 30, bottom: "12%", left: "10%", rotate: -22, className: "hidden sm:block" },
+];
 
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
+      <Scatter items={HERO_CONFETTI} />
       <div className="mx-auto grid max-w-7xl items-center gap-6 px-5 pt-28 pb-14 sm:px-8 sm:pt-32 lg:min-h-[88svh] lg:grid-cols-2 lg:gap-8 lg:pb-16">
         {/* Copy */}
         <div className="flex flex-col items-center lg:items-start lg:text-left">
           <Image
-            src="/brand/logo-mark.png"
+            src="/brand/heymilk-logo.png"
             alt="송영신목장 A2 저지 헤이밀크 로고"
-            width={300}
-            height={242}
+            width={800}
+            height={800}
             priority
-            className="mb-6 w-[190px] max-w-full sm:w-[224px]"
+            className="mb-6 w-[176px] max-w-full sm:w-[208px]"
           />
           <p className="font-display text-[12px] uppercase tracking-[0.28em] text-gold-deep sm:text-[13px]">
             A2 Jersey Hay Milk

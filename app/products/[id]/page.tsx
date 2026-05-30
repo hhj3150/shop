@@ -51,18 +51,19 @@ export default async function ProductPage({
         <div className="grid gap-10 pb-8 lg:grid-cols-2 lg:gap-16">
           {/* Image */}
           <div className="lg:sticky lg:top-24 lg:self-start">
-            <div className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-b from-paper-2 to-paper">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-paper">
               <span
-                className="absolute left-6 top-6 h-1.5 w-12 rounded-full"
+                className="absolute left-6 top-6 z-10 h-1.5 w-12 rounded-full"
                 style={{ background: product.accent }}
               />
               <Image
                 src={product.image}
                 alt={`${product.name} ${product.volume}`}
-                width={380}
-                height={480}
+                width={1200}
+                height={1200}
                 priority
-                className="h-[80%] w-auto object-contain drop-shadow-[0_24px_44px_rgba(40,30,15,0.22)]"
+                sizes="(max-width:1024px) 92vw, 46vw"
+                className="h-full w-full object-cover"
               />
             </div>
           </div>
@@ -149,13 +150,14 @@ export default async function ProductPage({
                 href={`/products/${p.id}`}
                 className="group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-cream transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_24px_48px_-20px_rgba(40,30,15,0.25)]"
               >
-                <div className="relative flex h-56 items-center justify-center">
+                <div className="relative h-56 overflow-hidden bg-paper">
                   <Image
                     src={p.image}
                     alt={`${p.name} ${p.volume}`}
-                    width={160}
-                    height={200}
-                    className="h-[78%] w-auto object-contain drop-shadow-[0_14px_24px_rgba(40,30,15,0.16)] transition-transform duration-700 group-hover:scale-[1.06]"
+                    width={600}
+                    height={600}
+                    sizes="(max-width:640px) 90vw, 30vw"
+                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.06]"
                   />
                 </div>
                 <div className="border-t border-line p-5">

@@ -93,7 +93,7 @@ export const PRODUCTS: Product[] = [
     },
     price: 3500,
     taxFree: true,
-    image: "/products/milk-180.png",
+    image: "/products/milk-180-pure.webp",
     accent: "#b89554",
   },
   {
@@ -129,7 +129,7 @@ export const PRODUCTS: Product[] = [
     },
     price: 12000,
     taxFree: true,
-    image: "/products/milk-750.png",
+    image: "/products/milk-750-pure.webp",
     accent: "#a36b2c",
   },
   {
@@ -165,7 +165,7 @@ export const PRODUCTS: Product[] = [
     },
     price: 4300,
     taxFree: false,
-    image: "/products/yogurt-180.png",
+    image: "/products/yogurt-180-pure.webp",
     accent: "#7a8a3d",
   },
   {
@@ -201,7 +201,7 @@ export const PRODUCTS: Product[] = [
     },
     price: 10000,
     taxFree: false,
-    image: "/products/yogurt-500.png",
+    image: "/products/yogurt-500-pure.webp",
     accent: "#6f7d36",
   },
 ];

@@ -74,13 +74,14 @@ export function ProductShowcase() {
                 href={`/products/${p.id}`}
                 className="mt-8 flex w-full flex-1 flex-col items-center"
               >
-                <div className="relative flex h-72 w-full items-center justify-center sm:h-80">
+                <div className="relative h-72 w-full overflow-hidden rounded-[20px] bg-paper sm:h-80">
                   <Image
                     src={p.image}
                     alt={`${p.name} ${p.volume}`}
-                    width={360}
-                    height={450}
-                    className="h-full w-auto object-contain drop-shadow-[0_26px_44px_rgba(40,30,15,0.18)] transition-transform duration-700 group-hover:scale-[1.05]"
+                    width={720}
+                    height={720}
+                    sizes="(max-width:640px) 88vw, 40vw"
+                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]"
                   />
                 </div>
                 <p className="mt-8 max-w-xs text-[14px] leading-relaxed text-ink-soft">
