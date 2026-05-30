@@ -1,6 +1,9 @@
 // 기존 브랜드 공식 홈페이지(Wix). "목장 이야기"는 이 사이트로 연결한다.
 export const BRAND_HOME = "https://www.a2jerseymilk.com";
 
+// 안성팜랜드 Hey Hay Milk Café 안내 페이지.
+export const CAFE_HOME = "https://www.a2jerseymilk.com/milkcafe";
+
 // 무통장입금 계좌 (사이트 게재 목적의 공개 정보).
 export const DEPOSIT = {
   bank: "농협",

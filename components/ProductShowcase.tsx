@@ -19,7 +19,7 @@ export function ProductShowcase() {
   const shown = filter === "all" ? PRODUCTS : PRODUCTS.filter((p) => p.line === filter);
 
   return (
-    <section id="products" className="mx-auto max-w-7xl px-5 pb-24 pt-16 sm:px-8 sm:pb-32 sm:pt-24">
+    <section id="products" className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
       {/* Store greeting */}
       <Reveal>
         <p className="eyebrow">Collection</p>
@@ -32,7 +32,7 @@ export function ProductShowcase() {
 
       {/* Quick nav — Apple-style product shortcuts */}
       <Reveal delay={60}>
-        <div className="-mx-5 mt-10 flex gap-8 overflow-x-auto px-5 pb-2 sm:mx-0 sm:justify-center sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="-mx-5 mt-8 flex gap-8 overflow-x-auto px-5 pb-2 sm:mx-0 sm:justify-center sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {PRODUCTS.map((p) => (
             <Link
               key={p.id}
@@ -57,7 +57,7 @@ export function ProductShowcase() {
       </Reveal>
 
       {/* Category chips */}
-      <div className="mt-12 flex justify-center">
+      <div className="mt-10 flex justify-center">
         <div className="inline-flex gap-1.5 rounded-full border border-line bg-cream/70 p-1.5 backdrop-blur-sm">
           {FILTERS.map((f) => (
             <button
@@ -75,7 +75,7 @@ export function ProductShowcase() {
         </div>
       </div>
 
-      <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {shown.map((p, i) => (
           <Reveal key={p.id} delay={i * 70}>
             <article className="group flex h-full flex-col rounded-3xl bg-transparent p-7 text-center transition-all duration-500 hover:-translate-y-1.5 hover:bg-cream hover:shadow-[0_30px_60px_-24px_rgba(40,30,15,0.28)]">

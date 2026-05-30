@@ -1,10 +1,10 @@
 import { Reveal } from "./Reveal";
-import { BRAND_HOME, BUSINESS } from "@/lib/site";
+import { CAFE_HOME, BUSINESS } from "@/lib/site";
 
 export function VisitStore() {
   return (
     <section id="visit" className="border-t border-line bg-paper-2/40">
-      <div className="mx-auto max-w-5xl px-5 py-20 sm:px-8 sm:py-28">
+      <div className="mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-20">
         <Reveal>
           <p className="eyebrow text-gold-deep">Visit</p>
           <h2 className="mt-4 font-serif-kr text-[clamp(1.7rem,4vw,2.6rem)] font-medium leading-tight text-ink">
@@ -16,7 +16,7 @@ export function VisitStore() {
           </p>
         </Reveal>
 
-        <div className="mt-12 grid gap-x-12 gap-y-10 sm:grid-cols-2">
+        <div className="mt-10 grid gap-x-12 gap-y-10 sm:grid-cols-2">
           <Reveal>
             <div className="border-t border-line pt-6">
               <p className="font-display text-[13px] uppercase tracking-[0.2em] text-gold-deep">
@@ -64,12 +64,12 @@ export function VisitStore() {
                 </div>
               </dl>
               <a
-                href={BRAND_HOME}
+                href={CAFE_HOME}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-5 inline-flex text-[13px] tracking-wide text-gold-deep underline-offset-4 hover:underline"
               >
-                안내 자세히 보기 →
+                카페 안내 보기 →
               </a>
             </div>
           </Reveal>

@@ -22,7 +22,7 @@ const STEPS = [
 
 export function SubscriptionBand() {
   return (
-    <section id="subscribe" className="relative overflow-hidden bg-ink py-24 text-cream sm:py-32">
+    <section id="subscribe" className="relative overflow-hidden bg-ink py-16 text-cream sm:py-24">
       <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-gold/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-gold/10 blur-3xl" />
 
@@ -34,13 +34,15 @@ export function SubscriptionBand() {
             <span className="font-display italic text-gold">귀한 분만.</span>
           </h2>
           <p className="mt-6 text-[15px] leading-loose text-cream/70">
-            송영신목장의 우유는 회원으로 모신 분께만 닿습니다. 정기구독은 요일별 선착순
-            100명, 다섯 요일 통틀어 <span className="text-gold">단 500명</span>으로 한정합니다.
-            자리가 차면 대기자로 모시고, 한 자리가 비면 가장 먼저 문자로 안내드립니다.
+            가입과 결제를 조금 까다롭게 둔 것은 일부러입니다. 매주 한 병까지 정성으로
+            모시려면, 모실 수 있는 분의 수를 먼저 정해야 했습니다. 정기구독은 요일별
+            선착순 100명, 다섯 요일 통틀어 <span className="text-gold">단 500명</span>으로
+            한정합니다. 자리가 차면 대기자로 모시고, 한 자리가 비면 가장 먼저
+            안내드립니다.
           </p>
         </Reveal>
 
-        <div className="mt-16 grid gap-10 sm:grid-cols-3">
+        <div className="mt-12 grid gap-10 sm:grid-cols-3">
           {STEPS.map((s, i) => (
             <Reveal key={s.n} delay={i * 110}>
               <div className="border-t border-cream/20 pt-6">
@@ -55,7 +57,7 @@ export function SubscriptionBand() {
         <Reveal delay={120}>
           <Link
             href="/signup"
-            className="mt-14 inline-flex rounded-full bg-cream px-9 py-4 text-sm font-medium tracking-wide text-ink transition-transform hover:scale-[1.03]"
+            className="mt-12 inline-flex rounded-full bg-cream px-9 py-4 text-sm font-medium tracking-wide text-ink transition-transform hover:scale-[1.03]"
           >
             회원으로 모시기 →
           </Link>

@@ -8,16 +8,17 @@ export function Hero() {
         {/* Copy */}
         <div className="text-center lg:text-left">
           <p className="text-[11px] uppercase tracking-[0.3em] text-mute sm:text-[12px]">
-            A2 / A2 Jersey · Hay-fed
+            A2 Jersey · Hay-Fed · Single Farm
           </p>
           <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.14] tracking-[-0.02em] text-ink">
-            선택받은 분의
+            한 모금에 담긴
             <br />
-            <span className="text-gold-deep">식탁에만 닿습니다.</span>
+            <span className="text-gold-deep">15년의 약속.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-md text-[14px] leading-relaxed text-ink-soft sm:text-[15px] lg:mx-0">
-            국내 1.6%의 희소한 A2 저지 원유, 유럽 전통 헤이밀크 방식 그대로.
-            회원으로 모신 분께만, 선착순 500명 한정으로 엽니다.
+            최고급 와인에 떼루아가 있듯, 우유에도 격이 있습니다. 국내 단 1,000여 두의
+            저지소, 그중 100% A2 저지 원유를 헤이밀크 방식으로. 선택받은 분의 식탁에만
+            닿도록, 회원 500명으로 한정합니다.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
             <Link
