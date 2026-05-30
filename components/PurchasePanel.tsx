@@ -11,15 +11,19 @@ import {
 import {
   useCart,
   DELIVERY_DAY_LABEL,
+  FREQUENCY_LABEL,
   type DeliveryDay,
+  type Frequency,
   type PurchaseMode,
 } from "@/lib/cart";
 
 const DELIVERY_DAYS: DeliveryDay[] = ["tue", "thu"];
+const FREQUENCIES: Frequency[] = ["weekly", "biweekly", "every4"];
 
 export function PurchasePanel({ product }: { product: Product }) {
   const { add } = useCart();
   const [mode, setMode] = useState<PurchaseMode>("sub");
+  const [frequency, setFrequency] = useState<Frequency>("weekly");
   const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("tue");
   const [qty, setQty] = useState(1);
 
@@ -32,6 +36,7 @@ export function PurchasePanel({ product }: { product: Product }) {
       productId: product.id,
       mode,
       deliveryDay: mode === "sub" ? deliveryDay : undefined,
+      frequency: mode === "sub" ? frequency : undefined,
       qty,
       unitPrice,
     });
@@ -59,10 +64,28 @@ export function PurchasePanel({ product }: { product: Product }) {
         ))}
       </div>
 
-      {/* Subscription: delivery day + commitment */}
+      {/* Subscription: cycle + delivery day + commitment */}
       {mode === "sub" && (
         <div className="mt-6">
-          <p className="text-[12px] uppercase tracking-[0.18em] text-mute">배송 요일</p>
+          <p className="text-[12px] uppercase tracking-[0.18em] text-mute">배송 주기</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {FREQUENCIES.map((f) => (
+              <button
+                key={f}
+                onClick={() => setFrequency(f)}
+                aria-pressed={frequency === f}
+                className={`rounded-xl border py-2.5 text-[13px] transition-all ${
+                  frequency === f
+                    ? "border-gold bg-gold/10 text-ink"
+                    : "border-line text-ink-soft hover:border-gold/50"
+                }`}
+              >
+                {FREQUENCY_LABEL[f]}
+              </button>
+            ))}
+          </div>
+
+          <p className="mt-5 text-[12px] uppercase tracking-[0.18em] text-mute">배송 요일</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {DELIVERY_DAYS.map((d) => (
               <button
@@ -75,12 +98,13 @@ export function PurchasePanel({ product }: { product: Product }) {
                     : "border-line text-ink-soft hover:border-gold/50"
                 }`}
               >
-                매주 {DELIVERY_DAY_LABEL[d]}
+                {DELIVERY_DAY_LABEL[d]}
               </button>
             ))}
           </div>
           <p className="mt-3 rounded-xl bg-paper-2 px-4 py-3 text-[12px] leading-relaxed text-ink-soft">
-            주 1회 배송 · 한 번 신청하면{" "}
+            {FREQUENCY_LABEL[frequency]} {DELIVERY_DAY_LABEL[deliveryDay]} 배송 · 수량과 주기는
+            자유롭게 · 한 번 신청하면{" "}
             <span className="font-semibold text-ink">최소 {SUB_MIN_DELIVERIES}회</span> 받는
             구독이에요.
           </p>
@@ -138,7 +162,7 @@ export function PurchasePanel({ product }: { product: Product }) {
           <p className="text-right text-[12px] text-ink-soft">
             {mode === "sub" ? (
               <>
-                매주 {DELIVERY_DAY_LABEL[deliveryDay]} ·{" "}
+                {FREQUENCY_LABEL[frequency]} {DELIVERY_DAY_LABEL[deliveryDay]} ·{" "}
                 <span className="text-gold-deep">배송비 무료</span>
               </>
             ) : (
@@ -166,7 +190,7 @@ export function PurchasePanel({ product }: { product: Product }) {
 
         <p className="mt-4 text-center text-[11.5px] leading-relaxed text-mute">
           {mode === "sub"
-            ? `매주 ${DELIVERY_DAY_LABEL[deliveryDay]} 자동 결제·배송 · 최소 ${SUB_MIN_DELIVERIES}회 이후 해지 가능`
+            ? `${FREQUENCY_LABEL[frequency]} ${DELIVERY_DAY_LABEL[deliveryDay]} 자동 결제·배송 · 최소 ${SUB_MIN_DELIVERIES}회 이후 해지 가능`
             : "콜드체인 직배송 · 익일 수령 (월–금)"}
         </p>
       </div>

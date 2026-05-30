@@ -2,9 +2,9 @@ import Link from "next/link";
 import { Reveal } from "./Reveal";
 
 const STEPS = [
-  { n: "01", t: "제품과 요일 선택", d: "주 1회 배송, 화요일·목요일 중 택일." },
-  { n: "02", t: "최소 8회 구독", d: "한 번 신청하면 8회. 콜드체인으로 갓 짜낸 우유가 문 앞까지." },
-  { n: "03", t: "자동 반복", d: "매주 같은 요일 자동 결제·배송. 8회 이후 언제든 해지." },
+  { n: "01", t: "수량·주기 선택", d: "원하는 수량과 주기(매주·격주·4주마다), 화·목 중 택일." },
+  { n: "02", t: "최소 4회 구독", d: "한 번 신청하면 4회. 콜드체인으로 갓 짜낸 우유가 문 앞까지." },
+  { n: "03", t: "자동 반복", d: "선택한 주기·요일에 자동 결제·배송. 4회 이후 언제든 해지." },
 ];
 
 export function SubscriptionBand() {
@@ -20,9 +20,9 @@ export function SubscriptionBand() {
             냉장고에 늘, <span className="font-display italic text-gold">목장의 아침.</span>
           </h2>
           <p className="mt-6 text-[15px] leading-loose text-cream/70">
-            장 보러 가지 않아도 신선함이 떨어지지 않게. 정기구독은 매 회차{" "}
-            <span className="text-gold">10% 할인</span>, 배송비 무료. 주 1회, 화·목 중 원하는
-            요일에 받아보세요.
+            장 보러 가지 않아도 신선함이 떨어지지 않게. 수량과 주기는 자유롭게 고르고, 매 회차{" "}
+            <span className="text-gold">10% 할인</span>, 배송비 무료. 화·목 중 원하는 요일에
+            받아보세요.
           </p>
         </Reveal>
 

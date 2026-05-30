@@ -27,8 +27,8 @@ export type Product = {
 
 export const SUBSCRIBE_DISCOUNT = 0.1;
 
-// 정기구독은 주 1회, 한 번 신청하면 최소 8회를 받습니다.
-export const SUB_MIN_DELIVERIES = 8;
+// 정기구독 최소 약정 횟수. 소비자가 수량·주기를 직접 고르고, 최소 4회 이상 받습니다.
+export const SUB_MIN_DELIVERIES = 4;
 
 export const PRODUCTS: Product[] = [
   {

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
+import { useCart, DELIVERY_DAY_LABEL, FREQUENCY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW } from "@/lib/products";
 
 export function CartDrawer() {
@@ -68,7 +68,7 @@ export function CartDrawer() {
                           </p>
                           <p className="mt-0.5 text-[11px] uppercase tracking-[0.18em] text-gold-deep">
                             {item.mode === "sub"
-                              ? `정기구독 · 매주 ${DELIVERY_DAY_LABEL[item.deliveryDay ?? "tue"]}`
+                              ? `정기구독 · ${FREQUENCY_LABEL[item.frequency ?? "weekly"]} ${DELIVERY_DAY_LABEL[item.deliveryDay ?? "tue"]}`
                               : "1회 구매"}
                           </p>
                         </div>
@@ -125,7 +125,7 @@ export function CartDrawer() {
             </div>
             {hasSub && (
               <p className="mt-2 text-[12px] leading-relaxed text-gold-deep">
-                정기구독 상품이 포함되어 있어요. 매주 선택한 요일에 자동 결제·배송되며, 최소 8회
+                정기구독 상품이 포함되어 있어요. 선택한 주기·요일에 자동 결제·배송되며, 최소 4회
                 이후 해지할 수 있습니다.
               </p>
             )}
