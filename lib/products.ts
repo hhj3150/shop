@@ -43,6 +43,10 @@ export const BLOCK_WEEKS = 4; // 1회 결제(입금) = 4주분 = 4회 배송
 export const SUB_MIN_DELIVERIES = 4; // 최소 약정 4회 (= 1블록)
 export const MIN_ORDER_KRW = 25000; // 최소 주문 금액
 
+// 정기구독 정원: 요일별 100명, 월–금 5일 = 전체 500명. 초과 시 대기자.
+export const SUB_DAY_CAP = 100;
+export const SUB_TOTAL_CAP = 500;
+
 // 장기 구독 할인 (구독 유지 기간 기준).
 export const BASE_DISCOUNT = 0.1; // 기본 10%
 export const TIER_6M_DISCOUNT = 0.15; // 6개월 이상 15%

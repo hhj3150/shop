@@ -15,6 +15,7 @@ import {
 import { createOrder } from "@/lib/orders";
 import { DEPOSIT } from "@/lib/site";
 import { Field } from "@/components/Field";
+import { AddressSearch } from "@/components/AddressSearch";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -69,9 +70,16 @@ export default function CheckoutPage() {
     }
     setBusy(true);
     try {
-      const { orderNo } = await createOrder(user.id, items, ship);
+      const { orderNo, slots } = await createOrder(user.id, items, ship);
       clear();
-      router.push(`/orders/complete?no=${encodeURIComponent(orderNo)}`);
+      const first = slots[0];
+      const params = new URLSearchParams({ no: orderNo });
+      if (first) {
+        params.set("day", first.deliveryDay);
+        params.set("pos", String(first.position));
+        params.set("wait", first.waitlisted ? "1" : "0");
+      }
+      router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "주문에 실패했습니다.");
     } finally {
@@ -105,11 +113,12 @@ export default function CheckoutPage() {
     <div className="mx-auto max-w-2xl px-5 pb-24 pt-28 sm:px-8">
       <p className="eyebrow text-gold-deep">Checkout</p>
       <h1 className="mt-3 font-serif-kr text-[clamp(1.7rem,5vw,2.3rem)] font-medium text-ink">
-        무통장입금 주문
+        자동이체 정기구독 신청
       </h1>
       <p className="mt-3 text-[14px] leading-relaxed text-mute">
-        주문 후 아래 계좌로 입금하시면, 목장에서 입금을 확인한 뒤 발송 준비를
-        시작하고 <span className="text-ink-soft">문자로 안내</span>해 드립니다.
+        신청 후 아래 계좌로 <span className="text-ink-soft">4주마다 자동이체</span>를
+        등록해 주세요. 자동이체가 확인된 회원께만 발송하며, 발송 준비가 되면
+        등록하신 번호로 안내드립니다.
       </p>
 
       {/* 주문 요약 */}
@@ -146,22 +155,37 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* 입금 계좌 */}
+      {/* 자동이체 등록 계좌 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
         <p className="text-[12px] uppercase tracking-[0.18em] text-gold-deep">
-          입금 계좌
+          자동이체 등록 계좌
         </p>
         <p className="mt-2 font-serif-kr text-lg text-ink">
           {DEPOSIT.bank} {DEPOSIT.account}
         </p>
         <p className="mt-0.5 text-[13px] text-mute">예금주 {DEPOSIT.holder}</p>
+        <p className="mt-3 text-[12px] leading-relaxed text-ink-soft">
+          은행 앱·창구에서 위 계좌로 4주마다 {formatKRW(blockTotal)} 자동이체를
+          등록해 주세요. 자동이체 확인 후 발송이 시작됩니다.
+        </p>
       </div>
 
       {/* 배송지 */}
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
         <Field id="name" label="받는 분" required value={ship.name} onChange={(e) => update("name", e.target.value)} />
         <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." inputMode="numeric" required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
-        <Field id="postcode" label="우편번호" inputMode="numeric" value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <Field id="postcode" label="우편번호" inputMode="numeric" value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
+          </div>
+          <div className="pb-1">
+            <AddressSearch
+              onSelect={(postcode, address) =>
+                setShip((prev) => ({ ...prev, postcode, address }))
+              }
+            />
+          </div>
+        </div>
         <Field id="address" label="주소" required value={ship.address} onChange={(e) => update("address", e.target.value)} />
         <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
         <Field id="depositorName" label="입금자명" hint="통장 입금 대조를 위해 실제 입금하실 분의 이름을 적어 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
@@ -185,10 +209,10 @@ export default function CheckoutPage() {
           disabled={busy}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {busy ? "주문 접수 중…" : "주문하고 입금 안내 받기"}
+          {busy ? "신청 접수 중…" : "구독 신청하고 자동이체 안내 받기"}
         </button>
         <p className="text-center text-[11px] text-mute">
-          주문 시 입금 대기 상태로 접수됩니다. 입금 확인 후 발송됩니다.
+          신청 시 자동이체 확인 대기 상태로 접수됩니다. 자동이체 확인 후 발송됩니다.
         </p>
       </form>
     </div>

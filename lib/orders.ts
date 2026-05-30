@@ -1,6 +1,6 @@
 import { getSupabase } from "./supabase";
-import type { CartItem } from "./cart";
-import { getProduct, BLOCK_WEEKS } from "./products";
+import type { CartItem, DeliveryDay } from "./cart";
+import { getProduct, BLOCK_WEEKS, SUB_DAY_CAP } from "./products";
 
 export type ShippingInfo = {
   name: string;
@@ -12,6 +12,13 @@ export type ShippingInfo = {
   memo: string;
 };
 
+// 신청 결과: 요일별로 몇 번째인지, 대기자인지.
+export type SlotResult = {
+  deliveryDay: DeliveryDay;
+  position: number; // 해당 요일에서 몇 번째 (정원 내) 또는 대기자 순번
+  waitlisted: boolean;
+};
+
 function makeOrderNo(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -20,18 +27,18 @@ function makeOrderNo(): string {
   return `SY${stamp}-${rand}`;
 }
 
-// 무통장입금 정기구독 주문 생성. 결제 단위 = 4주분(주 1회 × 4주 = 4회).
-// 로그인된 회원만 호출 가능(RLS).
+// 자동이체 정기구독 주문 생성. 결제 단위 = 4주분(주 1회 × 4주 = 4회).
+// 로그인된 회원만 호출 가능(RLS). 요일별 선착순 슬롯도 함께 등록한다.
 export async function createOrder(
   userId: string,
   items: CartItem[],
   ship: ShippingInfo
-): Promise<{ orderNo: string }> {
+): Promise<{ orderNo: string; slots: SlotResult[] }> {
   if (items.length === 0) throw new Error("장바구니가 비어 있습니다.");
 
   const supabase = getSupabase();
   const orderNo = makeOrderNo();
-  // 입금 금액 = 회당 합계 × 4주.
+  // 입금(자동이체) 금액 = 회당 합계 × 4주.
   const total = items.reduce((sum, i) => sum + i.unitPrice * i.qty, 0) * BLOCK_WEEKS;
 
   const { data: order, error: orderErr } = await supabase
@@ -73,5 +80,47 @@ export async function createOrder(
   const { error: itemsErr } = await supabase.from("order_items").insert(rows);
   if (itemsErr) throw new Error(itemsErr.message);
 
-  return { orderNo: order.order_no };
+  // 요일별 선착순 슬롯 등록 — 장바구니에 담긴 요일(중복 제거)마다 1슬롯.
+  const days = Array.from(new Set(items.map((i) => i.deliveryDay)));
+  const slots = await registerSlots(userId, order.id, days);
+
+  return { orderNo: order.order_no, slots };
+}
+
+// 요일별 현재 점유 수를 보고 정원(100) 내면 '신청', 초과면 '대기'로 슬롯 등록.
+async function registerSlots(
+  userId: string,
+  orderId: string,
+  days: DeliveryDay[]
+): Promise<SlotResult[]> {
+  const supabase = getSupabase();
+  const results: SlotResult[] = [];
+
+  for (const day of days) {
+    const { data: row } = await supabase
+      .from("subscription_day_count")
+      .select("taken, waitlist, capacity")
+      .eq("delivery_day", day)
+      .maybeSingle();
+
+    const taken = (row?.taken as number) ?? 0;
+    const waitlist = (row?.waitlist as number) ?? 0;
+    const capacity = (row?.capacity as number) ?? SUB_DAY_CAP;
+    const waitlisted = taken >= capacity;
+
+    await supabase.from("subscription_slots").insert({
+      user_id: userId,
+      delivery_day: day,
+      status: waitlisted ? "대기" : "신청",
+      order_id: orderId,
+    });
+
+    results.push({
+      deliveryDay: day,
+      position: waitlisted ? waitlist + 1 : taken + 1,
+      waitlisted,
+    });
+  }
+
+  return results;
 }

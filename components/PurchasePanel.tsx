@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   type Product,
   formatKRW,
@@ -10,15 +10,25 @@ import {
   BLOCK_WEEKS,
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
+import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/subscriptions";
 
 export function PurchasePanel({ product }: { product: Product }) {
   const { add } = useCart();
   const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("mon");
   const [qty, setQty] = useState(1);
+  const [counts, setCounts] = useState<DayCounts | null>(null);
+
+  useEffect(() => {
+    getDayCounts().then(setCounts);
+  }, []);
 
   const unitPrice = subscribePrice(product.price);
   const perDelivery = unitPrice * qty;
   const blockTotal = perDelivery * BLOCK_WEEKS;
+
+  const selected = counts?.[deliveryDay] ?? null;
+  const selectedRemaining = selected ? remaining(selected) : null;
+  const selectedFull = selected ? isWaitlisted(selected) : false;
 
   const handleAdd = () => {
     add({ productId: product.id, deliveryDay, qty, unitPrice });
@@ -37,24 +47,52 @@ export function PurchasePanel({ product }: { product: Product }) {
 
       {/* 배송 요일 (매주 1회 고정) */}
       <p className="mt-6 text-[12px] uppercase tracking-[0.18em] text-mute">
-        배송 요일 · 매주
+        배송 요일 · 매주 · 요일별 100명 한정
       </p>
       <div className="mt-3 grid grid-cols-5 gap-1.5">
-        {DELIVERY_DAYS.map((d) => (
-          <button
-            key={d}
-            onClick={() => setDeliveryDay(d)}
-            aria-pressed={deliveryDay === d}
-            className={`rounded-xl border py-2.5 text-[13px] transition-all ${
-              deliveryDay === d
-                ? "border-gold bg-gold/10 text-ink"
-                : "border-line text-ink-soft hover:border-gold/50"
-            }`}
-          >
-            {DELIVERY_DAY_LABEL[d].charAt(0)}
-          </button>
-        ))}
+        {DELIVERY_DAYS.map((d) => {
+          const c = counts?.[d] ?? null;
+          const rem = c ? remaining(c) : null;
+          const full = c ? isWaitlisted(c) : false;
+          return (
+            <button
+              key={d}
+              onClick={() => setDeliveryDay(d)}
+              aria-pressed={deliveryDay === d}
+              className={`flex flex-col items-center rounded-xl border py-2 text-[13px] transition-all ${
+                deliveryDay === d
+                  ? "border-gold bg-gold/10 text-ink"
+                  : "border-line text-ink-soft hover:border-gold/50"
+              }`}
+            >
+              <span>{DELIVERY_DAY_LABEL[d].charAt(0)}</span>
+              <span
+                className={`mt-0.5 text-[10px] tabular-nums ${
+                  full ? "text-mute" : "text-gold-deep"
+                }`}
+              >
+                {rem === null ? "·" : full ? "마감" : `${rem}석`}
+              </span>
+            </button>
+          );
+        })}
       </div>
+      {selected && (
+        <p className="mt-2 text-[12px] text-ink-soft">
+          {selectedFull ? (
+            <>
+              {DELIVERY_DAY_LABEL[deliveryDay]} 정원 마감 — 신청 시{" "}
+              <span className="font-medium text-ink">대기자</span>로 등록됩니다.
+            </>
+          ) : (
+            <>
+              {DELIVERY_DAY_LABEL[deliveryDay]} ·{" "}
+              <span className="font-medium text-gold-deep">{selectedRemaining}자리</span>{" "}
+              남음 (현재 {selected.taken}번째까지 모집)
+            </>
+          )}
+        </p>
+      )}
 
       {/* 수량 (매주 회당) */}
       <div className="mt-6 flex items-center justify-between">

@@ -1,6 +1,21 @@
--- 송영신목장 독립몰 — 무통장입금 · 회원제 · 정기구독 전용 스키마
+-- 송영신목장 독립몰 — 자동이체 · 회원제 · 정기구독 전용 스키마
 -- Supabase SQL Editor에 이 파일 전체를 붙여넣고 실행하세요.
 -- 인증(이메일/비밀번호)은 Supabase Auth(auth.users)가 담당합니다.
+
+-- ───────────────────────────────────────────────────────────
+-- 0. 관리자 판별 함수 (RLS 재귀 방지를 위해 SECURITY DEFINER).
+--    profiles.is_admin = true 인 계정만 관리자.
+--    관리자 지정: update public.profiles set is_admin = true where id = '<auth uid>';
+-- ───────────────────────────────────────────────────────────
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
+$$;
 
 -- ───────────────────────────────────────────────────────────
 -- 1. 회원 프로필 (배송·문자 발송에 필요한 최소 정보)
@@ -30,6 +45,11 @@ create policy "profiles_insert_own" on public.profiles
 drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own" on public.profiles
   for update using (auth.uid() = id);
+
+-- 관리자는 모든 회원 프로필 조회 가능 (물류·연락용).
+drop policy if exists "profiles_select_admin" on public.profiles;
+create policy "profiles_select_admin" on public.profiles
+  for select using (public.is_admin());
 
 -- ───────────────────────────────────────────────────────────
 -- 2. 주문 (무통장입금 · 4주분 선입금)
@@ -66,7 +86,14 @@ drop policy if exists "orders_insert_own" on public.orders;
 create policy "orders_insert_own" on public.orders
   for insert with check (auth.uid() = user_id);
 
--- 입금확인·배송 상태 변경은 관리자(Phase 2, service role)만. 회원 update 정책 없음.
+-- 관리자는 모든 주문 조회/상태변경(자동이체 확인·배송 상태) 가능.
+drop policy if exists "orders_select_admin" on public.orders;
+create policy "orders_select_admin" on public.orders
+  for select using (public.is_admin());
+
+drop policy if exists "orders_update_admin" on public.orders;
+create policy "orders_update_admin" on public.orders
+  for update using (public.is_admin());
 
 -- ───────────────────────────────────────────────────────────
 -- 3. 주문 품목 (정기구독 전용 · 매주 1회 고정, 요일은 월~금 택1)
@@ -102,19 +129,29 @@ create policy "order_items_insert_own" on public.order_items
     )
   );
 
+-- 관리자는 모든 주문 품목 조회 가능 (요일별·제품별 수량 집계).
+drop policy if exists "order_items_select_admin" on public.order_items;
+create policy "order_items_select_admin" on public.order_items
+  for select using (public.is_admin());
+
 -- ───────────────────────────────────────────────────────────
 -- 4. 정기구독 슬롯 (요일별 선착순 100명 · 전체 500명)
 --    100명이 차면 status='대기' 로 대기자 등록 → Phase 2에서 빈 자리 발생 시 문자 안내.
 --    started_at = 구독 시작일 (장기구독 할인 산정: 6개월↑ 15%, 1년↑ 20%).
 --    동시성(100명 정확 마감)은 Phase 2의 RPC/함수에서 보강.
 -- ───────────────────────────────────────────────────────────
+-- status:
+--   신청 = 신청 완료, 자동이체 확인 대기 (정원 100 안에 자리 점유)
+--   활성 = 자동이체 확인된 정회원 (자리 점유, started_at 부여 → 연차 할인 기준)
+--   대기 = 정원 100 초과 대기자 (자리 미점유, 빈 자리 생기면 승급)
+--   해지 = 해지됨
 create table if not exists public.subscription_slots (
   id           bigint generated always as identity primary key,
   user_id      uuid not null references auth.users (id) on delete cascade,
   delivery_day text not null check (delivery_day in ('mon','tue','wed','thu','fri')),
-  status       text not null default '대기'
-               check (status in ('활성','대기','해지')),
-  started_at   date,                         -- 활성 전환(첫 입금확인) 시점 = 구독 연차 기준일
+  status       text not null default '신청'
+               check (status in ('신청','활성','대기','해지')),
+  started_at   date,                         -- 활성 전환(첫 자동이체 확인) 시점 = 구독 연차 기준일
   order_id     uuid references public.orders (id) on delete set null,
   created_at   timestamptz not null default now()
 );
@@ -134,8 +171,20 @@ drop policy if exists "slots_insert_own" on public.subscription_slots;
 create policy "slots_insert_own" on public.subscription_slots
   for insert with check (auth.uid() = user_id);
 
+-- 관리자는 모든 슬롯(활성·대기자) 조회/변경 가능.
+drop policy if exists "slots_select_admin" on public.subscription_slots;
+create policy "slots_select_admin" on public.subscription_slots
+  for select using (public.is_admin());
+
+drop policy if exists "slots_update_admin" on public.subscription_slots;
+create policy "slots_update_admin" on public.subscription_slots
+  for update using (public.is_admin());
+
 -- ───────────────────────────────────────────────────────────
--- 5. 요일별 잔여 슬롯 조회용 뷰 (공개 카운트만 노출, 정원 100/요일).
+-- 5. 요일별 점유 현황 뷰 (집계 수치만 노출, 개인정보 없음, 정원 100/요일).
+--    security_invoker=off(기본): 뷰 소유자(postgres) 권한으로 실행되어 RLS를
+--    우회하므로, 미로그인 방문자도 전체 집계(잔여 인원)를 볼 수 있다.
+--    taken = 신청+활성(정원 점유). 잔여 = 100 - taken. waitlist = 대기자 수.
 -- ───────────────────────────────────────────────────────────
 create or replace view public.subscription_day_count as
   with days as (
@@ -144,8 +193,13 @@ create or replace view public.subscription_day_count as
   select
     d.delivery_day,
     coalesce(count(s.id) filter (where s.status = '활성'), 0)::int as active,
+    coalesce(count(s.id) filter (where s.status in ('신청','활성')), 0)::int as taken,
+    coalesce(count(s.id) filter (where s.status = '대기'), 0)::int as waitlist,
     100 as capacity
   from days d
   left join public.subscription_slots s
-    on s.delivery_day = d.delivery_day and s.status = '활성'
+    on s.delivery_day = d.delivery_day
   group by d.delivery_day;
+
+-- 뷰는 익명(미로그인) 방문자도 잔여 수량을 볼 수 있어야 하므로 읽기 권한 부여.
+grant select on public.subscription_day_count to anon, authenticated;

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { Field } from "@/components/Field";
+import { AddressSearch } from "@/components/AddressSearch";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -142,14 +143,23 @@ export default function SignupPage() {
           onChange={(e) => update("password", e.target.value)}
         />
 
-        <div className="grid grid-cols-[1fr_auto] gap-3">
-          <Field
-            id="postcode"
-            label="우편번호"
-            inputMode="numeric"
-            value={form.postcode}
-            onChange={(e) => update("postcode", e.target.value)}
-          />
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <Field
+              id="postcode"
+              label="우편번호"
+              inputMode="numeric"
+              value={form.postcode}
+              onChange={(e) => update("postcode", e.target.value)}
+            />
+          </div>
+          <div className="pb-1">
+            <AddressSearch
+              onSelect={(postcode, address) =>
+                setForm((prev) => ({ ...prev, postcode, address }))
+              }
+            />
+          </div>
         </div>
         <Field
           id="address"
