@@ -14,7 +14,7 @@ export const BUSINESS = {
   ceo: "송영신",
   bizNo: "266-88-01121",
   mailOrderNo: "제 2025-경기안성-0841 호",
-  address: "경기도 안성시 보개면 양협길 29-67",
+  address: "경기도 안성시 미양면 미양로 466",
   tel: "031-674-3150",
   mobile: "010-6642-5042",
   privacyManager: "송영신",
