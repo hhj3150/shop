@@ -19,15 +19,16 @@ export type Product = {
   story: string[];
   specs: ProductSpec[];
   price: number;
+  taxFree: boolean;
   image: string;
   detailImage: string;
   accent: string;
 };
 
-/**
- * 가격은 출시 전 임시값. 실제 소비자가 확정 시 이 한 곳만 수정하면 전체 반영됨.
- */
 export const SUBSCRIBE_DISCOUNT = 0.1;
+
+// 정기구독은 주 1회, 한 번 신청하면 최소 8회를 받습니다.
+export const SUB_MIN_DELIVERIES = 8;
 
 export const PRODUCTS: Product[] = [
   {
@@ -50,8 +51,10 @@ export const PRODUCTS: Product[] = [
       { label: "사육", value: "Hay-fed · 무사일리지" },
       { label: "열량", value: "137 kcal" },
       { label: "보관", value: "냉장 0–10℃" },
+      { label: "구분", value: "면세품" },
     ],
-    price: 3800,
+    price: 3500,
+    taxFree: true,
     image: "/products/milk-180.png",
     detailImage: "/detail/milk-180.jpg",
     accent: "#b89554",
@@ -76,8 +79,10 @@ export const PRODUCTS: Product[] = [
       { label: "사육", value: "Hay-fed · 무사일리지" },
       { label: "열량", value: "570 kcal / 병" },
       { label: "보관", value: "냉장 0–10℃" },
+      { label: "구분", value: "면세품" },
     ],
-    price: 9800,
+    price: 12000,
+    taxFree: true,
     image: "/products/milk-750.png",
     detailImage: "/detail/milk-750.jpg",
     accent: "#a36b2c",
@@ -102,8 +107,10 @@ export const PRODUCTS: Product[] = [
       { label: "첨가물", value: "무가당 · 무향료 · 무첨가" },
       { label: "열량", value: "약 140 kcal" },
       { label: "보관", value: "냉장 0–10℃" },
+      { label: "구분", value: "과세품 · 세금 포함가" },
     ],
-    price: 4500,
+    price: 4300,
+    taxFree: false,
     image: "/products/yogurt-180.png",
     detailImage: "/detail/yogurt-180.jpg",
     accent: "#7a8a3d",
@@ -128,8 +135,10 @@ export const PRODUCTS: Product[] = [
       { label: "첨가물", value: "무가당 · 무향료 · 무첨가" },
       { label: "열량", value: "390 kcal / 통" },
       { label: "보관", value: "냉장 0–10℃" },
+      { label: "구분", value: "과세품 · 세금 포함가" },
     ],
-    price: 11000,
+    price: 10000,
+    taxFree: false,
     image: "/products/yogurt-500.png",
     detailImage: "/detail/yogurt-500.jpg",
     accent: "#6f7d36",

@@ -6,25 +6,32 @@ import {
   formatKRW,
   subscribePrice,
   SUBSCRIBE_DISCOUNT,
+  SUB_MIN_DELIVERIES,
 } from "@/lib/products";
-import { useCart, FREQUENCY_LABEL, type Frequency, type PurchaseMode } from "@/lib/cart";
+import {
+  useCart,
+  DELIVERY_DAY_LABEL,
+  type DeliveryDay,
+  type PurchaseMode,
+} from "@/lib/cart";
 
-const FREQUENCIES: Frequency[] = ["weekly", "biweekly", "monthly"];
+const DELIVERY_DAYS: DeliveryDay[] = ["tue", "thu"];
 
 export function PurchasePanel({ product }: { product: Product }) {
   const { add } = useCart();
   const [mode, setMode] = useState<PurchaseMode>("sub");
-  const [frequency, setFrequency] = useState<Frequency>("weekly");
+  const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("tue");
   const [qty, setQty] = useState(1);
 
   const unitPrice = mode === "sub" ? subscribePrice(product.price) : product.price;
-  const total = unitPrice * qty;
+  const perDelivery = unitPrice * qty;
+  const subCommitTotal = perDelivery * SUB_MIN_DELIVERIES;
 
   const handleAdd = () => {
     add({
       productId: product.id,
       mode,
-      frequency: mode === "sub" ? frequency : undefined,
+      deliveryDay: mode === "sub" ? deliveryDay : undefined,
       qty,
       unitPrice,
     });
@@ -52,25 +59,41 @@ export function PurchasePanel({ product }: { product: Product }) {
         ))}
       </div>
 
-      {/* Frequency (subscription only) */}
+      {/* Subscription: delivery day + commitment */}
       {mode === "sub" && (
         <div className="mt-6">
-          <p className="text-[12px] uppercase tracking-[0.18em] text-mute">배송 주기</p>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {FREQUENCIES.map((f) => (
+          <p className="text-[12px] uppercase tracking-[0.18em] text-mute">배송 요일</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {DELIVERY_DAYS.map((d) => (
               <button
-                key={f}
-                onClick={() => setFrequency(f)}
+                key={d}
+                onClick={() => setDeliveryDay(d)}
+                aria-pressed={deliveryDay === d}
                 className={`rounded-xl border py-2.5 text-[13px] transition-all ${
-                  frequency === f
+                  deliveryDay === d
                     ? "border-gold bg-gold/10 text-ink"
                     : "border-line text-ink-soft hover:border-gold/50"
                 }`}
               >
-                {FREQUENCY_LABEL[f]}
+                매주 {DELIVERY_DAY_LABEL[d]}
               </button>
             ))}
           </div>
+          <p className="mt-3 rounded-xl bg-paper-2 px-4 py-3 text-[12px] leading-relaxed text-ink-soft">
+            주 1회 배송 · 한 번 신청하면{" "}
+            <span className="font-semibold text-ink">최소 {SUB_MIN_DELIVERIES}회</span> 받는
+            구독이에요.
+          </p>
+        </div>
+      )}
+
+      {/* Single purchase: delivery rule */}
+      {mode === "one" && (
+        <div className="mt-6 rounded-xl bg-paper-2 px-4 py-3 text-[12px] leading-relaxed text-ink-soft">
+          <span className="font-semibold text-ink">익일 배송</span> · 월–금 수령
+          <br />
+          전날 밤 <span className="font-semibold text-ink">12시</span>까지 주문하면 다음 날
+          받아보실 수 있어요.
         </div>
       )}
 
@@ -105,18 +128,34 @@ export function PurchasePanel({ product }: { product: Product }) {
                 {formatKRW(product.price * qty)}
               </p>
             )}
-            <p className="font-serif-kr text-2xl text-ink tabular-nums">{formatKRW(total)}</p>
+            <p className="font-serif-kr text-2xl text-ink tabular-nums">
+              {formatKRW(perDelivery)}
+              {mode === "sub" && (
+                <span className="ml-1 text-[13px] font-sans text-mute">/ 회</span>
+              )}
+            </p>
           </div>
-          <p className="text-[12px] text-ink-soft">
+          <p className="text-right text-[12px] text-ink-soft">
             {mode === "sub" ? (
               <>
-                {FREQUENCY_LABEL[frequency]} 배송 · <span className="text-gold-deep">배송비 무료</span>
+                매주 {DELIVERY_DAY_LABEL[deliveryDay]} ·{" "}
+                <span className="text-gold-deep">배송비 무료</span>
               </>
             ) : (
               "1회 결제"
             )}
           </p>
         </div>
+
+        <p className="mt-2 text-[11px] text-mute">
+          {product.taxFree ? "면세품 · 부가세 없음" : "과세품 · 부가세 포함 가격"}
+        </p>
+
+        {mode === "sub" && (
+          <p className="mt-1 text-[12px] text-mute tabular-nums">
+            {SUB_MIN_DELIVERIES}회 약정 기준 총 {formatKRW(subCommitTotal)}
+          </p>
+        )}
 
         <button
           onClick={handleAdd}
@@ -127,8 +166,8 @@ export function PurchasePanel({ product }: { product: Product }) {
 
         <p className="mt-4 text-center text-[11.5px] leading-relaxed text-mute">
           {mode === "sub"
-            ? "첫 배송 후 선택한 주기로 자동 결제 · 언제든 건너뛰기 · 해지 가능"
-            : "콜드체인 직배송 · 출고 후 1–2일 내 수령"}
+            ? `매주 ${DELIVERY_DAY_LABEL[deliveryDay]} 자동 결제·배송 · 최소 ${SUB_MIN_DELIVERIES}회 이후 해지 가능`
+            : "콜드체인 직배송 · 익일 수령 (월–금)"}
         </p>
       </div>
     </div>

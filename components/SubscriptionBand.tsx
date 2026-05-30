@@ -2,9 +2,9 @@ import Link from "next/link";
 import { Reveal } from "./Reveal";
 
 const STEPS = [
-  { n: "01", t: "제품과 주기 선택", d: "매주 · 격주 · 4주마다. 우리 집 소비 속도에 맞게." },
-  { n: "02", t: "첫 배송 받기", d: "콜드체인으로 갓 짜낸 우유가 문 앞까지." },
-  { n: "03", t: "자동 반복", d: "다음 회차는 자동 결제·배송. 언제든 건너뛰기·해지." },
+  { n: "01", t: "제품과 요일 선택", d: "주 1회 배송, 화요일·목요일 중 택일." },
+  { n: "02", t: "최소 8회 구독", d: "한 번 신청하면 8회. 콜드체인으로 갓 짜낸 우유가 문 앞까지." },
+  { n: "03", t: "자동 반복", d: "매주 같은 요일 자동 결제·배송. 8회 이후 언제든 해지." },
 ];
 
 export function SubscriptionBand() {
@@ -21,8 +21,8 @@ export function SubscriptionBand() {
           </h2>
           <p className="mt-6 text-[15px] leading-loose text-cream/70">
             장 보러 가지 않아도 신선함이 떨어지지 않게. 정기구독은 매 회차{" "}
-            <span className="text-gold">10% 할인</span>, 배송비 무료, 그리고 언제든 해지할 수 있는
-            자유까지 함께입니다.
+            <span className="text-gold">10% 할인</span>, 배송비 무료. 주 1회, 화·목 중 원하는
+            요일에 받아보세요.
           </p>
         </Reveal>
 

@@ -10,19 +10,18 @@ import {
 } from "react";
 
 export type PurchaseMode = "one" | "sub";
-export type Frequency = "weekly" | "biweekly" | "monthly";
+export type DeliveryDay = "tue" | "thu";
 
-export const FREQUENCY_LABEL: Record<Frequency, string> = {
-  weekly: "매주",
-  biweekly: "격주",
-  monthly: "4주마다",
+export const DELIVERY_DAY_LABEL: Record<DeliveryDay, string> = {
+  tue: "화요일",
+  thu: "목요일",
 };
 
 export type CartItem = {
   key: string;
   productId: string;
   mode: PurchaseMode;
-  frequency?: Frequency;
+  deliveryDay?: DeliveryDay;
   qty: number;
   unitPrice: number;
 };
@@ -44,7 +43,7 @@ const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = "sys-cart-v1";
 
 function itemKey(i: Omit<CartItem, "key">): string {
-  return `${i.productId}:${i.mode}:${i.frequency ?? "-"}`;
+  return `${i.productId}:${i.mode}:${i.deliveryDay ?? "-"}`;
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
