@@ -97,9 +97,14 @@ export default async function ProductPage({
 
             <Link
               href={`/order-once?add=${product.id}`}
-              className="mt-4 flex items-center justify-center gap-2 rounded-full border border-line bg-cream py-3.5 text-[14px] font-medium text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+              className="mt-4 flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-gold/50 bg-gold/8 py-3.5 text-center transition-colors hover:border-gold hover:bg-gold/15"
             >
-              단품으로 한 번만 구매하기 →
+              <span className="text-[15px] font-semibold text-gold-deep">
+                단품으로 한 번만 구매하기 →
+              </span>
+              <span className="text-[12px] text-ink-soft">
+                구독 없이 이번 한 번만. 익일 배송으로 가볍게.
+              </span>
             </Link>
 
             {/* Specs — quick reference */}

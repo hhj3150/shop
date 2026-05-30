@@ -183,6 +183,17 @@ alter table public.subscription_slots
   add column if not exists paused_at date,
   add column if not exists paused_days integer not null default 0;
 
+-- 구독 해지(환불 동반): 남은 회차분을 환불하고 사유·환불계좌를 기록.
+--   cancel_reason  = 회원이 입력한 중지 사유
+--   refund_account = 회원 본인 환불 수취 계좌 (회원 직접 입력)
+--   refund_amount  = 남은(미배송) 회차 × (회당 상품가 + 배송비) — 클라이언트 산출, 관리자 검증 후 송금
+--   cancelled_at   = 해지일
+alter table public.subscription_slots
+  add column if not exists cancel_reason text,
+  add column if not exists refund_account text,
+  add column if not exists refund_amount integer,
+  add column if not exists cancelled_at date;
+
 alter table public.subscription_slots enable row level security;
 
 drop policy if exists "slots_select_own" on public.subscription_slots;
@@ -248,6 +259,39 @@ $$;
 
 grant execute on function public.pause_subscription(bigint) to authenticated;
 grant execute on function public.resume_subscription(bigint) to authenticated;
+
+-- 회원 본인의 구독을 해지(환불 동반). 사유·환불계좌·환불액을 기록하고 상태를 '해지'로.
+-- 해지하면 unique index(status<>'해지')에서 빠져 해당 요일 슬롯이 다시 열린다.
+create or replace function public.cancel_subscription(
+  p_slot_id        bigint,
+  p_reason         text,
+  p_refund_account text,
+  p_refund_amount  integer
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.subscription_slots
+     set status         = '해지',
+         paused         = false,
+         paused_at      = null,
+         cancel_reason  = p_reason,
+         refund_account = p_refund_account,
+         refund_amount  = p_refund_amount,
+         cancelled_at   = current_date
+   where id = p_slot_id
+     and user_id = auth.uid()
+     and status in ('활성','대기');
+  if not found then
+    raise exception '해지할 수 있는 구독이 아닙니다.';
+  end if;
+end;
+$$;
+
+grant execute on function public.cancel_subscription(bigint, text, text, integer) to authenticated;
 
 -- ───────────────────────────────────────────────────────────
 -- 5. 요일별 점유 현황 뷰 (집계 수치만 노출, 개인정보 없음, 정원 100/요일).

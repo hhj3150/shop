@@ -40,7 +40,8 @@ export function Hero() {
             <span className="text-gold-deep">15년의 약속.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-md text-[14px] leading-relaxed text-ink-soft sm:text-[15px] lg:mx-0">
-            회원제 정기구독으로만 모십니다. 매주 한 병, 목장에서 갓 짜낸 그대로 문 앞까지.
+            매주 한 병, 목장에서 갓 짜낸 그대로 문 앞까지. 회원제 정기구독이 기본이지만,
+            가볍게 단품으로 한 번 맛보셔도 좋습니다.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
             <Link

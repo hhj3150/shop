@@ -65,6 +65,7 @@ export type MySubscription = {
   totalWeeks: number;
   periodMonths: number;
   orderNo: string | null;
+  totalAmount: number;
 };
 
 type SlotJoinRow = {
@@ -79,6 +80,7 @@ type SlotJoinRow = {
     block_weeks: number | null;
     period_months: number | null;
     order_no: string | null;
+    total_amount: number | null;
   } | null;
 };
 
@@ -87,7 +89,7 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
   const { data, error } = await getSupabase()
     .from("subscription_slots")
     .select(
-      "id, delivery_day, status, started_at, paused, paused_at, paused_days, orders(block_weeks, period_months, order_no)"
+      "id, delivery_day, status, started_at, paused, paused_at, paused_days, orders(block_weeks, period_months, order_no, total_amount)"
     )
     .neq("status", "해지")
     .order("started_at", { ascending: true });
@@ -104,7 +106,31 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
     totalWeeks: row.orders?.block_weeks ?? 0,
     periodMonths: row.orders?.period_months ?? 1,
     orderNo: row.orders?.order_no ?? null,
+    totalAmount: row.orders?.total_amount ?? 0,
   }));
+}
+
+// 남은(미배송) 회차 환불액 = round(총입금액 / 총회차) × 남은회차.
+// 총입금액 = (회당 상품합계 + 회당 배송비) × 총회차 이므로, 회차당 단가에 배송비가 포함된다.
+export function refundAmount(sub: MySubscription, remainingDeliveries: number): number {
+  if (sub.totalWeeks <= 0) return 0;
+  const perDelivery = Math.round(sub.totalAmount / sub.totalWeeks);
+  return perDelivery * Math.max(0, remainingDeliveries);
+}
+
+export async function cancelSubscription(
+  slotId: number,
+  reason: string,
+  refundAccount: string,
+  refund: number
+): Promise<void> {
+  const { error } = await getSupabase().rpc("cancel_subscription", {
+    p_slot_id: slotId,
+    p_reason: reason,
+    p_refund_account: refundAccount,
+    p_refund_amount: refund,
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function pauseSubscription(slotId: number): Promise<void> {

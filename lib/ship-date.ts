@@ -23,6 +23,22 @@ export function nextDispatchDate(now: Date = new Date()): Date {
   return d;
 }
 
+// 정기구독 첫 배송일: 신청(또는 입금확인) 다음 날부터 가능, 선택한 요일의 가장 가까운 날.
+// 전날 자정까지 접수분만 다음 날 배송이 되므로 최소 +1일부터 탐색한다.
+const SUB_DAY_NUM: Record<string, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5 };
+
+export function firstSubscriptionDelivery(
+  deliveryDay: string,
+  from: Date = new Date()
+): Date {
+  const target = SUB_DAY_NUM[deliveryDay] ?? 1;
+  const d = new Date(from);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 1); // 전날 자정 마감 → 최소 다음 날부터
+  while (d.getDay() !== target) d.setDate(d.getDate() + 1);
+  return d;
+}
+
 /** 'YYYY-MM-DD' (DB 저장용). */
 export function toISODate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

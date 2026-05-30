@@ -11,6 +11,8 @@ import {
   getMySubscriptions,
   pauseSubscription,
   resumeSubscription,
+  cancelSubscription,
+  refundAmount,
   type MySubscription,
 } from "@/lib/subscriptions";
 import { computeSchedule } from "@/lib/subscription-schedule";
@@ -38,6 +40,9 @@ export default function AccountPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [subs, setSubs] = useState<MySubscription[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
+  const [cancelSlot, setCancelSlot] = useState<number | null>(null);
+  const [reason, setReason] = useState("");
+  const [refundAcct, setRefundAcct] = useState("");
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/account");
@@ -82,6 +87,43 @@ export default function AccountPage() {
       reloadSubs();
     } catch (e) {
       alert(e instanceof Error ? e.message : "재개에 실패했습니다.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function openCancel(slotId: number) {
+    setCancelSlot(slotId);
+    setReason("");
+    setRefundAcct("");
+  }
+
+  async function onCancel(slotId: number, refund: number, remaining: number) {
+    if (!reason.trim()) {
+      alert("중지 사유를 입력해 주세요.");
+      return;
+    }
+    if (!refundAcct.trim()) {
+      alert("환불받으실 계좌를 입력해 주세요.");
+      return;
+    }
+    if (
+      !confirm(
+        `구독을 해지하시겠어요?\n남은 ${remaining}회분 ${formatKRW(
+          refund
+        )}이 입력하신 계좌로 환불됩니다. 이 작업은 되돌릴 수 없습니다.`
+      )
+    )
+      return;
+    setBusy(slotId);
+    try {
+      await cancelSubscription(slotId, reason.trim(), refundAcct.trim(), refund);
+      setCancelSlot(null);
+      setReason("");
+      setRefundAcct("");
+      reloadSubs();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "해지에 실패했습니다.");
     } finally {
       setBusy(null);
     }
@@ -144,6 +186,8 @@ export default function AccountPage() {
                 pausedDays: s.pausedDays,
               });
               const canPause = s.status === "활성" && !s.paused;
+              const canCancel = s.status === "활성" || s.status === "대기";
+              const refund = refundAmount(s, sch.remaining);
               return (
                 <li
                   key={s.slotId}
@@ -226,6 +270,71 @@ export default function AccountPage() {
                         일시정지 기간은 배송 횟수에서 제외되며, 종료 예정일이 정지한
                         기간만큼 미뤄집니다. 총 {sch.total}회는 모두 배송됩니다.
                       </p>
+                    </div>
+                  )}
+
+                  {canCancel && sch.started && (
+                    <div className="mt-4 border-t border-line pt-4">
+                      {cancelSlot === s.slotId ? (
+                        <div className="rounded-2xl bg-paper-2 p-4">
+                          <p className="text-[14px] font-medium text-ink">구독 해지</p>
+                          <div className="mt-3 flex items-center justify-between rounded-xl bg-cream px-4 py-3">
+                            <span className="text-[13px] text-ink-soft">
+                              남은 {sch.remaining}회분 환불 예정액
+                            </span>
+                            <span className="font-serif-kr text-lg tabular-nums text-gold-deep">
+                              {formatKRW(refund)}
+                            </span>
+                          </div>
+                          <label className="mt-3 block text-[12px] text-mute">
+                            중지 사유
+                            <textarea
+                              value={reason}
+                              onChange={(e) => setReason(e.target.value)}
+                              rows={2}
+                              placeholder="해지하시는 이유를 적어 주세요."
+                              className="mt-1 w-full rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink outline-none focus:border-gold"
+                            />
+                          </label>
+                          <label className="mt-3 block text-[12px] text-mute">
+                            환불받으실 계좌 (은행·예금주·계좌번호)
+                            <input
+                              type="text"
+                              value={refundAcct}
+                              onChange={(e) => setRefundAcct(e.target.value)}
+                              placeholder="예: 농협 송영신 123-4567-8901"
+                              className="mt-1 w-full rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink outline-none focus:border-gold"
+                            />
+                          </label>
+                          <div className="mt-4 flex gap-2">
+                            <button
+                              onClick={() => onCancel(s.slotId, refund, sch.remaining)}
+                              disabled={busy === s.slotId}
+                              className="flex-1 rounded-full bg-ink py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
+                            >
+                              {busy === s.slotId ? "처리 중…" : "해지하고 환불 신청"}
+                            </button>
+                            <button
+                              onClick={() => setCancelSlot(null)}
+                              disabled={busy === s.slotId}
+                              className="rounded-full border border-line px-5 py-2.5 text-[14px] text-ink-soft transition-colors hover:border-gold disabled:opacity-50"
+                            >
+                              취소
+                            </button>
+                          </div>
+                          <p className="mt-3 text-[12px] leading-relaxed text-mute">
+                            해지하시면 이후 배송이 중단되고, 남은 회차분이 입력하신 계좌로
+                            환불됩니다. 환불은 입금 확인 후 수동으로 처리됩니다.
+                          </p>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => openCancel(s.slotId)}
+                          className="text-[13px] text-mute underline transition-colors hover:text-ink"
+                        >
+                          구독 해지 · 남은 회차 환불
+                        </button>
+                      )}
                     </div>
                   )}
                 </li>

@@ -16,6 +16,7 @@ import {
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/subscriptions";
+import { firstSubscriptionDelivery, formatDispatch } from "@/lib/ship-date";
 
 export function PurchasePanel({ product }: { product: Product }) {
   const { add, setPeriod } = useCart();
@@ -53,6 +54,7 @@ export function PurchasePanel({ product }: { product: Product }) {
   const selected = counts?.[deliveryDay] ?? null;
   const selectedRemaining = selected ? remaining(selected) : null;
   const selectedFull = selected ? isWaitlisted(selected) : false;
+  const firstDelivery = firstSubscriptionDelivery(deliveryDay);
 
   const setExtraQty = (id: string, q: number) =>
     setExtras((prev) => ({ ...prev, [id]: Math.max(0, q) }));
@@ -139,6 +141,12 @@ export function PurchasePanel({ product }: { product: Product }) {
           );
         })}
       </div>
+      <p className="mt-2 rounded-xl bg-paper-2 px-3 py-2 text-[12.5px] leading-relaxed text-ink-soft">
+        지금 신청하시면 첫 배송은{" "}
+        <span className="font-medium text-gold-deep">{formatDispatch(firstDelivery)}</span>
+        부터예요. 전날 자정까지 입금 확인되면 다음 {DELIVERY_DAY_LABEL[deliveryDay]}부터,
+        그 뒤로는 매주 {DELIVERY_DAY_LABEL[deliveryDay]}에 받으십니다.
+      </p>
       {selected && (
         <p className="mt-2 text-[13px] text-ink-soft">
           {selectedFull ? (

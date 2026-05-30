@@ -11,6 +11,7 @@ import {
   DELIVERY_DAY_LABEL,
   type DeliveryDay,
 } from "@/lib/cart";
+import { firstSubscriptionDelivery, toISODate } from "@/lib/ship-date";
 import { AdminStats } from "@/components/AdminStats";
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
@@ -70,6 +71,10 @@ type SlotRow = {
   paused: boolean;
   paused_at: string | null;
   paused_days: number;
+  cancel_reason: string | null;
+  refund_account: string | null;
+  refund_amount: number | null;
+  cancelled_at: string | null;
   created_at: string;
 };
 
@@ -249,17 +254,37 @@ export default function AdminPage() {
     [slots]
   );
 
+  // ── 해지·환불 처리 대기 ───────────────────────────────────
+  const cancellations = useMemo(
+    () =>
+      slots
+        .filter((s) => s.status === "해지" && s.cancelled_at)
+        .sort((a, b) => (b.cancelled_at ?? "").localeCompare(a.cancelled_at ?? "")),
+    [slots]
+  );
+  const refundTotal = useMemo(
+    () => cancellations.reduce((sum, s) => sum + (s.refund_amount ?? 0), 0),
+    [cancellations]
+  );
+
   // ── 액션 ─────────────────────────────────────────────────
   async function updateStatus(order: OrderRow, status: string) {
     const sb = getSupabase();
     await sb.from("orders").update({ status }).eq("id", order.id);
-    // 자동이체 확인 → 해당 주문의 슬롯을 활성화하고 시작일 부여(연차 할인 기준).
+    // 입금확인 → 슬롯을 활성화하고, 요일별 첫 배송일을 시작일로 부여.
     if (status === "입금확인") {
-      await sb
+      const { data: pending } = await sb
         .from("subscription_slots")
-        .update({ status: "활성", started_at: todayISO() })
+        .select("id, delivery_day")
         .eq("order_id", order.id)
         .eq("status", "신청");
+      for (const s of (pending ?? []) as { id: number; delivery_day: DeliveryDay }[]) {
+        const start = toISODate(firstSubscriptionDelivery(s.delivery_day));
+        await sb
+          .from("subscription_slots")
+          .update({ status: "활성", started_at: start })
+          .eq("id", s.id);
+      }
     }
     await load();
   }
@@ -285,6 +310,25 @@ export default function AdminPage() {
       ]);
     }
     downloadCsv(`배송명단_${DELIVERY_DAY_LABEL[day]}.csv`, rows);
+  }
+
+  function exportCancellationsCsv() {
+    const rows: string[][] = [
+      ["해지일", "이름", "연락처", "주문번호", "요일", "환불액", "환불계좌", "사유"],
+    ];
+    for (const s of cancellations) {
+      rows.push([
+        s.cancelled_at ?? "",
+        nameByUser.get(s.user_id) ?? "",
+        phoneByUser.get(s.user_id) ?? "",
+        s.order_id ? orderById.get(s.order_id)?.order_no ?? "" : "",
+        DELIVERY_DAY_LABEL[s.delivery_day],
+        String(s.refund_amount ?? 0),
+        s.refund_account ?? "",
+        s.cancel_reason ?? "",
+      ]);
+    }
+    downloadCsv("해지환불_명단.csv", rows);
   }
 
   if (!ready || (user && !profileLoaded)) {
@@ -493,6 +537,59 @@ export default function AdminPage() {
                   <td className="py-2.5 text-ink-soft">{nameByUser.get(s.user_id) ?? "—"}</td>
                   <td className="py-2.5 tabular-nums text-ink-soft">{phoneByUser.get(s.user_id) ?? "—"}</td>
                   <td className="py-2.5 text-mute">{new Date(s.created_at).toLocaleDateString("ko-KR")}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 해지·환불 처리 명단 */}
+      <div className="mt-12 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-serif-kr text-lg text-ink">해지·환불 처리</h2>
+        <div className="flex items-center gap-3">
+          <span className="text-[14px] text-mute">
+            환불 합계 <span className="tabular-nums text-gold-deep">{formatKRW(refundTotal)}</span>
+          </span>
+          {cancellations.length > 0 && (
+            <button
+              onClick={exportCancellationsCsv}
+              className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold-deep no-print"
+            >
+              환불 명단 CSV
+            </button>
+          )}
+        </div>
+      </div>
+      <p className="mt-1 text-[13px] text-mute">회원이 해지 시 입력한 환불 계좌로 남은 회차분을 수동 송금하세요. 환불 완료 여부는 별도로 관리합니다.</p>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[720px] border-collapse text-[14px]">
+          <thead>
+            <tr className="border-b border-line text-left text-mute">
+              <th className="py-2 font-normal">해지일</th>
+              <th className="py-2 font-normal">이름</th>
+              <th className="py-2 font-normal">연락처</th>
+              <th className="py-2 font-normal">주문번호</th>
+              <th className="py-2 font-normal">요일</th>
+              <th className="py-2 text-right font-normal">환불액</th>
+              <th className="py-2 font-normal">환불계좌</th>
+              <th className="py-2 font-normal">사유</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cancellations.length === 0 ? (
+              <tr><td colSpan={8} className="py-4 text-center text-mute">해지·환불 건이 없습니다.</td></tr>
+            ) : (
+              cancellations.map((s) => (
+                <tr key={s.id} className="border-b border-line/60 align-top">
+                  <td className="py-2.5 tabular-nums text-ink-soft">{s.cancelled_at}</td>
+                  <td className="py-2.5 text-ink">{nameByUser.get(s.user_id) ?? "—"}</td>
+                  <td className="py-2.5 tabular-nums text-ink-soft">{phoneByUser.get(s.user_id) ?? "—"}</td>
+                  <td className="py-2.5 tabular-nums text-mute">{s.order_id ? orderById.get(s.order_id)?.order_no ?? "—" : "—"}</td>
+                  <td className="py-2.5 text-ink-soft">{DELIVERY_DAY_LABEL[s.delivery_day]}</td>
+                  <td className="py-2.5 text-right font-medium tabular-nums text-gold-deep">{formatKRW(s.refund_amount ?? 0)}</td>
+                  <td className="py-2.5 text-ink-soft">{s.refund_account ?? "—"}</td>
+                  <td className="py-2.5 text-ink-soft">{s.cancel_reason ?? "—"}</td>
                 </tr>
               ))
             )}
