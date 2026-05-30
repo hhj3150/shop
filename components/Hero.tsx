@@ -24,8 +24,7 @@ export function Hero() {
             <span className="text-gold-deep">15년의 약속.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-md text-[14px] leading-relaxed text-ink-soft sm:text-[15px] lg:mx-0">
-            우유에도 격이 있습니다. 국내 1,000여 두뿐인 저지소, 그중 100% A2 원유만을
-            건초로 키워 담았습니다. 닿을 수 있는 식탁은 회원 500분으로 한정합니다.
+            회원제 정기구독으로만 모십니다. 매주 한 병, 목장에서 갓 짜낸 그대로 문 앞까지.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
             <Link
