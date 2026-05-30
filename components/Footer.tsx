@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BRAND_HOME } from "@/lib/site";
 
 export function Footer() {
   return (
@@ -28,7 +29,7 @@ export function Footer() {
             <p className="text-[12px] uppercase tracking-[0.18em] text-gold-deep">안내</p>
             <ul className="mt-4 space-y-2.5 text-[13px] text-ink-soft">
               <li><Link href="/#subscribe" className="hover:text-gold">정기구독</Link></li>
-              <li><Link href="/#story" className="hover:text-gold">목장 이야기</Link></li>
+              <li><a href={BRAND_HOME} target="_blank" rel="noopener noreferrer" className="hover:text-gold">목장 이야기</a></li>
               <li><span className="text-mute">배송 · 교환/환불</span></li>
               <li><span className="text-mute">자주 묻는 질문</span></li>
             </ul>

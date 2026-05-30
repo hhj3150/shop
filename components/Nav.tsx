@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCart } from "@/lib/cart";
+import { BRAND_HOME } from "@/lib/site";
 
 export function Nav() {
   const { count, open } = useCart();
@@ -40,9 +41,14 @@ export function Nav() {
           <Link href="/#subscribe" className="transition-colors hover:text-gold">
             정기구독
           </Link>
-          <Link href="/#story" className="transition-colors hover:text-gold">
+          <a
+            href={BRAND_HOME}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-gold"
+          >
             목장 이야기
-          </Link>
+          </a>
         </div>
 
         <button

@@ -79,6 +79,37 @@ body {
   animation: rise 1s var(--ease-soft) forwards;
 }
 
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+.animate-float {
+  animation: float 7s var(--ease-soft) infinite;
+}
+
+@keyframes scrollcue {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  80%,
+  100% {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+}
+.animate-scrollcue {
+  animation: scrollcue 2.2s var(--ease-soft) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -86,6 +117,10 @@ body {
   .reveal,
   .reveal.in {
     opacity: 1;
+    animation: none;
+  }
+  .animate-float,
+  .animate-scrollcue {
     animation: none;
   }
 }
