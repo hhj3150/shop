@@ -174,6 +174,15 @@ create unique index if not exists subscription_slots_user_day_uniq
   on public.subscription_slots (user_id, delivery_day)
   where status <> '해지';
 
+-- Phase 2: 일시정지/재개. 총 배송 횟수는 보존하고, 정지 기간만큼 종료일이 뒤로 밀린다.
+--   paused      = 현재 일시정지 중인지
+--   paused_at   = 현재 정지 시작일 (재개 시 누적에 합산하고 null로 되돌림)
+--   paused_days = 과거 완료된 정지들의 누적 일수 (스케줄은 started_at + 주차 + paused_days 로 산출)
+alter table public.subscription_slots
+  add column if not exists paused boolean not null default false,
+  add column if not exists paused_at date,
+  add column if not exists paused_days integer not null default 0;
+
 alter table public.subscription_slots enable row level security;
 
 drop policy if exists "slots_select_own" on public.subscription_slots;
@@ -192,6 +201,53 @@ create policy "slots_select_admin" on public.subscription_slots
 drop policy if exists "slots_update_admin" on public.subscription_slots;
 create policy "slots_update_admin" on public.subscription_slots
   for update using (public.is_admin());
+
+-- 회원 본인의 활성 구독을 일시정지. 소유권은 함수 내부에서 검증(상태·이중정지 방지).
+-- SECURITY DEFINER 라 RLS update 권한을 회원에게 넓게 열지 않아도 paused 필드만 토글된다.
+create or replace function public.pause_subscription(p_slot_id bigint)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.subscription_slots
+     set paused = true,
+         paused_at = current_date
+   where id = p_slot_id
+     and user_id = auth.uid()
+     and status = '활성'
+     and paused = false;
+  if not found then
+    raise exception '일시정지할 수 있는 활성 구독이 아닙니다.';
+  end if;
+end;
+$$;
+
+-- 정지 중인 구독을 재개. 이번 정지 일수를 누적(paused_days)에 합산하고 정지 상태 해제.
+create or replace function public.resume_subscription(p_slot_id bigint)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.subscription_slots
+     set paused = false,
+         paused_days = paused_days + (current_date - paused_at),
+         paused_at = null
+   where id = p_slot_id
+     and user_id = auth.uid()
+     and paused = true
+     and paused_at is not null;
+  if not found then
+    raise exception '재개할 수 있는 정지 상태가 아닙니다.';
+  end if;
+end;
+$$;
+
+grant execute on function public.pause_subscription(bigint) to authenticated;
+grant execute on function public.resume_subscription(bigint) to authenticated;
 
 -- ───────────────────────────────────────────────────────────
 -- 5. 요일별 점유 현황 뷰 (집계 수치만 노출, 개인정보 없음, 정원 100/요일).

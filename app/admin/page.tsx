@@ -62,10 +62,14 @@ type ItemRow = {
 
 type SlotRow = {
   id: number;
+  order_id: string | null;
   user_id: string;
   delivery_day: DeliveryDay;
   status: string;
   started_at: string | null;
+  paused: boolean;
+  paused_at: string | null;
+  paused_days: number;
   created_at: string;
 };
 
@@ -131,6 +135,16 @@ export default function AdminPage() {
     () => new Set(orders.filter((o) => CONFIRMED.includes(o.status as (typeof CONFIRMED)[number])).map((o) => o.id)),
     [orders]
   );
+  // 일시정지 중인 구독의 주문 — 이번 주 발송 집계에서 제외한다(횟수는 보존, 종료일만 밀림).
+  const pausedOrderIds = useMemo(
+    () =>
+      new Set(
+        slots
+          .filter((s) => s.paused && s.order_id)
+          .map((s) => s.order_id as string)
+      ),
+    [slots]
+  );
   const orderById = useMemo(
     () => new Map(orders.map((o) => [o.id, o])),
     [orders]
@@ -165,7 +179,8 @@ export default function AdminPage() {
       ).length;
       const active = slots.filter((s) => s.delivery_day === d && s.status === "활성").length;
       const waitlist = slots.filter((s) => s.delivery_day === d && s.status === "대기").length;
-      return { day: d, taken, active, waitlist };
+      const paused = slots.filter((s) => s.delivery_day === d && s.paused).length;
+      return { day: d, taken, active, waitlist, paused };
     });
   }, [slots]);
 
@@ -183,11 +198,12 @@ export default function AdminPage() {
     }
     for (const it of items) {
       if (!confirmedOrderIds.has(it.order_id)) continue;
+      if (pausedOrderIds.has(it.order_id)) continue;
       const key = `${it.product_name} ${it.volume}`;
       if (m[key]) m[key][it.delivery_day] += it.qty;
     }
     return m;
-  }, [items, productKeys, confirmedOrderIds]);
+  }, [items, productKeys, confirmedOrderIds, pausedOrderIds]);
 
   // ── 선택 날짜 배송 리스트 ─────────────────────────────────
   const selectedWeekday = useMemo<DeliveryDay | null>(() => {
@@ -202,6 +218,7 @@ export default function AdminPage() {
     for (const it of items) {
       if (it.delivery_day !== selectedWeekday) continue;
       if (!confirmedOrderIds.has(it.order_id)) continue;
+      if (pausedOrderIds.has(it.order_id)) continue;
       const arr = byOrder.get(it.order_id) ?? [];
       arr.push(it);
       byOrder.set(it.order_id, arr);
@@ -210,7 +227,7 @@ export default function AdminPage() {
       order: orderById.get(orderId)!,
       items: its,
     }));
-  }, [selectedWeekday, items, confirmedOrderIds, orderById]);
+  }, [selectedWeekday, items, confirmedOrderIds, pausedOrderIds, orderById]);
 
   const deliveryProductTotals = useMemo(() => {
     const m: Record<string, number> = {};
@@ -253,6 +270,7 @@ export default function AdminPage() {
     ];
     for (const o of orders) {
       if (!confirmedOrderIds.has(o.id)) continue;
+      if (pausedOrderIds.has(o.id)) continue;
       const its = items.filter((it) => it.order_id === o.id && it.delivery_day === day);
       if (its.length === 0) continue;
       rows.push([
@@ -332,6 +350,7 @@ export default function AdminPage() {
               <th className="py-2 font-normal">요일</th>
               <th className="py-2 text-right font-normal">모집(신청+활성)</th>
               <th className="py-2 text-right font-normal">활성(입금확인)</th>
+              <th className="py-2 text-right font-normal">정지중</th>
               <th className="py-2 text-right font-normal">잔여</th>
               <th className="py-2 text-right font-normal">대기자</th>
             </tr>
@@ -342,6 +361,7 @@ export default function AdminPage() {
                 <td className="py-2.5 text-ink">{DELIVERY_DAY_LABEL[s.day]}</td>
                 <td className="py-2.5 text-right tabular-nums text-ink">{s.taken} / 100</td>
                 <td className="py-2.5 text-right tabular-nums text-ink-soft">{s.active}</td>
+                <td className="py-2.5 text-right tabular-nums text-ink-soft">{s.paused || "·"}</td>
                 <td className="py-2.5 text-right tabular-nums text-gold-deep">{Math.max(0, 100 - s.taken)}</td>
                 <td className="py-2.5 text-right tabular-nums text-ink-soft">{s.waitlist}</td>
               </tr>
@@ -352,7 +372,7 @@ export default function AdminPage() {
 
       {/* 요일별·제품별 주간 필요 수량 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별·제품별 주간 필요 수량</h2>
-      <p className="mt-1 text-[13px] text-mute">확정 구독(입금 확인) 기준, 1회(매주) 발송 수량입니다.</p>
+      <p className="mt-1 text-[13px] text-mute">확정 구독(입금 확인) 기준, 1회(매주) 발송 수량입니다. 일시정지 중인 구독은 제외됩니다.</p>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[560px] border-collapse text-[14px]">
           <thead>

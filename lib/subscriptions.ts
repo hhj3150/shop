@@ -53,3 +53,70 @@ export function remaining(count: DayCount): number {
 export function isWaitlisted(count: DayCount): boolean {
   return count.taken >= count.capacity;
 }
+
+export type MySubscription = {
+  slotId: number;
+  deliveryDay: DeliveryDay;
+  status: string;
+  startedAt: string | null;
+  paused: boolean;
+  pausedAt: string | null;
+  pausedDays: number;
+  totalWeeks: number;
+  periodMonths: number;
+  orderNo: string | null;
+};
+
+type SlotJoinRow = {
+  id: number;
+  delivery_day: DeliveryDay;
+  status: string;
+  started_at: string | null;
+  paused: boolean;
+  paused_at: string | null;
+  paused_days: number;
+  orders: {
+    block_weeks: number | null;
+    period_months: number | null;
+    order_no: string | null;
+  } | null;
+};
+
+// 로그인한 회원의 구독 슬롯 목록(해지 제외). 스케줄 계산용 원자료를 그대로 돌려준다.
+export async function getMySubscriptions(): Promise<MySubscription[]> {
+  const { data, error } = await getSupabase()
+    .from("subscription_slots")
+    .select(
+      "id, delivery_day, status, started_at, paused, paused_at, paused_days, orders(block_weeks, period_months, order_no)"
+    )
+    .neq("status", "해지")
+    .order("started_at", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as unknown as SlotJoinRow[]).map((row) => ({
+    slotId: row.id,
+    deliveryDay: row.delivery_day,
+    status: row.status,
+    startedAt: row.started_at,
+    paused: row.paused,
+    pausedAt: row.paused_at,
+    pausedDays: row.paused_days,
+    totalWeeks: row.orders?.block_weeks ?? 0,
+    periodMonths: row.orders?.period_months ?? 1,
+    orderNo: row.orders?.order_no ?? null,
+  }));
+}
+
+export async function pauseSubscription(slotId: number): Promise<void> {
+  const { error } = await getSupabase().rpc("pause_subscription", {
+    p_slot_id: slotId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function resumeSubscription(slotId: number): Promise<void> {
+  const { error } = await getSupabase().rpc("resume_subscription", {
+    p_slot_id: slotId,
+  });
+  if (error) throw new Error(error.message);
+}
