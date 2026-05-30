@@ -4,8 +4,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { useCart, DELIVERY_DAY_LABEL, FREQUENCY_LABEL } from "@/lib/cart";
-import { getProduct, formatKRW } from "@/lib/products";
+import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
+import {
+  getProduct,
+  formatKRW,
+  BLOCK_WEEKS,
+  SUB_MIN_DELIVERIES,
+  MIN_ORDER_KRW,
+} from "@/lib/products";
 import { createOrder } from "@/lib/orders";
 import { DEPOSIT } from "@/lib/site";
 import { Field } from "@/components/Field";
@@ -13,7 +19,7 @@ import { Field } from "@/components/Field";
 export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
-  const { items, subtotal, clear } = useCart();
+  const { items, perDelivery, blockTotal, clear } = useCart();
 
   const [ship, setShip] = useState({
     name: "",
@@ -45,8 +51,6 @@ export default function CheckoutPage() {
     }));
   }, [profile]);
 
-  const hasSub = items.some((i) => i.mode === "sub");
-
   function update<K extends keyof typeof ship>(key: K, value: string) {
     setShip((prev) => ({ ...prev, [key]: value }));
   }
@@ -57,6 +61,10 @@ export default function CheckoutPage() {
     if (!user) return;
     if (!ship.name.trim() || !ship.phone.trim() || !ship.address.trim()) {
       setError("받는 분, 연락처, 주소를 입력해 주세요.");
+      return;
+    }
+    if (perDelivery < MIN_ORDER_KRW) {
+      setError(`최소 주문 금액은 ${formatKRW(MIN_ORDER_KRW)}입니다.`);
       return;
     }
     setBusy(true);
@@ -115,9 +123,7 @@ export default function CheckoutPage() {
                 <span className="text-ink-soft">
                   {p.name} {p.volume}
                   <span className="ml-2 text-[12px] text-gold-deep">
-                    {item.mode === "sub"
-                      ? `정기구독 · ${FREQUENCY_LABEL[item.frequency ?? "weekly"]} ${DELIVERY_DAY_LABEL[item.deliveryDay ?? "tue"]}`
-                      : "1회 구매"}
+                    정기구독 · 매주 {DELIVERY_DAY_LABEL[item.deliveryDay]}
                   </span>
                   <span className="ml-2 text-mute">× {item.qty}</span>
                 </span>
@@ -129,9 +135,13 @@ export default function CheckoutPage() {
           })}
         </ul>
         <div className="mt-3 flex justify-between border-t border-line pt-3">
-          <span className="text-mute">합계</span>
+          <span className="text-mute">회당(매주) 합계</span>
+          <span className="tabular-nums text-ink-soft">{formatKRW(perDelivery)}</span>
+        </div>
+        <div className="mt-1.5 flex justify-between">
+          <span className="text-mute">{BLOCK_WEEKS}주분({SUB_MIN_DELIVERIES}회) 입금액</span>
           <span className="font-serif-kr text-lg tabular-nums text-ink">
-            {formatKRW(subtotal)}
+            {formatKRW(blockTotal)}
           </span>
         </div>
       </div>
@@ -157,12 +167,12 @@ export default function CheckoutPage() {
         <Field id="depositorName" label="입금자명" hint="통장 입금 대조를 위해 실제 입금하실 분의 이름을 적어 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
-        {hasSub && (
-          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[13px] leading-relaxed text-gold-deep">
-            정기구독은 선택한 주기·요일로 받으시며, 최소 4회 이후 언제든 해지하실
-            수 있습니다. 정기구독은 선착순 1,000명 한정입니다.
-          </p>
-        )}
+        <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[13px] leading-relaxed text-gold-deep">
+          선택하신 요일에 매주 한 번 받으시며, {BLOCK_WEEKS}주분({SUB_MIN_DELIVERIES}회)을
+          먼저 입금해 주시면 입금 확인 후 발송이 시작됩니다. 최소 {SUB_MIN_DELIVERIES}회
+          이후 언제든 해지하실 수 있습니다. 정기구독은 요일별 선착순 100명, 전체 500명
+          한정입니다.
+        </p>
 
         {error && (
           <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[13px] text-red-700">

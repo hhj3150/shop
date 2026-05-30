@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { PRODUCTS, getProduct } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
+import { WhyHayMilk } from "@/components/WhyHayMilk";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
 
@@ -77,6 +78,12 @@ export default async function ProductPage({
             </h1>
             <p className="mt-5 text-[15px] leading-loose text-ink-soft">{product.shortDesc}</p>
 
+            {product.story.map((s, i) => (
+              <p key={i} className="mt-4 text-[14px] leading-loose text-ink-soft">
+                {s}
+              </p>
+            ))}
+
             <div className="mt-8">
               <PurchasePanel product={product} />
             </div>
@@ -94,18 +101,40 @@ export default async function ProductPage({
         </div>
       </div>
 
-      {/* Full product story — official 상세페이지 */}
-      <div className="mx-auto mt-8 max-w-[800px] px-0 sm:px-5">
-        <Image
-          src={product.detailImage}
-          alt={`${product.name} ${product.volume} 상세정보`}
-          width={800}
-          height={18000}
-          sizes="(max-width:800px) 100vw, 800px"
-          unoptimized
-          className="h-auto w-full sm:rounded-2xl"
-        />
-      </div>
+      {/* 왜 A2 저지 헤이밀크인가 — 텍스트 에디토리얼 */}
+      <WhyHayMilk />
+
+      {/* 법정 제품표시사항 */}
+      <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8">
+        <Reveal>
+          <p className="eyebrow text-gold-deep">Product Information</p>
+          <h2 className="mt-3 font-serif-kr text-xl font-medium text-ink">제품표시사항</h2>
+        </Reveal>
+        <dl className="mt-8 divide-y divide-line border-y border-line text-[14px]">
+          {(
+            [
+              ["제품명", `${product.name} ${product.volume}`],
+              ["식품유형", product.label.type],
+              ["원재료명", product.label.ingredients],
+              ["내용량", product.label.content],
+              ["보관방법", product.label.storage],
+              ["포장재질", product.label.packaging],
+              ["소비기한", product.label.shelf],
+              ["제조원·판매원", product.label.maker],
+              ["소비자상담", "031-674-3150 · 010-6642-5042"],
+            ] as const
+          ).map(([k, v]) => (
+            <div key={k} className="grid grid-cols-[7rem_1fr] gap-4 py-3.5 sm:grid-cols-[9rem_1fr]">
+              <dt className="text-[12px] uppercase tracking-[0.14em] text-mute">{k}</dt>
+              <dd className="text-ink-soft">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-6 text-[11.5px] leading-relaxed text-mute">
+          ※ 본 제품은 식품의 표시기준에 따라 표시되었으며, 부정·불량식품 신고는 국번 없이 1399.
+          소비기한·중량 등 상세 표기는 수령하신 제품의 라벨을 따릅니다.
+        </p>
+      </section>
 
       {/* Related */}
       <section className="mx-auto max-w-7xl px-5 py-24 sm:px-8">

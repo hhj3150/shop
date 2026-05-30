@@ -86,12 +86,12 @@ export default function SignupPage() {
     <div className="mx-auto max-w-md px-5 pb-24 pt-28 sm:px-8">
       <p className="eyebrow text-gold-deep">Membership</p>
       <h1 className="mt-3 font-serif-kr text-[clamp(1.7rem,5vw,2.3rem)] font-medium text-ink">
-        회원가입
+        귀한 분으로 모십니다.
       </h1>
       <p className="mt-3 text-[14px] leading-relaxed text-mute">
-        송영신목장은 <span className="text-ink-soft">회원에게만</span> 판매합니다.
-        가입하시면 무통장입금으로 주문하고, 입금이 확인되면 문자로 발송 안내를
-        받습니다.
+        송영신목장의 우유는 <span className="text-ink-soft">회원으로 모신 분께만</span>{" "}
+        닿습니다. 정기구독은 선착순 500명 한정 — 한 분 한 분을 기억하고, 입금이
+        확인되면 문자로 발송을 안내드립니다.
       </p>
 
       {!configured && (

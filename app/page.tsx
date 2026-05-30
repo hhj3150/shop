@@ -1,6 +1,7 @@
 import { Hero } from "@/components/Hero";
 import { ProductShowcase } from "@/components/ProductShowcase";
 import { SubscriptionBand } from "@/components/SubscriptionBand";
+import { VisitStore } from "@/components/VisitStore";
 import { Footer } from "@/components/Footer";
 
 export default function Home() {
@@ -9,6 +10,7 @@ export default function Home() {
       <Hero />
       <ProductShowcase />
       <SubscriptionBand />
+      <VisitStore />
       <Footer />
     </>
   );

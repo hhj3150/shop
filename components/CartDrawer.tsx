@@ -2,16 +2,14 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCart, DELIVERY_DAY_LABEL, FREQUENCY_LABEL } from "@/lib/cart";
+import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
-import { getProduct, formatKRW } from "@/lib/products";
+import { getProduct, formatKRW, BLOCK_WEEKS, SUB_MIN_DELIVERIES } from "@/lib/products";
 
 export function CartDrawer() {
   const router = useRouter();
   const { user } = useAuth();
-  const { items, isOpen, close, subtotal, setQty, remove } = useCart();
-
-  const hasSub = items.some((i) => i.mode === "sub");
+  const { items, isOpen, close, perDelivery, blockTotal, setQty, remove } = useCart();
 
   function goCheckout() {
     close();
@@ -76,9 +74,7 @@ export function CartDrawer() {
                             {p.name} {p.volume}
                           </p>
                           <p className="mt-0.5 text-[11px] uppercase tracking-[0.18em] text-gold-deep">
-                            {item.mode === "sub"
-                              ? `정기구독 · ${FREQUENCY_LABEL[item.frequency ?? "weekly"]} ${DELIVERY_DAY_LABEL[item.deliveryDay ?? "tue"]}`
-                              : "1회 구매"}
+                            정기구독 · 매주 {DELIVERY_DAY_LABEL[item.deliveryDay]}
                           </p>
                         </div>
                         <button
@@ -127,17 +123,21 @@ export function CartDrawer() {
         {items.length > 0 && (
           <div className="border-t border-line px-6 py-5">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-mute">합계</span>
-              <span className="font-serif-kr text-xl text-ink tabular-nums">
-                {formatKRW(subtotal)}
+              <span className="text-sm text-mute">회당(매주) 합계</span>
+              <span className="text-sm tabular-nums text-ink-soft">
+                {formatKRW(perDelivery)}
               </span>
             </div>
-            {hasSub && (
-              <p className="mt-2 text-[12px] leading-relaxed text-gold-deep">
-                정기구독 상품이 포함되어 있어요. 선택한 주기·요일로 받으시며, 최소 4회
-                이후 해지할 수 있습니다.
-              </p>
-            )}
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className="text-sm text-mute">{BLOCK_WEEKS}주분({SUB_MIN_DELIVERIES}회) 입금액</span>
+              <span className="font-serif-kr text-xl text-ink tabular-nums">
+                {formatKRW(blockTotal)}
+              </span>
+            </div>
+            <p className="mt-2 text-[12px] leading-relaxed text-gold-deep">
+              매주 같은 요일에 받으시며, {BLOCK_WEEKS}주 단위로 입금 확인 후 발송됩니다.
+              최소 {SUB_MIN_DELIVERIES}회 이후 해지할 수 있습니다.
+            </p>
             <button
               onClick={goCheckout}
               className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"

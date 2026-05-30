@@ -1,10 +1,23 @@
 import Link from "next/link";
 import { Reveal } from "./Reveal";
+import { BLOCK_WEEKS, SUB_MIN_DELIVERIES } from "@/lib/products";
 
 const STEPS = [
-  { n: "01", t: "수량·주기 선택", d: "원하는 수량과 주기(매주·격주·4주마다), 화·목 중 택일." },
-  { n: "02", t: "최소 4회 구독", d: "한 번 신청하면 4회. 콜드체인으로 갓 짜낸 우유가 문 앞까지." },
-  { n: "03", t: "자동 반복", d: "선택한 주기·요일에 자동 결제·배송. 4회 이후 언제든 해지." },
+  {
+    n: "01",
+    t: "요일을 정합니다",
+    d: "월·화·수·목·금 가운데 한 요일. 그 요일마다 매주 한 번, 목장에서 갓 짜낸 한 병이 문 앞에 닿습니다.",
+  },
+  {
+    n: "02",
+    t: `${BLOCK_WEEKS}주분을 먼저 모십니다`,
+    d: `${BLOCK_WEEKS}주분(${SUB_MIN_DELIVERIES}회)을 무통장으로 먼저 입금해 주시면, 확인되는 즉시 첫 발송을 준비합니다.`,
+  },
+  {
+    n: "03",
+    t: "오래 함께할수록",
+    d: `6개월 이상 ${15}%, 1년 이상 ${20}% — 곁에 오래 두실수록 더 귀하게 모십니다. ${SUB_MIN_DELIVERIES}회 이후 언제든 해지하실 수 있습니다.`,
+  },
 ];
 
 export function SubscriptionBand() {
@@ -15,14 +28,15 @@ export function SubscriptionBand() {
 
       <div className="relative mx-auto max-w-7xl px-5 sm:px-8">
         <Reveal className="max-w-2xl">
-          <p className="eyebrow text-gold">Subscription</p>
+          <p className="eyebrow text-gold">Members Only</p>
           <h2 className="mt-5 font-serif-kr text-[clamp(2rem,4.5vw,3.4rem)] font-medium leading-tight">
-            냉장고에 늘, <span className="font-display italic text-gold">목장의 아침.</span>
+            아무나 받지 않습니다,{" "}
+            <span className="font-display italic text-gold">귀한 분만.</span>
           </h2>
           <p className="mt-6 text-[15px] leading-loose text-cream/70">
-            장 보러 가지 않아도 신선함이 떨어지지 않게. 수량과 주기는 자유롭게 고르고, 매 회차{" "}
-            <span className="text-gold">10% 할인</span>, 배송비 무료. 화·목 중 원하는 요일에
-            받아보세요.
+            송영신목장의 우유는 회원으로 모신 분께만 닿습니다. 정기구독은 요일별 선착순
+            100명, 다섯 요일 통틀어 <span className="text-gold">단 500명</span>으로 한정합니다.
+            자리가 차면 대기자로 모시고, 한 자리가 비면 가장 먼저 문자로 안내드립니다.
           </p>
         </Reveal>
 
@@ -40,10 +54,10 @@ export function SubscriptionBand() {
 
         <Reveal delay={120}>
           <Link
-            href="/#products"
+            href="/signup"
             className="mt-14 inline-flex rounded-full bg-cream px-9 py-4 text-sm font-medium tracking-wide text-ink transition-transform hover:scale-[1.03]"
           >
-            구독할 제품 고르기
+            회원으로 모시기 →
           </Link>
         </Reveal>
       </div>

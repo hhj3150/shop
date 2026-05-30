@@ -5,6 +5,17 @@ export type ProductSpec = {
   value: string;
 };
 
+// 식품 표시기준에 따른 법정 제품표시사항.
+export type ProductLabel = {
+  type: string; // 식품유형
+  ingredients: string; // 원재료명
+  content: string; // 내용량 (및 열량)
+  storage: string; // 보관방법
+  packaging: string; // 포장재질
+  maker: string; // 영업소 명칭 및 소재지
+  shelf: string; // 소비기한
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -18,17 +29,31 @@ export type Product = {
   shortDesc: string;
   story: string[];
   specs: ProductSpec[];
+  label: ProductLabel;
   price: number;
   taxFree: boolean;
   image: string;
-  detailImage: string;
   accent: string;
 };
 
-export const SUBSCRIBE_DISCOUNT = 0.1;
+// ───────── 정기구독 정책 ─────────
+// 매주 1회 배송(신선도 유지), 요일은 월–금 중 하나 선택.
+// 4주 단위로 무통장입금 → 입금 확인 시 그 4주분(주 1회 × 4주 = 4회) 발송.
+export const BLOCK_WEEKS = 4; // 1회 결제(입금) = 4주분 = 4회 배송
+export const SUB_MIN_DELIVERIES = 4; // 최소 약정 4회 (= 1블록)
+export const MIN_ORDER_KRW = 25000; // 최소 주문 금액
 
-// 정기구독 최소 약정 횟수. 소비자가 수량·주기를 직접 고르고, 최소 4회 이상 받습니다.
-export const SUB_MIN_DELIVERIES = 4;
+// 장기 구독 할인 (구독 유지 기간 기준).
+export const BASE_DISCOUNT = 0.1; // 기본 10%
+export const TIER_6M_DISCOUNT = 0.15; // 6개월 이상 15%
+export const TIER_12M_DISCOUNT = 0.2; // 1년 이상 20%
+
+// 구독 유지 개월 수 → 할인율.
+export function discountForMonths(months: number): number {
+  if (months >= 12) return TIER_12M_DISCOUNT;
+  if (months >= 6) return TIER_6M_DISCOUNT;
+  return BASE_DISCOUNT;
+}
 
 export const PRODUCTS: Product[] = [
   {
@@ -39,12 +64,12 @@ export const PRODUCTS: Product[] = [
     volume: "180mL",
     badge: "Daily",
     kcal: 137,
-    tagline: "한 손에 잡히는",
-    taglineEm: "한 끼.",
-    shortDesc: "물보다 가벼운 목넘김, 저지의 깊이. 가장 작은 단위가 가장 정직한 단위가 되는 한 병.",
+    tagline: "한 손에 담기는",
+    taglineEm: "하루의 시작.",
+    shortDesc: "물처럼 가벼운 목넘김에 저지의 깊이를 담았습니다. 하루를 여는 가장 정직한 한 병.",
     story: [
-      "국내 1.6%뿐인 A2/A2 저지소의 원유. 사일리지 없이 오직 건초만 먹은 헤이밀크입니다.",
-      "180mL은 하루의 시작에 놓이는 단위입니다. 한 손에 들어오는 한 병이, 한 끼의 정직함이 됩니다.",
+      "국내 1.6%뿐인 A2/A2 저지소의 원유. 사일리지(발효사료) 없이 오직 신선한 풀과 건초만 먹여 길렀습니다.",
+      "유럽이 수백 년 이어온 헤이밀크의 방식을, 안성의 목장에서 그대로 따릅니다.",
     ],
     specs: [
       { label: "원유", value: "A2/A2 저지 원유 100%" },
@@ -53,10 +78,18 @@ export const PRODUCTS: Product[] = [
       { label: "보관", value: "냉장 0–10℃" },
       { label: "구분", value: "면세품" },
     ],
+    label: {
+      type: "우유류 (살균유)",
+      ingredients: "원유(A2/A2 저지 원유 100%, 국산)",
+      content: "180mL (137 kcal)",
+      storage: "냉장 0–10℃ 보관",
+      packaging: "유리병 / 종이팩",
+      maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
+      shelf: "제품에 별도 표기 (냉장 보관, 가능한 빨리 드십시오)",
+    },
     price: 3500,
     taxFree: true,
     image: "/products/milk-180.png",
-    detailImage: "/detail/milk-180.jpg",
     accent: "#b89554",
   },
   {
@@ -67,12 +100,12 @@ export const PRODUCTS: Product[] = [
     volume: "750mL",
     badge: "Family",
     kcal: 570,
-    tagline: "식탁 위의",
-    taglineEm: "풍요.",
-    shortDesc: "한 병이 식탁을 채우는 단위. 가족이 둘러앉아 한 주를 함께 보내기에 가장 송영신스러운 750mL.",
+    tagline: "한 주를 채우는",
+    taglineEm: "식탁의 풍요.",
+    shortDesc: "같은 원유, 더 넉넉한 단위. 아침 한 잔부터 저녁 라떼까지 한 병이 일주일을 함께합니다.",
     story: [
-      "같은 원유, 더 넉넉한 단위. 아침 시리얼부터 저녁 라떼까지 한 병이 일주일을 채웁니다.",
-      "유리병에 담긴 750mL은 냉장고 문을 열 때마다 목장을 떠올리게 합니다.",
+      "국내 1.6%뿐인 A2/A2 저지소의 원유. 사일리지 없이 신선한 풀과 건초만 먹여 길렀습니다.",
+      "냉장고 문을 열 때마다 목장의 아침을 떠올리게 하는, 유리병에 담긴 750mL.",
     ],
     specs: [
       { label: "원유", value: "A2/A2 저지 원유 100%" },
@@ -81,10 +114,18 @@ export const PRODUCTS: Product[] = [
       { label: "보관", value: "냉장 0–10℃" },
       { label: "구분", value: "면세품" },
     ],
+    label: {
+      type: "우유류 (살균유)",
+      ingredients: "원유(A2/A2 저지 원유 100%, 국산)",
+      content: "750mL (570 kcal)",
+      storage: "냉장 0–10℃ 보관",
+      packaging: "유리병 / 종이팩",
+      maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
+      shelf: "제품에 별도 표기 (냉장 보관, 가능한 빨리 드십시오)",
+    },
     price: 12000,
     taxFree: true,
     image: "/products/milk-750.png",
-    detailImage: "/detail/milk-750.jpg",
     accent: "#a36b2c",
   },
   {
@@ -95,12 +136,12 @@ export const PRODUCTS: Product[] = [
     volume: "180mL",
     badge: "Single",
     kcal: 140,
-    tagline: "한 컵의",
+    tagline: "단정한 한 컵의",
     taglineEm: "발효.",
-    shortDesc: "설탕도 향료도 없이, 우유와 유산균 두 가지로만. 하루 한 컵의 가장 단정한 발효.",
+    shortDesc: "설탕도 향료도 없이, 우유와 유산균 두 가지로만. 하루 한 컵, 가장 단정한 발효.",
     story: [
       "A2 저지 원유를 그대로 발효했습니다. 첨가물 없이, 진한 우유 그 자체의 산미와 텍스처.",
-      "180mL 한 컵은 아침 또는 한낮의 단정한 마침표. 그래놀라와도, 그대로도 좋습니다.",
+      "사일리지 없는 헤이밀크 원유는 요거트로 발효했을 때 그 깊이가 더 선명하게 드러납니다.",
     ],
     specs: [
       { label: "원료", value: "A2 저지 원유 · 유산균" },
@@ -109,10 +150,18 @@ export const PRODUCTS: Product[] = [
       { label: "보관", value: "냉장 0–10℃" },
       { label: "구분", value: "과세품 · 세금 포함가" },
     ],
+    label: {
+      type: "발효유 (호상)",
+      ingredients: "원유(A2 저지 원유, 국산), 유산균",
+      content: "180mL (약 140 kcal)",
+      storage: "냉장 0–10℃ 보관",
+      packaging: "용기·뚜껑(PP/PS 등)",
+      maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
+      shelf: "제품에 별도 표기 (냉장 보관)",
+    },
     price: 4300,
     taxFree: false,
     image: "/products/yogurt-180.png",
-    detailImage: "/detail/yogurt-180.jpg",
     accent: "#7a8a3d",
   },
   {
@@ -125,10 +174,10 @@ export const PRODUCTS: Product[] = [
     kcal: 390,
     tagline: "발효, 그 한 가지의",
     taglineEm: "깊이.",
-    shortDesc: "설탕도, 향료도, 첨가물도 없이. 우유와 유산균 — 두 가지만으로 완성되는 '진짜 플레인'.",
+    shortDesc: "설탕도 향료도 첨가물도 없이. 우유와 유산균 두 가지만으로 완성한 진짜 플레인.",
     story: [
       "온 가족이 나누는 500mL. 떠먹을수록 진해지는 텍스처는 좋은 원유에서만 나옵니다.",
-      "과일, 꿀, 그래놀라를 더하면 나만의 한 그릇. 무엇을 더해도 베이스가 흔들리지 않습니다.",
+      "무엇을 더해도 흔들리지 않는 베이스. 사일리지 없는 헤이밀크 원유의 단단함입니다.",
     ],
     specs: [
       { label: "원료", value: "A2 저지 원유 · 유산균" },
@@ -137,10 +186,18 @@ export const PRODUCTS: Product[] = [
       { label: "보관", value: "냉장 0–10℃" },
       { label: "구분", value: "과세품 · 세금 포함가" },
     ],
+    label: {
+      type: "발효유 (호상)",
+      ingredients: "원유(A2 저지 원유, 국산), 유산균",
+      content: "500mL (약 390 kcal)",
+      storage: "냉장 0–10℃ 보관",
+      packaging: "용기·뚜껑(PP/PS 등)",
+      maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
+      shelf: "제품에 별도 표기 (냉장 보관)",
+    },
     price: 10000,
     taxFree: false,
     image: "/products/yogurt-500.png",
-    detailImage: "/detail/yogurt-500.jpg",
     accent: "#6f7d36",
   },
 ];
@@ -149,8 +206,9 @@ export function getProduct(id: string): Product | undefined {
   return PRODUCTS.find((p) => p.id === id);
 }
 
-export function subscribePrice(price: number): number {
-  return Math.round((price * (1 - SUBSCRIBE_DISCOUNT)) / 10) * 10;
+// 할인율을 적용한 1회(병당) 구독가. 10원 단위 반올림.
+export function subscribePrice(price: number, rate: number = BASE_DISCOUNT): number {
+  return Math.round((price * (1 - rate)) / 10) * 10;
 }
 
 export function formatKRW(value: number): string {

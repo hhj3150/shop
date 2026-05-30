@@ -5,125 +5,60 @@ import {
   type Product,
   formatKRW,
   subscribePrice,
-  SUBSCRIBE_DISCOUNT,
+  BASE_DISCOUNT,
   SUB_MIN_DELIVERIES,
+  BLOCK_WEEKS,
 } from "@/lib/products";
-import {
-  useCart,
-  DELIVERY_DAY_LABEL,
-  FREQUENCY_LABEL,
-  type DeliveryDay,
-  type Frequency,
-  type PurchaseMode,
-} from "@/lib/cart";
-
-const DELIVERY_DAYS: DeliveryDay[] = ["tue", "thu"];
-const FREQUENCIES: Frequency[] = ["weekly", "biweekly", "every4"];
+import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 
 export function PurchasePanel({ product }: { product: Product }) {
   const { add } = useCart();
-  const [mode, setMode] = useState<PurchaseMode>("sub");
-  const [frequency, setFrequency] = useState<Frequency>("weekly");
-  const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("tue");
+  const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("mon");
   const [qty, setQty] = useState(1);
 
-  const unitPrice = mode === "sub" ? subscribePrice(product.price) : product.price;
+  const unitPrice = subscribePrice(product.price);
   const perDelivery = unitPrice * qty;
-  const subCommitTotal = perDelivery * SUB_MIN_DELIVERIES;
+  const blockTotal = perDelivery * BLOCK_WEEKS;
 
   const handleAdd = () => {
-    add({
-      productId: product.id,
-      mode,
-      deliveryDay: mode === "sub" ? deliveryDay : undefined,
-      frequency: mode === "sub" ? frequency : undefined,
-      qty,
-      unitPrice,
-    });
+    add({ productId: product.id, deliveryDay, qty, unitPrice });
   };
 
   return (
     <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
-      {/* Mode toggle */}
-      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-paper-2 p-1.5">
-        {(["sub", "one"] as PurchaseMode[]).map((m) => (
+      <div className="flex items-center justify-between">
+        <p className="text-[12px] uppercase tracking-[0.2em] text-gold-deep">
+          Members Only · 정기구독
+        </p>
+        <span className="rounded-full bg-gold/12 px-3 py-1 text-[11px] font-medium text-gold-deep">
+          −{Math.round(BASE_DISCOUNT * 100)}%
+        </span>
+      </div>
+
+      {/* 배송 요일 (매주 1회 고정) */}
+      <p className="mt-6 text-[12px] uppercase tracking-[0.18em] text-mute">
+        배송 요일 · 매주
+      </p>
+      <div className="mt-3 grid grid-cols-5 gap-1.5">
+        {DELIVERY_DAYS.map((d) => (
           <button
-            key={m}
-            onClick={() => setMode(m)}
-            className={`rounded-xl py-3 text-sm font-medium transition-all ${
-              mode === m ? "bg-cream text-ink shadow-sm" : "text-mute hover:text-ink"
+            key={d}
+            onClick={() => setDeliveryDay(d)}
+            aria-pressed={deliveryDay === d}
+            className={`rounded-xl border py-2.5 text-[13px] transition-all ${
+              deliveryDay === d
+                ? "border-gold bg-gold/10 text-ink"
+                : "border-line text-ink-soft hover:border-gold/50"
             }`}
           >
-            {m === "sub" ? "정기구독" : "1회 구매"}
-            {m === "sub" && (
-              <span className="ml-1.5 text-[11px] text-gold-deep">
-                −{Math.round(SUBSCRIBE_DISCOUNT * 100)}%
-              </span>
-            )}
+            {DELIVERY_DAY_LABEL[d].charAt(0)}
           </button>
         ))}
       </div>
 
-      {/* Subscription: cycle + delivery day + commitment */}
-      {mode === "sub" && (
-        <div className="mt-6">
-          <p className="text-[12px] uppercase tracking-[0.18em] text-mute">배송 주기</p>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {FREQUENCIES.map((f) => (
-              <button
-                key={f}
-                onClick={() => setFrequency(f)}
-                aria-pressed={frequency === f}
-                className={`rounded-xl border py-2.5 text-[13px] transition-all ${
-                  frequency === f
-                    ? "border-gold bg-gold/10 text-ink"
-                    : "border-line text-ink-soft hover:border-gold/50"
-                }`}
-              >
-                {FREQUENCY_LABEL[f]}
-              </button>
-            ))}
-          </div>
-
-          <p className="mt-5 text-[12px] uppercase tracking-[0.18em] text-mute">배송 요일</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {DELIVERY_DAYS.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDeliveryDay(d)}
-                aria-pressed={deliveryDay === d}
-                className={`rounded-xl border py-2.5 text-[13px] transition-all ${
-                  deliveryDay === d
-                    ? "border-gold bg-gold/10 text-ink"
-                    : "border-line text-ink-soft hover:border-gold/50"
-                }`}
-              >
-                {DELIVERY_DAY_LABEL[d]}
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 rounded-xl bg-paper-2 px-4 py-3 text-[12px] leading-relaxed text-ink-soft">
-            {FREQUENCY_LABEL[frequency]} {DELIVERY_DAY_LABEL[deliveryDay]} 배송 · 수량과 주기는
-            자유롭게 · 한 번 신청하면{" "}
-            <span className="font-semibold text-ink">최소 {SUB_MIN_DELIVERIES}회</span> 받는
-            구독이에요.
-          </p>
-        </div>
-      )}
-
-      {/* Single purchase: delivery rule */}
-      {mode === "one" && (
-        <div className="mt-6 rounded-xl bg-paper-2 px-4 py-3 text-[12px] leading-relaxed text-ink-soft">
-          <span className="font-semibold text-ink">익일 배송</span> · 월–금 수령
-          <br />
-          전날 밤 <span className="font-semibold text-ink">12시</span>까지 주문하면 다음 날
-          받아보실 수 있어요.
-        </div>
-      )}
-
-      {/* Quantity */}
+      {/* 수량 (매주 회당) */}
       <div className="mt-6 flex items-center justify-between">
-        <p className="text-[12px] uppercase tracking-[0.18em] text-mute">수량</p>
+        <p className="text-[12px] uppercase tracking-[0.18em] text-mute">회당 수량</p>
         <div className="flex items-center rounded-full border border-line">
           <button
             onClick={() => setQty((q) => Math.max(1, q - 1))}
@@ -143,31 +78,22 @@ export function PurchasePanel({ product }: { product: Product }) {
         </div>
       </div>
 
-      {/* Price summary */}
+      {/* 금액 */}
       <div className="mt-7 border-t border-line pt-6">
         <div className="flex items-end justify-between">
           <div>
-            {mode === "sub" && (
-              <p className="text-[13px] text-mute line-through tabular-nums">
-                {formatKRW(product.price * qty)}
-              </p>
-            )}
+            <p className="text-[13px] text-mute line-through tabular-nums">
+              {formatKRW(product.price * qty)} / 회
+            </p>
             <p className="font-serif-kr text-2xl text-ink tabular-nums">
               {formatKRW(perDelivery)}
-              {mode === "sub" && (
-                <span className="ml-1 text-[13px] font-sans text-mute">/ 회</span>
-              )}
+              <span className="ml-1 text-[13px] font-sans text-mute">/ 회</span>
             </p>
           </div>
           <p className="text-right text-[12px] text-ink-soft">
-            {mode === "sub" ? (
-              <>
-                {FREQUENCY_LABEL[frequency]} {DELIVERY_DAY_LABEL[deliveryDay]} ·{" "}
-                <span className="text-gold-deep">배송비 무료</span>
-              </>
-            ) : (
-              "1회 결제"
-            )}
+            매주 {DELIVERY_DAY_LABEL[deliveryDay]}
+            <br />
+            <span className="text-gold-deep">배송비 무료</span>
           </p>
         </div>
 
@@ -175,23 +101,21 @@ export function PurchasePanel({ product }: { product: Product }) {
           {product.taxFree ? "면세품 · 부가세 없음" : "과세품 · 부가세 포함 가격"}
         </p>
 
-        {mode === "sub" && (
-          <p className="mt-1 text-[12px] text-mute tabular-nums">
-            {SUB_MIN_DELIVERIES}회 약정 기준 총 {formatKRW(subCommitTotal)}
-          </p>
-        )}
+        <p className="mt-1 text-[12px] text-ink-soft tabular-nums">
+          {BLOCK_WEEKS}주분({SUB_MIN_DELIVERIES}회) 선입금 기준{" "}
+          <span className="font-semibold text-ink">{formatKRW(blockTotal)}</span>
+        </p>
 
         <button
           onClick={handleAdd}
           className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
         >
-          {mode === "sub" ? "구독 담기" : "장바구니 담기"}
+          구독 담기
         </button>
 
         <p className="mt-4 text-center text-[11.5px] leading-relaxed text-mute">
-          {mode === "sub"
-            ? `${FREQUENCY_LABEL[frequency]} ${DELIVERY_DAY_LABEL[deliveryDay]} 자동 결제·배송 · 최소 ${SUB_MIN_DELIVERIES}회 이후 해지 가능`
-            : "콜드체인 직배송 · 익일 수령 (월–금)"}
+          매주 {DELIVERY_DAY_LABEL[deliveryDay]} 배송 · {BLOCK_WEEKS}주 단위 입금 확인 후 발송 ·
+          최소 {SUB_MIN_DELIVERIES}회
         </p>
       </div>
     </div>

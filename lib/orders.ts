@@ -1,6 +1,6 @@
 import { getSupabase } from "./supabase";
 import type { CartItem } from "./cart";
-import { getProduct } from "./products";
+import { getProduct, BLOCK_WEEKS } from "./products";
 
 export type ShippingInfo = {
   name: string;
@@ -20,7 +20,8 @@ function makeOrderNo(): string {
   return `SY${stamp}-${rand}`;
 }
 
-// 무통장입금 주문 생성. 로그인된 회원만 호출 가능(RLS).
+// 무통장입금 정기구독 주문 생성. 결제 단위 = 4주분(주 1회 × 4주 = 4회).
+// 로그인된 회원만 호출 가능(RLS).
 export async function createOrder(
   userId: string,
   items: CartItem[],
@@ -30,8 +31,8 @@ export async function createOrder(
 
   const supabase = getSupabase();
   const orderNo = makeOrderNo();
-  const total = items.reduce((sum, i) => sum + i.unitPrice * i.qty, 0);
-  const hasSub = items.some((i) => i.mode === "sub");
+  // 입금 금액 = 회당 합계 × 4주.
+  const total = items.reduce((sum, i) => sum + i.unitPrice * i.qty, 0) * BLOCK_WEEKS;
 
   const { data: order, error: orderErr } = await supabase
     .from("orders")
@@ -39,7 +40,8 @@ export async function createOrder(
       user_id: userId,
       order_no: orderNo,
       total_amount: total,
-      has_subscription: hasSub,
+      has_subscription: true,
+      block_weeks: BLOCK_WEEKS,
       depositor_name: ship.depositorName.trim() || ship.name.trim(),
       ship_name: ship.name.trim(),
       ship_phone: ship.phone.replace(/[^0-9]/g, ""),
@@ -62,9 +64,7 @@ export async function createOrder(
       product_id: i.productId,
       product_name: p?.name ?? i.productId,
       volume: p?.volume ?? "",
-      mode: i.mode,
-      frequency: i.mode === "sub" ? i.frequency ?? null : null,
-      delivery_day: i.mode === "sub" ? i.deliveryDay ?? null : null,
+      delivery_day: i.deliveryDay,
       qty: i.qty,
       unit_price: i.unitPrice,
     };

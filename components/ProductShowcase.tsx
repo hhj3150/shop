@@ -22,11 +22,11 @@ export function ProductShowcase() {
     <section id="products" className="mx-auto max-w-7xl px-5 pb-24 pt-16 sm:px-8 sm:pb-32 sm:pt-24">
       {/* Store greeting */}
       <Reveal>
-        <p className="eyebrow">Store</p>
+        <p className="eyebrow">Collection</p>
         <h2 className="mt-3 text-[clamp(2.4rem,6vw,4rem)] font-semibold leading-[1.04] tracking-[-0.025em] text-ink">
-          스토어.
+          단 네 가지.
           <br />
-          <span className="text-mute">가장 신선한 방법으로 만나는 법.</span>
+          <span className="text-mute">곁에 둘 가치가 있는 것만.</span>
         </h2>
       </Reveal>
 
@@ -109,13 +109,10 @@ export function ProductShowcase() {
                   {p.shortDesc}
                 </p>
                 <p className="mt-5 text-[15px] font-medium text-ink tabular-nums">
-                  {formatKRW(p.price)}부터
+                  회원가 {formatKRW(subscribePrice(p.price))}
                 </p>
-                <p className="text-[12px] text-gold-deep tabular-nums">
-                  구독 시 {formatKRW(subscribePrice(p.price))}
-                </p>
-                <p className="mt-0.5 text-[11px] text-mute">
-                  {p.taxFree ? "면세품" : "부가세 포함가"}
+                <p className="text-[12px] text-mute tabular-nums">
+                  정가 {formatKRW(p.price)} · {p.taxFree ? "면세품" : "부가세 포함"}
                 </p>
               </Link>
               <div className="mt-6 flex flex-col items-center gap-3">
@@ -123,7 +120,7 @@ export function ProductShowcase() {
                   href={`/products/${p.id}`}
                   className="w-full rounded-full bg-ink px-6 py-2.5 text-[14px] font-medium text-cream transition-transform hover:scale-[1.03]"
                 >
-                  구입하기
+                  구독 신청
                 </Link>
                 <Link
                   href={`/products/${p.id}`}

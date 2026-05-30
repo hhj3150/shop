@@ -8,37 +8,35 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { BLOCK_WEEKS } from "./products";
 
-export type PurchaseMode = "one" | "sub";
-export type DeliveryDay = "tue" | "thu";
-export type Frequency = "weekly" | "biweekly" | "every4";
+// 매주 1회 배송, 요일은 월–금 중 하나 선택.
+export type DeliveryDay = "mon" | "tue" | "wed" | "thu" | "fri";
 
 export const DELIVERY_DAY_LABEL: Record<DeliveryDay, string> = {
+  mon: "월요일",
   tue: "화요일",
+  wed: "수요일",
   thu: "목요일",
+  fri: "금요일",
 };
 
-export const FREQUENCY_LABEL: Record<Frequency, string> = {
-  weekly: "매주",
-  biweekly: "격주",
-  every4: "4주마다",
-};
+export const DELIVERY_DAYS: DeliveryDay[] = ["mon", "tue", "wed", "thu", "fri"];
 
 export type CartItem = {
   key: string;
   productId: string;
-  mode: PurchaseMode;
-  deliveryDay?: DeliveryDay;
-  frequency?: Frequency;
-  qty: number;
-  unitPrice: number;
+  deliveryDay: DeliveryDay;
+  qty: number; // 매주 회당 수량
+  unitPrice: number; // 할인 적용된 1회(병당) 가격
 };
 
 type CartContextValue = {
   items: CartItem[];
   isOpen: boolean;
   count: number;
-  subtotal: number;
+  perDelivery: number; // 1회(매주) 합계
+  blockTotal: number; // 4주분(=4회) 합계 = 실제 입금 금액
   open: () => void;
   close: () => void;
   add: (item: Omit<CartItem, "key">) => void;
@@ -48,10 +46,10 @@ type CartContextValue = {
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
-const STORAGE_KEY = "sys-cart-v1";
+const STORAGE_KEY = "sys-cart-v2";
 
 function itemKey(i: Omit<CartItem, "key">): string {
-  return `${i.productId}:${i.mode}:${i.frequency ?? "-"}:${i.deliveryDay ?? "-"}`;
+  return `${i.productId}:${i.deliveryDay}`;
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -80,13 +78,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<CartContextValue>(() => {
     const count = items.reduce((n, i) => n + i.qty, 0);
-    const subtotal = items.reduce((n, i) => n + i.qty * i.unitPrice, 0);
+    const perDelivery = items.reduce((n, i) => n + i.qty * i.unitPrice, 0);
 
     return {
       items,
       isOpen,
       count,
-      subtotal,
+      perDelivery,
+      blockTotal: perDelivery * BLOCK_WEEKS,
       open: () => setIsOpen(true),
       close: () => setIsOpen(false),
       add: (incoming) => {
