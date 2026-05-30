@@ -22,6 +22,7 @@ export function CartDrawer() {
     period,
     weeks,
     perDelivery,
+    shipTotal,
     periodTotal,
     weeklyPrice,
     setPeriod,
@@ -168,9 +169,15 @@ export function CartDrawer() {
             </div>
 
             <div className="mt-4 flex items-center justify-between">
-              <span className="text-sm text-mute">회당(매주) 합계</span>
+              <span className="text-sm text-mute">회당(매주) 상품 합계</span>
               <span className="text-sm tabular-nums text-ink-soft">
                 {formatKRW(perDelivery)}
+              </span>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className="text-sm text-mute">배송비 ({weeks}회)</span>
+              <span className="text-sm tabular-nums text-ink-soft">
+                {formatKRW(shipTotal)}
               </span>
             </div>
             <div className="mt-1.5 flex items-center justify-between">

@@ -41,7 +41,8 @@ export type Product = {
 // 구독 기간(1/3/6/12개월)을 선택하고 그 기간 전체분을 한 번에 무통장입금.
 // 1개월 = 4주(= 4회 배송). 기간이 길수록 할인율이 커진다.
 export const WEEKS_PER_MONTH = 4;
-export const MIN_ORDER_KRW = 20000; // 1회(매주) 배송 최소 주문 금액
+export const MIN_ORDER_KRW = 20000; // 1회(매주) 배송 최소 상품 금액
+export const SUB_SHIPPING_KRW = 4000; // 회당(매주) 배송비
 
 // 구독 기간(개월).
 export type SubPeriod = 1 | 3 | 6 | 12;

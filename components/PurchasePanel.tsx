@@ -12,6 +12,7 @@ import {
   subscribePrice,
   discountForPeriod,
   periodWeeks,
+  SUB_SHIPPING_KRW,
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/subscriptions";
@@ -41,7 +42,8 @@ export function PurchasePanel({ product }: { product: Product }) {
     0
   );
   const perDelivery = mainPerDelivery + extrasPerDelivery;
-  const periodTotal = perDelivery * weeks;
+  const shipTotal = SUB_SHIPPING_KRW * weeks;
+  const periodTotal = perDelivery * weeks + shipTotal;
 
   const origPerDelivery =
     product.price * qty +
@@ -248,7 +250,7 @@ export function PurchasePanel({ product }: { product: Product }) {
           <p className="text-right text-[13px] text-ink-soft">
             매주 {DELIVERY_DAY_LABEL[deliveryDay]}
             <br />
-            <span className="text-gold-deep">배송비 무료</span>
+            <span className="text-gold-deep">배송비 {formatKRW(SUB_SHIPPING_KRW)} / 회</span>
           </p>
         </div>
 
@@ -259,13 +261,17 @@ export function PurchasePanel({ product }: { product: Product }) {
         <div className="mt-3 rounded-2xl bg-paper-2 px-4 py-3">
           <div className="flex items-center justify-between text-[13px] text-ink-soft">
             <span>
-              {PERIOD_LABEL[period]} · 매주 {weeks}회 배송
+              상품 {PERIOD_LABEL[period]} · 매주 {weeks}회
             </span>
             <span className="text-[12px] text-mute line-through tabular-nums">
               {formatKRW(origPeriodTotal)}
             </span>
           </div>
-          <div className="mt-1 flex items-center justify-between">
+          <div className="mt-1 flex items-center justify-between text-[13px] text-ink-soft">
+            <span>배송비 ({weeks}회)</span>
+            <span className="tabular-nums">{formatKRW(shipTotal)}</span>
+          </div>
+          <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5">
             <span className="text-[13px] text-mute">한 번에 입금</span>
             <span className="font-serif-kr text-xl text-ink tabular-nums">
               {formatKRW(periodTotal)}

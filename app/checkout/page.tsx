@@ -14,7 +14,7 @@ import { AddressSearch } from "@/components/AddressSearch";
 export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
-  const { items, period, weeks, perDelivery, periodTotal, weeklyPrice, clear } = useCart();
+  const { items, period, weeks, perDelivery, shipTotal, periodTotal, weeklyPrice, clear } = useCart();
 
   const [ship, setShip] = useState({
     name: "",
@@ -59,7 +59,7 @@ export default function CheckoutPage() {
       return;
     }
     if (perDelivery < MIN_ORDER_KRW) {
-      setError(`최소 주문 금액은 ${formatKRW(MIN_ORDER_KRW)}입니다.`);
+      setError(`회당 최소 상품 금액은 ${formatKRW(MIN_ORDER_KRW)}입니다. (배송비 별도)`);
       return;
     }
     setBusy(true);
@@ -138,8 +138,12 @@ export default function CheckoutPage() {
           })}
         </ul>
         <div className="mt-3 flex justify-between border-t border-line pt-3">
-          <span className="text-mute">회당(매주) 합계</span>
+          <span className="text-mute">회당(매주) 상품 합계</span>
           <span className="tabular-nums text-ink-soft">{formatKRW(perDelivery)}</span>
+        </div>
+        <div className="mt-1.5 flex justify-between">
+          <span className="text-mute">배송비 ({weeks}회)</span>
+          <span className="tabular-nums text-ink-soft">{formatKRW(shipTotal)}</span>
         </div>
         <div className="mt-1.5 flex justify-between">
           <span className="text-mute">{PERIOD_LABEL[period]}분({weeks}회) 입금액</span>

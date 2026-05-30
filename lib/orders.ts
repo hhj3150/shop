@@ -6,6 +6,7 @@ import {
   discountForPeriod,
   periodWeeks,
   SUB_DAY_CAP,
+  SUB_SHIPPING_KRW,
   onceShippingFee,
   type SubPeriod,
 } from "./products";
@@ -55,9 +56,13 @@ export async function createOrder(
     const p = getProduct(productId);
     return p ? subscribePrice(p.price, rate) : 0;
   };
-  // 입금 금액 = 회당 합계 × 기간 주분(한 번에 입금).
-  const total =
-    items.reduce((sum, i) => sum + unitPriceFor(i.productId) * i.qty, 0) * weeks;
+  // 입금 금액 = (회당 상품 합계 + 회당 배송비) × 기간 주분(한 번에 입금).
+  const perDelivery = items.reduce(
+    (sum, i) => sum + unitPriceFor(i.productId) * i.qty,
+    0
+  );
+  const shipping = SUB_SHIPPING_KRW * weeks;
+  const total = perDelivery * weeks + shipping;
 
   const { data: order, error: orderErr } = await supabase
     .from("orders")
@@ -65,6 +70,7 @@ export async function createOrder(
       user_id: userId,
       order_no: orderNo,
       total_amount: total,
+      shipping_fee: shipping,
       has_subscription: true,
       block_weeks: weeks,
       period_months: period,

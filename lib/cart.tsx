@@ -13,6 +13,7 @@ import {
   subscribePrice,
   discountForPeriod,
   periodWeeks,
+  SUB_SHIPPING_KRW,
   type SubPeriod,
 } from "./products";
 
@@ -42,8 +43,10 @@ type CartContextValue = {
   count: number;
   period: SubPeriod; // 구독 기간(개월) — 장바구니 전체에 하나
   weeks: number; // 기간 → 총 배송 회수(= 주분)
-  perDelivery: number; // 1회(매주) 합계 (기간 할인 적용)
-  periodTotal: number; // 전체 기간분 = 한 번에 입금할 금액
+  perDelivery: number; // 1회(매주) 상품 합계 (기간 할인 적용)
+  shipPerDelivery: number; // 1회(매주) 배송비
+  shipTotal: number; // 전체 기간분 배송비
+  periodTotal: number; // 전체 기간분 = 한 번에 입금할 금액 (상품 + 배송비)
   weeklyPrice: (productId: string) => number; // 제품별 1회(병당) 회원가
   open: () => void;
   close: () => void;
@@ -108,6 +111,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       0
     );
     const weeks = periodWeeks(period);
+    const shipPerDelivery = items.length > 0 ? SUB_SHIPPING_KRW : 0;
 
     return {
       items,
@@ -116,7 +120,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       period,
       weeks,
       perDelivery,
-      periodTotal: perDelivery * weeks,
+      shipPerDelivery,
+      shipTotal: shipPerDelivery * weeks,
+      periodTotal: (perDelivery + shipPerDelivery) * weeks,
       weeklyPrice,
       open: () => setIsOpen(true),
       close: () => setIsOpen(false),
