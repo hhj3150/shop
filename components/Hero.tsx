@@ -24,12 +24,12 @@ export function Hero() {
         {/* Copy */}
         <div className="flex flex-col items-center lg:items-start lg:text-left">
           <Image
-            src="/brand/heymilk-logo-h.png"
+            src="/brand/heymilk-logo.png"
             alt="송영신목장 A2 저지 헤이밀크 로고"
-            width={1000}
-            height={400}
+            width={800}
+            height={800}
             priority
-            className="mb-6 w-[240px] max-w-full sm:w-[300px]"
+            className="mb-6 w-[176px] max-w-full sm:w-[208px]"
           />
           <p className="font-display text-[12px] uppercase tracking-[0.28em] text-gold-deep sm:text-[13px]">
             A2 Jersey Hay Milk
