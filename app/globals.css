@@ -92,6 +92,21 @@ body {
   animation: float 7s var(--ease-soft) infinite;
 }
 
+@keyframes bubble {
+  0% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate(8px, -26px) scale(1.05) rotate(6deg);
+  }
+  100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+}
+.animate-bubble {
+  animation: bubble 9s var(--ease-soft) infinite;
+}
+
 @keyframes scrollcue {
   0% {
     transform: translateY(0);
@@ -120,7 +135,8 @@ body {
     animation: none;
   }
   .animate-float,
-  .animate-scrollcue {
+  .animate-scrollcue,
+  .animate-bubble {
     animation: none;
   }
 }

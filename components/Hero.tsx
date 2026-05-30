@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Scatter, HEY, type ConfettiItem } from "./Confetti";
+import { LogoBubbles } from "./LogoBubbles";
 
 const HERO_CONFETTI: ConfettiItem[] = [
   { shape: "blob", color: HEY.green, size: 84, top: "16%", left: "-2%", rotate: -12, opacity: 0.5, className: "hidden sm:block" },
@@ -18,16 +19,17 @@ export function Hero() {
   return (
     <section className="relative overflow-hidden">
       <Scatter items={HERO_CONFETTI} />
+      <LogoBubbles />
       <div className="mx-auto grid max-w-7xl items-center gap-6 px-5 pt-28 pb-14 sm:px-8 sm:pt-32 lg:min-h-[88svh] lg:grid-cols-2 lg:gap-8 lg:pb-16">
         {/* Copy */}
         <div className="flex flex-col items-center lg:items-start lg:text-left">
           <Image
-            src="/brand/heymilk-logo.png"
+            src="/brand/heymilk-logo-h.png"
             alt="송영신목장 A2 저지 헤이밀크 로고"
-            width={800}
-            height={800}
+            width={1000}
+            height={400}
             priority
-            className="mb-6 w-[176px] max-w-full sm:w-[208px]"
+            className="mb-6 w-[240px] max-w-full sm:w-[300px]"
           />
           <p className="font-display text-[12px] uppercase tracking-[0.28em] text-gold-deep sm:text-[13px]">
             A2 Jersey Hay Milk

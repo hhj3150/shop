@@ -5,8 +5,10 @@ import type { Metadata } from "next";
 import { PRODUCTS, getProduct } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { WhyHayMilk } from "@/components/WhyHayMilk";
+import { ProductReviews } from "@/components/ProductReviews";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
+import { SwipeNav } from "@/components/SwipeNav";
 
 export function generateStaticParams() {
   return PRODUCTS.map((p) => ({ id: p.id }));
@@ -37,8 +39,12 @@ export default async function ProductPage({
 
   const related = PRODUCTS.filter((p) => p.id !== product.id);
 
+  const idx = PRODUCTS.findIndex((p) => p.id === product.id);
+  const prev = PRODUCTS[(idx - 1 + PRODUCTS.length) % PRODUCTS.length];
+  const next = PRODUCTS[(idx + 1) % PRODUCTS.length];
+
   return (
-    <>
+    <SwipeNav prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`}>
       <div className="mx-auto max-w-7xl px-5 pt-24 sm:px-8">
         <nav className="py-5 text-[12px] tracking-wide text-mute">
           <Link href="/" className="hover:text-gold">홈</Link>
@@ -89,6 +95,13 @@ export default async function ProductPage({
               <PurchasePanel product={product} />
             </div>
 
+            <Link
+              href={`/order-once?add=${product.id}`}
+              className="mt-4 flex items-center justify-center gap-2 rounded-full border border-line bg-cream py-3.5 text-[14px] font-medium text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+            >
+              단품으로 한 번만 구매하기 →
+            </Link>
+
             {/* Specs — quick reference */}
             <dl className="mt-10 divide-y divide-line border-y border-line">
               {product.specs.map((s) => (
@@ -104,6 +117,9 @@ export default async function ProductPage({
 
       {/* 왜 A2 저지 헤이밀크인가 — 텍스트 에디토리얼 */}
       <WhyHayMilk />
+
+      {/* 구매평 — 별점 후기 */}
+      <ProductReviews productId={product.id} />
 
       {/* 법정 제품표시사항 */}
       <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8">
@@ -174,6 +190,6 @@ export default async function ProductPage({
       </section>
 
       <Footer />
-    </>
+    </SwipeNav>
   );
 }

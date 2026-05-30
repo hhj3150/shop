@@ -43,6 +43,19 @@ export const BLOCK_WEEKS = 4; // 1회 결제(입금) = 4주분 = 4회 배송
 export const SUB_MIN_DELIVERIES = 4; // 최소 약정 4회 (= 1블록)
 export const MIN_ORDER_KRW = 20000; // 1회 배송 최소 주문 금액
 
+// ───────── 단품(1회) 구매 정책 ─────────
+// 정기구독과 별개. 상품 합계 25,000원 이상부터 결제 가능, 배송비 4,000원.
+// 상품 합계 50,000원 이상이면 무료배송. 무통장입금 확인 후 발송(신청 다음 날, 월–금).
+export const ONCE_MIN_KRW = 25000; // 단품 최소 상품 합계
+export const ONCE_SHIPPING_KRW = 4000; // 단품 기본 배송비
+export const ONCE_FREE_SHIP_KRW = 50000; // 이 금액 이상이면 무료배송
+
+// 단품 상품 합계에 대한 배송비 계산.
+export function onceShippingFee(subtotal: number): number {
+  if (subtotal <= 0) return 0;
+  return subtotal >= ONCE_FREE_SHIP_KRW ? 0 : ONCE_SHIPPING_KRW;
+}
+
 // 정기구독 정원: 요일별 100명, 월–금 5일 = 전체 500명. 초과 시 대기자.
 export const SUB_DAY_CAP = 100;
 export const SUB_TOTAL_CAP = 500;

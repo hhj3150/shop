@@ -1,6 +1,7 @@
 import { getSupabase } from "./supabase";
 import type { CartItem, DeliveryDay } from "./cart";
-import { getProduct, BLOCK_WEEKS, SUB_DAY_CAP } from "./products";
+import { getProduct, BLOCK_WEEKS, SUB_DAY_CAP, onceShippingFee } from "./products";
+import { nextDispatchDate, toISODate } from "./ship-date";
 
 export type ShippingInfo = {
   name: string;
@@ -85,6 +86,75 @@ export async function createOrder(
   const slots = await registerSlots(userId, order.id, days);
 
   return { orderNo: order.order_no, slots };
+}
+
+// 단품(1회) 주문에 담는 항목.
+export type OnceItem = {
+  productId: string;
+  qty: number;
+  unitPrice: number; // 정가(할인 없음)
+};
+
+// 단품 1회 구매 주문 생성. 구독 슬롯은 등록하지 않으며, 발송일(ship_date)을 함께 저장한다.
+// 입금 확인 후 ship_date에 맞춰 발송. 배송비 별도(ONCE_SHIPPING_KRW).
+export async function createOnceOrder(
+  userId: string,
+  items: OnceItem[],
+  ship: ShippingInfo
+): Promise<{ orderNo: string; shipDate: string }> {
+  const filtered = items.filter((i) => i.qty > 0);
+  if (filtered.length === 0) throw new Error("담은 제품이 없습니다.");
+
+  const supabase = getSupabase();
+  const orderNo = makeOrderNo();
+  const subtotal = filtered.reduce((sum, i) => sum + i.unitPrice * i.qty, 0);
+  const shipping = onceShippingFee(subtotal);
+  const total = subtotal + shipping;
+  const shipDate = toISODate(nextDispatchDate());
+
+  const { data: order, error: orderErr } = await supabase
+    .from("orders")
+    .insert({
+      user_id: userId,
+      order_no: orderNo,
+      order_type: "단품",
+      has_subscription: false,
+      block_weeks: 1,
+      ship_date: shipDate,
+      shipping_fee: shipping,
+      total_amount: total,
+      depositor_name: ship.depositorName.trim() || ship.name.trim(),
+      ship_name: ship.name.trim(),
+      ship_phone: ship.phone.replace(/[^0-9]/g, ""),
+      ship_postcode: ship.postcode.trim() || null,
+      ship_address: ship.address.trim(),
+      ship_address_detail: ship.addressDetail.trim() || null,
+      memo: ship.memo.trim() || null,
+    })
+    .select("id, order_no")
+    .single();
+
+  if (orderErr || !order) {
+    throw new Error(orderErr?.message ?? "주문 생성에 실패했습니다.");
+  }
+
+  const rows = filtered.map((i) => {
+    const p = getProduct(i.productId);
+    return {
+      order_id: order.id,
+      product_id: i.productId,
+      product_name: p?.name ?? i.productId,
+      volume: p?.volume ?? "",
+      delivery_day: null,
+      qty: i.qty,
+      unit_price: i.unitPrice,
+    };
+  });
+
+  const { error: itemsErr } = await supabase.from("order_items").insert(rows);
+  if (itemsErr) throw new Error(itemsErr.message);
+
+  return { orderNo: order.order_no, shipDate };
 }
 
 // 요일별 현재 점유 수를 보고 정원(100) 내면 '신청', 초과면 '대기'로 슬롯 등록.

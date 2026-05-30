@@ -77,6 +77,13 @@ create table if not exists public.orders (
   created_at    timestamptz not null default now()
 );
 
+-- 단품(1회) 주문 지원 컬럼. order_type='단품'이면 구독 슬롯 없이 ship_date에 발송.
+alter table public.orders
+  add column if not exists order_type text not null default '구독'
+    check (order_type in ('구독','단품')),
+  add column if not exists ship_date date,
+  add column if not exists shipping_fee integer not null default 0;
+
 alter table public.orders enable row level security;
 
 drop policy if exists "orders_select_own" on public.orders;
@@ -105,10 +112,13 @@ create table if not exists public.order_items (
   product_id   text not null,
   product_name text not null,
   volume       text not null,
-  delivery_day text not null check (delivery_day in ('mon','tue','wed','thu','fri')),
+  delivery_day text check (delivery_day in ('mon','tue','wed','thu','fri')), -- 단품은 null
   qty          integer not null check (qty > 0),
   unit_price   integer not null
 );
+
+-- 단품 주문 도입 전 생성된 테이블을 위해 NOT NULL 제약 해제(이미 nullable이면 무시됨).
+alter table public.order_items alter column delivery_day drop not null;
 
 alter table public.order_items enable row level security;
 
@@ -265,3 +275,44 @@ create policy "news_obj_insert" on storage.objects
 drop policy if exists "news_obj_delete" on storage.objects;
 create policy "news_obj_delete" on storage.objects
   for delete using (bucket_id = 'news' and public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
+-- 7. 구매평 (제품별 별점 후기)
+--    로그인 회원이 제품별로 1~5점 별점 + 후기 작성.
+--    후기는 누구나(미로그인 포함) 읽을 수 있고, 이름은 프론트에서 마스킹(하현제→하**).
+--    author_name 은 작성 시점 회원 이름 스냅샷.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.reviews (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  product_id   text not null,
+  author_name  text not null,
+  rating       smallint not null check (rating between 1 and 5),
+  body         text not null,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists reviews_product_created_idx
+  on public.reviews (product_id, created_at desc);
+
+alter table public.reviews enable row level security;
+
+-- 후기는 누구나 읽기.
+drop policy if exists "reviews_select_all" on public.reviews;
+create policy "reviews_select_all" on public.reviews
+  for select using (true);
+
+-- 로그인 회원은 본인 이름으로만 작성.
+drop policy if exists "reviews_insert_own" on public.reviews;
+create policy "reviews_insert_own" on public.reviews
+  for insert with check (auth.uid() = user_id);
+
+-- 본인 후기 삭제.
+drop policy if exists "reviews_delete_own" on public.reviews;
+create policy "reviews_delete_own" on public.reviews
+  for delete using (auth.uid() = user_id);
+
+-- 관리자는 모든 후기 삭제(부적절 후기 정리).
+drop policy if exists "reviews_delete_admin" on public.reviews;
+create policy "reviews_delete_admin" on public.reviews
+  for delete using (public.is_admin());
