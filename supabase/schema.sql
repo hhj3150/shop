@@ -435,7 +435,7 @@ grant execute on function public.cancel_unpaid_order(uuid) to authenticated;
 
 -- ───────────────────────────────────────────────────────────
 -- 4-0. 구독 연장 (재입금으로 같은 슬롯 이어가기)
---   request_renewal: 활성 슬롯의 원 주문 품목으로 7% 재계산해 연장 주문(입금대기) 생성.
+--   request_renewal: 활성 슬롯의 원 주문 품목으로 5% 재계산해 연장 주문(입금대기) 생성.
 --   confirm_renewal_payment: 관리자가 연장 입금 확인 시 슬롯 extended_weeks += 4 (원자적).
 -- ───────────────────────────────────────────────────────────
 create or replace function public.request_renewal(p_slot_id bigint)
@@ -659,8 +659,8 @@ begin
     v_per_list     := v_per_list + v_price * v_qty;
   end loop;
 
-  if v_per_delivery < 20000 then
-    raise exception '회당 최소 상품 금액은 20,000원입니다.';
+  if v_per_delivery < 25000 then
+    raise exception '회당 최소 상품 금액은 25,000원입니다.';
   end if;
   v_shipping := 4000 * v_weeks;  -- 배송비는 주문 금액과 무관하게 항상 자부담
   v_total := v_per_delivery * v_weeks + v_shipping;

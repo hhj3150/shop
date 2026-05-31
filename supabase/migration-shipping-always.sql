@@ -138,8 +138,8 @@ begin
     v_per_list     := v_per_list + v_price * v_qty;
   end loop;
 
-  if v_per_delivery < 20000 then
-    raise exception '회당 최소 상품 금액은 20,000원입니다.';
+  if v_per_delivery < 25000 then
+    raise exception '회당 최소 상품 금액은 25,000원입니다.';
   end if;
   v_shipping := 4000 * v_weeks;  -- 배송비는 주문 금액과 무관하게 항상 자부담
   v_total := v_per_delivery * v_weeks + v_shipping;
