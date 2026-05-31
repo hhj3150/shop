@@ -86,12 +86,23 @@ export default async function ProductPage({
             <span className="mx-2 text-line">·</span>
             <span className="text-gold-deep">정기구독 시 {maxRate}% 할인</span>
           </p>
-          <a
-            href="#configure"
-            className="mt-7 inline-flex items-center gap-1.5 rounded-full bg-ink px-6 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
-          >
-            구독 구성하기 <span aria-hidden>↓</span>
-          </a>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href="#configure"
+              className="inline-flex items-center gap-1.5 rounded-full bg-ink px-6 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
+            >
+              정기구독 신청 <span aria-hidden>↓</span>
+            </a>
+            <Link
+              href={`/order-once?add=${product.id}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-ink/25 bg-cream px-6 py-3 text-sm font-medium tracking-wide text-ink transition-colors hover:border-gold hover:text-gold-deep"
+            >
+              단품구매
+            </Link>
+          </div>
+          <p className="mt-3 text-[12.5px] text-mute">
+            매주 받는 정기구독, 한 번만 받는 단품구매 모두 가능합니다.
+          </p>
         </div>
         <div className="relative mx-auto mt-6 aspect-[16/10] w-full max-w-4xl sm:mt-10">
           <span
