@@ -56,7 +56,7 @@ language sql
 immutable
 as $$
   select case p_months
-    when 1 then 0.05   -- 현행 정책: 1개월 고정, 회원 할인 5%
+    when 1 then 0.10   -- 현행 정책: 1개월 고정, 회원 할인 10%
     else null
   end;
 $$;

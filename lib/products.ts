@@ -39,7 +39,7 @@ export type Product = {
 // ───────── 정기구독 정책 ─────────
 // 매주 1회 배송(신선도 유지), 요일은 월–금 중 하나 선택.
 // 구독 기간은 1개월 고정. 1개월 = 4주(= 4회 배송)분을 한 번에 무통장입금(4회분 선납).
-// 회원 할인율 5%. 다음 달도 받으시려면 매월 연장(재입금)한다.
+// 회원 할인율 10%. 다음 달도 받으시려면 매월 연장(재입금)한다.
 export const WEEKS_PER_MONTH = 4;
 export const MIN_ORDER_KRW = 25000; // 1회(매주) 배송 최소 상품 금액 (단품과 동일)
 export const SUB_SHIPPING_KRW = 4000; // 회당(매주) 배송비
@@ -62,9 +62,9 @@ export function periodWeeks(months: SubPeriod): number {
   return months * WEEKS_PER_MONTH;
 }
 
-// 기간(개월) → 할인율. 1개월 고정, 회원 할인 5%.
+// 기간(개월) → 할인율. 1개월 고정, 회원 할인 10%.
 export const PERIOD_DISCOUNT: Record<SubPeriod, number> = {
-  1: 0.05,
+  1: 0.10,
 };
 export function discountForPeriod(months: SubPeriod): number {
   return PERIOD_DISCOUNT[months];
@@ -86,7 +86,7 @@ export function onceShippingFee(subtotal: number): number {
 export const SUB_DAY_CAP = 100;
 export const SUB_TOTAL_CAP = 500;
 
-// 회원 기본 할인(1개월 고정 5%). 가격 표기/병당 회원가 계산의 기본값.
+// 회원 기본 할인(1개월 고정 10%). 가격 표기/병당 회원가 계산의 기본값.
 export const BASE_DISCOUNT = PERIOD_DISCOUNT[1];
 
 export const PRODUCTS: Product[] = [

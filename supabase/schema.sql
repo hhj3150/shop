@@ -435,7 +435,7 @@ grant execute on function public.cancel_unpaid_order(uuid) to authenticated;
 
 -- ───────────────────────────────────────────────────────────
 -- 4-0. 구독 연장 (재입금으로 같은 슬롯 이어가기)
---   request_renewal: 활성 슬롯의 원 주문 품목으로 5% 재계산해 연장 주문(입금대기) 생성.
+--   request_renewal: 활성 슬롯의 원 주문 품목으로 10% 재계산해 연장 주문(입금대기) 생성.
 --   confirm_renewal_payment: 관리자가 연장 입금 확인 시 슬롯 extended_weeks += 4 (원자적).
 -- ───────────────────────────────────────────────────────────
 create or replace function public.request_renewal(p_slot_id bigint)
@@ -583,7 +583,7 @@ language sql
 immutable
 as $$
   select case p_months
-    when 1 then 0.05
+    when 1 then 0.10
     else null
   end;
 $$;
