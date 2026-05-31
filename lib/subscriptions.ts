@@ -135,6 +135,15 @@ export async function cancelSubscription(
   return (data as number) ?? 0;
 }
 
+// 입금 전(입금대기) 주문을 회원이 스스로 취소. 환불 없음.
+// 연결된 미시작 슬롯은 서버에서 '해지' 처리되어 선착순 자리가 반환된다.
+export async function cancelUnpaidOrder(orderId: string): Promise<void> {
+  const { error } = await getSupabase().rpc("cancel_unpaid_order", {
+    p_order_id: orderId,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function pauseSubscription(slotId: number): Promise<void> {
   const { error } = await getSupabase().rpc("pause_subscription", {
     p_slot_id: slotId,

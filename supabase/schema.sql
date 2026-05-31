@@ -350,6 +350,44 @@ $$;
 
 grant execute on function public.cancel_subscription(bigint, text, text) to authenticated;
 
+-- 입금 전(입금대기) 주문을 회원이 스스로 취소. 받은 돈이 없으므로 환불 절차는 없다.
+--   - 본인 주문 + status='입금대기' 일 때만 허용. 입금확인된 주문은 cancel_subscription(해지+환불)로만.
+--   - 연결된 미시작 슬롯(신청/대기)을 '해지'로 바꿔 선착순 자리를 즉시 반환한다.
+create or replace function public.cancel_unpaid_order(p_order_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid    uuid := auth.uid();
+  v_status text;
+  v_today  date := (now() at time zone 'Asia/Seoul')::date;
+begin
+  if v_uid is null then raise exception '로그인이 필요합니다.'; end if;
+
+  select status into v_status
+    from public.orders
+   where id = p_order_id and user_id = v_uid
+   for update;
+  if not found then raise exception '주문을 찾을 수 없습니다.'; end if;
+  if v_status <> '입금대기' then
+    raise exception '입금 전 주문만 취소할 수 있습니다. 이미 입금이 확인된 주문은 구독 해지·환불을 이용해 주세요.';
+  end if;
+
+  -- 연결된 미시작 슬롯(신청/대기) 해지 → 자리 반환(unique index 에서 빠짐)
+  update public.subscription_slots
+     set status        = '해지',
+         cancel_reason  = '입금 전 구매 취소',
+         cancelled_at   = v_today
+   where order_id = p_order_id and user_id = v_uid and status in ('신청','대기');
+
+  update public.orders set status = '취소' where id = p_order_id;
+end;
+$$;
+
+grant execute on function public.cancel_unpaid_order(uuid) to authenticated;
+
 -- ───────────────────────────────────────────────────────────
 -- 4-1. 가격 권위 테이블 + 주문 생성 RPC (C1·C3)
 --   가격은 product_catalog 가 유일한 출처. 주문 금액은 서버(DB)에서 재계산.

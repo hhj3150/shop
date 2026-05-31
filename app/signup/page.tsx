@@ -45,6 +45,12 @@ export default function SignupPage() {
       setError("배송·발송 안내를 받을 휴대폰 번호를 정확히 입력해 주세요.");
       return;
     }
+    const postcode = form.postcode.trim();
+    const address = form.address.trim();
+    if (!postcode || !address) {
+      setError("배송을 위해 주소가 필요합니다. ‘주소 검색’으로 우편번호와 주소를 채워 주세요.");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -64,8 +70,8 @@ export default function SignupPage() {
           id: userId,
           name: form.name.trim(),
           phone,
-          postcode: form.postcode.trim() || null,
-          address: form.address.trim() || null,
+          postcode,
+          address,
           address_detail: form.addressDetail.trim() || null,
           marketing_consent: marketingAgree,
           marketing_consent_at: marketingAgree ? new Date().toISOString() : null,
@@ -155,6 +161,7 @@ export default function SignupPage() {
               id="postcode"
               label="우편번호"
               inputMode="numeric"
+              required
               value={form.postcode}
               onChange={(e) => update("postcode", e.target.value)}
             />
@@ -171,6 +178,7 @@ export default function SignupPage() {
           id="address"
           label="주소"
           autoComplete="street-address"
+          required
           value={form.address}
           onChange={(e) => update("address", e.target.value)}
         />

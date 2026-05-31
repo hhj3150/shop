@@ -12,6 +12,7 @@ import {
   pauseSubscription,
   resumeSubscription,
   cancelSubscription,
+  cancelUnpaidOrder,
   refundAmount,
   type MySubscription,
 } from "@/lib/subscriptions";
@@ -45,6 +46,7 @@ export default function AccountPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [subs, setSubs] = useState<MySubscription[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
+  const [busyOrder, setBusyOrder] = useState<string | null>(null);
   const [cancelSlot, setCancelSlot] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [refundAcct, setRefundAcct] = useState("");
@@ -53,13 +55,17 @@ export default function AccountPage() {
     if (ready && !user) router.replace("/login?next=/account");
   }, [ready, user, router]);
 
-  useEffect(() => {
-    if (!user) return;
+  function reloadOrders() {
     getSupabase()
       .from("orders")
       .select("id, order_no, status, total_amount, courier, tracking_no, created_at")
       .order("created_at", { ascending: false })
       .then(({ data }) => setOrders((data as OrderRow[]) ?? []));
+  }
+
+  useEffect(() => {
+    if (!user) return;
+    reloadOrders();
   }, [user]);
 
   function reloadSubs() {
@@ -133,6 +139,25 @@ export default function AccountPage() {
       alert(e instanceof Error ? e.message : "해지에 실패했습니다.");
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function onCancelOrder(orderId: string, orderNo: string) {
+    if (
+      !confirm(
+        `${orderNo} 주문을 취소하시겠어요?\n입금 전 주문이라 환불 절차 없이 취소되며, 정기구독이라면 선착순 자리도 반환됩니다.`
+      )
+    )
+      return;
+    setBusyOrder(orderId);
+    try {
+      await cancelUnpaidOrder(orderId);
+      reloadOrders();
+      reloadSubs();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "주문 취소에 실패했습니다.");
+    } finally {
+      setBusyOrder(null);
     }
   }
 
@@ -397,6 +422,17 @@ export default function AccountPage() {
                     ) : (
                       <span className="text-[12px] text-mute">택배사 사이트에서 조회</span>
                     )}
+                  </div>
+                )}
+                {o.status === "입금대기" && (
+                  <div className="mt-3 flex items-center justify-end">
+                    <button
+                      onClick={() => onCancelOrder(o.id, o.order_no)}
+                      disabled={busyOrder === o.id}
+                      className="text-[13px] text-mute underline transition-colors hover:text-ink disabled:opacity-50"
+                    >
+                      {busyOrder === o.id ? "처리 중…" : "구매 취소"}
+                    </button>
                   </div>
                 )}
               </li>
