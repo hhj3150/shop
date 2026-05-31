@@ -97,7 +97,16 @@ function LoginForm() {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-[14px] text-mute">
+      <p className="mt-5 text-center text-[14px]">
+        <Link
+          href="/forgot-password"
+          className="text-mute underline hover:text-gold-deep"
+        >
+          비밀번호를 잊으셨나요?
+        </Link>
+      </p>
+
+      <p className="mt-3 text-center text-[14px] text-mute">
         아직 회원이 아니신가요?{" "}
         <Link href="/signup" className="text-gold-deep underline hover:text-gold">
           회원가입
