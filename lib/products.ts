@@ -41,7 +41,7 @@ export type Product = {
 // 구독 기간은 1개월 고정. 1개월 = 4주(= 4회 배송)분을 한 번에 무통장입금(4회분 선납).
 // 회원 할인율 7%. 다음 달도 받으시려면 매월 연장(재입금)한다.
 export const WEEKS_PER_MONTH = 4;
-export const MIN_ORDER_KRW = 20000; // 1회(매주) 배송 최소 상품 금액
+export const MIN_ORDER_KRW = 25000; // 1회(매주) 배송 최소 상품 금액 (단품과 동일)
 export const SUB_SHIPPING_KRW = 4000; // 회당(매주) 배송비
 
 // 무료배송 기준 — 할인 전(정가) 회당 상품 합계가 이 금액 이상이면 배송비 무료.
