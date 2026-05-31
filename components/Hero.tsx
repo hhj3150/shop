@@ -49,13 +49,13 @@ export function Hero() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
             <Link
               href="/signup"
-              className="w-full rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform hover:scale-[1.03] sm:w-auto"
+              className="w-full rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform hover:scale-[1.03] active:scale-[0.98] sm:w-auto"
             >
               회원으로 모시기
             </Link>
             <Link
               href="/#products"
-              className="w-full rounded-full border border-ink/15 bg-cream px-9 py-4 text-center text-sm font-medium tracking-wide text-ink transition-colors hover:border-gold hover:text-gold-deep sm:w-auto"
+              className="w-full rounded-full border border-ink/15 bg-cream px-9 py-4 text-center text-sm font-medium tracking-wide text-ink transition-[transform,colors] hover:border-gold hover:text-gold-deep active:scale-[0.98] sm:w-auto"
             >
               제품 보기 →
             </Link>

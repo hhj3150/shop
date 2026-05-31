@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useDialog } from "@/lib/useDialog";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
 import {
@@ -31,6 +32,9 @@ export function CartDrawer() {
     remove,
   } = useCart();
 
+  // Escape·배경 스크롤 잠금·포커스 트랩을 공통 훅으로 처리.
+  const dialogRef = useDialog<HTMLElement>(isOpen, close);
+
   function goCheckout() {
     close();
     router.push(user ? "/checkout" : "/login?next=/checkout");
@@ -47,10 +51,15 @@ export function CartDrawer() {
       />
 
       <aside
-        className={`fixed right-0 top-0 z-[70] flex h-full w-full max-w-md flex-col bg-cream shadow-2xl transition-transform duration-500 ease-[var(--ease-soft)] ${
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="장바구니"
+        aria-hidden={!isOpen}
+        tabIndex={-1}
+        className={`fixed right-0 top-0 z-[70] flex h-full w-full max-w-md flex-col bg-cream shadow-2xl outline-none transition-transform duration-500 ease-[var(--ease-soft)] ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
-        aria-label="장바구니"
       >
         <div className="flex items-center justify-between border-b border-line px-6 py-5">
           <h2 className="font-serif-kr text-lg text-ink">장바구니</h2>
@@ -193,7 +202,7 @@ export function CartDrawer() {
             </p>
             <button
               onClick={goCheckout}
-              className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
+              className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99]"
             >
               {user ? "주문하기 (무통장입금)" : "로그인하고 주문하기"}
             </button>

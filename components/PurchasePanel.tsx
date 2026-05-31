@@ -302,7 +302,7 @@ export function PurchasePanel({ product }: { product: Product }) {
 
         <button
           onClick={handleAdd}
-          className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
+          className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99]"
         >
           구독 담기
         </button>

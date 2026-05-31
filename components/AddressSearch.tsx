@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDialog } from "@/lib/useDialog";
 
 const SCRIPT_SRC =
   "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
@@ -105,15 +106,8 @@ export function AddressSearch({
     }).embed(el);
   }, [open]);
 
-  // 모달이 열린 동안 배경 스크롤을 잠가 바텀시트 위에서 본문이 밀리지 않게 한다.
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  // Escape·배경 스크롤 잠금·포커스 트랩(닫힘 시 포커스 복원)을 공통 훅으로 처리.
+  const dialogRef = useDialog<HTMLDivElement>(open, () => setOpen(false));
 
   function handleClick() {
     if (status === "error") {
@@ -146,7 +140,12 @@ export function AddressSearch({
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative h-[72vh] max-h-[520px] w-full overflow-hidden rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-xl sm:h-[480px] sm:max-w-[420px] sm:rounded-2xl sm:pb-0"
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="주소 검색"
+            tabIndex={-1}
+            className="relative h-[72vh] max-h-[520px] w-full overflow-hidden rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-xl outline-none sm:h-[480px] sm:max-w-[420px] sm:rounded-2xl sm:pb-0"
             onClick={(e) => e.stopPropagation()}
           >
             <button

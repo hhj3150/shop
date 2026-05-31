@@ -114,7 +114,7 @@ export function ProductShowcase() {
               <div className="mt-7 flex w-full max-w-xs flex-col items-center gap-3">
                 <Link
                   href={`/products/${p.id}`}
-                  className="w-full rounded-full bg-ink px-6 py-3 text-[15px] font-medium text-cream transition-transform hover:scale-[1.03]"
+                  className="w-full rounded-full bg-ink px-6 py-3 text-[15px] font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98]"
                 >
                   구독 신청
                 </Link>

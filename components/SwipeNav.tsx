@@ -17,8 +17,15 @@ export function SwipeNav({
   const router = useRouter();
   const start = useRef<{ x: number; y: number } | null>(null);
 
+  // 화면 양 가장자리에서 시작한 터치는 OS의 뒤로/앞으로 제스처와 겹치므로 무시한다.
+  const EDGE_GUARD = 24;
+
   function onTouchStart(e: TouchEvent) {
     const t = e.touches[0];
+    if (t.clientX <= EDGE_GUARD || t.clientX >= window.innerWidth - EDGE_GUARD) {
+      start.current = null;
+      return;
+    }
     start.current = { x: t.clientX, y: t.clientY };
   }
 
@@ -41,7 +48,7 @@ export function SwipeNav({
       <Link
         href={prevHref}
         aria-label="이전 제품"
-        className="fixed left-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-cream/85 text-ink-soft shadow-sm backdrop-blur-sm md:hidden"
+        className="fixed left-2 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-cream/85 text-ink-soft shadow-sm backdrop-blur-sm transition-transform active:scale-90 md:hidden"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M15 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
@@ -50,7 +57,7 @@ export function SwipeNav({
       <Link
         href={nextHref}
         aria-label="다음 제품"
-        className="fixed right-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-cream/85 text-ink-soft shadow-sm backdrop-blur-sm md:hidden"
+        className="fixed right-2 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-cream/85 text-ink-soft shadow-sm backdrop-blur-sm transition-transform active:scale-90 md:hidden"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
