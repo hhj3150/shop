@@ -145,18 +145,23 @@ export function AddressSearch({
             aria-modal="true"
             aria-label="주소 검색"
             tabIndex={-1}
-            className="relative h-[72vh] max-h-[520px] w-full overflow-hidden rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-xl outline-none sm:h-[480px] sm:max-w-[420px] sm:rounded-2xl sm:pb-0"
+            className="flex h-[72vh] max-h-[520px] w-full flex-col overflow-hidden rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-xl outline-none sm:h-[480px] sm:max-w-[420px] sm:rounded-2xl sm:pb-0"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="주소 검색 닫기"
-              className="absolute right-3 top-3 z-10 flex h-11 min-w-11 items-center justify-center rounded-full bg-black/60 px-4 text-[13px] text-white"
-            >
-              닫기
-            </button>
-            <div ref={containerRef} className="h-full w-full" />
+            {/* 닫기 버튼을 다음 우편번호 위젯 위 별도 헤더 줄에 둔다. 예전처럼 위젯 위에
+                절대배치하면 위젯의 검색(돋보기) 버튼과 겹쳐 검색을 누를 수 없다. */}
+            <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
+              <span className="font-serif-kr text-[15px] font-semibold text-ink">주소 검색</span>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="주소 검색 닫기"
+                className="flex h-9 min-w-9 items-center justify-center rounded-full bg-black/5 px-3 text-[13px] text-ink-soft transition-colors hover:bg-black/10"
+              >
+                닫기
+              </button>
+            </div>
+            <div ref={containerRef} className="min-h-0 flex-1" />
           </div>
         </div>
       )}
