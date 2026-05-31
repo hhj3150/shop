@@ -91,7 +91,7 @@ alter table public.orders
     check (order_type in ('구독','단품')),
   add column if not exists ship_date date,
   add column if not exists shipping_fee integer not null default 0,
-  -- 구독 기간(개월). 1/3/6/12 중 하나. 전체 기간분(주 1회 × 4주 × 개월)을 한 번에 입금.
+  -- 구독 기간(개월). 1/2/3 중 하나. 전체 기간분(주 1회 × 4주 × 개월)을 한 번에 입금.
   add column if not exists period_months integer not null default 1,
   -- 배송 추적: 관리자가 발송 시 택배사·송장번호 입력 → 고객 배송조회.
   add column if not exists courier text,
@@ -397,10 +397,9 @@ language sql
 immutable
 as $$
   select case p_months
-    when 1  then 0.10
-    when 3  then 0.15
-    when 6  then 0.20
-    when 12 then 0.25
+    when 1 then 0.10
+    when 2 then 0.11
+    when 3 then 0.12
     else null
   end;
 $$;

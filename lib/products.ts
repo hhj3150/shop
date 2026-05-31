@@ -38,8 +38,8 @@ export type Product = {
 
 // ───────── 정기구독 정책 ─────────
 // 매주 1회 배송(신선도 유지), 요일은 월–금 중 하나 선택.
-// 구독 기간(1/3/6/12개월)을 선택하고 그 기간 전체분을 한 번에 무통장입금.
-// 1개월 = 4주(= 4회 배송). 기간이 길수록 할인율이 커진다.
+// 구독 기간(1/2/3개월)을 선택하고 그 기간 전체분을 한 번에 무통장입금.
+// 1개월 = 4주(= 4회 배송). 기간이 길수록 할인율이 커지되, 상한은 12%.
 export const WEEKS_PER_MONTH = 4;
 export const MIN_ORDER_KRW = 20000; // 1회(매주) 배송 최소 상품 금액
 export const SUB_SHIPPING_KRW = 4000; // 회당(매주) 배송비
@@ -55,13 +55,12 @@ export function subShippingFee(perDeliveryListTotal: number): number {
 }
 
 // 구독 기간(개월).
-export type SubPeriod = 1 | 3 | 6 | 12;
-export const SUB_PERIODS: SubPeriod[] = [1, 3, 6, 12];
+export type SubPeriod = 1 | 2 | 3;
+export const SUB_PERIODS: SubPeriod[] = [1, 2, 3];
 export const PERIOD_LABEL: Record<SubPeriod, string> = {
   1: "1개월",
+  2: "2개월",
   3: "3개월",
-  6: "6개월",
-  12: "12개월",
 };
 
 // 기간(개월) → 총 배송 회수(= 주분). 1개월 = 4주.
@@ -69,12 +68,11 @@ export function periodWeeks(months: SubPeriod): number {
   return months * WEEKS_PER_MONTH;
 }
 
-// 기간(개월) → 할인율. 1개월 10%, 3개월 15%, 6개월 20%, 12개월 25%.
+// 기간(개월) → 할인율. 1개월 10%, 2개월 11%, 3개월 12%(상한). 최장 3개월.
 export const PERIOD_DISCOUNT: Record<SubPeriod, number> = {
   1: 0.1,
-  3: 0.15,
-  6: 0.2,
-  12: 0.25,
+  2: 0.11,
+  3: 0.12,
 };
 export function discountForPeriod(months: SubPeriod): number {
   return PERIOD_DISCOUNT[months];

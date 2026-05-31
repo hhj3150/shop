@@ -203,7 +203,7 @@ export default function AccountPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[15px] font-medium text-ink">
-                        {PERIOD_LABEL[(s.periodMonths as SubPeriod) ?? 1]} 구독
+                        {PERIOD_LABEL[s.periodMonths as SubPeriod] ?? `${s.periodMonths ?? 1}개월`} 구독
                         <span className="ml-2 text-[13px] text-mute">
                           매주 {DELIVERY_DAY_LABEL[s.deliveryDay]}
                         </span>

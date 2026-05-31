@@ -41,7 +41,7 @@ function shipPayload(ship: ShippingInfo) {
   };
 }
 
-// 정기구독 주문 생성. 구독 기간(1/3/6/12개월) 전체분을 한 번에 무통장입금.
+// 정기구독 주문 생성. 구독 기간(1/2/3개월) 전체분을 한 번에 무통장입금.
 // 금액(병당 할인가·배송비·합계)·요일 슬롯 마감은 모두 서버(create_subscription_order RPC)에서
 // product_catalog 권위값으로 재계산한다 → 브라우저가 보낸 금액은 신뢰하지 않는다(C1·C3).
 export async function createOrder(
