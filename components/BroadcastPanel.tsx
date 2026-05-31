@@ -9,7 +9,7 @@ import { useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { DELIVERY_DAYS, DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
 
-type ProfileLite = { id: string; name: string; phone: string };
+type ProfileLite = { id: string; name: string; phone: string; marketing_consent?: boolean };
 type SlotLite = { user_id: string; delivery_day: DeliveryDay; status: string };
 
 type FilterKey = "all" | "active" | DeliveryDay;
@@ -57,10 +57,12 @@ export function BroadcastPanel({
   }, [slots]);
 
   // 필터 합집합으로 후보 회원 산출(번호 있는 회원만).
+  // 광고 발송 시에는 광고 수신동의(marketing_consent) 회원만 포함(정보통신망법).
   const candidates = useMemo(() => {
     if (filters.size === 0) return [] as ProfileLite[];
     return profiles.filter((p) => {
       if (!p.phone) return false;
+      if (isAd && !p.marketing_consent) return false;
       if (filters.has("all")) return true;
       if (filters.has("active") && activeUserIds.has(p.id)) return true;
       for (const d of DELIVERY_DAYS) {
@@ -68,7 +70,7 @@ export function BroadcastPanel({
       }
       return false;
     });
-  }, [filters, profiles, activeUserIds, dayUserIds]);
+  }, [filters, profiles, activeUserIds, dayUserIds, isAd]);
 
   const selectedProfiles = useMemo(
     () => candidates.filter((p) => !excluded.has(p.id)),
@@ -265,13 +267,18 @@ export function BroadcastPanel({
           광고/홍보 문자 (할인·이벤트 등)
         </label>
         {isAd && (
-          <input
-            type="text"
-            value={optout}
-            onChange={(e) => setOptout(e.target.value)}
-            placeholder="무료수신거부 080-XXX-XXXX (또는 수신거부 방법)"
-            className="w-full rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
-          />
+          <>
+            <input
+              type="text"
+              value={optout}
+              onChange={(e) => setOptout(e.target.value)}
+              placeholder="무료수신거부 080-XXX-XXXX (또는 수신거부 방법)"
+              className="w-full rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
+            />
+            <p className="text-[12px] leading-relaxed text-mute">
+              광고 문자는 <span className="text-ink-soft">광고 수신에 동의한 회원</span>에게만 발송됩니다(동의 안 한 회원은 명단에서 자동 제외). 직접 입력한 번호는 동의 여부를 확인할 수 없으니, 동의받은 번호만 입력하세요.
+            </p>
+          </>
         )}
         <input
           type="text"

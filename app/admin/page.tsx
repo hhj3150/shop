@@ -84,7 +84,7 @@ type SlotRow = {
   created_at: string;
 };
 
-type ProfileRow = { id: string; name: string; phone: string };
+type ProfileRow = { id: string; name: string; phone: string; marketing_consent: boolean };
 
 function todayISO(): string {
   const d = new Date();
@@ -137,7 +137,7 @@ export default function AdminPage() {
       sb.from("orders").select("*").order("created_at", { ascending: false }),
       sb.from("order_items").select("*"),
       sb.from("subscription_slots").select("*"),
-      sb.from("profiles").select("id, name, phone"),
+      sb.from("profiles").select("id, name, phone, marketing_consent"),
     ]);
     setOrders((o.data as OrderRow[]) ?? []);
     setItems((i.data as ItemRow[]) ?? []);

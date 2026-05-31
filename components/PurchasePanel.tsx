@@ -83,9 +83,9 @@ export function PurchasePanel({ product }: { product: Product }) {
       </div>
 
       {/* 구독 기간 — 전체 기간분을 한 번에 입금 */}
-      <p className="mt-6 text-[13px] uppercase tracking-[0.18em] text-mute">
-        구독 기간 · 선택한 기간만큼 한 번에 입금
-      </p>
+      <div className="mt-7">
+        <StepLabel n={1} title="구독 기간" hint="선택한 기간만큼 한 번에 입금" />
+      </div>
       <div className="mt-3 grid grid-cols-4 gap-1.5">
         {SUB_PERIODS.map((m) => {
           const active = period === m;
@@ -110,9 +110,9 @@ export function PurchasePanel({ product }: { product: Product }) {
       </div>
 
       {/* 배송 요일 (매주 1회 고정) */}
-      <p className="mt-6 text-[13px] uppercase tracking-[0.18em] text-mute">
-        배송 요일 · 매주 · 요일별 100명 한정
-      </p>
+      <div className="mt-7">
+        <StepLabel n={2} title="배송 요일" hint="매주 · 요일별 100명 한정" />
+      </div>
       <div className="mt-3 grid grid-cols-5 gap-1.5">
         {DELIVERY_DAYS.map((d) => {
           const c = counts?.[d] ?? null;
@@ -165,8 +165,8 @@ export function PurchasePanel({ product }: { product: Product }) {
       )}
 
       {/* 수량 (매주 회당) */}
-      <div className="mt-6 flex items-center justify-between">
-        <p className="text-[13px] uppercase tracking-[0.18em] text-mute">회당 수량</p>
+      <div className="mt-7 flex items-center justify-between">
+        <StepLabel n={3} title="회당 수량" />
         <div className="flex items-center rounded-full border border-line">
           <button
             onClick={() => setQty((q) => Math.max(1, q - 1))}
@@ -188,10 +188,8 @@ export function PurchasePanel({ product }: { product: Product }) {
 
       {/* 함께 담기 — 같은 요일에 다른 제품도 추가 */}
       <div className="mt-7 border-t border-line pt-6">
-        <p className="text-[13px] uppercase tracking-[0.18em] text-mute">
-          함께 담기 · 같은 요일 배송
-        </p>
-        <p className="mt-1 text-[11.5px] leading-relaxed text-ink-soft">
+        <StepLabel n={4} title="함께 담기" hint="같은 요일 배송" />
+        <p className="mt-2 text-[11.5px] leading-relaxed text-ink-soft">
           다른 제품도 같은 요일에 함께 받으실 수 있습니다.
         </p>
         <ul className="mt-4 space-y-3">
@@ -299,6 +297,19 @@ export function PurchasePanel({ product }: { product: Product }) {
           한 번에 무통장입금 확인 후 발송
         </p>
       </div>
+    </div>
+  );
+}
+
+// 애플 구매 페이지식 단계(STEP) 헤더 — 번호 + 제목 + 짧은 보조설명.
+function StepLabel({ n, title, hint }: { n: number; title: string; hint?: string }) {
+  return (
+    <div className="flex items-baseline gap-2.5">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold/15 text-[11px] font-semibold tabular-nums text-gold-deep">
+        {n}
+      </span>
+      <span className="text-[15px] font-medium text-ink">{title}</span>
+      {hint && <span className="text-[12px] text-mute">{hint}</span>}
     </div>
   );
 }

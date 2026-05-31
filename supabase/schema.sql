@@ -16,6 +16,14 @@ create table if not exists public.profiles (
   created_at   timestamptz not null default now()
 );
 
+-- 광고성(임의) 문자 수신동의. 정보통신망법상 광고 문자는 사전 수신동의가 필요하다.
+--   배송·입금 등 거래 관련 정보성 문자는 동의와 무관하게 발송 가능.
+--   marketing_consent = 가입 시 [선택] 광고수신 동의 체크 여부.
+--   동의하지 않은 회원은 관리자 단체발송에서 '광고' 발송 대상에 포함되지 않는다.
+alter table public.profiles
+  add column if not exists marketing_consent boolean not null default false,
+  add column if not exists marketing_consent_at timestamptz;
+
 alter table public.profiles enable row level security;
 
 -- ───────────────────────────────────────────────────────────

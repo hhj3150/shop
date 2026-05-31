@@ -21,6 +21,7 @@ export default function SignupPage() {
     addressDetail: "",
   });
   const [agree, setAgree] = useState(false);
+  const [marketingAgree, setMarketingAgree] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,6 +66,8 @@ export default function SignupPage() {
           postcode: form.postcode.trim() || null,
           address: form.address.trim() || null,
           address_detail: form.addressDetail.trim() || null,
+          marketing_consent: marketingAgree,
+          marketing_consent_at: marketingAgree ? new Date().toISOString() : null,
         });
         if (profErr) throw profErr;
         router.push("/account");
@@ -191,6 +194,22 @@ export default function SignupPage() {
               개인정보처리방침
             </Link>
             에 동의합니다.
+          </span>
+        </label>
+
+        <label className="flex items-start gap-2.5 text-[14px] leading-relaxed text-ink-soft">
+          <input
+            type="checkbox"
+            checked={marketingAgree}
+            onChange={(e) => setMarketingAgree(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
+          />
+          <span>
+            <span className="text-mute">[선택]</span> 할인·이벤트 등{" "}
+            <span className="text-ink">광고성 정보 문자 수신</span>에 동의합니다.
+            <span className="mt-0.5 block text-[12px] text-mute">
+              동의하지 않아도 가입할 수 있으며, 주문·입금·배송 안내 문자는 동의와 무관하게 발송됩니다.
+            </span>
           </span>
         </label>
 

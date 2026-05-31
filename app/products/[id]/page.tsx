@@ -2,7 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { PRODUCTS, getProduct } from "@/lib/products";
+import {
+  PRODUCTS,
+  getProduct,
+  formatKRW,
+  SUB_PERIODS,
+  discountForPeriod,
+} from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { WhyHayMilk } from "@/components/WhyHayMilk";
 import { ProductReviews } from "@/components/ProductReviews";
@@ -43,8 +49,14 @@ export default async function ProductPage({
   const prev = PRODUCTS[(idx - 1 + PRODUCTS.length) % PRODUCTS.length];
   const next = PRODUCTS[(idx + 1) % PRODUCTS.length];
 
+  // 정기구독 최대 할인율(가장 긴 기간 기준) — 히어로 카피에 노출.
+  const maxRate = Math.round(
+    discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]) * 100
+  );
+
   return (
     <SwipeNav prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`}>
+      {/* 브레드크럼 */}
       <div className="mx-auto max-w-7xl px-5 pt-24 sm:px-8">
         <nav className="py-5 text-[13px] tracking-wide text-mute">
           <Link href="/" className="hover:text-gold">홈</Link>
@@ -53,45 +65,84 @@ export default async function ProductPage({
           <span className="mx-2">/</span>
           <span className="text-ink-soft">{product.name} {product.volume}</span>
         </nav>
+      </div>
 
-        <div className="grid gap-10 pb-8 lg:grid-cols-2 lg:gap-16">
-          {/* Image */}
+      {/* 애플식 풀블리드 히어로 — 큰 타이포 + 큰 이미지 + 가격 + 구성 앵커 */}
+      <section className="overflow-hidden pb-4 pt-6 text-center sm:pt-10">
+        <div className="mx-auto max-w-3xl px-5 sm:px-8">
+          <p className="text-[12px] uppercase tracking-[0.24em] text-gold">
+            {product.nameEn} · {product.volume} · {product.badge}
+          </p>
+          <h1 className="mt-4 font-serif-kr text-[clamp(2.2rem,6vw,4rem)] font-medium leading-[1.08] text-ink">
+            {product.tagline}{" "}
+            <span className="font-display italic text-gold">{product.taglineEm}</span>
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-[15px] leading-loose text-ink-soft">
+            {product.shortDesc}
+          </p>
+          <p className="mt-6 text-[14px] text-ink-soft">
+            회당{" "}
+            <span className="font-medium tabular-nums text-ink">{formatKRW(product.price)}</span>
+            <span className="mx-2 text-line">·</span>
+            <span className="text-gold-deep">정기구독 시 최대 {maxRate}% 할인</span>
+          </p>
+          <a
+            href="#configure"
+            className="mt-7 inline-flex items-center gap-1.5 rounded-full bg-ink px-6 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
+          >
+            구독 구성하기 <span aria-hidden>↓</span>
+          </a>
+        </div>
+        <div className="relative mx-auto mt-6 aspect-[16/10] w-full max-w-4xl sm:mt-10">
+          <span
+            className="absolute left-1/2 top-3 z-10 h-1.5 w-12 -translate-x-1/2 rounded-full"
+            style={{ background: product.accent }}
+          />
+          <Image
+            src={product.image}
+            alt={`${product.name} ${product.volume}`}
+            fill
+            priority
+            sizes="(max-width:1024px) 100vw, 56rem"
+            className="object-contain p-6 sm:p-10"
+          />
+        </div>
+      </section>
+
+      {/* 구성 — 좌측 고정 이미지·스토리 / 우측 가이드형 옵션 패널 */}
+      <div id="configure" className="mx-auto max-w-7xl scroll-mt-24 px-5 pb-8 pt-14 sm:px-8">
+        <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
+          {/* Image + 스토리 */}
           <div className="lg:sticky lg:top-24 lg:self-start">
             <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-paper">
-              <span
-                className="absolute left-6 top-6 z-10 h-1.5 w-12 rounded-full"
-                style={{ background: product.accent }}
-              />
               <Image
                 src={product.image}
                 alt={`${product.name} ${product.volume}`}
                 width={1200}
                 height={1200}
-                priority
                 sizes="(max-width:1024px) 92vw, 46vw"
                 className="h-full w-full object-contain p-8 sm:p-10"
               />
             </div>
+            {product.story.length > 0 && (
+              <div className="mt-6 space-y-3">
+                {product.story.map((s, i) => (
+                  <p key={i} className="text-[14px] leading-loose text-ink-soft">
+                    {s}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Detail */}
+          {/* 옵션 패널 */}
           <div className="flex flex-col">
-            <p className="text-[12px] uppercase tracking-[0.24em] text-gold">
-              {product.nameEn} · {product.volume} · {product.badge}
-            </p>
-            <h1 className="mt-4 font-serif-kr text-[clamp(2rem,4vw,3rem)] font-medium leading-[1.15] text-ink">
-              {product.tagline}{" "}
-              <span className="font-display italic text-gold">{product.taglineEm}</span>
-            </h1>
-            <p className="mt-5 text-[15px] leading-loose text-ink-soft">{product.shortDesc}</p>
+            <p className="text-[13px] uppercase tracking-[0.2em] text-gold-deep">Configure</p>
+            <h2 className="mt-2 font-serif-kr text-[clamp(1.5rem,3vw,2rem)] font-medium leading-tight text-ink">
+              원하는 대로 맞춰보세요
+            </h2>
 
-            {product.story.map((s, i) => (
-              <p key={i} className="mt-4 text-[14px] leading-loose text-ink-soft">
-                {s}
-              </p>
-            ))}
-
-            <div className="mt-8">
+            <div className="mt-6">
               <PurchasePanel product={product} />
             </div>
 
