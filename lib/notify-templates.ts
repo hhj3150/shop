@@ -15,7 +15,9 @@ export type NotifyTemplateKey =
   | "WELCOME" // 회원가입 환영
   | "SHIPPED" // 발송 안내(송장 등록)
   | "SUBSCRIPTION_CANCELLED" // 구독 해지 접수
-  | "GIFT_RECIPIENT"; // 선물 도착 안내(받는 분)
+  | "GIFT_RECIPIENT" // 선물 도착 안내(받는 분)
+  | "RENEW_GUIDE" // 구독 연장 접수 + 입금 안내
+  | "RENEW_CONFIRMED"; // 구독 연장 입금 확인
 
 // 키 → templateId 를 담는 환경변수 이름.
 const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
@@ -27,6 +29,8 @@ const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
   SHIPPED: "SOLAPI_TEMPLATE_SHIPPED",
   SUBSCRIPTION_CANCELLED: "SOLAPI_TEMPLATE_SUBSCRIPTION_CANCELLED",
   GIFT_RECIPIENT: "SOLAPI_TEMPLATE_GIFT_RECIPIENT",
+  RENEW_GUIDE: "SOLAPI_TEMPLATE_RENEW_GUIDE",
+  RENEW_CONFIRMED: "SOLAPI_TEMPLATE_RENEW_CONFIRMED",
 };
 
 // 템플릿별 변수명(등록 시 본문의 `#{...}` 와 동일하게 맞출 것). 문서·검증용.
@@ -39,6 +43,8 @@ export const TEMPLATE_VARS: Record<NotifyTemplateKey, readonly string[]> = {
   SHIPPED: ["#{고객명}", "#{주문번호}", "#{택배사}", "#{송장번호}"],
   SUBSCRIPTION_CANCELLED: ["#{고객명}", "#{환불금액}"],
   GIFT_RECIPIENT: ["#{받는분}", "#{보내는분}", "#{제품요약}"],
+  RENEW_GUIDE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{입금계좌}"],
+  RENEW_CONFIRMED: ["#{고객명}", "#{주문번호}"],
 };
 
 // 검수 승인 후 env 에 templateId 가 들어왔을 때만 값을 반환. 비어 있으면 undefined.

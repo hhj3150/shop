@@ -11,10 +11,11 @@ import { courierLabel, trackingUrl } from "@/lib/couriers";
 
 type OrderKind = "order_received" | "payment_confirmed" | "shipped";
 type GiftKind = "gift_subscription" | "gift_once";
-const ADMIN_KINDS = new Set(["payment_confirmed", "shipped"]);
+type RenewalKind = "renewal_guide" | "renewal_confirmed";
+const ADMIN_KINDS = new Set(["payment_confirmed", "shipped", "renewal_confirmed"]);
 
 type Body = {
-  kind: OrderKind | GiftKind | "subscription_cancelled" | "welcome";
+  kind: OrderKind | GiftKind | RenewalKind | "subscription_cancelled" | "welcome";
   orderId?: string;
   slotId?: number;
 };
@@ -80,6 +81,9 @@ export async function POST(req: Request) {
   }
   if (body.kind === "subscription_cancelled") {
     return handleCancel(sb, body.slotId);
+  }
+  if (body.kind === "renewal_guide" || body.kind === "renewal_confirmed") {
+    return handleRenewal(sb, body.kind, body.orderId);
   }
   return handleOrder(sb, body.kind, body.orderId);
 }
@@ -289,6 +293,62 @@ async function handleGift(sb: SupabaseClient, kind: GiftKind, orderId?: string) 
   }
 
   return NextResponse.json(recipientResult);
+}
+
+// 구독 연장 알림. renewal_guide = 회원이 연장 신청 직후 입금 안내(본인),
+//   renewal_confirmed = 관리자가 연장 입금 확인 후(관리자). 문구는 DB 권위값으로 구성.
+async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: string) {
+  if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
+  const { data: o } = await sb
+    .from("orders")
+    .select("order_no, total_amount, ship_name, ship_phone")
+    .eq("id", orderId)
+    .single();
+  if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
+
+  const name = (o.ship_name as string) || "고객";
+
+  if (kind === "renewal_guide") {
+    const account = `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
+    const text =
+      `[${SHOP}] ${name}님, 구독 연장 신청이 접수되었습니다.\n` +
+      `주문번호 ${o.order_no}\n` +
+      `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
+      `${account}\n` +
+      `입금이 확인되면 같은 요일로 4회분이 이어집니다.`;
+    const r = await sendInfo(o.ship_phone as string, {
+      text,
+      subject: `[${SHOP}] 구독 연장 접수`,
+      alimtalk: {
+        templateKey: "RENEW_GUIDE",
+        variables: {
+          "#{고객명}": name,
+          "#{주문번호}": o.order_no as string,
+          "#{금액}": formatKRW(o.total_amount as number),
+          "#{입금계좌}": account,
+        },
+      },
+    });
+    return NextResponse.json(r);
+  }
+
+  // renewal_confirmed — 연장 입금 확인.
+  const text =
+    `[${SHOP}] ${name}님, 구독 연장 입금이 확인되었습니다.\n` +
+    `주문번호 ${o.order_no}\n` +
+    `같은 요일로 4회분이 이어집니다. 변함없이 신선하게 보내드리겠습니다.`;
+  const r = await sendInfo(o.ship_phone as string, {
+    text,
+    subject: `[${SHOP}] 구독 연장 확인`,
+    alimtalk: {
+      templateKey: "RENEW_CONFIRMED",
+      variables: {
+        "#{고객명}": name,
+        "#{주문번호}": o.order_no as string,
+      },
+    },
+  });
+  return NextResponse.json(r);
 }
 
 async function handleCancel(sb: SupabaseClient, slotId?: number) {

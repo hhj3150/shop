@@ -11,7 +11,9 @@ type NotifyPayload =
   | { kind: "shipped"; orderId: string }
   | { kind: "gift_subscription"; orderId: string }
   | { kind: "gift_once"; orderId: string }
-  | { kind: "subscription_cancelled"; slotId: number };
+  | { kind: "subscription_cancelled"; slotId: number }
+  | { kind: "renewal_guide"; orderId: string }
+  | { kind: "renewal_confirmed"; orderId: string };
 
 export async function notify(payload: NotifyPayload): Promise<void> {
   try {

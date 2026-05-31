@@ -61,6 +61,7 @@ type OrderRow = {
   courier: string | null;
   tracking_no: string | null;
   shipped_at: string | null;
+  renews_slot_id: number | null; // 연장 주문이면 잇는 슬롯 id, 아니면 null
   created_at: string;
 };
 
@@ -366,6 +367,19 @@ export default function AdminPage() {
   // ── 액션 ─────────────────────────────────────────────────
   async function updateStatus(order: OrderRow, status: string) {
     const sb = getSupabase();
+    // 연장 주문 입금확인 → 전용 RPC로 슬롯 회차(+4) 연장과 상태 변경을 원자적으로 처리.
+    if (status === "입금확인" && order.renews_slot_id) {
+      const { error } = await sb.rpc("confirm_renewal_payment", {
+        p_order_id: order.id,
+      });
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      void notify({ kind: "renewal_confirmed", orderId: order.id });
+      await load();
+      return;
+    }
     await sb.from("orders").update({ status }).eq("id", order.id);
     // 입금확인 → 슬롯을 활성화하고, 요일별 첫 배송일을 시작일로 부여.
     if (status === "입금확인") {
@@ -778,7 +792,14 @@ export default function AdminPage() {
             ) : (
               orders.map((o) => (
                 <tr key={o.id} className="border-b border-line/60 align-top">
-                  <td className="py-2.5 tabular-nums text-ink">{o.order_no}</td>
+                  <td className="py-2.5 tabular-nums text-ink">
+                    {o.order_no}
+                    {o.renews_slot_id && (
+                      <span className="ml-1.5 rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-medium text-gold-deep">
+                        연장
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2.5 text-ink-soft">{o.depositor_name ?? o.ship_name}</td>
                   <td className="py-2.5 text-right tabular-nums text-ink-soft">{formatKRW(o.total_amount)}</td>
                   <td className="py-2.5 text-mute">{new Date(o.created_at).toLocaleDateString("ko-KR")}</td>

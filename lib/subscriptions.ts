@@ -76,6 +76,7 @@ type SlotJoinRow = {
   paused: boolean;
   paused_at: string | null;
   paused_days: number;
+  extended_weeks: number | null;
   orders: {
     block_weeks: number | null;
     period_months: number | null;
@@ -89,7 +90,7 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
   const { data, error } = await getSupabase()
     .from("subscription_slots")
     .select(
-      "id, delivery_day, status, started_at, paused, paused_at, paused_days, orders(block_weeks, period_months, order_no, total_amount)"
+      "id, delivery_day, status, started_at, paused, paused_at, paused_days, extended_weeks, orders(block_weeks, period_months, order_no, total_amount)"
     )
     .neq("status", "해지")
     .order("started_at", { ascending: true });
@@ -103,7 +104,8 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
     paused: row.paused,
     pausedAt: row.paused_at,
     pausedDays: row.paused_days,
-    totalWeeks: row.orders?.block_weeks ?? 0,
+    // 총 배송 회차 = 원 주문 block_weeks + 연장 누적 회차
+    totalWeeks: (row.orders?.block_weeks ?? 0) + (row.extended_weeks ?? 0),
     periodMonths: row.orders?.period_months ?? 1,
     orderNo: row.orders?.order_no ?? null,
     totalAmount: row.orders?.total_amount ?? 0,
@@ -142,6 +144,27 @@ export async function cancelUnpaidOrder(orderId: string): Promise<void> {
     p_order_id: orderId,
   });
   if (error) throw new Error(error.message);
+}
+
+export type RenewalResult = {
+  orderId: string;
+  orderNo: string;
+  total: number;
+};
+
+// 활성 구독을 1개월(4회) 연장 신청. 서버가 원 주문 품목으로 7% 재계산해
+// 입금대기 연장 주문을 만들고, 주문번호·금액을 돌려준다(입금 안내용).
+export async function requestRenewal(slotId: number): Promise<RenewalResult> {
+  const { data, error } = await getSupabase().rpc("request_renewal", {
+    p_slot_id: slotId,
+  });
+  if (error) throw new Error(error.message);
+  const r = (data ?? {}) as { order_id?: string; order_no?: string; total?: number };
+  return {
+    orderId: r.order_id ?? "",
+    orderNo: r.order_no ?? "",
+    total: r.total ?? 0,
+  };
 }
 
 export async function pauseSubscription(slotId: number): Promise<void> {

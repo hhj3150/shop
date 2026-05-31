@@ -13,13 +13,17 @@ import {
   resumeSubscription,
   cancelSubscription,
   cancelUnpaidOrder,
+  requestRenewal,
   refundAmount,
   type MySubscription,
 } from "@/lib/subscriptions";
 import { computeSchedule } from "@/lib/subscription-schedule";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
+import { DEPOSIT } from "@/lib/site";
 import { RecipientBook } from "@/components/RecipientBook";
+
+type RenewalInfo = { slotId: number; orderNo: string; total: number };
 
 type OrderRow = {
   id: string;
@@ -50,6 +54,7 @@ export default function AccountPage() {
   const [cancelSlot, setCancelSlot] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [refundAcct, setRefundAcct] = useState("");
+  const [renewal, setRenewal] = useState<RenewalInfo | null>(null);
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/account");
@@ -137,6 +142,20 @@ export default function AccountPage() {
       reloadSubs();
     } catch (e) {
       alert(e instanceof Error ? e.message : "해지에 실패했습니다.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onRenew(slotId: number) {
+    setBusy(slotId);
+    try {
+      const res = await requestRenewal(slotId);
+      setRenewal({ slotId, orderNo: res.orderNo, total: res.total });
+      void notify({ kind: "renewal_guide", orderId: res.orderId });
+      reloadOrders();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "구독 연장 신청에 실패했습니다.");
     } finally {
       setBusy(null);
     }
@@ -302,6 +321,54 @@ export default function AccountPage() {
                         일시정지 기간은 배송 횟수에서 제외되며, 종료 예정일이 정지한
                         기간만큼 미뤄집니다. 총 {sch.total}회는 모두 배송됩니다.
                       </p>
+                    </div>
+                  )}
+
+                  {s.status === "활성" && (
+                    <div className="mt-4">
+                      {renewal && renewal.slotId === s.slotId ? (
+                        <div className="rounded-2xl bg-paper-2 p-4">
+                          <p className="text-[14px] font-medium text-ink">
+                            연장 입금 안내
+                          </p>
+                          <div className="mt-3 flex items-center justify-between rounded-xl bg-cream px-4 py-3">
+                            <span className="text-[13px] text-ink-soft">
+                              연장 금액 (1개월 · 4회)
+                            </span>
+                            <span className="font-serif-kr text-lg tabular-nums text-gold-deep">
+                              {formatKRW(renewal.total)}
+                            </span>
+                          </div>
+                          <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
+                            아래 계좌로 <span className="tabular-nums">{renewal.orderNo}</span>{" "}
+                            주문의 금액을 입금해 주세요. 입금이 확인되면 같은 요일로 4회분이
+                            이어집니다.
+                          </p>
+                          <p className="mt-2 rounded-xl bg-cream px-4 py-3 text-[13px] text-ink">
+                            {DEPOSIT.bank} {DEPOSIT.account} (예금주 {DEPOSIT.holder})
+                          </p>
+                          <button
+                            onClick={() => setRenewal(null)}
+                            className="mt-3 rounded-full border border-line px-5 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+                          >
+                            확인
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => onRenew(s.slotId)}
+                            disabled={busy === s.slotId}
+                            className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
+                          >
+                            {busy === s.slotId ? "처리 중…" : "구독 연장 (재입금)"}
+                          </button>
+                          <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                            한 달치(4회)를 더 받으시려면 연장하세요. 입금 확인 시 같은
+                            요일로 이어지며, 선착순 자리는 그대로 유지됩니다.
+                          </p>
+                        </>
+                      )}
                     </div>
                   )}
 
