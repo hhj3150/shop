@@ -31,16 +31,16 @@ export function Hero() {
             priority
             className="mb-6 w-[176px] max-w-full sm:w-[208px]"
           />
-          <p className="font-serif-kr text-[17px] font-semibold tracking-[0.01em] text-ink sm:text-[19px]">
+          <p className="font-serif-kr text-[22px] font-semibold tracking-[0.01em] text-ink sm:text-[27px]">
             송영신목장
           </p>
-          <p className="mt-1.5 font-display text-[13px] uppercase tracking-[0.28em] text-gold-deep sm:text-[14px]">
+          <p className="gold-foil mt-2 font-display text-[16px] font-semibold uppercase tracking-[0.28em] sm:text-[19px]">
             A2 Jersey Hay Milk
           </p>
           <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.14] tracking-[-0.02em] text-ink">
             한 모금에 담긴
             <br />
-            <span className="text-gold-deep">15년의 약속.</span>
+            <span className="gold-foil">15년의 약속.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-md text-[14px] leading-relaxed text-ink-soft sm:text-[15px] lg:mx-0">
             매주 한 병, 목장에서 갓 짜낸 그대로 문 앞까지. 회원제 정기구독이 기본이지만,

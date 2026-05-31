@@ -39,7 +39,7 @@ export function SubscriptionBand() {
           <p className="eyebrow text-gold">Members Only</p>
           <h2 className="mt-5 font-serif-kr text-[clamp(2rem,4.5vw,3.4rem)] font-medium leading-tight">
             모두에게 열지 않았습니다,{" "}
-            <span className="font-display italic text-gold">귀한 분께만.</span>
+            <span className="gold-foil font-display italic">귀한 분께만.</span>
           </h2>
           <p className="mt-6 text-[15px] leading-loose text-cream/70">
             가입과 결제를 조금 까다롭게 둔 것은 일부러입니다. 매주 한 병까지 정성으로
@@ -53,7 +53,7 @@ export function SubscriptionBand() {
           {STEPS.map((s, i) => (
             <Reveal key={s.n} delay={i * 110}>
               <div className="border-t border-cream/20 pt-6">
-                <p className="font-display text-3xl text-gold">{s.n}</p>
+                <p className="gold-foil font-display text-3xl">{s.n}</p>
                 <h3 className="mt-3 font-serif-kr text-lg">{s.t}</h3>
                 <p className="mt-2 text-[13.5px] leading-relaxed text-cream/65">{s.d}</p>
               </div>
