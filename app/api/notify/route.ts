@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { sendSms, sendInfo, isSolapiConfigured, type AlimtalkSpec } from "@/lib/solapi";
+import { sendInfo, isSolapiConfigured, type AlimtalkSpec } from "@/lib/solapi";
 import { DEPOSIT } from "@/lib/site";
 import { formatKRW } from "@/lib/products";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
@@ -97,7 +97,14 @@ async function handleWelcome(sb: SupabaseClient, userId: string) {
   const text =
     `[${SHOP}] ${name}님, 회원가입을 환영합니다.\n` +
     `정기구독은 선착순 한정으로 모십니다. 주문해 주시면 입금 안내와 발송 소식을 문자로 전해드리겠습니다.`;
-  const r = await sendSms(phone, text, `[${SHOP}] 가입을 환영합니다`);
+  const r = await sendInfo(phone, {
+    text,
+    subject: `[${SHOP}] 가입을 환영합니다`,
+    alimtalk: {
+      templateKey: "WELCOME",
+      variables: { "#{고객명}": name },
+    },
+  });
   return NextResponse.json(r);
 }
 
@@ -159,7 +166,7 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     return NextResponse.json(r);
   }
 
-  // shipped — 발송 안내(전용 알림톡 템플릿 없음 → 기존 LMS/SMS 유지).
+  // shipped — 발송 안내 (알림톡 SHIPPED, 미승인/송장 누락 시 LMS 폴백).
   const courier = courierLabel(o.courier as string | null);
   const tracking = (o.tracking_no as string | null) ?? "";
   const url = trackingUrl(o.courier as string | null, tracking);
@@ -168,7 +175,20 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     `주문번호 ${o.order_no}\n` +
     `${courier}${tracking ? ` ${tracking}` : ""}` +
     (url ? `\n배송조회 ${url}` : "");
-  const r = await sendSms(o.ship_phone as string, text, `[${SHOP}] 발송 안내`);
+  const alimtalk: AlimtalkSpec = {
+    templateKey: "SHIPPED",
+    variables: {
+      "#{고객명}": name,
+      "#{주문번호}": o.order_no as string,
+      "#{택배사}": courier,
+      "#{송장번호}": tracking, // 빈 값이면 변수 누락 → LMS 폴백
+    },
+  };
+  const r = await sendInfo(o.ship_phone as string, {
+    text,
+    subject: `[${SHOP}] 발송 안내`,
+    alimtalk,
+  });
   return NextResponse.json(r);
 }
 
@@ -224,11 +244,18 @@ async function handleGift(sb: SupabaseClient, kind: GiftKind, orderId?: string) 
       `${gifterName}님이 아래 제품을 보내셨습니다. ${datePart}\n` +
       `${summary}${messageLine}`;
   }
-  const recipientResult = await sendSms(
-    o.ship_phone as string,
-    recipientText,
-    `[${SHOP}] 선물이 도착할 예정입니다`
-  );
+  const recipientResult = await sendInfo(o.ship_phone as string, {
+    text: recipientText,
+    subject: `[${SHOP}] 선물이 도착할 예정입니다`,
+    alimtalk: {
+      templateKey: "GIFT_RECIPIENT",
+      variables: {
+        "#{받는분}": recipientName,
+        "#{보내는분}": gifterName,
+        "#{제품요약}": summary,
+      },
+    },
+  });
 
   // 보내는 분(주문자)에게 입금 안내.
   const { data: buyer } = await sb
@@ -238,13 +265,27 @@ async function handleGift(sb: SupabaseClient, kind: GiftKind, orderId?: string) 
     .single();
   const buyerPhone = (buyer?.phone as string | null) ?? "";
   if (buyerPhone) {
+    const account = `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
     const buyerText =
       `[${SHOP}] 선물 주문이 접수되었습니다.\n` +
       `주문번호 ${o.order_no}\n` +
       `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
-      `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})\n` +
+      `${account}\n` +
       `입금이 확인되면 ${recipientName}님께 발송해 드립니다.`;
-    await sendSms(buyerPhone, buyerText, `[${SHOP}] 선물 주문 접수`);
+    // 보내는 분(주문자) 입금 안내는 주문접수와 동일한 PAYMENT_GUIDE 재사용.
+    await sendInfo(buyerPhone, {
+      text: buyerText,
+      subject: `[${SHOP}] 선물 주문 접수`,
+      alimtalk: {
+        templateKey: "PAYMENT_GUIDE",
+        variables: {
+          "#{고객명}": gifterName,
+          "#{주문번호}": o.order_no as string,
+          "#{금액}": formatKRW(o.total_amount as number),
+          "#{입금계좌}": account,
+        },
+      },
+    });
   }
 
   return NextResponse.json(recipientResult);
@@ -290,6 +331,16 @@ async function handleCancel(sb: SupabaseClient, slotId?: number) {
     `[${SHOP}] ${name}님, 구독 해지가 접수되었습니다.\n` +
     `환불 예정 금액 ${formatKRW(refund)}\n` +
     `입력하신 환불 계좌로 송금해 드리겠습니다.`;
-  const r = await sendSms(phone, text, `[${SHOP}] 해지 접수`);
+  const r = await sendInfo(phone, {
+    text,
+    subject: `[${SHOP}] 해지 접수`,
+    alimtalk: {
+      templateKey: "SUBSCRIPTION_CANCELLED",
+      variables: {
+        "#{고객명}": name,
+        "#{환불금액}": formatKRW(refund),
+      },
+    },
+  });
   return NextResponse.json(r);
 }

@@ -11,7 +11,11 @@ export type NotifyTemplateKey =
   | "EXPIRE_SOON" // 구독 만료 임박 (D-7) — 트리거(cron) 별도 작업
   | "PAYMENT_DEADLINE" // 미입금 마감 임박 — 트리거(cron) 별도 작업
   | "PAYMENT_GUIDE" // 주문 접수 + 입금 안내
-  | "PAYMENT_CONFIRMED"; // 입금 확인
+  | "PAYMENT_CONFIRMED" // 입금 확인
+  | "WELCOME" // 회원가입 환영
+  | "SHIPPED" // 발송 안내(송장 등록)
+  | "SUBSCRIPTION_CANCELLED" // 구독 해지 접수
+  | "GIFT_RECIPIENT"; // 선물 도착 안내(받는 분)
 
 // 키 → templateId 를 담는 환경변수 이름.
 const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
@@ -19,6 +23,10 @@ const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
   PAYMENT_DEADLINE: "SOLAPI_TEMPLATE_PAYMENT_DEADLINE",
   PAYMENT_GUIDE: "SOLAPI_TEMPLATE_PAYMENT_GUIDE",
   PAYMENT_CONFIRMED: "SOLAPI_TEMPLATE_PAYMENT_CONFIRMED",
+  WELCOME: "SOLAPI_TEMPLATE_WELCOME",
+  SHIPPED: "SOLAPI_TEMPLATE_SHIPPED",
+  SUBSCRIPTION_CANCELLED: "SOLAPI_TEMPLATE_SUBSCRIPTION_CANCELLED",
+  GIFT_RECIPIENT: "SOLAPI_TEMPLATE_GIFT_RECIPIENT",
 };
 
 // 템플릿별 변수명(등록 시 본문의 `#{...}` 와 동일하게 맞출 것). 문서·검증용.
@@ -27,6 +35,10 @@ export const TEMPLATE_VARS: Record<NotifyTemplateKey, readonly string[]> = {
   PAYMENT_DEADLINE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{마감일}"],
   PAYMENT_GUIDE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{입금계좌}"],
   PAYMENT_CONFIRMED: ["#{고객명}", "#{주문번호}"],
+  WELCOME: ["#{고객명}"],
+  SHIPPED: ["#{고객명}", "#{주문번호}", "#{택배사}", "#{송장번호}"],
+  SUBSCRIPTION_CANCELLED: ["#{고객명}", "#{환불금액}"],
+  GIFT_RECIPIENT: ["#{받는분}", "#{보내는분}", "#{제품요약}"],
 };
 
 // 검수 승인 후 env 에 templateId 가 들어왔을 때만 값을 반환. 비어 있으면 undefined.
