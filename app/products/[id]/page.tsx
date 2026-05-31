@@ -10,7 +10,6 @@ import {
   discountForPeriod,
 } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
-import { WhyHayMilk } from "@/components/WhyHayMilk";
 import { ProductReviews } from "@/components/ProductReviews";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
@@ -123,7 +122,7 @@ export default async function ProductPage({
       {/* 구성 — 좌측 고정 이미지·스토리 / 우측 가이드형 옵션 패널 */}
       <div id="configure" className="mx-auto max-w-7xl scroll-mt-24 px-5 pb-8 pt-14 sm:px-8">
         <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
-          {/* Image + 스토리 */}
+          {/* Image (sticky) */}
           <div className="lg:sticky lg:top-24 lg:self-start">
             <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-paper">
               <Image
@@ -135,15 +134,6 @@ export default async function ProductPage({
                 className="h-full w-full object-contain p-8 sm:p-10"
               />
             </div>
-            {product.story.length > 0 && (
-              <div className="mt-6 space-y-3">
-                {product.story.map((s, i) => (
-                  <p key={i} className="text-[14px] leading-loose text-ink-soft">
-                    {s}
-                  </p>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* 옵션 패널 */}
@@ -157,13 +147,6 @@ export default async function ProductPage({
               <PurchasePanel product={product} />
             </div>
 
-            <Link
-              href={`/order-once?add=${product.id}`}
-              className="mt-4 block w-full rounded-full bg-ink py-4 text-center text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99]"
-            >
-              단품구매
-            </Link>
-
             {/* Specs — quick reference */}
             <dl className="mt-10 divide-y divide-line border-y border-line">
               {product.specs.map((s) => (
@@ -176,9 +159,6 @@ export default async function ProductPage({
           </div>
         </div>
       </div>
-
-      {/* 왜 A2 저지 헤이밀크인가 — 텍스트 에디토리얼 */}
-      <WhyHayMilk />
 
       {/* 구매평 — 별점 후기 */}
       <ProductReviews productId={product.id} />
