@@ -14,6 +14,12 @@ import { PayMethodSelect } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { GiftOptions } from "@/components/GiftOptions";
+import { CashReceiptFields } from "@/components/CashReceiptFields";
+import {
+  DEFAULT_CASH_RECEIPT,
+  validateCashReceipt,
+  type CashReceiptType,
+} from "@/lib/cash-receipt";
 import type { Recipient } from "@/lib/recipients";
 
 export default function CheckoutPage() {
@@ -38,6 +44,8 @@ export default function CheckoutPage() {
   const [isGift, setIsGift] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
   const [payMethod, setPayMethod] = useState<PayMethod>("VIRTUAL_ACCOUNT");
+  const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
+  const [cashReceiptId, setCashReceiptId] = useState("");
 
   // 선물 주문은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 기존 무통장 흐름을 유지한다.
   //   (선물 주문자에게는 별도 입금 안내가 나간다)
@@ -114,6 +122,11 @@ export default function CheckoutPage() {
       setError(`회당 최소 상품 금액은 ${formatKRW(MIN_ORDER_KRW)}입니다. (배송비 별도)`);
       return;
     }
+    const receiptError = validateCashReceipt(cashReceiptType, cashReceiptId);
+    if (receiptError) {
+      setError(receiptError);
+      return;
+    }
     setBusy(true);
     try {
       const { orderId, orderNo, slots, totalAmount } = await createOrder(items, period, {
@@ -121,6 +134,8 @@ export default function CheckoutPage() {
         isGift,
         gifterName: profile?.name ?? ship.depositorName,
         giftMessage,
+        cashReceiptType,
+        cashReceiptId,
       });
 
       // 완료 페이지로 넘길 슬롯 컨텍스트(선착순 순번 등)를 쿼리에 싣는다.
@@ -300,6 +315,13 @@ export default function CheckoutPage() {
         <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
         <Field id="depositorName" label="입금자명" hint="통장 입금 대조를 위해 실제 입금하실 분의 이름을 적어 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
+
+        <CashReceiptFields
+          type={cashReceiptType}
+          id={cashReceiptId}
+          onTypeChange={setCashReceiptType}
+          onIdChange={setCashReceiptId}
+        />
 
         <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
           선택하신 요일에 매주 한 번 받으시며, {PERIOD_LABEL[period]}분({weeks}회)을

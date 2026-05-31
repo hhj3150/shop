@@ -62,6 +62,9 @@ type OrderRow = {
   tracking_no: string | null;
   shipped_at: string | null;
   renews_slot_id: number | null; // 연장 주문이면 잇는 슬롯 id, 아니면 null
+  cash_receipt_type: string | null; // 소득공제 | 지출증빙 | 발행안함
+  cash_receipt_id: string | null; // 소득공제: 휴대폰, 지출증빙: 사업자번호
+  cash_receipt_issued: boolean | null; // 관리자 수기 발행 완료 여부
   created_at: string;
 };
 
@@ -467,6 +470,20 @@ export default function AdminPage() {
           .eq("id", s.id);
       }
       void notify({ kind: "payment_confirmed", orderId: order.id });
+    }
+    await load();
+  }
+
+  // 현금영수증 수기 발행 완료/대기 토글. 홈택스에서 발행한 뒤 표시용으로 기록한다.
+  async function toggleReceiptIssued(order: OrderRow) {
+    const sb = getSupabase();
+    const { error } = await sb.rpc("mark_cash_receipt_issued", {
+      p_order_id: order.id,
+      p_issued: !order.cash_receipt_issued,
+    });
+    if (error) {
+      alert(error.message);
+      return;
     }
     await load();
   }
@@ -923,13 +940,14 @@ export default function AdminPage() {
               <th className="py-2 font-normal">입금자</th>
               <th className="py-2 text-right font-normal">금액</th>
               <th className="py-2 font-normal">신청일</th>
+              <th className="py-2 font-normal">현금영수증</th>
               <th className="py-2 font-normal no-print">상태</th>
               <th className="py-2 font-normal no-print">배송 추적 (택배사·송장)</th>
             </tr>
           </thead>
           <tbody>
             {orders.length === 0 ? (
-              <tr><td colSpan={6} className="py-4 text-center text-mute">주문이 없습니다.</td></tr>
+              <tr><td colSpan={7} className="py-4 text-center text-mute">주문이 없습니다.</td></tr>
             ) : (
               orders.map((o) => (
                 <tr key={o.id} className="border-b border-line/60 align-top">
@@ -944,6 +962,28 @@ export default function AdminPage() {
                   <td className="py-2.5 text-ink-soft">{o.depositor_name ?? o.ship_name}</td>
                   <td className="py-2.5 text-right tabular-nums text-ink-soft">{formatKRW(o.total_amount)}</td>
                   <td className="py-2.5 text-mute">{new Date(o.created_at).toLocaleDateString("ko-KR")}</td>
+                  <td className="py-2.5">
+                    {o.cash_receipt_type && o.cash_receipt_type !== "발행안함" ? (
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="text-ink-soft">
+                          {o.cash_receipt_type}
+                          <span className="ml-1 tabular-nums text-ink">{o.cash_receipt_id ?? ""}</span>
+                        </span>
+                        <button
+                          onClick={() => toggleReceiptIssued(o)}
+                          className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors no-print ${
+                            o.cash_receipt_issued
+                              ? "bg-gold/15 text-gold-deep hover:bg-gold/25"
+                              : "border border-line text-mute hover:border-gold hover:text-gold-deep"
+                          }`}
+                        >
+                          {o.cash_receipt_issued ? "발행완료" : "발행대기"}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-mute">{o.cash_receipt_type === "발행안함" ? "발행안함" : "—"}</span>
+                    )}
+                  </td>
                   <td className="py-2.5 no-print">
                     <select
                       value={o.status}

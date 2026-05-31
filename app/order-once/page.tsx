@@ -23,6 +23,12 @@ import { PayMethodSelect } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { GiftOptions } from "@/components/GiftOptions";
+import { CashReceiptFields } from "@/components/CashReceiptFields";
+import {
+  DEFAULT_CASH_RECEIPT,
+  validateCashReceipt,
+  type CashReceiptType,
+} from "@/lib/cash-receipt";
 import type { Recipient } from "@/lib/recipients";
 
 export default function OrderOncePage() {
@@ -59,6 +65,8 @@ function OrderOnce() {
   const [isGift, setIsGift] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
   const [payMethod, setPayMethod] = useState<PayMethod>("VIRTUAL_ACCOUNT");
+  const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
+  const [cashReceiptId, setCashReceiptId] = useState("");
 
   // 선물 주문은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 기존 무통장 흐름을 유지한다.
   const usePortOne = isPortOneConfigured && !isGift;
@@ -167,6 +175,11 @@ function OrderOnce() {
       setError("받는 분, 연락처, 주소를 입력해 주세요.");
       return;
     }
+    const receiptError = validateCashReceipt(cashReceiptType, cashReceiptId);
+    if (receiptError) {
+      setError(receiptError);
+      return;
+    }
     setBusy(true);
     try {
       const items: OnceItem[] = PRODUCTS.filter((p) => (qtys[p.id] ?? 0) > 0).map(
@@ -177,6 +190,8 @@ function OrderOnce() {
         isGift,
         gifterName: profile?.name ?? ship.depositorName,
         giftMessage,
+        cashReceiptType,
+        cashReceiptId,
       });
       const shipLabel = formatDispatch(new Date(`${shipDate}T00:00:00`));
       const params = new URLSearchParams({ no: orderNo, type: "once", ship: shipLabel });
@@ -373,6 +388,13 @@ function OrderOnce() {
         <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
         <Field id="depositorName" label="입금자명" hint="통장 입금 대조를 위해 실제 입금하실 분의 이름을 적어 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
+
+        <CashReceiptFields
+          type={cashReceiptType}
+          id={cashReceiptId}
+          onTypeChange={setCashReceiptType}
+          onIdChange={setCashReceiptId}
+        />
 
         {error && (
           <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">

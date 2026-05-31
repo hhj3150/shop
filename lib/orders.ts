@@ -1,6 +1,7 @@
 import { getSupabase } from "./supabase";
 import type { CartItem, DeliveryDay } from "./cart";
 import type { SubPeriod } from "./products";
+import { digitsOnly, type CashReceiptType } from "./cash-receipt";
 
 export type ShippingInfo = {
   name: string;
@@ -15,7 +16,27 @@ export type ShippingInfo = {
   isGift?: boolean;
   gifterName?: string;
   giftMessage?: string;
+  // 현금영수증 — 발행 방식과 식별번호(소득공제: 휴대폰, 지출증빙: 사업자번호).
+  cashReceiptType?: CashReceiptType;
+  cashReceiptId?: string;
 };
+
+// 현금영수증 발행정보 저장(주문 생성 직후). '발행안함'은 컬럼 기본값과 같아 호출을 생략한다.
+// 저장 실패가 주문 자체를 막지 않도록 별도 RPC로 분리하고 오류는 흡수한다
+//   (예: 마이그레이션 적용 전 — 주문은 정상 접수되고 발행정보만 비어 후속 처리 가능).
+async function saveCashReceipt(orderId: string, ship: ShippingInfo): Promise<void> {
+  const type = ship.cashReceiptType;
+  if (!type || type === "발행안함") return;
+  const { error } = await getSupabase().rpc("set_cash_receipt", {
+    p_order_id: orderId,
+    p_type: type,
+    p_id: digitsOnly(ship.cashReceiptId ?? ""),
+  });
+  if (error) {
+    // 주문은 이미 생성됨 — 발행정보 저장 실패는 치명적이지 않다.
+    console.error("현금영수증 저장 실패:", error.message);
+  }
+}
 
 // 신청 결과: 요일별로 몇 번째인지, 대기자인지.
 export type SlotResult = {
@@ -89,6 +110,7 @@ export async function createOrder(
   }));
 
   const orderId = data.order_id as string;
+  await saveCashReceipt(orderId, ship);
   return {
     orderId,
     orderNo: data.order_no as string,
@@ -124,6 +146,7 @@ export async function createOnceOrder(
   }
 
   const orderId = data.order_id as string;
+  await saveCashReceipt(orderId, ship);
   return {
     orderId,
     orderNo: data.order_no as string,
