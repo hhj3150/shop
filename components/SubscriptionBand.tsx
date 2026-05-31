@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Reveal } from "./Reveal";
+import { SlotAvailability } from "./SlotAvailability";
 
 const STEPS = [
   {
@@ -47,6 +48,7 @@ export function SubscriptionBand() {
             다섯 요일 통틀어 <span className="text-gold">단 500분</span>. 자리가 차면
             대기로 모시고, 한 자리가 비면 가장 먼저 안내드립니다.
           </p>
+          <SlotAvailability />
         </Reveal>
 
         <div className="mt-12 grid gap-10 sm:grid-cols-3">
