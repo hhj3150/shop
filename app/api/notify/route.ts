@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { sendSms, isSolapiConfigured } from "@/lib/solapi";
+import { sendSms, sendInfo, isSolapiConfigured, type AlimtalkSpec } from "@/lib/solapi";
 import { DEPOSIT } from "@/lib/site";
 import { formatKRW } from "@/lib/products";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
@@ -111,37 +111,64 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
   if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
 
   const name = (o.ship_name as string) || "고객";
-  let text = "";
-  let subject = "";
+  const account = `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
 
   if (kind === "order_received") {
-    subject = `[${SHOP}] 주문 접수`;
-    text =
+    // 주문 접수 + 입금 안내 (알림톡 PAYMENT_GUIDE, 미승인 시 LMS 폴백).
+    const text =
       `[${SHOP}] ${name}님, 주문이 접수되었습니다.\n` +
       `주문번호 ${o.order_no}\n` +
       `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
-      `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})\n` +
+      `${account}\n` +
       `입금이 확인되면 다시 안내드리겠습니다.`;
-  } else if (kind === "payment_confirmed") {
-    subject = `[${SHOP}] 입금 확인`;
-    text =
+    const alimtalk: AlimtalkSpec = {
+      templateKey: "PAYMENT_GUIDE",
+      variables: {
+        "#{고객명}": name,
+        "#{주문번호}": o.order_no as string,
+        "#{금액}": formatKRW(o.total_amount as number),
+        "#{입금계좌}": account,
+      },
+    };
+    const r = await sendInfo(o.ship_phone as string, {
+      text,
+      subject: `[${SHOP}] 주문 접수`,
+      alimtalk,
+    });
+    return NextResponse.json(r);
+  }
+
+  if (kind === "payment_confirmed") {
+    // 입금 확인 (알림톡 PAYMENT_CONFIRMED, 미승인 시 LMS 폴백).
+    const text =
       `[${SHOP}] ${name}님, 입금이 확인되었습니다.\n` +
       `주문번호 ${o.order_no}\n` +
       `신선하게 준비하여 순차 발송해 드리겠습니다.`;
-  } else {
-    // shipped
-    subject = `[${SHOP}] 발송 안내`;
-    const courier = courierLabel(o.courier as string | null);
-    const tracking = (o.tracking_no as string | null) ?? "";
-    const url = trackingUrl(o.courier as string | null, tracking);
-    text =
-      `[${SHOP}] ${name}님, 상품이 발송되었습니다.\n` +
-      `주문번호 ${o.order_no}\n` +
-      `${courier}${tracking ? ` ${tracking}` : ""}` +
-      (url ? `\n배송조회 ${url}` : "");
+    const alimtalk: AlimtalkSpec = {
+      templateKey: "PAYMENT_CONFIRMED",
+      variables: {
+        "#{고객명}": name,
+        "#{주문번호}": o.order_no as string,
+      },
+    };
+    const r = await sendInfo(o.ship_phone as string, {
+      text,
+      subject: `[${SHOP}] 입금 확인`,
+      alimtalk,
+    });
+    return NextResponse.json(r);
   }
 
-  const r = await sendSms(o.ship_phone as string, text, subject);
+  // shipped — 발송 안내(전용 알림톡 템플릿 없음 → 기존 LMS/SMS 유지).
+  const courier = courierLabel(o.courier as string | null);
+  const tracking = (o.tracking_no as string | null) ?? "";
+  const url = trackingUrl(o.courier as string | null, tracking);
+  const text =
+    `[${SHOP}] ${name}님, 상품이 발송되었습니다.\n` +
+    `주문번호 ${o.order_no}\n` +
+    `${courier}${tracking ? ` ${tracking}` : ""}` +
+    (url ? `\n배송조회 ${url}` : "");
+  const r = await sendSms(o.ship_phone as string, text, `[${SHOP}] 발송 안내`);
   return NextResponse.json(r);
 }
 
