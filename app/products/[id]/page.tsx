@@ -148,31 +148,9 @@ export default async function ProductPage({
 
             <Link
               href={`/order-once?add=${product.id}`}
-              aria-label="단품으로 한 번만 구매하기"
-              className="group mt-4 flex items-center gap-3 rounded-2xl bg-gold py-4 pl-5 pr-4 shadow-[0_10px_30px_-10px_rgba(154,120,56,0.7)] transition-[transform,box-shadow,background-color] hover:bg-gold-deep hover:shadow-[0_14px_34px_-10px_rgba(154,120,56,0.85)] active:scale-[0.99]"
+              className="mt-4 block w-full rounded-full bg-ink py-4 text-center text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99]"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cream/30 text-ink">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
-                  <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" strokeLinejoin="round" />
-                  <path d="M3 6h18M16 10a4 4 0 0 1-8 0" strokeLinecap="round" />
-                </svg>
-              </span>
-              <span className="flex flex-1 flex-col text-left leading-tight">
-                <span className="text-[16px] font-bold text-ink">단품으로 한 번만 구매하기</span>
-                <span className="text-[12.5px] text-ink-soft">구독 없이 이번 한 번만 · 익일 배송으로 가볍게</span>
-              </span>
-              <svg
-                aria-hidden
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="shrink-0 text-ink transition-transform group-hover:translate-x-0.5"
-              >
-                <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              단품구매
             </Link>
 
             {/* Specs — quick reference */}
