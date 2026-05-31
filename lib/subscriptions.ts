@@ -152,7 +152,7 @@ export type RenewalResult = {
   total: number;
 };
 
-// 활성 구독을 1개월(4회) 연장 신청. 서버가 원 주문 품목으로 7% 재계산해
+// 활성 구독을 1개월(4회) 연장 신청. 서버가 원 주문 품목으로 5% 재계산해
 // 입금대기 연장 주문을 만들고, 주문번호·금액을 돌려준다(입금 안내용).
 export async function requestRenewal(slotId: number): Promise<RenewalResult> {
   const { data, error } = await getSupabase().rpc("request_renewal", {

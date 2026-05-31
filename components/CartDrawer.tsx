@@ -23,7 +23,6 @@ export function CartDrawer() {
     period,
     weeks,
     perDelivery,
-    freeShip,
     shipTotal,
     periodTotal,
     weeklyPrice,
@@ -187,7 +186,7 @@ export function CartDrawer() {
             <div className="mt-1.5 flex items-center justify-between">
               <span className="text-sm text-mute">배송비 ({weeks}회)</span>
               <span className="text-sm tabular-nums text-ink-soft">
-                {freeShip ? "무료" : formatKRW(shipTotal)}
+                {formatKRW(shipTotal)}
               </span>
             </div>
             <div className="mt-1.5 flex items-center justify-between">

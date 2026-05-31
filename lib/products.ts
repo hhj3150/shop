@@ -39,19 +39,15 @@ export type Product = {
 // ───────── 정기구독 정책 ─────────
 // 매주 1회 배송(신선도 유지), 요일은 월–금 중 하나 선택.
 // 구독 기간은 1개월 고정. 1개월 = 4주(= 4회 배송)분을 한 번에 무통장입금(4회분 선납).
-// 회원 할인율 7%. 다음 달도 받으시려면 매월 연장(재입금)한다.
+// 회원 할인율 5%. 다음 달도 받으시려면 매월 연장(재입금)한다.
 export const WEEKS_PER_MONTH = 4;
 export const MIN_ORDER_KRW = 25000; // 1회(매주) 배송 최소 상품 금액 (단품과 동일)
 export const SUB_SHIPPING_KRW = 4000; // 회당(매주) 배송비
 
-// 무료배송 기준 — 할인 전(정가) 회당 상품 합계가 이 금액 이상이면 배송비 무료.
-//   정기구독·단품 공통. 정기는 "회당", 단품은 "1회 주문" 합계로 판정한다.
-export const FREE_SHIP_KRW = 50000;
-
-// 정기구독 회당 배송비. 할인 전(정가) 회당 상품 합계가 무료배송 기준 이상이면 0.
+// 정기구독 회당 배송비. 주문 금액과 무관하게 항상 자부담(무료배송 없음).
 export function subShippingFee(perDeliveryListTotal: number): number {
   if (perDeliveryListTotal <= 0) return 0;
-  return perDeliveryListTotal >= FREE_SHIP_KRW ? 0 : SUB_SHIPPING_KRW;
+  return SUB_SHIPPING_KRW;
 }
 
 // 구독 기간(개월). 1개월 고정.
@@ -66,9 +62,9 @@ export function periodWeeks(months: SubPeriod): number {
   return months * WEEKS_PER_MONTH;
 }
 
-// 기간(개월) → 할인율. 1개월 고정, 회원 할인 7%.
+// 기간(개월) → 할인율. 1개월 고정, 회원 할인 5%.
 export const PERIOD_DISCOUNT: Record<SubPeriod, number> = {
-  1: 0.07,
+  1: 0.05,
 };
 export function discountForPeriod(months: SubPeriod): number {
   return PERIOD_DISCOUNT[months];
@@ -76,22 +72,21 @@ export function discountForPeriod(months: SubPeriod): number {
 
 // ───────── 단품(1회) 구매 정책 ─────────
 // 정기구독과 별개. 상품 합계 25,000원 이상부터 결제 가능, 배송비 4,000원.
-// 상품 합계 50,000원 이상이면 무료배송. 무통장입금 확인 후 발송(신청 다음 날, 월–금).
+// 주문 금액과 무관하게 배송비는 항상 자부담(무료배송 없음). 무통장입금 확인 후 발송(신청 다음 날, 월–금).
 export const ONCE_MIN_KRW = 25000; // 단품 최소 상품 합계
 export const ONCE_SHIPPING_KRW = 4000; // 단품 기본 배송비
-export const ONCE_FREE_SHIP_KRW = FREE_SHIP_KRW; // 단품 무료배송 기준(정기와 동일)
 
-// 단품 상품 합계에 대한 배송비 계산.
+// 단품 상품 합계에 대한 배송비 계산. 금액과 무관하게 항상 자부담.
 export function onceShippingFee(subtotal: number): number {
   if (subtotal <= 0) return 0;
-  return subtotal >= ONCE_FREE_SHIP_KRW ? 0 : ONCE_SHIPPING_KRW;
+  return ONCE_SHIPPING_KRW;
 }
 
 // 정기구독 정원: 요일별 100명, 월–금 5일 = 전체 500명. 초과 시 대기자.
 export const SUB_DAY_CAP = 100;
 export const SUB_TOTAL_CAP = 500;
 
-// 회원 기본 할인(1개월 고정 7%). 가격 표기/병당 회원가 계산의 기본값.
+// 회원 기본 할인(1개월 고정 5%). 가격 표기/병당 회원가 계산의 기본값.
 export const BASE_DISCOUNT = PERIOD_DISCOUNT[1];
 
 export const PRODUCTS: Product[] = [

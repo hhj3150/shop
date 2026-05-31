@@ -13,7 +13,6 @@ import {
   discountForPeriod,
   periodWeeks,
   SUB_SHIPPING_KRW,
-  FREE_SHIP_KRW,
   subShippingFee,
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
@@ -46,13 +45,11 @@ export function PurchasePanel({ product }: { product: Product }) {
   );
   const perDelivery = mainPerDelivery + extrasPerDelivery;
 
-  // 무료배송 판정은 할인 전(정가) 회당 상품 합계로 한다.
+  // 할인 전(정가) 회당 상품 합계 — 정가 대비 할인 표기용.
   const origPerDelivery =
     product.price * qty +
     addons.reduce((sum, p) => sum + p.price * (extras[p.id] ?? 0), 0);
-  const shipPerDelivery = subShippingFee(origPerDelivery);
-  const freeShip = origPerDelivery > 0 && shipPerDelivery === 0;
-  const toFreeShip = Math.max(0, FREE_SHIP_KRW - origPerDelivery);
+  const shipPerDelivery = subShippingFee(perDelivery);
   const shipTotal = shipPerDelivery * weeks;
   const periodTotal = perDelivery * weeks + shipTotal;
   const origPeriodTotal = origPerDelivery * weeks;
@@ -263,7 +260,7 @@ export function PurchasePanel({ product }: { product: Product }) {
             매주 {DELIVERY_DAY_LABEL[deliveryDay]}
             <br />
             <span className="text-gold-deep">
-              {freeShip ? "배송비 무료" : `배송비 ${formatKRW(SUB_SHIPPING_KRW)} / 회`}
+              배송비 {formatKRW(SUB_SHIPPING_KRW)} / 회
             </span>
           </p>
         </div>
@@ -284,14 +281,9 @@ export function PurchasePanel({ product }: { product: Product }) {
           <div className="mt-1 flex items-center justify-between text-[13px] text-ink-soft">
             <span>배송비 ({weeks}회)</span>
             <span className="tabular-nums">
-              {freeShip ? "무료" : formatKRW(shipTotal)}
+              {formatKRW(shipTotal)}
             </span>
           </div>
-          {!freeShip && (
-            <p className="mt-1 text-[11.5px] text-gold-deep">
-              회당 {formatKRW(toFreeShip)} 더 담으면 배송비 무료
-            </p>
-          )}
           <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5">
             <span className="text-[13px] text-mute">한 번에 입금</span>
             <span className="font-serif-kr text-xl text-ink tabular-nums">

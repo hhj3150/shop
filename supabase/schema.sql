@@ -459,7 +459,7 @@ begin
   end loop;
 
   if v_per_delivery <= 0 then raise exception '연장할 품목이 없습니다.'; end if;
-  v_shipping := (case when v_per_list >= 50000 then 0 else 4000 end) * v_weeks;
+  v_shipping := 4000 * v_weeks;  -- 배송비는 주문 금액과 무관하게 항상 자부담
   v_total    := v_per_delivery * v_weeks + v_shipping;
   v_order_no := public.gen_order_no();
 
@@ -553,7 +553,7 @@ language sql
 immutable
 as $$
   select case p_months
-    when 1 then 0.07
+    when 1 then 0.05
     else null
   end;
 $$;
@@ -632,7 +632,7 @@ begin
   if v_per_delivery < 20000 then
     raise exception '회당 최소 상품 금액은 20,000원입니다.';
   end if;
-  v_shipping := (case when v_per_list >= 50000 then 0 else 4000 end) * v_weeks;
+  v_shipping := 4000 * v_weeks;  -- 배송비는 주문 금액과 무관하게 항상 자부담
   v_total := v_per_delivery * v_weeks + v_shipping;
   v_order_no := public.gen_order_no();
 
@@ -743,7 +743,7 @@ begin
   if v_subtotal < 25000 then
     raise exception '단품 최소 주문 금액은 25,000원입니다.';
   end if;
-  v_shipping := case when v_subtotal >= 50000 then 0 else 4000 end;
+  v_shipping := 4000;  -- 배송비는 주문 금액과 무관하게 항상 자부담
   v_total := v_subtotal + v_shipping;
 
   v_dow := extract(dow from v_today)::int;  -- 0=일 … 6=토

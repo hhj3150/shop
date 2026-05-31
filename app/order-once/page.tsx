@@ -11,7 +11,6 @@ import {
   formatKRW,
   ONCE_MIN_KRW,
   ONCE_SHIPPING_KRW,
-  ONCE_FREE_SHIP_KRW,
   onceShippingFee,
 } from "@/lib/products";
 import { createOnceOrder, type OnceItem } from "@/lib/orders";
@@ -114,7 +113,6 @@ function OrderOnce() {
   const shipping = onceShippingFee(subtotal);
   const total = subtotal + shipping;
   const belowMin = subtotal < ONCE_MIN_KRW;
-  const freeShip = subtotal >= ONCE_FREE_SHIP_KRW;
 
   const dispatch = useMemo(() => formatDispatch(nextDispatchDate()), []);
 
@@ -246,7 +244,7 @@ function OrderOnce() {
       <p className="mt-3 text-[14px] leading-relaxed text-mute">
         구독 없이 원하는 제품만 골라 한 번 받으실 수 있습니다. 상품 합계{" "}
         <span className="text-ink-soft">{formatKRW(ONCE_MIN_KRW)} 이상</span>부터 주문되며,
-        배송비는 {formatKRW(ONCE_SHIPPING_KRW)}, {formatKRW(ONCE_FREE_SHIP_KRW)} 이상 구매 시 무료입니다.
+        배송비는 주문 금액과 관계없이 {formatKRW(ONCE_SHIPPING_KRW)}입니다.
         입금이 확인되면 <span className="text-ink-soft">{dispatch}</span>에 발송됩니다.
         <br />
         평일(월~목) 자정까지 주문하시면 다음 날, 금요일 주문은 월요일, 주말(토·일) 주문은 화요일에 발송됩니다. (발송은 월–금)
@@ -313,19 +311,9 @@ function OrderOnce() {
         <div className="mt-2 flex justify-between text-[14px]">
           <span className="text-mute">배송비</span>
           <span className="tabular-nums text-ink-soft">
-            {freeShip ? (
-              <span className="text-gold-deep">무료배송</span>
-            ) : (
-              formatKRW(shipping)
-            )}
+            {formatKRW(shipping)}
           </span>
         </div>
-        {!freeShip && subtotal > 0 && (
-          <p className="mt-1.5 text-[13px] text-mute">
-            {formatKRW(ONCE_FREE_SHIP_KRW)} 이상 구매 시 무료배송
-            {` (${formatKRW(ONCE_FREE_SHIP_KRW - subtotal)} 더 담으면 무료)`}
-          </p>
-        )}
         <div className="mt-3 flex items-end justify-between border-t border-line pt-3">
           <span className="text-mute">결제(입금) 금액</span>
           <span className="font-serif-kr text-xl tabular-nums text-ink">{formatKRW(total)}</span>
