@@ -13,7 +13,7 @@ type OrderKind = "order_received" | "payment_confirmed" | "shipped";
 const ADMIN_KINDS = new Set(["payment_confirmed", "shipped"]);
 
 type Body = {
-  kind: OrderKind | "subscription_cancelled";
+  kind: OrderKind | "subscription_cancelled" | "welcome";
   orderId?: string;
   slotId?: number;
 };
@@ -64,10 +64,30 @@ export async function POST(req: Request) {
     }
   }
 
+  if (body.kind === "welcome") {
+    return handleWelcome(sb, userId);
+  }
   if (body.kind === "subscription_cancelled") {
     return handleCancel(sb, body.slotId);
   }
   return handleOrder(sb, body.kind, body.orderId);
+}
+
+// 회원가입 환영 문자. 수신번호·이름은 본인 프로필에서 가져온다(임의 발송 방지).
+async function handleWelcome(sb: SupabaseClient, userId: string) {
+  const { data: prof } = await sb
+    .from("profiles")
+    .select("name, phone")
+    .eq("id", userId)
+    .single();
+  const phone = (prof?.phone as string | null) ?? "";
+  if (!phone) return NextResponse.json({ ok: false, reason: "no_phone" });
+  const name = (prof?.name as string) || "고객";
+  const text =
+    `[${SHOP}] ${name}님, 회원가입을 환영합니다.\n` +
+    `정기구독은 선착순 한정으로 모십니다. 주문해 주시면 입금 안내와 발송 소식을 문자로 전해드리겠습니다.`;
+  const r = await sendSms(phone, text, `[${SHOP}] 가입을 환영합니다`);
+  return NextResponse.json(r);
 }
 
 async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string) {

@@ -5,6 +5,7 @@ import { getSupabase } from "./supabase";
 // 정보성 문자 발송 요청(서버 Route Handler 호출). best-effort —
 // 실패해도 주문/해지 흐름을 막지 않도록 예외를 삼킨다.
 type NotifyPayload =
+  | { kind: "welcome" }
   | { kind: "order_received"; orderId: string }
   | { kind: "payment_confirmed"; orderId: string }
   | { kind: "shipped"; orderId: string }

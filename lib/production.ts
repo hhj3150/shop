@@ -92,3 +92,44 @@ export async function saveProduction(rows: ProductionLog[]): Promise<void> {
     throw new Error("생산 기록 저장에 실패했습니다.");
   }
 }
+
+// 원유 입고 (당일 디투오로 들어온 원유 총량).
+export type MilkIntake = { intake_date: string; liters: number; note: string | null };
+
+// 특정 날짜의 원유 입고 기록 조회. 없으면 null.
+export async function loadMilkIntake(date: string): Promise<MilkIntake | null> {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("milk_intakes")
+      .select("intake_date, liters, note")
+      .eq("intake_date", date)
+      .maybeSingle();
+    if (error) throw error;
+    return (data as MilkIntake) ?? null;
+  } catch (error) {
+    console.error("원유 입고 조회 실패:", error);
+    throw new Error("원유 입고 기록을 불러오지 못했습니다.");
+  }
+}
+
+// 원유 입고 저장(upsert). intake_date 기준.
+export async function saveMilkIntake(
+  date: string,
+  liters: number,
+  note: string
+): Promise<void> {
+  try {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from("milk_intakes")
+      .upsert(
+        { intake_date: date, liters: Math.max(0, liters), note: note.trim() || null },
+        { onConflict: "intake_date" }
+      );
+    if (error) throw error;
+  } catch (error) {
+    console.error("원유 입고 저장 실패:", error);
+    throw new Error("원유 입고 저장에 실패했습니다.");
+  }
+}

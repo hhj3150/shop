@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { notify } from "@/lib/notify";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 
@@ -70,6 +71,8 @@ export default function SignupPage() {
           marketing_consent_at: marketingAgree ? new Date().toISOString() : null,
         });
         if (profErr) throw profErr;
+        // 가입 환영 문자(정보성). best-effort — 실패해도 가입 흐름을 막지 않는다.
+        void notify({ kind: "welcome" });
         router.push("/account");
       } else {
         // 이메일 확인 필요 → 확인 후 최초 로그인 시 프로필 작성 안내

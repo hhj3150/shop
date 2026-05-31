@@ -470,3 +470,94 @@ create policy "production_update_admin" on public.production_logs
 drop policy if exists "production_delete_admin" on public.production_logs;
 create policy "production_delete_admin" on public.production_logs
   for delete using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
+-- 9. 원유 입고 (당일 디투오로 들어온 원유 총량 · 송영신목장 → 디투오)
+--    유가공 투입 원유의 공급 측. 당일 1건(총량 L) + 메모.
+--    관리자(생산자)만 조회·작성·수정.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.milk_intakes (
+  intake_date  date primary key,
+  liters       numeric not null default 0 check (liters >= 0),
+  note         text,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+alter table public.milk_intakes enable row level security;
+
+drop policy if exists "milk_select_admin" on public.milk_intakes;
+create policy "milk_select_admin" on public.milk_intakes
+  for select using (public.is_admin());
+
+drop policy if exists "milk_insert_admin" on public.milk_intakes;
+create policy "milk_insert_admin" on public.milk_intakes
+  for insert with check (public.is_admin());
+
+drop policy if exists "milk_update_admin" on public.milk_intakes;
+create policy "milk_update_admin" on public.milk_intakes
+  for update using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
+-- 10. B2B 거래처 (백화점·카페·도매 등). 추후 B2B 주문·정산으로 확장.
+--     관리자만 조회·작성·수정.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.clients (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  contact     text,
+  memo        text,
+  active      boolean not null default true,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.clients enable row level security;
+
+drop policy if exists "clients_select_admin" on public.clients;
+create policy "clients_select_admin" on public.clients
+  for select using (public.is_admin());
+
+drop policy if exists "clients_insert_admin" on public.clients;
+create policy "clients_insert_admin" on public.clients
+  for insert with check (public.is_admin());
+
+drop policy if exists "clients_update_admin" on public.clients;
+create policy "clients_update_admin" on public.clients
+  for update using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
+-- 11. 거래처별 일일 필요량 (B2B 수요). 날짜·거래처·제품별 수량.
+--     (demand_date, client_id, product_key) 유니크 → upsert.
+--     온라인 수요와 합산해 '총 필요량'을 만든다.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.b2b_demand (
+  id           uuid primary key default gen_random_uuid(),
+  demand_date  date not null,
+  client_id    uuid not null references public.clients (id) on delete cascade,
+  product_key  text not null,
+  qty          integer not null default 0 check (qty >= 0),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (demand_date, client_id, product_key)
+);
+
+create index if not exists b2b_demand_date_idx
+  on public.b2b_demand (demand_date);
+
+alter table public.b2b_demand enable row level security;
+
+drop policy if exists "b2b_select_admin" on public.b2b_demand;
+create policy "b2b_select_admin" on public.b2b_demand
+  for select using (public.is_admin());
+
+drop policy if exists "b2b_insert_admin" on public.b2b_demand;
+create policy "b2b_insert_admin" on public.b2b_demand
+  for insert with check (public.is_admin());
+
+drop policy if exists "b2b_update_admin" on public.b2b_demand;
+create policy "b2b_update_admin" on public.b2b_demand
+  for update using (public.is_admin());
+
+drop policy if exists "b2b_delete_admin" on public.b2b_demand;
+create policy "b2b_delete_admin" on public.b2b_demand
+  for delete using (public.is_admin());
