@@ -10,15 +10,23 @@ import { courierLabel, trackingUrl } from "@/lib/couriers";
 // (문구를 클라이언트가 정하지 못하게 하여 임의 발송/스팸을 차단)
 
 type OrderKind = "order_received" | "payment_confirmed" | "shipped";
+type GiftKind = "gift_subscription" | "gift_once";
 const ADMIN_KINDS = new Set(["payment_confirmed", "shipped"]);
 
 type Body = {
-  kind: OrderKind | "subscription_cancelled" | "welcome";
+  kind: OrderKind | GiftKind | "subscription_cancelled" | "welcome";
   orderId?: string;
   slotId?: number;
 };
 
 const SHOP = "송영신목장";
+const DAY_LABEL: Record<string, string> = {
+  mon: "월",
+  tue: "화",
+  wed: "수",
+  thu: "목",
+  fri: "금",
+};
 
 function userClient(token: string): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -66,6 +74,9 @@ export async function POST(req: Request) {
 
   if (body.kind === "welcome") {
     return handleWelcome(sb, userId);
+  }
+  if (body.kind === "gift_subscription" || body.kind === "gift_once") {
+    return handleGift(sb, body.kind, body.orderId);
   }
   if (body.kind === "subscription_cancelled") {
     return handleCancel(sb, body.slotId);
@@ -132,6 +143,84 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
 
   const r = await sendSms(o.ship_phone as string, text, subject);
   return NextResponse.json(r);
+}
+
+// 선물 주문 알림. 받는 분에게는 선물 안내(결제정보 없음), 보내는 분(주문자)에게는
+//   입금 안내를 각각 보낸다. 수신번호·문구는 모두 DB 권위값으로 구성한다.
+async function handleGift(sb: SupabaseClient, kind: GiftKind, orderId?: string) {
+  if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
+  const { data: o } = await sb
+    .from("orders")
+    .select(
+      "order_no, total_amount, ship_name, ship_phone, gifter_name, gift_message, ship_date, user_id"
+    )
+    .eq("id", orderId)
+    .single();
+  if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
+
+  const { data: items } = await sb
+    .from("order_items")
+    .select("product_name, volume, qty, delivery_day")
+    .eq("order_id", orderId);
+
+  const recipientName = (o.ship_name as string) || "받는 분";
+  const gifterName = (o.gifter_name as string) || "보내는 분";
+
+  // 제품 요약. 정기는 요일까지, 단품은 제품·수량만.
+  const summary = (items ?? [])
+    .map((it) => {
+      const qtyPart = (it.qty as number) > 1 ? ` ${it.qty}개` : "";
+      if (kind === "gift_subscription" && it.delivery_day) {
+        const day = DAY_LABEL[it.delivery_day as string] ?? "";
+        return `${it.product_name} ${it.volume}${qtyPart} (매주 ${day}요일)`;
+      }
+      return `${it.product_name} ${it.volume}${qtyPart}`;
+    })
+    .join("\n");
+
+  const messageLine = o.gift_message
+    ? `\n메시지: ${o.gift_message as string}`
+    : "";
+
+  // 받는 분에게 선물 안내 (결제 정보 없음).
+  let recipientText = "";
+  if (kind === "gift_subscription") {
+    recipientText =
+      `[${SHOP}] ${recipientName}님, ${gifterName}님이 보내는 선물입니다.\n` +
+      `${gifterName}님이 아래 제품을 매주 정기구독으로 받으시도록 신청하셨습니다.\n` +
+      `${summary}${messageLine}`;
+  } else {
+    const [, mo, da] = (o.ship_date as string | null)?.split("-") ?? [];
+    const datePart = mo && da ? `${Number(mo)}월 ${Number(da)}일 발송 예정입니다.` : "곧 발송될 예정입니다.";
+    recipientText =
+      `[${SHOP}] ${recipientName}님, ${gifterName}님이 보내는 선물입니다.\n` +
+      `${gifterName}님이 아래 제품을 보내셨습니다. ${datePart}\n` +
+      `${summary}${messageLine}`;
+  }
+  const recipientResult = await sendSms(
+    o.ship_phone as string,
+    recipientText,
+    `[${SHOP}] 선물이 도착할 예정입니다`
+  );
+
+  // 보내는 분(주문자)에게 입금 안내.
+  const { data: buyer } = await sb
+    .from("profiles")
+    .select("phone")
+    .eq("id", o.user_id as string)
+    .single();
+  const buyerPhone = (buyer?.phone as string | null) ?? "";
+  if (buyerPhone) {
+    const buyerText =
+      `[${SHOP}] 선물 주문이 접수되었습니다.\n` +
+      `주문번호 ${o.order_no}\n` +
+      `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
+      `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})\n` +
+      `입금이 확인되면 ${recipientName}님께 발송해 드립니다.`;
+    await sendSms(buyerPhone, buyerText, `[${SHOP}] 선물 주문 접수`);
+  }
+
+  return NextResponse.json(recipientResult);
 }
 
 async function handleCancel(sb: SupabaseClient, slotId?: number) {

@@ -18,6 +18,7 @@ import {
 import { computeSchedule } from "@/lib/subscription-schedule";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
+import { RecipientBook } from "@/components/RecipientBook";
 
 type OrderRow = {
   id: string;
@@ -402,6 +403,8 @@ export default function AccountPage() {
           })}
         </ul>
       )}
+
+      <RecipientBook userId={user.id} />
     </div>
   );
 }

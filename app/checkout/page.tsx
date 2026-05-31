@@ -11,6 +11,8 @@ import { notify } from "@/lib/notify";
 import { DEPOSIT } from "@/lib/site";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
+import { GiftOptions } from "@/components/GiftOptions";
+import type { Recipient } from "@/lib/recipients";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -28,6 +30,8 @@ export default function CheckoutPage() {
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isGift, setIsGift] = useState(false);
+  const [giftMessage, setGiftMessage] = useState("");
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/checkout");
@@ -51,6 +55,43 @@ export default function CheckoutPage() {
     setShip((prev) => ({ ...prev, [key]: value }));
   }
 
+  // 선물 받는 분을 주소록에서 선택하면 배송지 필드를 그 값으로 채운다.
+  function applyRecipient(r: Recipient) {
+    setShip((prev) => ({
+      ...prev,
+      name: r.name,
+      phone: r.phone,
+      postcode: r.postcode ?? "",
+      address: r.address,
+      addressDetail: r.addressDetail ?? "",
+    }));
+  }
+
+  // 선물/나에게 모드 전환. 선물로 바꾸면 받는 분 칸을 비우고,
+  //   나에게로 되돌리면 내 프로필 정보로 복구한다.
+  function setGiftMode(on: boolean) {
+    setIsGift(on);
+    if (on) {
+      setShip((prev) => ({
+        ...prev,
+        name: "",
+        phone: "",
+        postcode: "",
+        address: "",
+        addressDetail: "",
+      }));
+    } else if (profile) {
+      setShip((prev) => ({
+        ...prev,
+        name: profile.name,
+        phone: profile.phone,
+        postcode: profile.postcode ?? "",
+        address: profile.address ?? "",
+        addressDetail: profile.address_detail ?? "",
+      }));
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -65,8 +106,13 @@ export default function CheckoutPage() {
     }
     setBusy(true);
     try {
-      const { orderId, orderNo, slots } = await createOrder(user.id, items, period, ship);
-      void notify({ kind: "order_received", orderId });
+      const { orderId, orderNo, slots } = await createOrder(user.id, items, period, {
+        ...ship,
+        isGift,
+        gifterName: profile?.name ?? ship.depositorName,
+        giftMessage,
+      });
+      void notify({ kind: isGift ? "gift_subscription" : "order_received", orderId });
       clear();
       const first = slots[0];
       const params = new URLSearchParams({ no: orderNo });
@@ -172,7 +218,17 @@ export default function CheckoutPage() {
 
       {/* 배송지 */}
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
-        <Field id="name" label="받는 분" required value={ship.name} onChange={(e) => update("name", e.target.value)} />
+        {user && (
+          <GiftOptions
+            userId={user.id}
+            isGift={isGift}
+            giftMessage={giftMessage}
+            onModeChange={setGiftMode}
+            onMessageChange={setGiftMessage}
+            onSelectRecipient={applyRecipient}
+          />
+        )}
+        <Field id="name" label={isGift ? "받는 분 (선물 받으실 분)" : "받는 분"} required value={ship.name} onChange={(e) => update("name", e.target.value)} />
         <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." inputMode="numeric" required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
         <div className="flex items-end gap-3">
           <div className="flex-1">

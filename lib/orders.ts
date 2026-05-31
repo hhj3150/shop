@@ -20,7 +20,22 @@ export type ShippingInfo = {
   addressDetail: string;
   depositorName: string;
   memo: string;
+  // 선물하기: isGift=true 이면 name/phone/address 는 받는 사람 정보,
+  //   gifterName 은 보내는 분(주문자) 표시명, giftMessage 는 선물 메시지(선택).
+  isGift?: boolean;
+  gifterName?: string;
+  giftMessage?: string;
 };
+
+// 선물 컬럼 공통 변환 — 선물이 아니면 모두 null/false 로 저장.
+function giftColumns(ship: ShippingInfo) {
+  const isGift = ship.isGift === true;
+  return {
+    is_gift: isGift,
+    gifter_name: isGift ? ship.gifterName?.trim() || null : null,
+    gift_message: isGift ? ship.giftMessage?.trim() || null : null,
+  };
+}
 
 // 신청 결과: 요일별로 몇 번째인지, 대기자인지.
 export type SlotResult = {
@@ -81,6 +96,7 @@ export async function createOrder(
       ship_address: ship.address.trim(),
       ship_address_detail: ship.addressDetail.trim() || null,
       memo: ship.memo.trim() || null,
+      ...giftColumns(ship),
     })
     .select("id, order_no")
     .single();
@@ -154,6 +170,7 @@ export async function createOnceOrder(
       ship_address: ship.address.trim(),
       ship_address_detail: ship.addressDetail.trim() || null,
       memo: ship.memo.trim() || null,
+      ...giftColumns(ship),
     })
     .select("id, order_no")
     .single();

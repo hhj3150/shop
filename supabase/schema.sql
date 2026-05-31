@@ -96,7 +96,12 @@ alter table public.orders
   -- 배송 추적: 관리자가 발송 시 택배사·송장번호 입력 → 고객 배송조회.
   add column if not exists courier text,
   add column if not exists tracking_no text,
-  add column if not exists shipped_at date;
+  add column if not exists shipped_at date,
+  -- 선물하기: is_gift=true 이면 ship_*(이름/전화/주소)는 받는 사람 정보.
+  --   gifter_name = 보내는 분(주문자) 표시명, gift_message = 선물 메시지(선택).
+  add column if not exists is_gift boolean not null default false,
+  add column if not exists gifter_name text,
+  add column if not exists gift_message text;
 
 alter table public.orders enable row level security;
 
@@ -561,3 +566,41 @@ create policy "b2b_update_admin" on public.b2b_demand
 drop policy if exists "b2b_delete_admin" on public.b2b_demand;
 create policy "b2b_delete_admin" on public.b2b_demand
   for delete using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
+-- 12. 받는 사람 주소록 (선물하기). 회원이 자녀·손주 등 받는 분 주소를
+--     여러 개 저장해 두고, 정기구독·단품 주문 시 선택해 선물 발송한다.
+--     회원 본인만 자신의 주소록을 조회·작성·수정·삭제.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.recipients (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references auth.users (id) on delete cascade,
+  name           text not null,
+  phone          text not null,            -- 선물 안내 문자 발송용
+  postcode       text,
+  address        text not null,
+  address_detail text,
+  memo           text,                      -- "큰손주", "부모님 댁" 등 메모
+  created_at     timestamptz not null default now()
+);
+
+create index if not exists recipients_user_idx
+  on public.recipients (user_id, created_at desc);
+
+alter table public.recipients enable row level security;
+
+drop policy if exists "recipients_select_own" on public.recipients;
+create policy "recipients_select_own" on public.recipients
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "recipients_insert_own" on public.recipients;
+create policy "recipients_insert_own" on public.recipients
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "recipients_update_own" on public.recipients;
+create policy "recipients_update_own" on public.recipients
+  for update using (auth.uid() = user_id);
+
+drop policy if exists "recipients_delete_own" on public.recipients;
+create policy "recipients_delete_own" on public.recipients
+  for delete using (auth.uid() = user_id);

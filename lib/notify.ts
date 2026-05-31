@@ -9,6 +9,8 @@ type NotifyPayload =
   | { kind: "order_received"; orderId: string }
   | { kind: "payment_confirmed"; orderId: string }
   | { kind: "shipped"; orderId: string }
+  | { kind: "gift_subscription"; orderId: string }
+  | { kind: "gift_once"; orderId: string }
   | { kind: "subscription_cancelled"; slotId: number };
 
 export async function notify(payload: NotifyPayload): Promise<void> {
