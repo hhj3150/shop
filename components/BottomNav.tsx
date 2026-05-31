@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 
 const EXTERNAL = [
   {
-    label: "홈페이지",
+    label: "송영신목장",
     href: "https://www.a2jerseymilk.com",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
