@@ -286,8 +286,11 @@ export default function AdminNewsPage() {
         <p className="mt-4 text-[14px] text-mute">아직 작성한 소식이 없습니다.</p>
       ) : (
         <ul className="mt-4 divide-y divide-line border-y border-line">
-          {rows.map((r) => (
+          {rows.map((r, i) => (
             <li key={r.id} className="flex items-center gap-4 py-4">
+              <span className="w-6 shrink-0 text-center text-[13px] font-semibold tabular-nums text-mute">
+                {rows.length - i}
+              </span>
               {r.cover_url ? (
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-line bg-paper">
                   <Image src={r.cover_url} alt="" fill className="object-cover" sizes="56px" />
