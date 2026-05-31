@@ -79,6 +79,9 @@ export default async function ProductPage({
           <p className="mx-auto mt-5 max-w-xl text-[15px] leading-loose text-ink-soft">
             {product.shortDesc}
           </p>
+          <p className="mx-auto mt-4 max-w-xl font-serif-kr text-[15px] leading-relaxed text-gold-deep">
+            대한민국 0.01%, 프리미엄 우유의 품격을 직접 느껴보세요.
+          </p>
           <p className="mt-6 text-[14px] text-ink-soft">
             회당{" "}
             <span className="font-medium tabular-nums text-ink">{formatKRW(product.price)}</span>
@@ -100,7 +103,7 @@ export default async function ProductPage({
             </Link>
           </div>
           <p className="mt-3 text-[12.5px] text-mute">
-            매주 받는 정기구독, 한 번만 받는 단품구매 모두 가능합니다.
+            정기구독은 선착순 500분 한정. 단품으로 먼저 차이를 느껴보고 신청하셔도 좋습니다.
           </p>
         </div>
         <div className="relative mx-auto mt-6 aspect-[16/10] w-full max-w-4xl sm:mt-10">

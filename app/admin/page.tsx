@@ -92,7 +92,16 @@ type SlotRow = {
   created_at: string;
 };
 
-type ProfileRow = { id: string; name: string; phone: string; marketing_consent: boolean };
+type ProfileRow = {
+  id: string;
+  name: string;
+  phone: string;
+  marketing_consent: boolean;
+  postcode: string | null;
+  address: string | null;
+  address_detail: string | null;
+  created_at: string | null;
+};
 
 function todayISO(): string {
   const d = new Date();
@@ -132,6 +141,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(todayISO());
   const [tab, setTab] = useState<AdminTab>("종합 관리");
+  const [memberQuery, setMemberQuery] = useState("");
 
   const isAdmin = Boolean(profile?.is_admin);
 
@@ -146,7 +156,9 @@ export default function AdminPage() {
       sb.from("orders").select("*").order("created_at", { ascending: false }),
       sb.from("order_items").select("*"),
       sb.from("subscription_slots").select("*"),
-      sb.from("profiles").select("id, name, phone, marketing_consent"),
+      sb
+        .from("profiles")
+        .select("id, name, phone, marketing_consent, postcode, address, address_detail, created_at"),
     ]);
     setOrders((o.data as OrderRow[]) ?? []);
     setItems((i.data as ItemRow[]) ?? []);
@@ -364,6 +376,58 @@ export default function AdminPage() {
     [cancellations]
   );
 
+  // ── 회원 전체 ─────────────────────────────────────────────
+  // 회원별 주문 건수·활성 구독 수를 함께 묶어 한눈에 본다.
+  type MemberRow = ProfileRow & { orderCount: number; activeSubs: number };
+  const memberRows = useMemo<MemberRow[]>(() => {
+    const orderCountByUser = new Map<string, number>();
+    for (const o of orders) {
+      orderCountByUser.set(o.user_id, (orderCountByUser.get(o.user_id) ?? 0) + 1);
+    }
+    const activeByUser = new Map<string, number>();
+    for (const s of slots) {
+      if (s.status === "활성") activeByUser.set(s.user_id, (activeByUser.get(s.user_id) ?? 0) + 1);
+    }
+    return [...profiles]
+      .map((p) => ({
+        ...p,
+        orderCount: orderCountByUser.get(p.id) ?? 0,
+        activeSubs: activeByUser.get(p.id) ?? 0,
+      }))
+      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+  }, [profiles, orders, slots]);
+
+  const filteredMembers = useMemo(() => {
+    const q = memberQuery.trim().toLowerCase();
+    if (!q) return memberRows;
+    return memberRows.filter(
+      (m) =>
+        (m.name ?? "").toLowerCase().includes(q) ||
+        (m.phone ?? "").toLowerCase().includes(q) ||
+        (m.address ?? "").toLowerCase().includes(q)
+    );
+  }, [memberRows, memberQuery]);
+
+  function exportMembersCsv() {
+    const rows: string[][] = [
+      ["이름", "연락처", "우편번호", "주소", "상세주소", "가입일", "마케팅수신", "주문수", "활성구독"],
+    ];
+    for (const m of memberRows) {
+      rows.push([
+        m.name ?? "",
+        m.phone ?? "",
+        m.postcode ?? "",
+        m.address ?? "",
+        m.address_detail ?? "",
+        m.created_at ? new Date(m.created_at).toLocaleDateString("ko-KR") : "",
+        m.marketing_consent ? "동의" : "미동의",
+        String(m.orderCount),
+        String(m.activeSubs),
+      ]);
+    }
+    downloadCsv("회원_전체명단.csv", rows);
+  }
+
   // ── 액션 ─────────────────────────────────────────────────
   async function updateStatus(order: OrderRow, status: string) {
     const sb = getSupabase();
@@ -544,6 +608,76 @@ export default function AdminPage() {
 
       {/* 통계 분석 */}
       <AdminStats orders={orders} items={items} slots={slots} memberCount={profiles.length} />
+
+      {/* 회원 전체 */}
+      <div className="mt-12 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-serif-kr text-lg text-ink">회원 전체 ({memberRows.length}명)</h2>
+        <div className="flex items-center gap-2 no-print">
+          <input
+            type="search"
+            value={memberQuery}
+            onChange={(e) => setMemberQuery(e.target.value)}
+            placeholder="이름·연락처·주소 검색"
+            className="w-52 rounded-full border border-line bg-cream px-4 py-2 text-[14px] text-ink placeholder:text-mute"
+          />
+          {memberRows.length > 0 && (
+            <button
+              onClick={exportMembersCsv}
+              className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold-deep"
+            >
+              회원 명단 CSV
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[760px] border-collapse text-[14px]">
+          <thead>
+            <tr className="border-b border-line text-left text-mute">
+              <th className="py-2 font-normal">이름</th>
+              <th className="py-2 font-normal">연락처</th>
+              <th className="py-2 font-normal">주소</th>
+              <th className="py-2 font-normal">가입일</th>
+              <th className="py-2 text-center font-normal">마케팅</th>
+              <th className="py-2 text-right font-normal">주문</th>
+              <th className="py-2 text-right font-normal">활성구독</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredMembers.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-4 text-center text-mute">
+                  {memberRows.length === 0 ? "회원이 없습니다." : "검색 결과가 없습니다."}
+                </td>
+              </tr>
+            ) : (
+              filteredMembers.map((m) => (
+                <tr key={m.id} className="border-b border-line/60 align-top">
+                  <td className="py-2.5 text-ink">{m.name || "—"}</td>
+                  <td className="py-2.5 tabular-nums text-ink-soft">{m.phone || "—"}</td>
+                  <td className="py-2.5 text-ink-soft">
+                    {m.address
+                      ? `${m.postcode ? `(${m.postcode}) ` : ""}${m.address} ${m.address_detail ?? ""}`
+                      : "—"}
+                  </td>
+                  <td className="py-2.5 text-mute">
+                    {m.created_at ? new Date(m.created_at).toLocaleDateString("ko-KR") : "—"}
+                  </td>
+                  <td className="py-2.5 text-center">
+                    {m.marketing_consent ? (
+                      <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[12px] text-gold-deep">동의</span>
+                    ) : (
+                      <span className="text-mute">·</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums text-ink-soft">{m.orderCount || "·"}</td>
+                  <td className="py-2.5 text-right tabular-nums text-gold-deep">{m.activeSubs || "·"}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* 요일별 모집 현황 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별 모집 현황 (정원 100명)</h2>
