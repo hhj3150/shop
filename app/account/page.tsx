@@ -205,7 +205,7 @@ export default function AccountPage() {
                       <p className="text-[15px] font-medium text-ink">
                         {PERIOD_LABEL[(s.periodMonths as SubPeriod) ?? 1]} 구독
                         <span className="ml-2 text-[13px] text-mute">
-                          매주 {DELIVERY_DAY_LABEL[s.deliveryDay]}요일
+                          매주 {DELIVERY_DAY_LABEL[s.deliveryDay]}
                         </span>
                       </p>
                       {s.orderNo && (

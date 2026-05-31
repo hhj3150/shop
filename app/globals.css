@@ -60,21 +60,23 @@ body {
    하이라이트→딥골드 그라데이션을 글자에 입히고, 얕은 그림자로 양각 효과. */
 .gold-foil {
   background-image: linear-gradient(
-    104deg,
-    #8a5e1f 0%,
-    #c79a3e 18%,
-    #f3d987 38%,
-    #fff6d2 50%,
-    #e8c25b 62%,
-    #b07d2a 82%,
-    #7c531a 100%
+    100deg,
+    #6b4710 0%,
+    #98701d 16%,
+    #c89331 34%,
+    #efce6e 50%,
+    #c89331 66%,
+    #98701d 84%,
+    #6b4710 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  text-shadow: 0 1px 0 rgba(255, 250, 224, 0.35), 0 2px 6px rgba(120, 80, 20, 0.22);
+  /* 또렷하게: 흐릿한 글로우 대신 글자 가장자리에 붙는 얇은 그림자로 윤곽만 잡는다. */
+  text-shadow: 0 1px 1px rgba(74, 48, 12, 0.28);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* 다크/잉크 배경 위에 올릴 때를 대비한 변형(현재는 밝은 배경 기준 동일). */
