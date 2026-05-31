@@ -60,6 +60,36 @@ drop policy if exists "profiles_select_admin" on public.profiles;
 create policy "profiles_select_admin" on public.profiles
   for select using (public.is_admin());
 
+-- 권한 상승 차단: 일반 회원이 본인 프로필을 수정/생성할 때 is_admin 을 스스로
+-- 켤 수 없도록 트리거로 고정한다. (RLS with check 는 OLD 값을 참조할 수 없어 트리거 사용)
+-- 관리자(is_admin()=true)만 다른 회원의 is_admin 을 변경할 수 있다.
+create or replace function public.protect_profile_admin()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    -- 신규 가입자는 관리자 권한을 스스로 부여할 수 없다.
+    if coalesce(new.is_admin, false) and not public.is_admin() then
+      new.is_admin := false;
+    end if;
+    return new;
+  end if;
+  -- UPDATE: 관리자가 아니면 is_admin 변경 시도를 무시하고 기존 값 유지.
+  if new.is_admin is distinct from old.is_admin and not public.is_admin() then
+    new.is_admin := old.is_admin;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_protect_profile_admin on public.profiles;
+create trigger trg_protect_profile_admin
+  before insert or update on public.profiles
+  for each row execute function public.protect_profile_admin();
+
 -- ───────────────────────────────────────────────────────────
 -- 2. 주문 (무통장입금 · 4주분 선입금)
 --    status 흐름: 입금대기 → 입금확인 → 배송준비 → 배송중 → 배송완료 / 취소

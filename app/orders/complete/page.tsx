@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { DepositAccount } from "@/components/DepositAccount";
 import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
+import { formatKRW } from "@/lib/products";
+import { DEPOSIT } from "@/lib/site";
 
 export default function OrderCompletePage() {
   return (
@@ -23,6 +25,7 @@ function Complete() {
   const dayLabel = day ? DELIVERY_DAY_LABEL[day] : "";
   const isOnce = sp.get("type") === "once";
   const ship = sp.get("ship") ?? "";
+  const amount = Number(sp.get("amount") ?? "0");
   const isPortOne = sp.get("pay") === "portone";
   // PortOne 리디렉션 실패 시 code/message 가 쿼리로 돌아온다.
   const failCode = sp.get("code");
@@ -94,9 +97,18 @@ function Complete() {
           <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
             <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
             <DepositAccount />
+            {amount > 0 && (
+              <div className="mt-4 flex items-baseline justify-between border-t border-gold/30 pt-4">
+                <span className="text-[14px] text-mute">입금 금액</span>
+                <span className="font-serif-kr text-xl tabular-nums text-ink">
+                  {formatKRW(amount)}
+                </span>
+              </div>
+            )}
             <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
-              위 계좌로 주문 금액을 입금해 주세요. 입금이 확인되는 즉시 발송을 준비하고,
-              등록하신 번호로 안내드립니다.
+              위 계좌(예금주 {DEPOSIT.holder})로{" "}
+              {amount > 0 ? <span className="font-semibold">{formatKRW(amount)}</span> : "주문 금액"}을
+              입금해 주세요. 입금이 확인되는 즉시 발송을 준비하고, 등록하신 번호로 안내드립니다.
             </p>
           </div>
         )}
@@ -162,9 +174,24 @@ function Complete() {
             무통장입금 계좌
           </p>
           <DepositAccount />
+          {amount > 0 && (
+            <div className="mt-4 flex items-baseline justify-between border-t border-gold/30 pt-4">
+              <span className="text-[14px] text-mute">입금 금액 (기간분 일괄)</span>
+              <span className="font-serif-kr text-xl tabular-nums text-ink">
+                {formatKRW(amount)}
+              </span>
+            </div>
+          )}
           <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
-            위 계좌로 선택하신 구독 기간분을 한 번에 입금해 주세요. 목장에서 입금을 확인한 뒤
-            발송을 준비하고, 등록하신 번호로 안내드립니다.
+            위 계좌(예금주 {DEPOSIT.holder})로{" "}
+            {amount > 0 ? (
+              <>
+                선택하신 구독 기간분 <span className="font-semibold">{formatKRW(amount)}</span>을
+              </>
+            ) : (
+              "선택하신 구독 기간분을"
+            )}{" "}
+            한 번에 입금해 주세요. 목장에서 입금을 확인한 뒤 발송을 준비하고, 등록하신 번호로 안내드립니다.
           </p>
         </div>
       )}

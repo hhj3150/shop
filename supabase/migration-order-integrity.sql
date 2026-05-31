@@ -56,10 +56,7 @@ language sql
 immutable
 as $$
   select case p_months
-    when 1  then 0.10
-    when 3  then 0.15
-    when 6  then 0.20
-    when 12 then 0.25
+    when 1 then 0.05   -- 현행 정책: 1개월 고정, 회원 할인 5%
     else null
   end;
 $$;
@@ -139,7 +136,7 @@ begin
   if v_per_delivery < 20000 then
     raise exception '회당 최소 상품 금액은 20,000원입니다.';
   end if;
-  v_shipping := (case when v_per_list >= 50000 then 0 else 4000 end) * v_weeks;
+  v_shipping := 4000 * v_weeks;  -- 현행 정책: 배송비는 주문 금액과 무관하게 항상 자부담
   v_total := v_per_delivery * v_weeks + v_shipping;
   v_order_no := public.gen_order_no();
 
@@ -254,7 +251,7 @@ begin
   if v_subtotal < 25000 then
     raise exception '단품 최소 주문 금액은 25,000원입니다.';
   end if;
-  v_shipping := case when v_subtotal >= 50000 then 0 else 4000 end;
+  v_shipping := 4000;  -- 현행 정책: 배송비는 주문 금액과 무관하게 항상 자부담
   v_total := v_subtotal + v_shipping;
 
   -- 발송일(월–금, KST): 토→화, 일→화, 평일→익일(금요일분은 다음 주 월요일)

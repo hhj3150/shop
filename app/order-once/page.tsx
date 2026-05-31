@@ -192,7 +192,12 @@ function OrderOnce() {
         cashReceiptId,
       });
       const shipLabel = formatDispatch(new Date(`${shipDate}T00:00:00`));
-      const params = new URLSearchParams({ no: orderNo, type: "once", ship: shipLabel });
+      const params = new URLSearchParams({
+        no: orderNo,
+        type: "once",
+        ship: shipLabel,
+        amount: String(totalAmount),
+      });
 
       if (usePortOne) {
         // PortOne 결제창 호출. 모바일은 redirectUrl 로 이동하므로 아래 분기는 PC에서만 도달.

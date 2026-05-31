@@ -45,6 +45,11 @@ export function Footer() {
             <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">고객센터</p>
             <p className="mt-4 font-serif-kr text-lg text-ink">{BUSINESS.tel}</p>
             <p className="mt-1 text-[14px] text-mute">{BUSINESS.mobile}</p>
+            <p className="mt-1 text-[14px] text-mute">
+              <a href={`mailto:${BUSINESS.email}`} className="hover:text-gold">
+                {BUSINESS.email}
+              </a>
+            </p>
             <p className="mt-3 text-[14px] text-mute">평일 10:00–17:00 · 점심 12:00–13:00</p>
             <p className="mt-3 text-[13px] text-mute">
               입금계좌 {DEPOSIT.bank} {DEPOSIT.account}
@@ -62,7 +67,7 @@ export function Footer() {
             개인정보관리책임자 {BUSINESS.privacyManager}
           </p>
           <p className="mt-1">
-            대표전화 {BUSINESS.tel} · {BUSINESS.mobile}
+            대표전화 {BUSINESS.tel} · {BUSINESS.mobile} · 이메일 {BUSINESS.email}
           </p>
           <p className="mt-4 text-mute/80">
             © {new Date().getFullYear()} Song Yeong Shin Farm. All rights reserved.

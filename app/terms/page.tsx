@@ -61,6 +61,7 @@ export default function TermsPage() {
         <p>통신판매업신고: {BUSINESS.mailOrderNo}</p>
         <p>주소: {BUSINESS.address}</p>
         <p>연락처: {BUSINESS.tel} · {BUSINESS.mobile}</p>
+        <p>이메일: {BUSINESS.email}</p>
       </Article>
     </LegalLayout>
   );

@@ -139,7 +139,7 @@ export default function CheckoutPage() {
 
       // 완료 페이지로 넘길 슬롯 컨텍스트(선착순 순번 등)를 쿼리에 싣는다.
       const first = slots[0];
-      const params = new URLSearchParams({ no: orderNo });
+      const params = new URLSearchParams({ no: orderNo, amount: String(totalAmount) });
       if (first) {
         params.set("day", first.deliveryDay);
         params.set("pos", String(first.position));

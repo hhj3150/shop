@@ -20,5 +20,6 @@ export const BUSINESS = {
   address: "경기도 안성시 미양면 미양로 466",
   tel: "031-674-3150",
   mobile: "010-6642-5042",
+  email: "d2ovet3150@gmail.com",
   privacyManager: "송영신",
 } as const;

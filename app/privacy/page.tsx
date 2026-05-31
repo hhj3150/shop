@@ -41,6 +41,7 @@ export default function PrivacyPage() {
       <Article heading="7. 개인정보 보호책임자">
         <p>성명: {BUSINESS.privacyManager}</p>
         <p>연락처: {BUSINESS.tel} · {BUSINESS.mobile}</p>
+        <p>이메일: {BUSINESS.email}</p>
         <p>상호: {BUSINESS.company}</p>
       </Article>
     </LegalLayout>
