@@ -6,7 +6,7 @@ import {
   discountForPeriod,
   periodWeeks,
   SUB_DAY_CAP,
-  SUB_SHIPPING_KRW,
+  subShippingFee,
   onceShippingFee,
   type SubPeriod,
 } from "./products";
@@ -76,7 +76,12 @@ export async function createOrder(
     (sum, i) => sum + unitPriceFor(i.productId) * i.qty,
     0
   );
-  const shipping = SUB_SHIPPING_KRW * weeks;
+  // 무료배송 판정은 할인 전(정가) 회당 상품 합계로 한다.
+  const perDeliveryList = items.reduce(
+    (sum, i) => sum + (getProduct(i.productId)?.price ?? 0) * i.qty,
+    0
+  );
+  const shipping = subShippingFee(perDeliveryList) * weeks;
   const total = perDelivery * weeks + shipping;
 
   const { data: order, error: orderErr } = await supabase

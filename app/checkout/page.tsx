@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
-import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
+import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL, FREE_SHIP_KRW } from "@/lib/products";
 import { createOrder } from "@/lib/orders";
 import { notify } from "@/lib/notify";
 import { DEPOSIT } from "@/lib/site";
@@ -17,7 +17,8 @@ import type { Recipient } from "@/lib/recipients";
 export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
-  const { items, period, weeks, perDelivery, shipTotal, periodTotal, weeklyPrice, clear } = useCart();
+  const { items, period, weeks, perDelivery, perDeliveryList, freeShip, shipTotal, periodTotal, weeklyPrice, clear } = useCart();
+  const toFreeShip = Math.max(0, FREE_SHIP_KRW - perDeliveryList);
 
   const [ship, setShip] = useState({
     name: "",
@@ -191,8 +192,15 @@ export default function CheckoutPage() {
         </div>
         <div className="mt-1.5 flex justify-between">
           <span className="text-mute">배송비 ({weeks}회)</span>
-          <span className="tabular-nums text-ink-soft">{formatKRW(shipTotal)}</span>
+          <span className="tabular-nums text-ink-soft">
+            {freeShip ? "무료" : formatKRW(shipTotal)}
+          </span>
         </div>
+        {!freeShip && (
+          <p className="mt-1 text-[12.5px] text-gold-deep">
+            회당 {formatKRW(toFreeShip)} 더 담으면 배송비 무료 (정가 {formatKRW(FREE_SHIP_KRW)} 이상)
+          </p>
+        )}
         <div className="mt-1.5 flex justify-between">
           <span className="text-mute">{PERIOD_LABEL[period]}분({weeks}회) 입금액</span>
           <span className="font-serif-kr text-lg tabular-nums text-ink">

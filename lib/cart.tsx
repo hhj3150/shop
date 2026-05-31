@@ -13,7 +13,7 @@ import {
   subscribePrice,
   discountForPeriod,
   periodWeeks,
-  SUB_SHIPPING_KRW,
+  subShippingFee,
   type SubPeriod,
 } from "./products";
 
@@ -44,7 +44,9 @@ type CartContextValue = {
   period: SubPeriod; // 구독 기간(개월) — 장바구니 전체에 하나
   weeks: number; // 기간 → 총 배송 회수(= 주분)
   perDelivery: number; // 1회(매주) 상품 합계 (기간 할인 적용)
-  shipPerDelivery: number; // 1회(매주) 배송비
+  perDeliveryList: number; // 1회(매주) 상품 합계 (할인 전 정가) — 무료배송 판정용
+  freeShip: boolean; // 회당 정가 합계가 무료배송 기준 이상
+  shipPerDelivery: number; // 1회(매주) 배송비 (무료면 0)
   shipTotal: number; // 전체 기간분 배송비
   periodTotal: number; // 전체 기간분 = 한 번에 입금할 금액 (상품 + 배송비)
   weeklyPrice: (productId: string) => number; // 제품별 1회(병당) 회원가
@@ -110,8 +112,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
       (n, i) => n + i.qty * weeklyPrice(i.productId),
       0
     );
+    // 할인 전(정가) 회당 합계 — 무료배송 기준은 정가로 판정한다.
+    const perDeliveryList = items.reduce((n, i) => {
+      const p = getProduct(i.productId);
+      return n + i.qty * (p?.price ?? 0);
+    }, 0);
     const weeks = periodWeeks(period);
-    const shipPerDelivery = items.length > 0 ? SUB_SHIPPING_KRW : 0;
+    const shipPerDelivery = subShippingFee(perDeliveryList);
+    const freeShip = items.length > 0 && shipPerDelivery === 0;
 
     return {
       items,
@@ -120,6 +128,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       period,
       weeks,
       perDelivery,
+      perDeliveryList,
+      freeShip,
       shipPerDelivery,
       shipTotal: shipPerDelivery * weeks,
       periodTotal: (perDelivery + shipPerDelivery) * weeks,

@@ -44,6 +44,16 @@ export const WEEKS_PER_MONTH = 4;
 export const MIN_ORDER_KRW = 20000; // 1회(매주) 배송 최소 상품 금액
 export const SUB_SHIPPING_KRW = 4000; // 회당(매주) 배송비
 
+// 무료배송 기준 — 할인 전(정가) 회당 상품 합계가 이 금액 이상이면 배송비 무료.
+//   정기구독·단품 공통. 정기는 "회당", 단품은 "1회 주문" 합계로 판정한다.
+export const FREE_SHIP_KRW = 50000;
+
+// 정기구독 회당 배송비. 할인 전(정가) 회당 상품 합계가 무료배송 기준 이상이면 0.
+export function subShippingFee(perDeliveryListTotal: number): number {
+  if (perDeliveryListTotal <= 0) return 0;
+  return perDeliveryListTotal >= FREE_SHIP_KRW ? 0 : SUB_SHIPPING_KRW;
+}
+
 // 구독 기간(개월).
 export type SubPeriod = 1 | 3 | 6 | 12;
 export const SUB_PERIODS: SubPeriod[] = [1, 3, 6, 12];
@@ -75,7 +85,7 @@ export function discountForPeriod(months: SubPeriod): number {
 // 상품 합계 50,000원 이상이면 무료배송. 무통장입금 확인 후 발송(신청 다음 날, 월–금).
 export const ONCE_MIN_KRW = 25000; // 단품 최소 상품 합계
 export const ONCE_SHIPPING_KRW = 4000; // 단품 기본 배송비
-export const ONCE_FREE_SHIP_KRW = 50000; // 이 금액 이상이면 무료배송
+export const ONCE_FREE_SHIP_KRW = FREE_SHIP_KRW; // 단품 무료배송 기준(정기와 동일)
 
 // 단품 상품 합계에 대한 배송비 계산.
 export function onceShippingFee(subtotal: number): number {
