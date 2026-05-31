@@ -63,7 +63,7 @@ export function GiftOptions({
                   const r = recipients.find((x) => x.id === id);
                   if (r) onSelectRecipient(r);
                 }}
-                className="mt-2 w-full rounded-xl border border-line bg-cream px-4 py-3 text-[15px] text-ink outline-none transition-colors focus:border-gold"
+                className="mt-2 w-full rounded-xl border border-line bg-cream px-4 py-3 text-[16px] text-ink outline-none transition-colors focus:border-gold"
               >
                 <option value="">직접 입력</option>
                 {recipients.map((r) => (
@@ -88,7 +88,7 @@ export function GiftOptions({
               rows={2}
               maxLength={80}
               placeholder="예: 건강하게 잘 드세요. — 할아버지가"
-              className="mt-2 w-full rounded-xl border border-line bg-cream px-4 py-3 text-[15px] text-ink outline-none transition-colors placeholder:text-mute/60 focus:border-gold"
+              className="mt-2 w-full rounded-xl border border-line bg-cream px-4 py-3 text-[16px] text-ink outline-none transition-colors placeholder:text-mute/60 focus:border-gold"
             />
           </label>
         </div>

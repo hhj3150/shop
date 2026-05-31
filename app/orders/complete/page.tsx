@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { DEPOSIT } from "@/lib/site";
+import { DepositAccount } from "@/components/DepositAccount";
 import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
 
 export default function OrderCompletePage() {
@@ -50,10 +50,7 @@ function Complete() {
 
         <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
           <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
-          <p className="mt-2 font-serif-kr text-lg text-ink">
-            {DEPOSIT.bank} {DEPOSIT.account}
-          </p>
-          <p className="mt-0.5 text-[14px] text-mute">예금주 {DEPOSIT.holder}</p>
+          <DepositAccount />
           <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
             위 계좌로 주문 금액을 입금해 주세요. 입금이 확인되는 즉시 발송을 준비하고,
             등록하신 번호로 안내드립니다.
@@ -113,10 +110,7 @@ function Complete() {
         <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
           무통장입금 계좌
         </p>
-        <p className="mt-2 font-serif-kr text-lg text-ink">
-          {DEPOSIT.bank} {DEPOSIT.account}
-        </p>
-        <p className="mt-0.5 text-[14px] text-mute">예금주 {DEPOSIT.holder}</p>
+        <DepositAccount />
         <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
           위 계좌로 선택하신 구독 기간분을 한 번에 입금해 주세요. 목장에서 입금을 확인한 뒤
           발송을 준비하고, 등록하신 번호로 안내드립니다.

@@ -17,7 +17,7 @@ import {
 import { createOnceOrder, type OnceItem } from "@/lib/orders";
 import { notify } from "@/lib/notify";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
-import { DEPOSIT } from "@/lib/site";
+import { DepositAccount } from "@/components/DepositAccount";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { GiftOptions } from "@/components/GiftOptions";
@@ -292,10 +292,7 @@ function OrderOnce() {
       {/* 입금 계좌 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
         <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
-        <p className="mt-2 font-serif-kr text-lg text-ink">
-          {DEPOSIT.bank} {DEPOSIT.account}
-        </p>
-        <p className="mt-0.5 text-[14px] text-mute">예금주 {DEPOSIT.holder}</p>
+        <DepositAccount />
         <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
           주문 후 위 계좌로 {formatKRW(total)}을 입금해 주세요. 입금이 확인되면 발송됩니다.
         </p>

@@ -168,14 +168,14 @@ export function B2bDemandSection({
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="거래처 이름"
-            className="w-32 rounded-xl border border-line bg-paper px-3 py-2 text-[14px] text-ink"
+            className="w-32 rounded-xl border border-line bg-paper px-3 py-2 text-[16px] text-ink"
           />
           <input
             type="text"
             value={newContact}
             onChange={(e) => setNewContact(e.target.value)}
             placeholder="연락처(선택)"
-            className="w-32 rounded-xl border border-line bg-paper px-3 py-2 text-[14px] text-ink"
+            className="w-32 rounded-xl border border-line bg-paper px-3 py-2 text-[16px] text-ink"
           />
           <button
             onClick={handleAdd}

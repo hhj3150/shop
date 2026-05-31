@@ -109,7 +109,7 @@ export function ProductReviews({ productId }: { productId: string }) {
             rows={3}
             maxLength={1000}
             placeholder="제품에 대한 솔직한 후기를 남겨 주세요."
-            className="mt-4 w-full resize-none rounded-xl border border-line bg-cream px-4 py-3 text-[14px] text-ink outline-none focus:border-gold"
+            className="mt-4 w-full resize-none rounded-xl border border-line bg-cream px-4 py-3 text-[16px] text-ink outline-none focus:border-gold"
           />
           {error && <p className="mt-2 text-[14px] text-red-700">{error}</p>}
           <button

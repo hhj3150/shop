@@ -392,7 +392,7 @@ export default function AccountPage() {
                               onChange={(e) => setReason(e.target.value)}
                               rows={2}
                               placeholder="해지하시는 이유를 적어 주세요."
-                              className="mt-1 w-full rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink outline-none focus:border-gold"
+                              className="mt-1 w-full rounded-xl border border-line bg-cream px-3 py-2 text-[16px] text-ink outline-none focus:border-gold"
                             />
                           </label>
                           <label className="mt-3 block text-[12px] text-mute">
@@ -402,7 +402,7 @@ export default function AccountPage() {
                               value={refundAcct}
                               onChange={(e) => setRefundAcct(e.target.value)}
                               placeholder="예: 농협 송영신 123-4567-8901"
-                              className="mt-1 w-full rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink outline-none focus:border-gold"
+                              className="mt-1 w-full rounded-xl border border-line bg-cream px-3 py-2 text-[16px] text-ink outline-none focus:border-gold"
                             />
                           </label>
                           <div className="mt-4 flex gap-2">

@@ -8,7 +8,7 @@ import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL, FREE_SHIP_KRW } from "@/lib/products";
 import { createOrder } from "@/lib/orders";
 import { notify } from "@/lib/notify";
-import { DEPOSIT } from "@/lib/site";
+import { DepositAccount } from "@/components/DepositAccount";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { GiftOptions } from "@/components/GiftOptions";
@@ -214,10 +214,7 @@ export default function CheckoutPage() {
         <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
           무통장입금 계좌
         </p>
-        <p className="mt-2 font-serif-kr text-lg text-ink">
-          {DEPOSIT.bank} {DEPOSIT.account}
-        </p>
-        <p className="mt-0.5 text-[14px] text-mute">예금주 {DEPOSIT.holder}</p>
+        <DepositAccount />
         <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
           은행 앱·창구에서 위 계좌로 {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(periodTotal)}을
           한 번에 입금해 주세요. 입금 확인 후 발송이 시작됩니다.

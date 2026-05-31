@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Noto_Sans_KR, Noto_Serif_KR, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/lib/cart";
@@ -43,6 +43,15 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ko_KR",
   },
+};
+
+// viewport-fit=cover라야 env(safe-area-inset-*)가 노치/홈바 영역으로 채워진다.
+// 이게 없으면 BottomNav의 safe-area 패딩이 0으로 죽어 홈 인디케이터에 가린다.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#faf6ee",
 };
 
 export default function RootLayout({

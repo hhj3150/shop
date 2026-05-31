@@ -13,7 +13,7 @@ export function Field({ label, hint, id, className, ...rest }: FieldProps) {
       </span>
       <input
         id={id}
-        className={`mt-2 w-full rounded-xl border border-line bg-cream px-4 py-3 text-[15px] text-ink outline-none transition-colors placeholder:text-mute/60 focus:border-gold ${className ?? ""}`}
+        className={`mt-2 w-full rounded-xl border border-line bg-cream px-4 py-3 text-[16px] text-ink outline-none transition-colors placeholder:text-mute/60 focus:border-gold ${className ?? ""}`}
         {...rest}
       />
       {hint && <span className="mt-1.5 block text-[13px] text-mute">{hint}</span>}
