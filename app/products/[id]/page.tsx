@@ -72,7 +72,7 @@ export default async function ProductPage({
           <p className="text-[12px] uppercase tracking-[0.24em] text-gold">
             {product.nameEn} · {product.volume} · {product.badge}
           </p>
-          <h1 className="mt-4 font-serif-kr text-[clamp(2.2rem,6vw,4rem)] font-medium leading-[1.08] text-ink">
+          <h1 className="mt-4 font-serif-kr text-[clamp(2rem,5vw,3.25rem)] font-medium leading-[1.1] text-ink">
             {product.tagline}{" "}
             <span className="font-display italic text-gold">{product.taglineEm}</span>
           </h1>
