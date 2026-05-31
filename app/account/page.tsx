@@ -122,7 +122,8 @@ export default function AccountPage() {
       return;
     setBusy(slotId);
     try {
-      await cancelSubscription(slotId, reason.trim(), refundAcct.trim(), refund);
+      // 환불액은 서버가 재계산한다(C2). refund 는 위 확인창의 미리보기 값일 뿐이다.
+      await cancelSubscription(slotId, reason.trim(), refundAcct.trim());
       void notify({ kind: "subscription_cancelled", slotId });
       setCancelSlot(null);
       setReason("");

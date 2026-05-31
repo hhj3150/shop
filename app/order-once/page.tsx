@@ -163,7 +163,7 @@ function OrderOnce() {
       const items: OnceItem[] = PRODUCTS.filter((p) => (qtys[p.id] ?? 0) > 0).map(
         (p) => ({ productId: p.id, qty: qtys[p.id], unitPrice: p.price })
       );
-      const { orderId, orderNo, shipDate } = await createOnceOrder(user.id, items, {
+      const { orderId, orderNo, shipDate } = await createOnceOrder(items, {
         ...ship,
         isGift,
         gifterName: profile?.name ?? ship.depositorName,

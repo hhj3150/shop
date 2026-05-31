@@ -107,7 +107,7 @@ export default function CheckoutPage() {
     }
     setBusy(true);
     try {
-      const { orderId, orderNo, slots } = await createOrder(user.id, items, period, {
+      const { orderId, orderNo, slots } = await createOrder(items, period, {
         ...ship,
         isGift,
         gifterName: profile?.name ?? ship.depositorName,

@@ -112,25 +112,27 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
 
 // 남은(미배송) 회차 환불액 = round(총입금액 / 총회차) × 남은회차.
 // 총입금액 = (회당 상품합계 + 회당 배송비) × 총회차 이므로, 회차당 단가에 배송비가 포함된다.
+// 주의: 이 함수는 화면 미리보기 전용이다. 실제 환불액은 서버(cancel_subscription RPC)가
+//      동일한 공식으로 재계산하며, 클라이언트 값은 신뢰하지 않는다(C2).
 export function refundAmount(sub: MySubscription, remainingDeliveries: number): number {
   if (sub.totalWeeks <= 0) return 0;
   const perDelivery = Math.round(sub.totalAmount / sub.totalWeeks);
   return perDelivery * Math.max(0, remainingDeliveries);
 }
 
+// 구독 해지. 환불액은 서버가 재계산해 반환하므로(C2), 그 값을 그대로 돌려준다.
 export async function cancelSubscription(
   slotId: number,
   reason: string,
-  refundAccount: string,
-  refund: number
-): Promise<void> {
-  const { error } = await getSupabase().rpc("cancel_subscription", {
+  refundAccount: string
+): Promise<number> {
+  const { data, error } = await getSupabase().rpc("cancel_subscription", {
     p_slot_id: slotId,
     p_reason: reason,
     p_refund_account: refundAccount,
-    p_refund_amount: refund,
   });
   if (error) throw new Error(error.message);
+  return (data as number) ?? 0;
 }
 
 export async function pauseSubscription(slotId: number): Promise<void> {
