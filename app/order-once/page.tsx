@@ -67,11 +67,14 @@ function OrderOnce() {
     if (ready && !user) router.replace("/login?next=/order-once");
   }, [ready, user, router]);
 
-  // ?add=<id> 로 들어오면 해당 제품 1개를 미리 담는다.
+  // ?add=<id> 로 들어오면 해당 제품을 최소 주문금액(25,000원)을 채우는 수량으로 미리 담는다.
+  //   1개로는 최소금액 미만이라 '주문하기'가 비활성화되므로, 바로 주문 가능한 수량을 채워 둔다.
   useEffect(() => {
     const add = sp.get("add");
-    if (add && getProduct(add)) {
-      setQtys((prev) => (prev[add] ? prev : { ...prev, [add]: 1 }));
+    const p = add ? getProduct(add) : undefined;
+    if (p) {
+      const minQty = Math.max(1, Math.ceil(ONCE_MIN_KRW / p.price));
+      setQtys((prev) => (prev[p.id] ? prev : { ...prev, [p.id]: minQty }));
     }
   }, [sp]);
 
