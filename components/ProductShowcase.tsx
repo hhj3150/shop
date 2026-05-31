@@ -31,7 +31,7 @@ export function ProductShowcase() {
   const shown = filter === "all" ? PRODUCTS : PRODUCTS.filter((p) => p.line === filter);
 
   return (
-    <section id="products" className="relative overflow-hidden">
+    <section id="products" className="relative scroll-mt-20 overflow-hidden">
       <Scatter items={PRODUCTS_CONFETTI} />
       <LogoBubbles />
       <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">

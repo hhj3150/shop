@@ -23,7 +23,7 @@ const STEPS = [
 
 export function SubscriptionBand() {
   return (
-    <section id="subscribe" className="relative overflow-hidden bg-ink py-16 text-cream sm:py-24">
+    <section id="subscribe" className="relative scroll-mt-20 overflow-hidden bg-ink py-16 text-cream sm:py-24">
       <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-gold/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-gold/10 blur-3xl" />
       <Image

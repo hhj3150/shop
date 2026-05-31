@@ -4,7 +4,7 @@ import Image from "next/image";
 // 큰 것 1개·작은 것 1개가 화면 전체를 폭넓게 가로지른다. 순수 CSS 애니메이션.
 export function LogoBubbles() {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+    <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 hidden overflow-hidden md:block">
       {/* 큰 비누방울 — 좌상단에서 출발해 넓게 회유 */}
       <div
         className="animate-roam-lg absolute"
