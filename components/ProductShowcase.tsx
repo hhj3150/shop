@@ -38,7 +38,7 @@ export function ProductShowcase() {
       {/* Store greeting */}
       <Reveal>
         <p className="eyebrow">Collection</p>
-        <h2 className="mt-3 text-[clamp(2.4rem,6vw,4rem)] font-semibold leading-[1.04] tracking-[-0.025em] text-ink">
+        <h2 className="mt-3 text-[clamp(2.4rem,6vw,4rem)] font-semibold leading-[1.08] tracking-[-0.01em] text-ink">
           단 네 가지.
           <br />
           <span className="text-mute">곁에 둘 가치가 있는 것만.</span>
@@ -74,7 +74,7 @@ export function ProductShowcase() {
               >
                 {p.badge}
               </p>
-              <h3 className="mt-2 text-[clamp(1.3rem,2.4vw,1.6rem)] font-semibold leading-snug tracking-[-0.015em] text-ink">
+              <h3 className="mt-2 text-[clamp(1.3rem,2.4vw,1.6rem)] font-semibold leading-snug tracking-[-0.01em] text-ink">
                 {p.name}
               </h3>
               <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[14px] text-mute">

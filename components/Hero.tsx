@@ -37,7 +37,7 @@ export function Hero() {
           <p className="gold-foil mt-2 font-display text-[16px] font-semibold uppercase tracking-[0.28em] sm:text-[19px]">
             A2 Jersey Hay Milk
           </p>
-          <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.14] tracking-[-0.02em] text-ink">
+          <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.16] tracking-[-0.01em] text-ink">
             한 모금에 담긴
             <br />
             <span className="gold-foil">15년의 약속.</span>
