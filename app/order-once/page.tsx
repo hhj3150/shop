@@ -377,6 +377,14 @@ function OrderOnce() {
           </p>
         )}
 
+        {(count === 0 || belowMin) && (
+          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+            {count === 0
+              ? "구매하실 제품의 수량을 먼저 선택해 주세요."
+              : `최소 주문금액은 ${formatKRW(ONCE_MIN_KRW)}입니다. 현재 상품 합계 ${formatKRW(subtotal)}이라 ${formatKRW(ONCE_MIN_KRW - subtotal)} 더 담으셔야 주문할 수 있습니다.`}
+          </p>
+        )}
+
         <button
           type="submit"
           disabled={busy || belowMin || count === 0}

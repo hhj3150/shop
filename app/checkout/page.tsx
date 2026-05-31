@@ -21,6 +21,8 @@ export default function CheckoutPage() {
   const { ready, user, profile } = useAuth();
   const { items, period, weeks, perDelivery, perDeliveryList, freeShip, shipTotal, periodTotal, weeklyPrice, clear } = useCart();
   const toFreeShip = Math.max(0, FREE_SHIP_KRW - perDeliveryList);
+  // 회당 상품 합계가 최소 주문금액 미만이면 신청 불가(버튼 비활성화 + 안내).
+  const belowMin = perDelivery < MIN_ORDER_KRW;
 
   const [ship, setShip] = useState({
     name: "",
@@ -311,9 +313,17 @@ export default function CheckoutPage() {
           </p>
         )}
 
+        {belowMin && (
+          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+            회당 최소 상품금액은 {formatKRW(MIN_ORDER_KRW)}입니다. 현재 회당{" "}
+            {formatKRW(perDelivery)}이라 {formatKRW(MIN_ORDER_KRW - perDelivery)} 더 담으셔야
+            신청할 수 있습니다. (배송비 별도)
+          </p>
+        )}
+
         <button
           type="submit"
-          disabled={busy}
+          disabled={busy || belowMin}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy
