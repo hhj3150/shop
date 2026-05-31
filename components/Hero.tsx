@@ -31,7 +31,10 @@ export function Hero() {
             priority
             className="mb-6 w-[176px] max-w-full sm:w-[208px]"
           />
-          <p className="font-display text-[13px] uppercase tracking-[0.28em] text-gold-deep sm:text-[14px]">
+          <p className="font-serif-kr text-[17px] font-semibold tracking-[0.01em] text-ink sm:text-[19px]">
+            송영신목장
+          </p>
+          <p className="mt-1.5 font-display text-[13px] uppercase tracking-[0.28em] text-gold-deep sm:text-[14px]">
             A2 Jersey Hay Milk
           </p>
           <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.14] tracking-[-0.02em] text-ink">

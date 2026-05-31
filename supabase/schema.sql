@@ -430,3 +430,43 @@ create policy "reviews_delete_own" on public.reviews
 drop policy if exists "reviews_delete_admin" on public.reviews;
 create policy "reviews_delete_admin" on public.reviews
   for delete using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
+-- 8. 생산·재고 기록 (생산자용 — 날짜·제품별 생산계획/실제생산)
+--    생산자가 날짜별로 제품의 계획·실제 생산량을 기록하고,
+--    확정 구독 수요(요일별 필요수량)와 비교해 부족·잉여를 본다.
+--    (prod_date, product_key) 가 유니크 → 같은 날 같은 제품은 upsert.
+--    관리자(생산자 포함, is_admin)만 조회·작성·수정·삭제.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.production_logs (
+  id           uuid primary key default gen_random_uuid(),
+  prod_date    date not null,
+  product_key  text not null,             -- "A2 저지 헤이밀크 750mL"
+  planned      integer not null default 0 check (planned >= 0),
+  produced     integer not null default 0 check (produced >= 0),
+  note         text,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (prod_date, product_key)
+);
+
+create index if not exists production_logs_date_idx
+  on public.production_logs (prod_date);
+
+alter table public.production_logs enable row level security;
+
+drop policy if exists "production_select_admin" on public.production_logs;
+create policy "production_select_admin" on public.production_logs
+  for select using (public.is_admin());
+
+drop policy if exists "production_insert_admin" on public.production_logs;
+create policy "production_insert_admin" on public.production_logs
+  for insert with check (public.is_admin());
+
+drop policy if exists "production_update_admin" on public.production_logs;
+create policy "production_update_admin" on public.production_logs
+  for update using (public.is_admin());
+
+drop policy if exists "production_delete_admin" on public.production_logs;
+create policy "production_delete_admin" on public.production_logs
+  for delete using (public.is_admin());

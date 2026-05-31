@@ -16,6 +16,11 @@ import { COURIERS, COURIER_IDS } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
 import { AdminStats } from "@/components/AdminStats";
 import { BroadcastPanel } from "@/components/BroadcastPanel";
+import { ProductionPanel } from "@/components/ProductionPanel";
+
+// 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
+const TABS = ["종합 관리", "생산·재고"] as const;
+type AdminTab = (typeof TABS)[number];
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
 const CONFIRMED = ["입금확인", "배송준비", "배송중", "배송완료"] as const;
@@ -123,6 +128,7 @@ export default function AdminPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(todayISO());
+  const [tab, setTab] = useState<AdminTab>("종합 관리");
 
   const isAdmin = Boolean(profile?.is_admin);
 
@@ -440,6 +446,27 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* 역할 탭 */}
+      <div className="mt-6 flex gap-2 border-b border-line no-print">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-[14px] font-medium transition-colors ${
+              tab === t
+                ? "border-gold-deep text-ink"
+                : "border-transparent text-mute hover:text-ink-soft"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === "생산·재고" && <ProductionPanel matrix={matrix} />}
+
+      {tab === "종합 관리" && (
+        <>
       {loading && <p className="mt-8 text-[14px] text-mute">데이터 불러오는 중…</p>}
 
       {/* 개요 */}
@@ -731,6 +758,8 @@ export default function AdminPage() {
           </span>
         ))}
       </div>
+        </>
+      )}
     </div>
   );
 }
