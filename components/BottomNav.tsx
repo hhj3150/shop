@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 const EXTERNAL = [
   {
@@ -38,6 +39,8 @@ const EXTERNAL = [
 ];
 
 export function BottomNav() {
+  const pathname = usePathname();
+  const shopActive = pathname === "/";
   return (
     <nav
       aria-label="모바일 메뉴"
@@ -47,7 +50,10 @@ export function BottomNav() {
         <li>
           <Link
             href="/"
-            className="flex flex-col items-center gap-1 py-2.5 text-[10.5px] tracking-wide text-ink"
+            aria-current={shopActive ? "page" : undefined}
+            className={`flex min-h-12 flex-col items-center justify-center gap-1 py-3 text-[11px] tracking-wide transition-colors ${
+              shopActive ? "text-gold-deep" : "text-ink-soft hover:text-gold-deep"
+            }`}
           >
             <Image
               src="/brand/heymilk-logo.png"
@@ -65,7 +71,7 @@ export function BottomNav() {
               href={it.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-col items-center gap-1 py-2.5 text-[10.5px] tracking-wide text-ink-soft transition-colors hover:text-gold-deep"
+              className="flex min-h-12 flex-col items-center justify-center gap-1 py-3 text-[11px] tracking-wide text-ink-soft transition-colors hover:text-gold-deep"
             >
               {it.icon}
               {it.label}

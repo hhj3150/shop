@@ -57,7 +57,7 @@ export function CartDrawer() {
           <button
             onClick={close}
             aria-label="닫기"
-            className="text-mute transition-colors hover:text-ink"
+            className="-mr-2 flex h-11 w-11 items-center justify-center text-mute transition-colors hover:text-ink"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
@@ -100,7 +100,7 @@ export function CartDrawer() {
                         <button
                           onClick={() => remove(item.key)}
                           aria-label="삭제"
-                          className="text-mute transition-colors hover:text-ink"
+                          className="-mr-2 -mt-1 flex h-10 w-10 items-center justify-center text-mute transition-colors hover:text-ink"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                             <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
@@ -112,7 +112,7 @@ export function CartDrawer() {
                         <div className="flex items-center rounded-full border border-line">
                           <button
                             onClick={() => setQty(item.key, item.qty - 1)}
-                            className="px-3 py-1 text-mute transition-colors hover:text-ink"
+                            className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink"
                             aria-label="수량 감소"
                           >
                             −
@@ -122,7 +122,7 @@ export function CartDrawer() {
                           </span>
                           <button
                             onClick={() => setQty(item.key, item.qty + 1)}
-                            className="px-3 py-1 text-mute transition-colors hover:text-ink"
+                            className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink"
                             aria-label="수량 증가"
                           >
                             +

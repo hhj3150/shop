@@ -100,7 +100,7 @@ export function PurchasePanel({ product }: { product: Product }) {
               key={m}
               onClick={() => setPeriodLocal(m)}
               aria-pressed={active}
-              className={`flex flex-col items-center rounded-xl border py-2 text-[14px] transition-all ${
+              className={`flex min-h-11 flex-col items-center justify-center rounded-xl border py-2.5 text-[14px] transition-all ${
                 active
                   ? "border-gold bg-gold/10 text-ink"
                   : "border-line text-ink-soft hover:border-gold/50"
@@ -129,7 +129,7 @@ export function PurchasePanel({ product }: { product: Product }) {
               key={d}
               onClick={() => setDeliveryDay(d)}
               aria-pressed={deliveryDay === d}
-              className={`flex flex-col items-center rounded-xl border py-2 text-[14px] transition-all ${
+              className={`flex min-h-11 flex-col items-center justify-center rounded-xl border py-2.5 text-[14px] transition-all ${
                 deliveryDay === d
                   ? "border-gold bg-gold/10 text-ink"
                   : "border-line text-ink-soft hover:border-gold/50"
@@ -176,7 +176,7 @@ export function PurchasePanel({ product }: { product: Product }) {
         <div className="flex items-center rounded-full border border-line">
           <button
             onClick={() => setQty((q) => Math.max(1, q - 1))}
-            className="px-4 py-2 text-mute transition-colors hover:text-ink"
+            className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink"
             aria-label="수량 감소"
           >
             −
@@ -184,7 +184,7 @@ export function PurchasePanel({ product }: { product: Product }) {
           <span className="min-w-8 text-center text-sm tabular-nums text-ink">{qty}</span>
           <button
             onClick={() => setQty((q) => q + 1)}
-            className="px-4 py-2 text-mute transition-colors hover:text-ink"
+            className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink"
             aria-label="수량 증가"
           >
             +
@@ -225,7 +225,7 @@ export function PurchasePanel({ product }: { product: Product }) {
                   <button
                     onClick={() => setExtraQty(p.id, eq - 1)}
                     disabled={eq === 0}
-                    className="px-3 py-1.5 text-mute transition-colors hover:text-ink disabled:opacity-30"
+                    className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink disabled:opacity-30"
                     aria-label={`${p.name} 수량 감소`}
                   >
                     −
@@ -235,7 +235,7 @@ export function PurchasePanel({ product }: { product: Product }) {
                   </span>
                   <button
                     onClick={() => setExtraQty(p.id, eq + 1)}
-                    className="px-3 py-1.5 text-mute transition-colors hover:text-ink"
+                    className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink"
                     aria-label={`${p.name} 수량 증가`}
                   >
                     +

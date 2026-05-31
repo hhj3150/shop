@@ -105,6 +105,16 @@ export function AddressSearch({
     }).embed(el);
   }, [open]);
 
+  // 모달이 열린 동안 배경 스크롤을 잠가 바텀시트 위에서 본문이 밀리지 않게 한다.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   function handleClick() {
     if (status === "error") {
       setStatus("loading");
@@ -125,24 +135,25 @@ export function AddressSearch({
         type="button"
         onClick={handleClick}
         disabled={status === "loading"}
-        className="shrink-0 rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex min-h-11 shrink-0 items-center rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
       >
         {label}
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative h-[480px] w-full max-w-[420px] overflow-hidden rounded-2xl bg-white shadow-xl"
+            className="relative h-[72vh] max-h-[520px] w-full overflow-hidden rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-xl sm:h-[480px] sm:max-w-[420px] sm:rounded-2xl sm:pb-0"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="absolute right-3 top-3 z-10 rounded-full bg-black/60 px-3 py-1 text-[13px] text-white"
+              aria-label="주소 검색 닫기"
+              className="absolute right-3 top-3 z-10 flex h-11 min-w-11 items-center justify-center rounded-full bg-black/60 px-4 text-[13px] text-white"
             >
               닫기
             </button>
