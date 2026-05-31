@@ -78,7 +78,7 @@ export function PurchasePanel({ product }: { product: Product }) {
     <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
       <div className="flex items-center justify-between">
         <p className="text-[13px] uppercase tracking-[0.2em] text-gold-deep">
-          Members Only · 정기구독
+          Members Only · 창립 500인 특권
         </p>
         <span className="rounded-full bg-gold/12 px-3 py-1 text-[12px] font-medium text-gold-deep">
           −{Math.round(rate * 100)}%

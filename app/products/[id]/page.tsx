@@ -86,7 +86,7 @@ export default async function ProductPage({
             회당{" "}
             <span className="font-medium tabular-nums text-ink">{formatKRW(product.price)}</span>
             <span className="mx-2 text-line">·</span>
-            <span className="text-gold-deep">정기구독 시 {maxRate}% 할인</span>
+            <span className="text-gold-deep">창립 500인 회원 특권 −{maxRate}%</span>
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <a
