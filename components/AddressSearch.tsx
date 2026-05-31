@@ -1,6 +1,5 @@
 "use client";
 
-import Script from "next/script";
 import { useEffect, useRef, useState } from "react";
 
 const SCRIPT_SRC =
@@ -30,12 +29,42 @@ declare global {
   }
 }
 
+// 우편번호 스크립트를 직접(즉시) 주입한다. next/script의 lazyOnload는 window 'load'
+// 이벤트 + 브라우저 idle을 기다리는데, 모바일에서 리소스 로딩이 지연/중단되면 그
+// 이벤트가 끝내 발생하지 않아 버튼이 '불러오는 중…'에 영구 정지된다.
+// 모듈 단위 Promise로 여러 AddressSearch 인스턴스·재마운트에서 중복 로드를 막고,
+// 실패 시에는 Promise를 비워 재시도가 실제 재요청이 되도록 한다.
+let scriptPromise: Promise<void> | null = null;
+
+function loadPostcodeScript(): Promise<void> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("no window"));
+  }
+  if (window.daum?.Postcode) return Promise.resolve();
+  if (scriptPromise) return scriptPromise;
+
+  scriptPromise = new Promise<void>((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = SCRIPT_SRC;
+    el.async = true;
+    el.onload = () => resolve();
+    el.onerror = () => {
+      scriptPromise = null; // 다음 호출이 실제로 다시 받아오도록 초기화
+      reject(new Error("우편번호 스크립트를 불러오지 못했습니다."));
+    };
+    document.head.appendChild(el);
+  });
+  return scriptPromise;
+}
+
+type Status = "loading" | "ready" | "error";
+
 export function AddressSearch({
   onSelect,
 }: {
   onSelect: (postcode: string, address: string) => void;
 }) {
-  const [loaded, setLoaded] = useState(false);
+  const [status, setStatus] = useState<Status>("loading");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -46,12 +75,14 @@ export function AddressSearch({
     onSelectRef.current = onSelect;
   });
 
-  // next/script는 이미 로드된 스크립트(LoadCache)에 대해 재마운트 시 onLoad를 다시
-  // 호출하지 않는다. 다른 주소검색 페이지를 거쳐 왔거나 페이지를 떠났다 돌아오면
-  // 스크립트가 캐시돼 있어 버튼이 '불러오는 중…'에 멈춘다. 마운트 시 전역 객체를
-  // 직접 확인해 이 경우를 방어한다.
   useEffect(() => {
-    if (window.daum?.Postcode) setLoaded(true);
+    let alive = true;
+    loadPostcodeScript()
+      .then(() => alive && setStatus("ready"))
+      .catch(() => alive && setStatus("error"));
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // 팝업창(.open / window.open) 방식은 브라우저 팝업 차단·모바일 환경에서 아무것도
@@ -74,18 +105,29 @@ export function AddressSearch({
     }).embed(el);
   }, [open]);
 
+  function handleClick() {
+    if (status === "error") {
+      setStatus("loading");
+      loadPostcodeScript()
+        .then(() => setStatus("ready"))
+        .catch(() => setStatus("error"));
+      return;
+    }
+    setOpen(true);
+  }
+
+  const label =
+    status === "ready" ? "주소 검색" : status === "error" ? "다시 시도" : "불러오는 중…";
+
   return (
     <>
-      {/* onLoad는 최초 1회만 실행되어 재마운트 시 누락된다. onReady는 최초 로드
-          후와 캐시된 스크립트의 재마운트 시 모두 실행되므로 버튼 활성화에 안전하다. */}
-      <Script src={SCRIPT_SRC} strategy="lazyOnload" onReady={() => setLoaded(true)} />
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        disabled={!loaded}
+        onClick={handleClick}
+        disabled={status === "loading"}
         className="shrink-0 rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {loaded ? "주소 검색" : "불러오는 중…"}
+        {label}
       </button>
 
       {open && (
