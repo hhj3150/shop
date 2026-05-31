@@ -397,9 +397,7 @@ language sql
 immutable
 as $$
   select case p_months
-    when 1 then 0.10
-    when 2 then 0.11
-    when 3 then 0.12
+    when 1 then 0.07
     else null
   end;
 $$;
@@ -418,7 +416,7 @@ $$;
 -- C1: 정기구독 주문 생성 (서버측 금액 재계산 + C3 정원 잠금)
 create or replace function public.create_subscription_order(
   p_items  jsonb,   -- [{product_id, delivery_day, qty}, ...]
-  p_period int,     -- 1 | 3 | 6 | 12
+  p_period int,     -- 1 (1개월 고정)
   p_ship   jsonb    -- {name, phone, postcode, address, addressDetail, depositorName, memo, isGift, gifterName, giftMessage}
 )
 returns jsonb

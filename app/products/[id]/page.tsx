@@ -49,7 +49,7 @@ export default async function ProductPage({
   const prev = PRODUCTS[(idx - 1 + PRODUCTS.length) % PRODUCTS.length];
   const next = PRODUCTS[(idx + 1) % PRODUCTS.length];
 
-  // 정기구독 최대 할인율(가장 긴 기간 기준) — 히어로 카피에 노출.
+  // 정기구독 회원 할인율(1개월 고정) — 히어로 카피에 노출.
   const maxRate = Math.round(
     discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]) * 100
   );
@@ -84,7 +84,7 @@ export default async function ProductPage({
             회당{" "}
             <span className="font-medium tabular-nums text-ink">{formatKRW(product.price)}</span>
             <span className="mx-2 text-line">·</span>
-            <span className="text-gold-deep">정기구독 시 최대 {maxRate}% 할인</span>
+            <span className="text-gold-deep">정기구독 시 {maxRate}% 할인</span>
           </p>
           <a
             href="#configure"
