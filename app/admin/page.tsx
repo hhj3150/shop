@@ -15,6 +15,7 @@ import { firstSubscriptionDelivery, toISODate } from "@/lib/ship-date";
 import { COURIERS, COURIER_IDS } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
 import { AdminStats } from "@/components/AdminStats";
+import { BroadcastPanel } from "@/components/BroadcastPanel";
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
 const CONFIRMED = ["입금확인", "배송준비", "배송중", "배송완료"] as const;
@@ -672,6 +673,9 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+
+      {/* 단체문자 발송 */}
+      <BroadcastPanel profiles={profiles} slots={slots} />
 
       {/* 주문 관리 — 상태 변경 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">주문 관리</h2>
