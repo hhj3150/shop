@@ -24,6 +24,22 @@ export type SlotResult = {
   waitlisted: boolean;
 };
 
+// 결제창에 넘길 서버 권위 결제금액을 주문 생성 직후 DB에서 재조회한다.
+// 브라우저가 계산한 금액은 신뢰하지 않는다 → PortOne totalAmount 는 이 값만 사용한다(C1·C3).
+async function fetchOrderTotal(orderId: string): Promise<number> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("total_amount")
+    .eq("id", orderId)
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "결제금액 조회에 실패했습니다.");
+  }
+  return data.total_amount as number;
+}
+
 // 배송지 정보를 RPC(p_ship) 페이로드로 변환.
 // 금액·발송일·슬롯은 모두 서버(DB)에서 권위 있게 산출하므로 여기서는 보내지 않는다.
 function shipPayload(ship: ShippingInfo) {
@@ -48,7 +64,7 @@ export async function createOrder(
   items: CartItem[],
   period: SubPeriod,
   ship: ShippingInfo
-): Promise<{ orderId: string; orderNo: string; slots: SlotResult[] }> {
+): Promise<{ orderId: string; orderNo: string; slots: SlotResult[]; totalAmount: number }> {
   if (items.length === 0) throw new Error("장바구니가 비어 있습니다.");
 
   const supabase = getSupabase();
@@ -72,10 +88,12 @@ export async function createOrder(
     waitlisted: s.waitlisted,
   }));
 
+  const orderId = data.order_id as string;
   return {
-    orderId: data.order_id as string,
+    orderId,
     orderNo: data.order_no as string,
     slots,
+    totalAmount: await fetchOrderTotal(orderId),
   };
 }
 
@@ -91,7 +109,7 @@ export type OnceItem = {
 export async function createOnceOrder(
   items: OnceItem[],
   ship: ShippingInfo
-): Promise<{ orderId: string; orderNo: string; shipDate: string }> {
+): Promise<{ orderId: string; orderNo: string; shipDate: string; totalAmount: number }> {
   const filtered = items.filter((i) => i.qty > 0);
   if (filtered.length === 0) throw new Error("담은 제품이 없습니다.");
 
@@ -105,9 +123,11 @@ export async function createOnceOrder(
     throw new Error(error?.message ?? "주문 생성에 실패했습니다.");
   }
 
+  const orderId = data.order_id as string;
   return {
-    orderId: data.order_id as string,
+    orderId,
     orderNo: data.order_no as string,
     shipDate: data.ship_date as string,
+    totalAmount: await fetchOrderTotal(orderId),
   };
 }

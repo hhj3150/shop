@@ -16,8 +16,10 @@ import {
 } from "@/lib/products";
 import { createOnceOrder, type OnceItem } from "@/lib/orders";
 import { notify } from "@/lib/notify";
+import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
 import { DepositAccount } from "@/components/DepositAccount";
+import { PayMethodSelect } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { GiftOptions } from "@/components/GiftOptions";
@@ -56,6 +58,10 @@ function OrderOnce() {
   const [busy, setBusy] = useState(false);
   const [isGift, setIsGift] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
+  const [payMethod, setPayMethod] = useState<PayMethod>("VIRTUAL_ACCOUNT");
+
+  // 선물 주문은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 기존 무통장 흐름을 유지한다.
+  const usePortOne = isPortOneConfigured && !isGift;
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/order-once");
@@ -163,15 +169,40 @@ function OrderOnce() {
       const items: OnceItem[] = PRODUCTS.filter((p) => (qtys[p.id] ?? 0) > 0).map(
         (p) => ({ productId: p.id, qty: qtys[p.id], unitPrice: p.price })
       );
-      const { orderId, orderNo, shipDate } = await createOnceOrder(items, {
+      const { orderId, orderNo, shipDate, totalAmount } = await createOnceOrder(items, {
         ...ship,
         isGift,
         gifterName: profile?.name ?? ship.depositorName,
         giftMessage,
       });
-      void notify({ kind: isGift ? "gift_once" : "order_received", orderId });
       const shipLabel = formatDispatch(new Date(`${shipDate}T00:00:00`));
       const params = new URLSearchParams({ no: orderNo, type: "once", ship: shipLabel });
+
+      if (usePortOne) {
+        // PortOne 결제창 호출. 모바일은 redirectUrl 로 이동하므로 아래 분기는 PC에서만 도달.
+        // 입금확인 문자는 웹훅이 보내므로 여기서 order_received 를 보내지 않는다.
+        const firstName = getProduct(items[0].productId)?.name ?? "단품";
+        const orderName = count > 1 ? `${firstName} 외 ${count - 1}건` : firstName;
+        params.set("pay", "portone");
+        const redirectUrl = `${window.location.origin}/orders/complete?${params.toString()}`;
+        const result = await startPayment({
+          paymentId: orderNo,
+          orderName,
+          totalAmount,
+          payMethod,
+          customerName: ship.name,
+          customerPhone: ship.phone,
+          redirectUrl,
+        });
+        if (result.ok) {
+          router.push(`${redirectUrl}&paid=1`);
+        } else if (result.code !== "REDIRECTING") {
+          setError(result.message);
+        }
+        return;
+      }
+
+      void notify({ kind: isGift ? "gift_once" : "order_received", orderId });
       router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "주문에 실패했습니다.");
@@ -289,13 +320,24 @@ function OrderOnce() {
         )}
       </div>
 
-      {/* 입금 계좌 */}
+      {/* 결제수단: PortOne 설정 시 결제수단 선택, 미설정/선물 시 무통장 안내 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
-        <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
-        <DepositAccount />
-        <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-          주문 후 위 계좌로 {formatKRW(total)}을 입금해 주세요. 입금이 확인되면 발송됩니다.
-        </p>
+        {usePortOne ? (
+          <>
+            <PayMethodSelect value={payMethod} onChange={setPayMethod} />
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
+              {formatKRW(total)}을 결제합니다. 가상계좌는 입금이 확인되는 즉시 발송됩니다.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
+            <DepositAccount />
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
+              주문 후 위 계좌로 {formatKRW(total)}을 입금해 주세요. 입금이 확인되면 발송됩니다.
+            </p>
+          </>
+        )}
       </div>
 
       {/* 배송지 */}
@@ -340,10 +382,18 @@ function OrderOnce() {
           disabled={busy || belowMin || count === 0}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {busy ? "주문 접수 중…" : `${formatKRW(total)} 입금하고 주문하기`}
+          {busy
+            ? usePortOne
+              ? "결제 진행 중…"
+              : "주문 접수 중…"
+            : usePortOne
+              ? `${formatKRW(total)} 결제하고 주문하기`
+              : `${formatKRW(total)} 입금하고 주문하기`}
         </button>
         <p className="text-center text-[12px] text-mute">
-          무통장입금 주문입니다. 입금 확인 후 {dispatch}에 발송됩니다.
+          {usePortOne
+            ? `결제(가상계좌 입금 포함)가 확인되면 ${dispatch}에 발송됩니다.`
+            : `무통장입금 주문입니다. 입금 확인 후 ${dispatch}에 발송됩니다.`}
         </p>
         <p className="text-center text-[13px] text-mute">
           매주 받아보고 싶으시면{" "}

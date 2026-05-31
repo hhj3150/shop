@@ -8,7 +8,9 @@ import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL, FREE_SHIP_KRW } from "@/lib/products";
 import { createOrder } from "@/lib/orders";
 import { notify } from "@/lib/notify";
+import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { DepositAccount } from "@/components/DepositAccount";
+import { PayMethodSelect } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { GiftOptions } from "@/components/GiftOptions";
@@ -33,6 +35,11 @@ export default function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [isGift, setIsGift] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
+  const [payMethod, setPayMethod] = useState<PayMethod>("VIRTUAL_ACCOUNT");
+
+  // 선물 주문은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 기존 무통장 흐름을 유지한다.
+  //   (선물 주문자에게는 별도 입금 안내가 나간다)
+  const usePortOne = isPortOneConfigured && !isGift;
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/checkout");
@@ -107,14 +114,14 @@ export default function CheckoutPage() {
     }
     setBusy(true);
     try {
-      const { orderId, orderNo, slots } = await createOrder(items, period, {
+      const { orderId, orderNo, slots, totalAmount } = await createOrder(items, period, {
         ...ship,
         isGift,
         gifterName: profile?.name ?? ship.depositorName,
         giftMessage,
       });
-      void notify({ kind: isGift ? "gift_subscription" : "order_received", orderId });
-      clear();
+
+      // 완료 페이지로 넘길 슬롯 컨텍스트(선착순 순번 등)를 쿼리에 싣는다.
       const first = slots[0];
       const params = new URLSearchParams({ no: orderNo });
       if (first) {
@@ -122,6 +129,34 @@ export default function CheckoutPage() {
         params.set("pos", String(first.position));
         params.set("wait", first.waitlisted ? "1" : "0");
       }
+
+      if (usePortOne) {
+        // PortOne 결제창 호출. 모바일은 redirectUrl 로 이동하므로 아래 분기는 PC에서만 도달.
+        // 입금확인 문자는 웹훅이 보내므로 여기서 order_received 를 보내지 않는다.
+        params.set("pay", "portone");
+        const redirectUrl = `${window.location.origin}/orders/complete?${params.toString()}`;
+        const result = await startPayment({
+          paymentId: orderNo,
+          orderName: `${PERIOD_LABEL[period]} 정기구독`,
+          totalAmount,
+          payMethod,
+          customerName: ship.name,
+          customerPhone: ship.phone,
+          redirectUrl,
+        });
+        if (result.ok) {
+          clear();
+          router.push(`${redirectUrl}&paid=1`);
+        } else if (result.code !== "REDIRECTING") {
+          // 사용자가 취소했거나 결제 실패. 주문은 입금대기로 남아 재시도 가능.
+          setError(result.message);
+        }
+        return;
+      }
+
+      // 무통장(또는 선물) 흐름: 즉시 입금 안내 문자 발송 후 완료 페이지로.
+      void notify({ kind: isGift ? "gift_subscription" : "order_received", orderId });
+      clear();
       router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "주문에 실패했습니다.");
@@ -209,16 +244,28 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* 무통장입금 계좌 */}
+      {/* 결제수단: PortOne 설정 시 결제수단 선택, 미설정/선물 시 무통장 안내 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
-        <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
-          무통장입금 계좌
-        </p>
-        <DepositAccount />
-        <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-          은행 앱·창구에서 위 계좌로 {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(periodTotal)}을
-          한 번에 입금해 주세요. 입금 확인 후 발송이 시작됩니다.
-        </p>
+        {usePortOne ? (
+          <>
+            <PayMethodSelect value={payMethod} onChange={setPayMethod} />
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
+              {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(periodTotal)}을 한 번에 결제합니다.
+              가상계좌는 입금이 확인되는 즉시 발송이 시작됩니다.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
+              무통장입금 계좌
+            </p>
+            <DepositAccount />
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
+              은행 앱·창구에서 위 계좌로 {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(periodTotal)}을
+              한 번에 입금해 주세요. 입금 확인 후 발송이 시작됩니다.
+            </p>
+          </>
+        )}
       </div>
 
       {/* 배송지 */}
@@ -269,10 +316,18 @@ export default function CheckoutPage() {
           disabled={busy}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {busy ? "신청 접수 중…" : "구독 신청하고 입금 안내 받기"}
+          {busy
+            ? usePortOne
+              ? "결제 진행 중…"
+              : "신청 접수 중…"
+            : usePortOne
+              ? "구독 신청하고 결제하기"
+              : "구독 신청하고 입금 안내 받기"}
         </button>
         <p className="text-center text-[12px] text-mute">
-          신청 시 입금 확인 대기 상태로 접수됩니다. 입금 확인 후 발송됩니다.
+          {usePortOne
+            ? "결제(가상계좌 입금 포함)가 확인되면 발송이 시작됩니다."
+            : "신청 시 입금 확인 대기 상태로 접수됩니다. 입금 확인 후 발송됩니다."}
         </p>
       </form>
     </div>

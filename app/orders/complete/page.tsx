@@ -23,6 +23,42 @@ function Complete() {
   const dayLabel = day ? DELIVERY_DAY_LABEL[day] : "";
   const isOnce = sp.get("type") === "once";
   const ship = sp.get("ship") ?? "";
+  const isPortOne = sp.get("pay") === "portone";
+  // PortOne 리디렉션 실패 시 code/message 가 쿼리로 돌아온다.
+  const failCode = sp.get("code");
+  const failMessage = sp.get("message");
+
+  // PortOne 결제 실패/취소 → 재시도 안내.
+  if (isPortOne && failCode) {
+    return (
+      <div className="mx-auto max-w-md px-5 pb-24 pt-32 text-center sm:px-8">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
+            <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <h1 className="mt-6 font-serif-kr text-2xl font-medium text-ink">
+          결제가 완료되지 않았습니다
+        </h1>
+        {orderNo && (
+          <p className="mt-2 text-[14px] tabular-nums text-mute">주문번호 {orderNo}</p>
+        )}
+        <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-[14px] leading-relaxed text-red-700">
+          {failMessage || "결제가 취소되었거나 승인되지 않았습니다."}
+          <br />
+          주문은 입금 대기 상태로 남아 있으니 다시 시도하실 수 있습니다.
+        </div>
+        <div className="mt-8 flex justify-center gap-3">
+          <Link href={isOnce ? "/order-once" : "/#subscribe"} className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
+            다시 시도
+          </Link>
+          <Link href="/account" className="rounded-full border border-line px-6 py-3 text-sm text-ink-soft hover:border-gold hover:text-gold">
+            내 주문 보기
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (isOnce) {
     return (
@@ -41,21 +77,29 @@ function Complete() {
 
         {ship && (
           <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/10 px-5 py-4 text-[14px] leading-relaxed text-gold-deep">
-            입금이 확인되면{" "}
+            {isPortOne ? "결제가 확인되면 " : "입금이 확인되면 "}
             <span className="font-semibold">{ship}</span>에 발송됩니다.
             <br />
             (발송은 월–금에만 진행됩니다.)
           </div>
         )}
 
-        <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
-          <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
-          <DepositAccount />
-          <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
-            위 계좌로 주문 금액을 입금해 주세요. 입금이 확인되는 즉시 발송을 준비하고,
+        {isPortOne ? (
+          <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 px-5 py-4 text-[14px] leading-relaxed text-ink-soft">
+            결제가 접수되었습니다. 가상계좌로 결제하신 경우 안내된 계좌로 입금하시면
+            자동으로 확인되며, 카드·간편결제는 즉시 확인됩니다. 확인 후 발송을 준비하고
             등록하신 번호로 안내드립니다.
-          </p>
-        </div>
+          </div>
+        ) : (
+          <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
+            <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
+            <DepositAccount />
+            <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
+              위 계좌로 주문 금액을 입금해 주세요. 입금이 확인되는 즉시 발송을 준비하고,
+              등록하신 번호로 안내드립니다.
+            </p>
+          </div>
+        )}
 
         <div className="mt-8 flex justify-center gap-3">
           <Link href="/account" className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
@@ -106,16 +150,24 @@ function Complete() {
         </div>
       )}
 
-      <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
-        <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
-          무통장입금 계좌
-        </p>
-        <DepositAccount />
-        <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
-          위 계좌로 선택하신 구독 기간분을 한 번에 입금해 주세요. 목장에서 입금을 확인한 뒤
-          발송을 준비하고, 등록하신 번호로 안내드립니다.
-        </p>
-      </div>
+      {isPortOne ? (
+        <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 px-5 py-4 text-[14px] leading-relaxed text-ink-soft">
+          결제가 접수되었습니다. 가상계좌로 결제하신 경우 안내된 계좌로 입금하시면
+          자동으로 확인되며, 카드·간편결제는 즉시 확인됩니다. 확인 후 발송을 준비하고
+          등록하신 번호로 안내드립니다.
+        </div>
+      ) : (
+        <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
+          <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
+            무통장입금 계좌
+          </p>
+          <DepositAccount />
+          <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
+            위 계좌로 선택하신 구독 기간분을 한 번에 입금해 주세요. 목장에서 입금을 확인한 뒤
+            발송을 준비하고, 등록하신 번호로 안내드립니다.
+          </p>
+        </div>
+      )}
 
       <div className="mt-8 flex justify-center gap-3">
         <Link href="/account" className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
