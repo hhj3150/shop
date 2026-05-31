@@ -380,7 +380,14 @@ export default function AdminPage() {
       await load();
       return;
     }
-    await sb.from("orders").update({ status }).eq("id", order.id);
+    // 수동 입금확인은 무통장입금 경로다. 결제 기록 컬럼(paid_at/pay_method)을 함께 남겨
+    //   PortOne 자동확인 건과 동일한 형태로 조회·정산할 수 있게 한다.
+    const patch: Record<string, unknown> = { status };
+    if (status === "입금확인") {
+      patch.paid_at = new Date().toISOString();
+      patch.pay_method = "무통장";
+    }
+    await sb.from("orders").update(patch).eq("id", order.id);
     // 입금확인 → 슬롯을 활성화하고, 요일별 첫 배송일을 시작일로 부여.
     if (status === "입금확인") {
       const { data: pending } = await sb
