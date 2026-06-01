@@ -8,8 +8,19 @@
 |------|------|
 | `2f7b148` | 홈 구독 밴드 결정 지점에 소셜 프루프 추가 |
 | `424e462` | 입금 단계 금액 원탭 복사 (무통장 전환 마찰 해소) |
+| `5c92a12` | 모바일 하단 메뉴 영상 항목 → MILK ROAD 링크 교체 |
+| `43de008`→`c3918ee` | **(C) 가입 이탈 복구** — 미입금 D+1/D+2 리마인드 + D+3 자동취소·슬롯반환 (아래 Phase C) |
 
 > 직전 맥락 커밋: `c77abe4`(가입 소셜 프루프), `50634fa`(가입 폼 마찰 완화), `aa8e139`(가입 잔여석 카드).
+
+### Phase C — 가입 이탈 복구 (`43de008`→`c3918ee`, 프로덕션 검증 완료)
+- **병목:** 가입 후 무통장입금 미완 = 회원 확정 전환의 마지막 큰 누수. 송금 안 하면 자리만 점유.
+- **정책(브레인스토밍 확정):** D+1 입금 재안내(PAYMENT_GUIDE 재사용) · D+2 마감 임박(PAYMENT_DEADLINE, 마감일=D+3) · D+3 자동취소+슬롯반환. 전체 `입금대기` 주문 대상, 옵트아웃 없음(거래성). record-before-send(누락<중복).
+- **아키텍처:** Netlify 스케줄 함수(매일 09:00 KST) → **시크릿게이트 SECURITY DEFINER RPC 2개**(읽기 `payment_recovery_targets` / 쓰기 `apply_recovery_action`). `service_role` 미사용 — anon 키 + Vault 시크릿(`payment_recovery_secret` / Netlify env `PAYMENT_RECOVERY_SECRET`).
+- **변경 파일:** `lib/payment-recovery.ts`(+test, 9케이스: KST 단계판정·메시지조립) · `supabase/migration-payment-recovery.sql`(`order_reminders` 원장 PK(order_id,stage) + RPC 2개) · `netlify/functions/payment-recovery.mts`(스케줄 배선) · `package.json`(`@netlify/functions`) · `.env.example`.
+- **프로덕션 검증(2026-06-02):** 마이그레이션 적용 · Vault 시크릿 등록 · 시크릿게이트(틀린값→forbidden / 맞는값→`입금대기` 주문 반환) · Netlify env 동기화 · 스케줄 함수 등록 · 수동 트리거 D1 발송+원장 기록+중복방지 — 모두 통과.
+- **운영 리스크 메모:** "수정판 Next16 + webpack"에서 `.mts` 스케줄 함수 미등록 시 폴백 = GitHub Actions 크론이 시크릿 헤더 보호 라우트 호출 (플랜 Task 6 Step 4에 설계됨). 이번엔 정상 등록됨.
+- **스펙/플랜:** `docs/superpowers/specs/2026-06-02-signup-recovery-design.md` · `docs/superpowers/plans/2026-06-02-signup-recovery.md`.
 
 ### Phase B — 입금 전환 (`424e462`)
 - **병목:** 가입은 끝나도 무통장입금을 송금해야 회원 자리가 확정. 완료 페이지에서 계좌번호는 복사됐지만 **금액은 손입력** → 금액 오기 = 입금-확인 지연.
@@ -28,15 +39,19 @@
 ## 현재 퍼널 신뢰 신호 (전 구간 일관)
 히어로(잔여석·워드마크) → 홈 구독 밴드(희소성 **+ 후기**) → 가입(잔여석·후기·폼 마찰 완화·비번 토글) → 입금(계좌·**금액** 원탭 복사)
 
-## 다음 세션에서 할 일 — (C) 가입 이탈 복구 (권장 진입점)
-- **무엇:** 가입은 됐으나 입금 미완 회원에게 리마인드. → 회원 확정 전환율의 마지막 큰 누수 지점.
-- **이미 있는 인프라:** `lib/notify.ts`에 `order_received` / `renewal_guide` / `payment_confirmed` 종류 존재. 서버 라우트 `app/api/notify` 사용.
-- **왜 새 세션:** 이건 단순 UI가 아니라 **백엔드(서버 Route·스케줄)와 정책(리마인드 주기·문구·횟수)** 결정이 필요한 새 기능. golden-principle #9(HARD-GATE: 설계 먼저) 적용 → **brainstorming 스킬로 시작**할 것.
-- **열어볼 질문:** 리마인드 트리거(가입 후 N시간 미입금?), 채널(문자만?), 횟수·간격, 옵트아웃, 입금 확인 상태를 어디서 읽는가(주문 테이블/뷰).
-- **데이터 위치 참고:** 주문/입금 상태는 Supabase. `subscription_day_count` 뷰, `lib/cart.tsx`(요일·라벨), `lib/site.ts`(`DEPOSIT`) 참조.
+## 다음 세션에서 할 일 — 후보 (CTO 권장 우선순위)
+
+(C) 가입 이탈 복구는 **완료·검증**됨(위 Phase C). 다음 레버 후보:
+
+1. **(권장) 결제 마찰 근본 제거 — PortOne 간편결제/카드 활성화.**
+   - **근거:** Phase B(금액 복사)·Phase C(미입금 리마인드)는 전부 *무통장입금의 완료 갭*을 메우는 대증요법. 카드·카카오페이/네이버페이는 **즉시 확인** → D+1/D+2/D+3 누수 자체가 사라짐. `.env.example`에 PortOne v2(`storeId`/`channelKey`) 인프라 이미 존재.
+   - **트레이드오프:** 결제 수수료 발생 + PortOne 연동/웹훅 검증 필요(서버 작업). 무통장은 수수료 0이라 병행 제공이 정석. → **brainstorming 먼저**(HARD-GATE).
+2. **재구독/리텐션 유도** — 500명은 신규뿐 아니라 *유지*도 필요. 만료 임박 알림(`SOLAPI_TEMPLATE_RENEW_GUIDE` 존재) 활용.
+3. **추천(referral)** — 기존 회원 → 지인 초대. 2개월 500명 목표에 바이럴 레버.
 
 ### 더 뒤로 미룬 후보
 - (B) 구독 기간 4/8/12주 선택 — 별도 사이클.
+- 영업일 기준 마감일 보정 (현재는 달력일 D+3 고정 — signup-recovery 스펙 out-of-scope).
 
 ## 반드시 지킬 표준 제약 (이 레포)
 - **공개 레포** — 시크릿 절대 커밋 금지.
@@ -48,7 +63,7 @@
 - git config 변경 금지, 훅 스킵 금지. (커밋 시 committer 자동설정 경고는 양성 — 무시.)
 
 ## 검증 상태 (이 세션 마지막 실행)
-- vitest: **56/56 통과** (11 파일)
+- vitest: **65/65 통과** (12 파일 — signup-recovery 9케이스 포함)
 - `tsc --noEmit`: **exit 0**
-- `next build --webpack`: **exit 0 · Compiled successfully**
-- `git status`: 깨끗 (jpg 2개만 의도적 untracked), `HEAD == origin/main == 2f7b148`
+- `next build --webpack`: 로컬 미실행(한글 경로 깨짐) — 정답성 게이트는 tsc+vitest로 대체. Phase C는 프로덕션에서 직접 검증(위).
+- `git status`: 깨끗 (jpg 2개만 의도적 untracked), `HEAD == origin/main == c3918ee`
