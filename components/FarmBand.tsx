@@ -4,8 +4,8 @@ export function FarmBand() {
   return (
     <section className="relative h-[64svh] min-h-[420px] w-full overflow-hidden sm:h-[72svh]">
       <Image
-        src="/brand/jersey-cow.jpg"
-        alt="경기도 안성 송영신목장에서 건초를 먹는 A2 저지 소들"
+        src="/brand/story-podium.jpg"
+        alt="송영신목장 A2 저지 헤이밀크 제품을 돌단과 푸른 풀 위에 올린 에디토리얼 컷"
         fill
         sizes="100vw"
         className="object-cover object-center"
