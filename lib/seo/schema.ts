@@ -39,7 +39,8 @@ export function buildLocalBusiness() {
       streetAddress: BUSINESS.address,
       addressCountry: "KR",
     },
-    openingHours: "Mo-Fr 09:00-18:00", // 표시 리터럴(SSOT 아님)
+    // 운영시간은 app/guide/page.tsx의 "평일 10:00–17:00 (점심 12:00–13:00)"와 일치(SSOT 아님).
+    openingHours: ["Mo-Fr 10:00-12:00", "Mo-Fr 13:00-17:00"],
     priceRange: "₩₩", // 표시 리터럴(SSOT 아님)
   } as const;
 }
@@ -54,7 +55,7 @@ export function buildProduct(p: Product) {
     brand: { "@type": "Brand", name: "송영신목장" },
     offers: {
       "@type": "Offer",
-      price: p.price,
+      price: String(p.price), // schema.org/Google 권장: price는 문자열
       priceCurrency: "KRW",
       availability: "https://schema.org/InStock",
       url: `${SITE_URL}/products/${p.id}`,

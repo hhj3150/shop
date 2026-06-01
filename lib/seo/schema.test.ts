@@ -50,7 +50,7 @@ describe("buildProduct", () => {
     expect(node.description).toBe(p.shortDesc);
     expect(node.image).toBe(`${SITE_URL}${p.image}`);
     expect(node.offers["@type"]).toBe("Offer");
-    expect(node.offers.price).toBe(p.price);
+    expect(node.offers.price).toBe(String(p.price));
     expect(node.offers.priceCurrency).toBe("KRW");
   });
 });

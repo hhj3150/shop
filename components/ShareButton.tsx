@@ -14,20 +14,31 @@ export function ShareButton() {
   const [toast, setToast] = useState<string | null>(null);
 
   async function onShare() {
-    const nav =
-      typeof navigator !== "undefined"
-        ? navigator
-        : (undefined as unknown as Navigator);
-    const res = await shareOrCopy(
-      {
-        share: nav?.share ? (data) => nav.share(data) : undefined,
-        writeText: (t) => nav.clipboard.writeText(t),
-      },
-      PAYLOAD
-    );
-    if (res === "copied") {
-      setToast("링크가 복사됐어요. 카톡에 붙여넣어 보내보세요.");
-      setTimeout(() => setToast(null), 3000);
+    const nav = typeof navigator !== "undefined" ? navigator : undefined;
+    // clipboard는 HTTPS(보안 컨텍스트)에서만 존재 → 없으면 폴백 불가로 안내.
+    const writeText = nav?.clipboard?.writeText
+      ? (t: string) => nav.clipboard.writeText(t)
+      : undefined;
+    try {
+      if (!writeText) {
+        setToast(`주소를 직접 복사해 보내주세요: ${PAYLOAD.url}`);
+        setTimeout(() => setToast(null), 5000);
+        return;
+      }
+      const res = await shareOrCopy(
+        {
+          share: nav?.share ? (data) => nav.share(data) : undefined,
+          writeText,
+        },
+        PAYLOAD
+      );
+      if (res === "copied") {
+        setToast("링크가 복사됐어요. 카톡에 붙여넣어 보내보세요.");
+        setTimeout(() => setToast(null), 3000);
+      }
+    } catch {
+      setToast(`공유에 실패했어요. 주소를 직접 복사해 주세요: ${PAYLOAD.url}`);
+      setTimeout(() => setToast(null), 5000);
     }
   }
 
