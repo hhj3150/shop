@@ -15,7 +15,7 @@ import {
 } from "@/lib/products";
 import { createOnceOrder, createGuestOnceOrder, type OnceItem } from "@/lib/orders";
 import { useStorefrontCatalog } from "@/lib/storefront";
-import { visibleProducts } from "@/lib/storefront-merge";
+import { visibleProducts, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
@@ -70,7 +70,7 @@ function OrderOnce() {
   const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
   const [cashReceiptId, setCashReceiptId] = useState("");
 
-  const { map, loading: catalogLoading } = useStorefrontCatalog();
+  const { map, loading: catalogLoading, refresh } = useStorefrontCatalog();
 
   // 선물 주문은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 기존 무통장 흐름을 유지한다.
   const usePortOne = isPortOneConfigured && !isGift;
@@ -247,7 +247,14 @@ function OrderOnce() {
       if (user) void notify({ kind: isGift ? "gift_once" : "order_received", orderId });
       router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "주문에 실패했습니다.");
+      const msg = err instanceof Error ? err.message : "주문에 실패했습니다.";
+      if (isCatalogRejection(msg)) {
+        // 페이지 로드~제출 사이에 관리자가 품절/중지로 바꾼 레이스 → 카탈로그 재조회로 즉시 반영.
+        await refresh();
+        setError("해당 상품이 품절되었거나 판매 중지되었습니다. 장바구니를 확인해 주세요.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }

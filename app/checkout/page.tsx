@@ -8,7 +8,7 @@ import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
 import { createOrder } from "@/lib/orders";
 import { useStorefrontCatalog } from "@/lib/storefront";
-import { mergeProduct } from "@/lib/storefront-merge";
+import { mergeProduct, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { DepositAccount } from "@/components/DepositAccount";
@@ -29,7 +29,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
   const { items, period, weeks, perDelivery, shipTotal, periodTotal, weeklyPrice, clear } = useCart();
-  const { map } = useStorefrontCatalog();
+  const { map, refresh } = useStorefrontCatalog();
   // 회당 상품 합계가 최소 주문금액 미만이면 신청 불가(버튼 비활성화 + 안내).
   const belowMin = perDelivery < MIN_ORDER_KRW;
   // 장바구니 항목 중 품절·판매중지가 하나라도 있으면 제출 차단(체크아웃 진입 재검증).
@@ -190,7 +190,14 @@ export default function CheckoutPage() {
       clear();
       router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "주문에 실패했습니다.");
+      const msg = err instanceof Error ? err.message : "주문에 실패했습니다.";
+      if (isCatalogRejection(msg)) {
+        // 페이지 로드~제출 사이에 관리자가 품절/중지로 바꾼 레이스 → 카탈로그 재조회로 즉시 반영.
+        await refresh();
+        setError("해당 상품이 품절되었거나 판매 중지되었습니다. 장바구니를 확인해 주세요.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }
