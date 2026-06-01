@@ -50,6 +50,12 @@ export function remaining(count: DayCount): number {
   return Math.max(0, count.capacity - count.taken);
 }
 
+// 다섯 요일 잔여 좌석 합계. 각 요일 remaining()은 max(0, capacity - taken)으로 이미 클램프됨.
+// 잔여 표시의 단일 진실 공급원 — SlotAvailability·MembershipCounter가 공유한다.
+export function totalRemainingSeats(counts: DayCounts): number {
+  return DELIVERY_DAYS.reduce((sum, d) => sum + remaining(counts[d]), 0);
+}
+
 export function isWaitlisted(count: DayCount): boolean {
   return count.taken >= count.capacity;
 }
