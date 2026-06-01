@@ -172,6 +172,37 @@ body {
   animation: roam-sm 21s var(--ease-soft) infinite;
 }
 
+/* 동작 줄이기(prefers-reduced-motion)용 — 진폭을 크게 줄인 은은한 저속 드리프트.
+   완전히 멈추는 대신 화면 안에서 천천히 떠다니게 해, 어지럼증 위험은 낮추되 브랜드감은 유지한다. */
+@keyframes roam-lg-calm {
+  0% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(5vw, 2.5vh);
+  }
+  66% {
+    transform: translate(-3vw, 4vh);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+@keyframes roam-sm-calm {
+  0% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(-4vw, 3vh);
+  }
+  66% {
+    transform: translate(3vw, -2vh);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
 @keyframes scrollcue {
   0% {
     transform: translateY(0);
@@ -200,10 +231,16 @@ body {
     animation: none;
   }
   .animate-float,
-  .animate-scrollcue,
-  .animate-roam-lg,
-  .animate-roam-sm {
+  .animate-scrollcue {
     animation: none;
+  }
+  /* 비누방울은 멈추지 않고, 진폭을 줄인 느린 드리프트로 은은하게 유지한다.
+     (동작 줄이기/저전력 모드가 켜진 스마트폰에서도 방울이 천천히 떠다님) */
+  .animate-roam-lg {
+    animation: roam-lg-calm 48s var(--ease-soft) infinite;
+  }
+  .animate-roam-sm {
+    animation: roam-sm-calm 40s var(--ease-soft) infinite;
   }
 }
 
