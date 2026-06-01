@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { LegalLayout, Article } from "@/components/LegalLayout";
 import { DEPOSIT, BUSINESS } from "@/lib/site";
 
-export const metadata: Metadata = { title: "배송 · 교환/환불 안내" };
+export const metadata: Metadata = {
+  title: "배송 · 교환/환불 안내",
+  alternates: { canonical: "/guide" },
+};
 
 export default function GuidePage() {
   return (

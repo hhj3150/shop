@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { LegalLayout, Article } from "@/components/LegalLayout";
 import { BUSINESS } from "@/lib/site";
 
-export const metadata: Metadata = { title: "이용약관" };
+export const metadata: Metadata = {
+  title: "이용약관",
+  alternates: { canonical: "/terms" },
+};
 
 export default function TermsPage() {
   return (
