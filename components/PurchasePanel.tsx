@@ -18,6 +18,8 @@ import {
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/subscriptions";
 import { firstSubscriptionDelivery, formatDispatch } from "@/lib/ship-date";
+import { useStorefrontCatalog } from "@/lib/storefront";
+import { mergeProduct, visibleProducts } from "@/lib/storefront-merge";
 
 export function PurchasePanel({ product }: { product: Product }) {
   const { add, setPeriod } = useCart();
@@ -31,13 +33,16 @@ export function PurchasePanel({ product }: { product: Product }) {
     getDayCounts().then(setCounts);
   }, []);
 
-  // 함께 담을 수 있는 다른 제품들(같은 요일 배송).
-  const addons = PRODUCTS.filter((p) => p.id !== product.id);
+  const { map, loading: catalogLoading } = useStorefrontCatalog();
+  const liveMain = mergeProduct(product, map.get(product.id));
+  // 함께 담을 수 있는 다른 제품들(같은 요일 배송). hidden 제외, 본품 제외.
+  //   이름을 addons로 유지해 가격합·담기·렌더 사용처가 한 번에 라이브로 갱신된다.
+  const addons = visibleProducts(PRODUCTS, map).filter((p) => p.id !== product.id);
 
   const rate = discountForPeriod(period);
   const weeks = periodWeeks(period);
 
-  const unitPrice = subscribePrice(product.price, rate);
+  const unitPrice = subscribePrice(liveMain.price, rate);
   const mainPerDelivery = unitPrice * qty;
   const extrasPerDelivery = addons.reduce(
     (sum, p) => sum + subscribePrice(p.price, rate) * (extras[p.id] ?? 0),
@@ -47,7 +52,7 @@ export function PurchasePanel({ product }: { product: Product }) {
 
   // 할인 전(정가) 회당 상품 합계 — 정가 대비 할인 표기용.
   const origPerDelivery =
-    product.price * qty +
+    liveMain.price * qty +
     addons.reduce((sum, p) => sum + p.price * (extras[p.id] ?? 0), 0);
   const shipPerDelivery = subShippingFee(perDelivery);
   const shipTotal = shipPerDelivery * weeks;
@@ -216,6 +221,7 @@ export function PurchasePanel({ product }: { product: Product }) {
                   </p>
                   <p className="mt-0.5 text-[12px] tabular-nums text-gold-deep">
                     {formatKRW(ep)} / 회
+                    {p.soldOut && <span className="ml-1.5 text-mute">품절</span>}
                   </p>
                 </div>
                 <div className="flex items-center rounded-full border border-line">
@@ -232,7 +238,8 @@ export function PurchasePanel({ product }: { product: Product }) {
                   </span>
                   <button
                     onClick={() => setExtraQty(p.id, eq + 1)}
-                    className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink"
+                    disabled={p.soldOut}
+                    className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink disabled:opacity-30"
                     aria-label={`${p.name} 수량 증가`}
                   >
                     +
@@ -294,9 +301,10 @@ export function PurchasePanel({ product }: { product: Product }) {
 
         <button
           onClick={handleAdd}
-          className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99]"
+          disabled={catalogLoading || liveMain.soldOut || liveMain.hidden}
+          className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-ink"
         >
-          구독 담기
+          {liveMain.hidden ? "판매 중지" : liveMain.soldOut ? "품절" : catalogLoading ? "확인 중…" : "구독 담기"}
         </button>
 
         <p className="mt-4 text-center text-[11.5px] leading-relaxed text-mute">
