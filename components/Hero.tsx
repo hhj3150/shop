@@ -38,9 +38,9 @@ export function Hero() {
             A2 Jersey Hay Milk
           </p>
           <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.16] tracking-[-0.01em] text-ink">
-            한 모금에 담긴
+            우유라 부르기엔, 너무 드뭅니다.
             <br />
-            <span className="gold-foil">15년의 약속.</span>
+            <span className="gold-foil">0.01%. 한 모금이면 압니다.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-md text-[14px] leading-relaxed text-ink-soft sm:text-[15px] lg:mx-0">
             매주 한 병, 목장에서 갓 짜낸 그대로 문 앞까지. 회원제 정기구독이 기본이지만,
