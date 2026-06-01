@@ -5,11 +5,11 @@ import type { Metadata } from "next";
 import {
   PRODUCTS,
   getProduct,
-  formatKRW,
   SUB_PERIODS,
   discountForPeriod,
 } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
+import { ProductHeroPrice } from "@/components/ProductCommercial";
 import { ProductReviews } from "@/components/ProductReviews";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
@@ -82,12 +82,7 @@ export default async function ProductPage({
           <p className="mx-auto mt-4 max-w-xl font-serif-kr text-[15px] leading-relaxed text-gold-deep">
             대한민국 0.01%, 프리미엄 우유의 품격을 직접 느껴보세요.
           </p>
-          <p className="mt-6 text-[14px] text-ink-soft">
-            회당{" "}
-            <span className="font-medium tabular-nums text-ink">{formatKRW(product.price)}</span>
-            <span className="mx-2 text-line">·</span>
-            <span className="text-gold-deep">창립 500인 회원 특권 −{maxRate}%</span>
-          </p>
+          <ProductHeroPrice product={product} maxRate={maxRate} />
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <a
               href="#configure"
