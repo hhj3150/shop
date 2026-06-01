@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { notify } from "@/lib/notify";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
+import { MembershipAssurance } from "@/components/MembershipAssurance";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -106,6 +107,8 @@ export default function SignupPage() {
         닿습니다. 정기구독은 선착순 500명 한정 — 한 분 한 분을 기억하고, 입금이
         확인되면 문자로 발송을 안내드립니다.
       </p>
+
+      <MembershipAssurance />
 
       {!configured && (
         <p className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] text-gold-deep">
