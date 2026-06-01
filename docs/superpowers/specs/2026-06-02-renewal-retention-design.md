@@ -13,7 +13,7 @@
 - **타이밍:** 파생 만료일 기준 **D-7 + D-3** (주기당 최대 2건).
 - **법적 성격:** **광고성**('재구독하세요' = 구매 권유). 정보통신망법상 사전 동의 필수 → **`profiles.marketing_consent = true` 회원에게만** 발송. (발송 09:00 KST = 주간, 야간 발송 금지 준수.)
 - **제외 대상:**
-  1. 이미 재구독 시작 — `exists(orders where renews_slot_id = slot.id and status = '입금대기')` (payment-recovery가 이미 커버 → 이중 발송 방지)
+  1. 이미 재구독 시작 — `exists(orders where renews_slot_id = slot.id and status = '입금대기')` (payment-recovery가 이미 커버 → 이중 발송 방지). **`입금대기`만 보는 것은 의도된 설계**: 재구독 입금확인(`confirm_renewal_payment`)되면 주문은 `입금확인`으로 바뀌고 동시에 `extended_weeks`가 늘어 만료일이 ~4주 밀려나 → 슬롯이 D-7 윈도우 밖으로 빠지므로 추가 제외 불필요. 미입금 자동취소(`취소`)되면 다시 정상 포함되어야 하므로 `입금대기`만 제외하는 게 맞다.
   2. 일시정지 슬롯 — `subscription_slots.paused = true` (만료일이 계속 밀려 부정확)
   3. 이미 해당 단계 발송함 — 원장 dedup
   4. 광고 수신거부 — `marketing_consent = false`
@@ -55,14 +55,15 @@ Netlify cron (09:00 KST)
 ```
 decideRenewalStage(expiryDate, today, sentStages):
   d = KST 일수(today → expiryDate)
-  if d < 0:   return 'none'                       # 이미 만료 — out-of-scope
+  if d <= 0:  return 'none'                        # 만료 당일/경과 — 넛지 의미 없음(재구독은 입금 소요), out-of-scope
   if d <= 3:  return 'D3' if 'D3' ∉ sentStages else 'none'   # D-3 윈도우에선 D7 안 보냄
   if d <= 7:  return 'D7' if 'D7' ∉ sentStages else 'none'
   return 'none'
 ```
 
 - **임계값 기반(등호 아님)** → 크론이 하루 누락돼도 다음 날 복원. 회원당 주기 최대 2건.
-- **상호배타:** D-3 윈도우(d≤3)에 들어가면 D7은 절대 발송 안 함(뒤늦은 'D-7' 메시지 방지).
+- **상호배타:** D-3 윈도우(1≤d≤3)에 들어가면 D7은 절대 발송 안 함(뒤늦은 'D-7' 메시지 방지).
+- **하한 d≥1:** 만료 당일(d=0) 이후는 발송 안 함 — 재구독은 입금까지 며칠 걸려 당일 넛지는 실효 없음.
 
 ## 데이터 모델 — 원장 `renewal_reminders`
 
@@ -78,7 +79,8 @@ alter table public.renewal_reminders enable row level security;
 -- 정책 없음: RPC(SECURITY DEFINER)로만 접근.
 ```
 
-- **만료일을 PK에 포함하는 이유:** 재구독 입금확인 → `extended_weeks` 증가 → 만료일이 미뤄짐 → **새 (slot_id, stage, expiry_date) 키** → 다음 주기 D-7/D-3가 자동으로 다시 발송됨. 같은 주기 재발송만 차단하고, 다음 주기는 열어준다.
+- **만료일을 PK에 포함하는 이유:** 재구독 입금확인 → `extended_weeks` 증가 → 만료일이 미뤄짐 → **새 (slot_id, stage, expiry_date) 키** → 다음 주기 D-7/D-3가 자동으로 다시 발송됨. 같은 만료일 내 재발송만 차단하고, 다음 주기는 열어준다.
+- **`paused_days` 변동 주의:** 일시정지 후 재개하면 `paused_days`가 늘어 만료일(=PK 일부)이 바뀌므로, 같은 논리적 주기라도 새 키가 되어 같은 단계가 재발송될 수 있다. 단 정지 중 슬롯은 `paused=false` 필터로 제외되고, 광고성 **중복<누락** 정책상 드문 재발송은 허용 가능 — 의도된 트레이드오프.
 
 ## RPC 2개 (시크릿게이트)
 
@@ -89,7 +91,7 @@ alter table public.renewal_reminders enable row level security;
 반환 컬럼: `slot_id bigint, name text, phone text, expiry_date date, sent_stages text[]`.
 
 필터:
-- `s.status = '활성'` AND `s.paused = false`
+- `s.status = '활성'` AND `s.paused = false` AND `s.started_at is not null` (`started_at`은 nullable — 활성이면 채워져 있어야 하나, NULL이면 만료일이 NULL→범위필터에서 조용히 누락되므로 명시 가드)
 - `p.marketing_consent = true` (`profiles p on p.id = s.user_id`)
 - 만료일 ∈ `[CURRENT_DATE(KST), CURRENT_DATE(KST) + 7]` — D-7 윈도우 커버
 - `not exists (select 1 from orders where renews_slot_id = s.id and status = '입금대기')`
@@ -137,7 +139,7 @@ alter table public.renewal_reminders enable row level security;
 
 ## 테스트 (vitest, node env, 순수 로직만)
 
-- **`decideRenewalStage`** (8): D-8→none · D-7→D7 · D-4→D7 · D-3→D3 · D-1→D3 · D7 sentStages 포함→none · D3 sentStages 포함→none · 만료 후(d<0)→none.
+- **`decideRenewalStage`** (9): D-8→none · D-7→D7 · D-4→D7 · D-3→D3 · D-1→D3 · D7 sentStages 포함→none · D3 sentStages 포함→none · 만료 당일(d=0)→none · 만료 경과(d<0)→none.
 - **`deriveExpiry`** (3): 기본(extended=0,paused=0) · extended_weeks 반영 · paused_days 반영.
 - **`buildRenewalMessage`** (2): EXPIRE_SOON templateKey·변수 매핑 · 만료일 포맷.
 - KST 경계 케이스 포함(자정 직전/직후).
