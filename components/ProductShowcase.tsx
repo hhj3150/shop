@@ -4,6 +4,8 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { PRODUCTS, formatKRW, subscribePrice, type ProductLine } from "@/lib/products";
+import { useStorefrontCatalog } from "@/lib/storefront";
+import { visibleProducts } from "@/lib/storefront-merge";
 import { Reveal } from "./Reveal";
 import { Scatter, HEY, type ConfettiItem } from "./Confetti";
 import { LogoBubbles } from "./LogoBubbles";
@@ -28,7 +30,9 @@ const PRODUCTS_CONFETTI: ConfettiItem[] = [
 
 export function ProductShowcase() {
   const [filter, setFilter] = useState<Filter>("all");
-  const shown = filter === "all" ? PRODUCTS : PRODUCTS.filter((p) => p.line === filter);
+  const { map } = useStorefrontCatalog();
+  const live = visibleProducts(PRODUCTS, map);
+  const shown = filter === "all" ? live : live.filter((p) => p.line === filter);
 
   return (
     <section id="products" className="relative scroll-mt-20 overflow-hidden">
@@ -84,6 +88,11 @@ export function ProductShowcase() {
                   {p.taxFree ? "면세" : "과세"}
                 </span>
               </div>
+              {p.soldOut && (
+                <span className="mt-2 inline-block rounded-full bg-ink/8 px-3 py-1 text-[12px] font-semibold tracking-wide text-mute">
+                  품절
+                </span>
+              )}
 
               <Link
                 href={`/products/${p.id}`}
@@ -112,12 +121,21 @@ export function ProductShowcase() {
               </p>
 
               <div className="mt-7 flex w-full max-w-xs flex-col items-center gap-3">
-                <Link
-                  href={`/products/${p.id}`}
-                  className="w-full rounded-full bg-ink px-6 py-3 text-[15px] font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98]"
-                >
-                  구독 신청
-                </Link>
+                {p.soldOut ? (
+                  <span
+                    aria-disabled="true"
+                    className="w-full cursor-not-allowed rounded-full bg-ink/30 px-6 py-3 text-center text-[15px] font-medium text-cream/80"
+                  >
+                    품절
+                  </span>
+                ) : (
+                  <Link
+                    href={`/products/${p.id}`}
+                    className="w-full rounded-full bg-ink px-6 py-3 text-[15px] font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98]"
+                  >
+                    구독 신청
+                  </Link>
+                )}
                 <Link
                   href={`/products/${p.id}`}
                   className="text-[14px] tracking-wide text-gold-deep underline-offset-4 hover:underline"
