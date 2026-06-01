@@ -22,7 +22,7 @@
 
 ## 2. 목표
 
-방문/검색/AI 질의 시 사이트가 **읽히고 인용되며**, 회원이 **한 번의 탭으로 지인에게 사이트를 공유**할 수 있게 한다. 모든 사업자/제품 정보는 기존 단일 진실 공급원(`lib/site.ts`)에서 파생해 푸터·구조화 데이터·공유 카드가 **서로 어긋나지 않도록** 한다.
+방문/검색/AI 질의 시 사이트가 **읽히고 인용되며**, 회원이 **한 번의 탭으로 지인에게 사이트를 공유**할 수 있게 한다. **사업자·주소·연락처**는 기존 단일 진실 공급원(`lib/site.ts`의 `BUSINESS`)에서, **제품 정보**는 `lib/products.ts`에서 파생해 푸터·구조화 데이터·공유 카드가 **서로 어긋나지 않도록** 한다. 단, 영업시간·`priceRange`처럼 `lib/site.ts`에 없는 표시용 값은 빌더 내 **명시 상수**로 둔다(SSOT가 아닌 표현 리터럴임을 코드 주석으로 명시).
 
 ## 3. 아키텍처 — 공유 기반 1 + 소비자 2
 
@@ -58,9 +58,10 @@ lib/site.ts (SSOT: BUSINESS·BRAND_HOME·DEPOSIT)
 |---|---|
 | `app/layout.tsx` | `openGraph.images`(og-default)+`twitter` 카드 추가, 전역 `<JsonLd>`(Organization+WebSite) |
 | `app/page.tsx` | 홈에 `<JsonLd>`(LocalBusiness+FAQPage) |
-| `app/products/[slug]/page.tsx` | 제품별 `<JsonLd>`(Product+Offer) |
-| 공개 하위 페이지(`order-once`·`signup`·`guide`·`terms`·`privacy`) | 빠진 `metadata`(title/description/canonical) 보강(이미 있으면 유지) |
-| `app/account/page.tsx` | `<ShareButton>` 배치(회원 영역) |
+| `app/products/[id]/page.tsx` | 제품별 `<JsonLd>`(Product+Offer). **라우트 파라미터는 `id`**(`[slug]` 아님). `getProduct(id)`로 제품 조회 |
+| `app/guide`·`app/terms`·`app/privacy` (서버 컴포넌트, 이미 `metadata` 있음) | `alternates.canonical`만 보강 |
+| **신규** `app/signup/layout.tsx`·`app/order-once/layout.tsx` | `signup`·`order-once` page는 `"use client"`라 `metadata` 직접 export 불가 → **서버 `layout.tsx`를 신규 추가해 거기서 `metadata`(title/description/canonical) export** |
+| `app/account/page.tsx` (`"use client"`) | `<ShareButton>` 배치(회원 영역). 클라이언트 컴포넌트이므로 metadata 추가 대상 아님 |
 
 ## 5. GEO/AEO 레이어 상세
 
@@ -70,8 +71,8 @@ lib/site.ts (SSOT: BUSINESS·BRAND_HOME·DEPOSIT)
 
 - `buildOrganization()` — `@type: "Organization"`, name=`BUSINESS.company`, url=`metadataBase`, logo, sameAs=[`BRAND_HOME`]
 - `buildWebSite()` — `@type: "WebSite"`, name·url·inLanguage `ko-KR`
-- `buildLocalBusiness()` — `@type: ["LocalBusiness","Farm"]`, name=한글 상호, address=`PostalAddress`(`BUSINESS.address` 분해), telephone=`BUSINESS.tel`, openingHours(월–금 09:00–18:00), priceRange
-- `buildProduct(p)` — `@type: "Product"`, name·image·description + `offers: Offer`(price·priceCurrency `KRW`·availability)
+- `buildLocalBusiness()` — `@type: ["LocalBusiness","Farm"]`, name=한글 상호, address=`PostalAddress`(`BUSINESS.address`), telephone=`BUSINESS.tel`. `openingHours`(월–금 09:00–18:00)·`priceRange`는 **`lib/site.ts`에 없는 표시용 리터럴** → 빌더 내 명시 상수로 선언하고 "SSOT 아님" 주석 표기
+- `buildProduct(p)` — `@type: "Product"`, `name`=`p.name`, `image`=`p.image`, `description`=**`p.shortDesc`**(`Product`에는 `description` 필드가 없음; `shortDesc`/`story`/`tagline` 중 `shortDesc` 사용) + `offers: Offer`(`price`=`p.price`·`priceCurrency: "KRW"`·`availability`)
 - `buildFAQPage(items)` — `@type: "FAQPage"`, mainEntity=Question/Answer 배열
 
 **단위 테스트**: 각 빌더가 올바른 `@type`·필수 필드를 갖는가; Product offer 가격/통화; LocalBusiness 주소가 `BUSINESS.address`와 일치; FAQPage가 입력 items 수만큼 Question을 갖는가.
@@ -94,7 +95,7 @@ export function JsonLd({ data }: { data: object }) {
 ### 5.3 robots / sitemap
 
 - `app/robots.ts`: `rules`에 모든 봇 `allow: "/"`, `disallow: ["/admin","/account","/checkout","/api","/login","/forgot-password","/reset-password"]`. AI 크롤러(`GPTBot`·`ClaudeBot`·`PerplexityBot`·`Google-Extended`) 명시 환영. `sitemap` 필드 지정.
-- `app/sitemap.ts`: 공개 경로(`/`·제품 4종·`/order-once`·`/signup`·`/guide`·`/terms`·`/privacy`), 각 `lastModified`.
+- `app/sitemap.ts`: 공개 경로(`/`·제품 4종·`/order-once`·`/signup`·`/guide`·`/terms`·`/privacy`), 각 `lastModified`. **제품 URL은 `lib/products.ts`의 `id`로 생성**(`/products/${id}`; 예 `milk-180`). 푸터가 쓰는 `/products/milk-180` 류 URL은 슬러그처럼 보이지만 실제로는 `[id]` 라우트에 `id` 값이 들어가는 것 — 동일 경로다.
 
 ### 5.4 llms.txt
 
@@ -107,7 +108,7 @@ export function JsonLd({ data }: { data: object }) {
 
 - `public/brand/og-default.jpg`(1200×630) — 기존 `public/brand/hero-row-white.jpg`를 `sips`로 크롭/리사이즈(원본 보존, 사본 생성).
 - `app/layout.tsx`의 `metadata.openGraph.images`에 og-default + `metadata.twitter`(`card: "summary_large_image"`).
-- 공개 페이지별 `alternates.canonical`·title·description 보강.
+- 공개 페이지별 `alternates.canonical`·title·description 보강. **서버 페이지(`guide`·`terms`·`privacy`)는 기존 `metadata`에 canonical 추가**; **클라이언트 페이지(`signup`·`order-once`)는 신규 `layout.tsx`(서버)에서 `metadata` export**(§4). `account`는 회원 전용·noindex 대상이라 메타 보강 제외.
 
 ## 6. 카톡 추천 버튼 상세 (`components/ShareButton.tsx`, `"use client"`)
 
@@ -121,7 +122,7 @@ export function JsonLd({ data }: { data: object }) {
 
 ## 7. 데이터 흐름
 
-1. 빌드 시 `schema.ts` 빌더가 `lib/site.ts`·제품 데이터로 JSON-LD를 만들고 `<JsonLd>`가 각 페이지(SSG)에 인라인.
+1. 빌드 시 `schema.ts` 빌더가 `lib/site.ts`(사업자)·`lib/products.ts`(제품) 데이터로 JSON-LD를 만들고 `<JsonLd>`가 각 페이지(SSG)에 인라인. 영업시간·`priceRange`는 빌더 내 표시 상수.
 2. 크롤러/AI가 robots→sitemap→각 페이지의 JSON-LD·llms.txt를 읽음.
 3. 사용자가 링크 공유 → 카톡/SNS가 OG 메타·이미지로 카드 렌더.
 4. ShareButton은 런타임에 `navigator.share`/clipboard만 호출(서버 의존 없음).
