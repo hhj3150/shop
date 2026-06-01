@@ -14,8 +14,14 @@ export function Hero() {
             width={800}
             height={800}
             priority
-            className="mb-8 w-[104px] max-w-full sm:w-[112px]"
+            className="mb-4 w-[104px] max-w-full sm:w-[112px]"
           />
+
+          {/* 워드마크 — 로고 아래 브랜드명(국문 + 골드포일 영문) */}
+          <p className="mb-7 font-display text-[15px] font-medium leading-tight tracking-[0.01em] text-ink sm:text-base">
+            송영신목장{" "}
+            <span className="gold-foil">A2 Jersey Hay Milk</span>
+          </p>
 
           {/* Eyebrow — 한정·회원제 후크 */}
           <p className="font-display text-[11px] uppercase tracking-[0.34em] text-gold-deep">
