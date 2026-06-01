@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { decideAction, type RecoveryTarget } from "./payment-recovery";
+import { decideAction, buildRecoveryMessage, type RecoveryTarget } from "./payment-recovery";
+import { DEPOSIT } from "./site";
 
 const base: RecoveryTarget = {
   orderId: "o1",
@@ -41,5 +42,33 @@ describe("decideAction (KST 달력일 경과)", () => {
     // created 06-01 10:00 KST. now = 06-02 00:10 KST (= 06-01T15:10Z)
     const now = new Date("2026-06-01T15:10:00.000Z");
     expect(decideAction(base, now)).toBe("D1");
+  });
+});
+
+describe("buildRecoveryMessage", () => {
+  const account = `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
+
+  it("D1은 PAYMENT_GUIDE 템플릿 + 정확한 변수", () => {
+    const m = buildRecoveryMessage(base, "D1");
+    expect(m.templateKey).toBe("PAYMENT_GUIDE");
+    expect(m.variables).toEqual({
+      "#{고객명}": "홍길동",
+      "#{주문번호}": "20260601-0001",
+      "#{금액}": "39000",
+      "#{입금계좌}": account,
+    });
+    expect(m.text).toContain("39000");
+    expect(m.text).toContain(account);
+  });
+
+  it("D2는 PAYMENT_DEADLINE 템플릿 + 마감일(D+3, KST)", () => {
+    const m = buildRecoveryMessage(base, "D2");
+    expect(m.templateKey).toBe("PAYMENT_DEADLINE");
+    expect(m.variables).toEqual({
+      "#{고객명}": "홍길동",
+      "#{주문번호}": "20260601-0001",
+      "#{금액}": "39000",
+      "#{마감일}": "6월 4일", // 06-01 + 3일 (KST)
+    });
   });
 });
