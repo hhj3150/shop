@@ -22,6 +22,7 @@ import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
 import { DEPOSIT } from "@/lib/site";
 import { RecipientBook } from "@/components/RecipientBook";
+import { ShareButton } from "@/components/ShareButton";
 
 type RenewalInfo = { slotId: number; orderNo: string; total: number };
 
@@ -287,6 +288,8 @@ export default function AccountPage() {
           )}
         </div>
       )}
+
+      <ShareButton />
 
       {subs.length > 0 && (
         <>
