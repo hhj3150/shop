@@ -14,6 +14,8 @@ import {
   onceShippingFee,
 } from "@/lib/products";
 import { createOnceOrder, createGuestOnceOrder, type OnceItem } from "@/lib/orders";
+import { useStorefrontCatalog } from "@/lib/storefront";
+import { visibleProducts } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
@@ -68,6 +70,8 @@ function OrderOnce() {
   const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
   const [cashReceiptId, setCashReceiptId] = useState("");
 
+  const { map, loading: catalogLoading } = useStorefrontCatalog();
+
   // 선물 주문은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 기존 무통장 흐름을 유지한다.
   const usePortOne = isPortOneConfigured && !isGift;
 
@@ -103,12 +107,16 @@ function OrderOnce() {
 
   const subtotal = useMemo(
     () =>
-      PRODUCTS.reduce((sum, p) => sum + p.price * (qtys[p.id] ?? 0), 0),
-    [qtys]
+      visibleProducts(PRODUCTS, map).reduce(
+        (sum, p) => sum + p.price * (qtys[p.id] ?? 0),
+        0
+      ),
+    [qtys, map]
   );
   const count = useMemo(
-    () => PRODUCTS.reduce((n, p) => n + (qtys[p.id] ?? 0), 0),
-    [qtys]
+    () =>
+      visibleProducts(PRODUCTS, map).reduce((n, p) => n + (qtys[p.id] ?? 0), 0),
+    [qtys, map]
   );
   const shipping = onceShippingFee(subtotal);
   const total = subtotal + shipping;
@@ -184,9 +192,9 @@ function OrderOnce() {
     }
     setBusy(true);
     try {
-      const items: OnceItem[] = PRODUCTS.filter((p) => (qtys[p.id] ?? 0) > 0).map(
-        (p) => ({ productId: p.id, qty: qtys[p.id], unitPrice: p.price })
-      );
+      const items: OnceItem[] = visibleProducts(PRODUCTS, map)
+        .filter((p) => (qtys[p.id] ?? 0) > 0)
+        .map((p) => ({ productId: p.id, qty: qtys[p.id], unitPrice: p.price }));
       // 회원은 createOnceOrder(로그인 필요), 비회원은 createGuestOnceOrder 로 분기.
       // 게스트는 선물하기를 노출하지 않으므로 isGift 는 항상 false 다.
       const shipInfo = {
@@ -284,7 +292,7 @@ function OrderOnce() {
 
       {/* 제품 선택 */}
       <ul className="mt-8 space-y-3">
-        {PRODUCTS.map((p) => {
+        {visibleProducts(PRODUCTS, map).map((p) => {
           const q = qtys[p.id] ?? 0;
           return (
             <li
@@ -307,6 +315,7 @@ function OrderOnce() {
                 <p className="mt-0.5 text-[13px] tabular-nums text-gold-deep">
                   {formatKRW(p.price)}
                   <span className="ml-1.5 text-mute">{p.taxFree ? "면세" : "과세"}</span>
+                  {p.soldOut && <span className="ml-1.5 text-mute">· 품절</span>}
                 </p>
               </div>
               <div className="flex items-center rounded-full border border-line">
@@ -323,7 +332,8 @@ function OrderOnce() {
                 <button
                   type="button"
                   onClick={() => setQty(p.id, q + 1)}
-                  className="px-3.5 py-2 text-mute transition-colors hover:text-ink"
+                  disabled={p.soldOut}
+                  className="px-3.5 py-2 text-mute transition-colors hover:text-ink disabled:opacity-30"
                   aria-label={`${p.name} 수량 증가`}
                 >
                   +
@@ -435,7 +445,7 @@ function OrderOnce() {
 
         <button
           type="submit"
-          disabled={busy || belowMin || count === 0}
+          disabled={busy || belowMin || count === 0 || catalogLoading}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy

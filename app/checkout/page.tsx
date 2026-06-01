@@ -7,6 +7,8 @@ import { useAuth } from "@/lib/auth";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
 import { createOrder } from "@/lib/orders";
+import { useStorefrontCatalog } from "@/lib/storefront";
+import { mergeProduct } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { DepositAccount } from "@/components/DepositAccount";
@@ -27,8 +29,15 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
   const { items, period, weeks, perDelivery, shipTotal, periodTotal, weeklyPrice, clear } = useCart();
+  const { map } = useStorefrontCatalog();
   // 회당 상품 합계가 최소 주문금액 미만이면 신청 불가(버튼 비활성화 + 안내).
   const belowMin = perDelivery < MIN_ORDER_KRW;
+  // 장바구니 항목 중 품절·판매중지가 하나라도 있으면 제출 차단(체크아웃 진입 재검증).
+  const hasBlocked = items.some((it) => {
+    const p = getProduct(it.productId);
+    const lp = p ? mergeProduct(p, map.get(p.id)) : null;
+    return !!lp && (lp.hidden || lp.soldOut);
+  });
 
   const [ship, setShip] = useState({
     name: "",
@@ -227,6 +236,7 @@ export default function CheckoutPage() {
           {items.map((item) => {
             const p = getProduct(item.productId);
             if (!p) return null;
+            const lp = mergeProduct(p, map.get(p.id));
             return (
               <li key={item.key} className="flex justify-between py-3 text-[14px]">
                 <span className="text-ink-soft">
@@ -235,6 +245,8 @@ export default function CheckoutPage() {
                     정기구독 · 매주 {DELIVERY_DAY_LABEL[item.deliveryDay]}
                   </span>
                   <span className="ml-2 text-mute">× {item.qty}</span>
+                  {lp.hidden && <span className="ml-2 text-red-600">판매 중지</span>}
+                  {lp.soldOut && <span className="ml-2 text-red-600">품절</span>}
                 </span>
                 <span className="tabular-nums text-ink">
                   {formatKRW(weeklyPrice(item.productId) * item.qty)}
@@ -332,6 +344,12 @@ export default function CheckoutPage() {
           100명, 전체 500명 한정입니다.
         </p>
 
+        {hasBlocked && (
+          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] leading-relaxed text-red-700">
+            품절되었거나 판매 중지된 항목이 있습니다. 장바구니에서 해당 항목을 빼주셔야 신청할 수 있습니다.
+          </p>
+        )}
+
         {error && (
           <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
             {error}
@@ -348,7 +366,7 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={busy || belowMin}
+          disabled={busy || belowMin || hasBlocked}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy
