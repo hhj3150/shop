@@ -9,6 +9,8 @@ import { notify } from "@/lib/notify";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { MembershipAssurance } from "@/components/MembershipAssurance";
+import { formatPhoneKR } from "@/lib/signup-format";
+import { validateSignup } from "@/lib/signup-validation";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -27,9 +29,22 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showPw, setShowPw] = useState(false);
+
+  // 해당 키의 인라인 오류를 지운다(입력을 고치는 즉시 빨간 메시지 제거).
+  function clearError(key: string) {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
 
   function update<K extends keyof typeof form>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    clearError(key);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -37,21 +52,14 @@ export default function SignupPage() {
     setError(null);
     setInfo(null);
 
-    if (!agree) {
-      setError("이용약관과 개인정보처리방침에 동의해 주세요.");
+    const fieldErrors = validateSignup(form, agree);
+    setErrors(fieldErrors);
+    if (Object.keys(fieldErrors).length > 0) {
       return;
     }
     const phone = form.phone.replace(/[^0-9]/g, "");
-    if (phone.length < 10) {
-      setError("배송·발송 안내를 받을 휴대폰 번호를 정확히 입력해 주세요.");
-      return;
-    }
     const postcode = form.postcode.trim();
     const address = form.address.trim();
-    if (!postcode || !address) {
-      setError("배송을 위해 주소가 필요합니다. ‘주소 검색’으로 우편번호와 주소를 채워 주세요.");
-      return;
-    }
 
     setBusy(true);
     try {
@@ -123,6 +131,7 @@ export default function SignupPage() {
           label="이름"
           autoComplete="name"
           required
+          error={errors.name}
           value={form.name}
           onChange={(e) => update("name", e.target.value)}
         />
@@ -132,10 +141,11 @@ export default function SignupPage() {
           hint="입금 확인 후 발송 안내 문자를 받는 번호입니다."
           inputMode="numeric"
           autoComplete="tel"
-          placeholder="01012345678"
+          placeholder="010-1234-5678"
           required
+          error={errors.phone}
           value={form.phone}
-          onChange={(e) => update("phone", e.target.value)}
+          onChange={(e) => update("phone", formatPhoneKR(e.target.value))}
         />
         <Field
           id="email"
@@ -143,6 +153,7 @@ export default function SignupPage() {
           type="email"
           autoComplete="email"
           required
+          error={errors.email}
           value={form.email}
           onChange={(e) => update("email", e.target.value)}
         />
@@ -150,12 +161,23 @@ export default function SignupPage() {
           id="password"
           label="비밀번호"
           hint="6자 이상."
-          type="password"
+          type={showPw ? "text" : "password"}
           autoComplete="new-password"
           minLength={6}
           required
+          error={errors.password}
           value={form.password}
           onChange={(e) => update("password", e.target.value)}
+          trailing={
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              aria-label={showPw ? "비밀번호 숨기기" : "비밀번호 표시"}
+              className="px-2 text-[12px] font-medium text-mute transition-colors hover:text-gold-deep"
+            >
+              {showPw ? "숨기기" : "보기"}
+            </button>
+          }
         />
 
         <div className="flex items-end gap-3">
@@ -165,15 +187,18 @@ export default function SignupPage() {
               label="우편번호"
               inputMode="numeric"
               required
+              error={errors.postcode}
               value={form.postcode}
               onChange={(e) => update("postcode", e.target.value)}
             />
           </div>
           <div className="pb-1">
             <AddressSearch
-              onSelect={(postcode, address) =>
-                setForm((prev) => ({ ...prev, postcode, address }))
-              }
+              onSelect={(postcode, address) => {
+                setForm((prev) => ({ ...prev, postcode, address }));
+                clearError("postcode");
+                clearError("address");
+              }}
             />
           </div>
         </div>
@@ -182,6 +207,7 @@ export default function SignupPage() {
           label="주소"
           autoComplete="street-address"
           required
+          error={errors.address}
           value={form.address}
           onChange={(e) => update("address", e.target.value)}
         />
@@ -196,7 +222,10 @@ export default function SignupPage() {
           <input
             type="checkbox"
             checked={agree}
-            onChange={(e) => setAgree(e.target.checked)}
+            onChange={(e) => {
+              setAgree(e.target.checked);
+              if (e.target.checked) clearError("agree");
+            }}
             className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
           />
           <span>
@@ -210,6 +239,11 @@ export default function SignupPage() {
             에 동의합니다.
           </span>
         </label>
+        {errors.agree && (
+          <p role="alert" className="-mt-2 text-[13px] text-red-600">
+            {errors.agree}
+          </p>
+        )}
 
         <label className="flex items-start gap-2.5 text-[14px] leading-relaxed text-ink-soft">
           <input
