@@ -29,24 +29,25 @@ export function Hero() {
             width={800}
             height={800}
             priority
-            className="mb-6 w-[176px] max-w-full sm:w-[208px]"
+            className="mb-7 w-[168px] max-w-full sm:w-[196px]"
           />
-          <p className="font-serif-kr text-[22px] font-semibold tracking-[0.01em] text-ink sm:text-[27px]">
+          {/* 브랜드 락업 — 헤드라인을 위한 조용한 윗단 */}
+          <p className="font-serif-kr text-[13px] font-semibold tracking-[0.02em] text-ink-soft sm:text-[14px]">
             송영신목장
           </p>
-          <p className="gold-foil mt-2 font-display text-[18px] font-bold uppercase tracking-[0.3em] sm:text-[23px]">
+          <p className="mt-1.5 font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-gold-deep sm:text-[12px]">
             A2 · Jersey · Hay Milk
           </p>
-          <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.16] tracking-[-0.01em] text-ink">
+          <h1 className="mt-5 text-balance font-serif-kr text-[clamp(2.15rem,6.6vw,4.25rem)] font-medium leading-[1.1] tracking-[-0.02em] text-ink">
             영국 왕실의 저지, 황금빛 로얄 밀크.
             <br />
             <span className="gold-foil">명품은, 향으로 증명됩니다.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-md text-[14px] leading-relaxed text-ink-soft sm:text-[15px] lg:mx-0">
+          <p className="mx-auto mt-6 max-w-md text-[15px] leading-relaxed text-ink-soft sm:text-[16px] lg:mx-0">
             코끝엔 청정 건초가 남긴 테르펜 향, 혀끝엔 저지 젖소의 진한 크리미함. 여기에 A2 단백질까지 —
             송영신목장이 한 병에 담은 단 하나의 우유입니다.
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
             <Link
               href="/signup"
               className="w-full rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform hover:scale-[1.03] active:scale-[0.98] sm:w-auto"
