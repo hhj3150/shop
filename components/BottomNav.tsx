@@ -21,8 +21,8 @@ const EXTERNAL = [
     ),
   },
   {
-    label: "브랜드영상",
-    href: "https://youtu.be/bI5EmgK0i2A?si=MK61I2LYE3wQsx4S",
+    label: "MILK ROAD",
+    href: "https://youtu.be/bbr2yvqV_6Y?si=_MqELOrg0XBYydfd",
     color: "#e0352b", // 유튜브 레드
     tint: "#fce4e2",
     icon: (
