@@ -34,17 +34,17 @@ export function Hero() {
           <p className="font-serif-kr text-[22px] font-semibold tracking-[0.01em] text-ink sm:text-[27px]">
             송영신목장
           </p>
-          <p className="gold-foil mt-2 font-display text-[16px] font-semibold uppercase tracking-[0.28em] sm:text-[19px]">
-            A2 Jersey Hay Milk
+          <p className="gold-foil mt-2 font-display text-[18px] font-bold uppercase tracking-[0.3em] sm:text-[23px]">
+            A2 · Jersey · Hay Milk
           </p>
           <h1 className="mt-5 font-serif-kr text-[clamp(2.1rem,7vw,4rem)] font-medium leading-[1.16] tracking-[-0.01em] text-ink">
-            우유라 부르기엔, 너무 드뭅니다.
+            영국 왕실의 저지, 황금빛 로얄 밀크.
             <br />
-            <span className="gold-foil">0.01%. 한 모금이면 압니다.</span>
+            <span className="gold-foil">명품은, 향으로 증명됩니다.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-md text-[14px] leading-relaxed text-ink-soft sm:text-[15px] lg:mx-0">
-            매주 한 병, 목장에서 갓 짜낸 그대로 문 앞까지. 회원제 정기구독이 기본이지만,
-            가볍게 단품으로 한 번 맛보셔도 좋습니다.
+            코끝엔 청정 건초가 남긴 테르펜 향, 혀끝엔 저지 젖소의 진한 크리미함. 여기에 A2 단백질까지 —
+            송영신목장이 한 병에 담은 단 하나의 우유입니다.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
             <Link
