@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Reveal } from "./Reveal";
 import { SlotAvailability } from "./SlotAvailability";
+import { SocialProof } from "./SocialProof";
 
 const STEPS = [
   {
@@ -50,6 +51,7 @@ export function SubscriptionBand() {
             모시고, 한 자리가 비는 날 가장 먼저 안내드립니다.
           </p>
           <SlotAvailability />
+          <SocialProof variant="dark" />
         </Reveal>
 
         <div className="mt-12 grid gap-10 sm:grid-cols-3">
