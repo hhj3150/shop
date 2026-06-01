@@ -42,18 +42,18 @@ function Complete() {
             <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
-        <h1 className="mt-6 font-serif-kr text-2xl font-medium text-ink">
+        <h1 className="mt-7 font-serif-kr text-[26px] font-medium leading-tight tracking-[-0.01em] text-ink">
           결제가 완료되지 않았습니다
         </h1>
         {orderNo && (
-          <p className="mt-2 text-[14px] tabular-nums text-mute">주문번호 {orderNo}</p>
+          <p className="mt-3 inline-block rounded-full border border-line bg-cream/80 px-3.5 py-1.5 text-[13px] tabular-nums text-mute">주문번호 {orderNo}</p>
         )}
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-[14px] leading-relaxed text-red-700">
           {failMessage || "결제가 취소되었거나 승인되지 않았습니다."}
           <br />
           주문은 입금 대기 상태로 남아 있으니 다시 시도하실 수 있습니다.
         </div>
-        <div className="mt-8 flex justify-center gap-3">
+        <div className="mt-9 flex justify-center gap-3">
           <Link href={isOnce ? "/order-once" : "/#subscribe"} className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
             다시 시도
           </Link>
@@ -68,16 +68,16 @@ function Complete() {
   if (isOnce) {
     return (
       <div className="mx-auto max-w-md px-5 pb-24 pt-32 text-center sm:px-8">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gold/15">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9a7838" strokeWidth="2">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gold/15 ring-1 ring-gold/25 shadow-[0_12px_30px_-10px_rgba(154,120,56,0.5)]">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9a7838" strokeWidth="2">
             <path d="M5 12l4.5 4.5L19 7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
-        <h1 className="mt-6 font-serif-kr text-2xl font-medium text-ink">
+        <h1 className="mt-7 font-serif-kr text-[26px] font-medium leading-tight tracking-[-0.01em] text-ink">
           주문이 접수되었습니다
         </h1>
         {orderNo && (
-          <p className="mt-2 text-[14px] tabular-nums text-mute">주문번호 {orderNo}</p>
+          <p className="mt-3 inline-block rounded-full border border-line bg-cream/80 px-3.5 py-1.5 text-[13px] tabular-nums text-mute">주문번호 {orderNo}</p>
         )}
 
         {ship && (
@@ -100,9 +100,9 @@ function Complete() {
             <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
             <DepositAccount />
             {amount > 0 && (
-              <div className="mt-4 flex items-baseline justify-between border-t border-gold/30 pt-4">
+              <div className="mt-4 flex items-baseline justify-between border-t border-dashed border-gold/40 pt-4">
                 <span className="text-[14px] text-mute">입금 금액</span>
-                <span className="font-serif-kr text-xl tabular-nums text-ink">
+                <span className="font-serif-kr text-[22px] tabular-nums text-gold-deep">
                   {formatKRW(amount)}
                 </span>
               </div>
@@ -122,7 +122,7 @@ function Complete() {
           </p>
         )}
 
-        <div className="mt-8 flex justify-center gap-3">
+        <div className="mt-9 flex justify-center gap-3">
           {!isGuest && (
             <Link href="/account" className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
               내 주문 보기
@@ -145,16 +145,16 @@ function Complete() {
 
   return (
     <div className="mx-auto max-w-md px-5 pb-24 pt-32 text-center sm:px-8">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gold/15">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#9a7838" strokeWidth="2">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gold/15 ring-1 ring-gold/25 shadow-[0_12px_30px_-10px_rgba(154,120,56,0.5)]">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9a7838" strokeWidth="2">
           <path d="M5 12l4.5 4.5L19 7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
-      <h1 className="mt-6 font-serif-kr text-2xl font-medium text-ink">
+      <h1 className="mt-7 font-serif-kr text-[26px] font-medium leading-tight tracking-[-0.01em] text-ink">
         {waitlisted ? "대기자로 등록되었습니다" : "구독 신청이 접수되었습니다"}
       </h1>
       {orderNo && (
-        <p className="mt-2 text-[14px] tabular-nums text-mute">주문번호 {orderNo}</p>
+        <p className="mt-3 inline-block rounded-full border border-line bg-cream/80 px-3.5 py-1.5 text-[13px] tabular-nums text-mute">주문번호 {orderNo}</p>
       )}
 
       {day && pos > 0 && (
@@ -193,9 +193,9 @@ function Complete() {
           </p>
           <DepositAccount />
           {amount > 0 && (
-            <div className="mt-4 flex items-baseline justify-between border-t border-gold/30 pt-4">
+            <div className="mt-4 flex items-baseline justify-between border-t border-dashed border-gold/40 pt-4">
               <span className="text-[14px] text-mute">입금 금액 (기간분 일괄)</span>
-              <span className="font-serif-kr text-xl tabular-nums text-ink">
+              <span className="font-serif-kr text-[22px] tabular-nums text-gold-deep">
                 {formatKRW(amount)}
               </span>
             </div>
@@ -214,7 +214,7 @@ function Complete() {
         </div>
       )}
 
-      <div className="mt-8 flex justify-center gap-3">
+      <div className="mt-9 flex justify-center gap-3">
         <Link href="/account" className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
           내 구독 보기
         </Link>

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW, PERIOD_LABEL, type SubPeriod } from "@/lib/products";
-import { DELIVERY_DAY_LABEL } from "@/lib/cart";
+import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
 import {
   getMySubscriptions,
   pauseSubscription,
@@ -35,6 +35,17 @@ type OrderRow = {
   created_at: string;
 };
 
+// 주문 품목 한 줄(제품·용량·단가·수량·요일). 분쟁 방지를 위해 단가와 줄 합계,
+//   구독 배송요일까지 고객에게 그대로 보여준다(관리자 화면과 동일한 원장).
+type OrderItemRow = {
+  order_id: string;
+  product_name: string;
+  volume: string;
+  qty: number;
+  unit_price: number;
+  delivery_day: DeliveryDay | null;
+};
+
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("ko-KR", {
@@ -44,10 +55,55 @@ function fmtDate(iso: string | null): string {
   });
 }
 
+// 주문 시각(연·월·일 시:분). 분쟁 시 "언제 주문했는지" 근거가 되도록 분 단위까지 표기.
+function fmtDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// 본인 주문 + 품목을 한 번에 조회(RLS가 본인으로 한정). setState 없는 순수 조회 함수 —
+//   effect/핸들러 양쪽에서 재사용하고, 호출부에서 결과로 상태를 갱신한다.
+async function fetchOrdersWithItems(): Promise<{
+  orders: OrderRow[];
+  items: Record<string, OrderItemRow[]>;
+}> {
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from("orders")
+    .select("id, order_no, status, total_amount, courier, tracking_no, created_at")
+    .order("created_at", { ascending: false });
+  const orders = (data as OrderRow[]) ?? [];
+  if (orders.length === 0) return { orders, items: {} };
+
+  const { data: itemData } = await supabase
+    .from("order_items")
+    .select("order_id, product_name, volume, qty, unit_price, delivery_day")
+    .in(
+      "order_id",
+      orders.map((o) => o.id)
+    );
+  // order_id 별로 묶는다(불변 누적).
+  const items = ((itemData as OrderItemRow[]) ?? []).reduce<Record<string, OrderItemRow[]>>(
+    (acc, it) => ({
+      ...acc,
+      [it.order_id]: [...(acc[it.order_id] ?? []), it],
+    }),
+    {}
+  );
+  return { orders, items };
+}
+
 export default function AccountPage() {
   const router = useRouter();
   const { ready, user, profile, signOut } = useAuth();
   const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [orderItems, setOrderItems] = useState<Record<string, OrderItemRow[]>>({});
   const [subs, setSubs] = useState<MySubscription[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
   const [busyOrder, setBusyOrder] = useState<string | null>(null);
@@ -60,17 +116,25 @@ export default function AccountPage() {
     if (ready && !user) router.replace("/login?next=/account");
   }, [ready, user, router]);
 
-  function reloadOrders() {
-    getSupabase()
-      .from("orders")
-      .select("id, order_no, status, total_amount, courier, tracking_no, created_at")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setOrders((data as OrderRow[]) ?? []));
+  // 핸들러(주문 취소·갱신)에서 호출하는 재조회 래퍼.
+  async function reloadOrders() {
+    const { orders, items } = await fetchOrdersWithItems();
+    setOrders(orders);
+    setOrderItems(items);
   }
 
   useEffect(() => {
     if (!user) return;
-    reloadOrders();
+    let alive = true;
+    (async () => {
+      const { orders, items } = await fetchOrdersWithItems();
+      if (!alive) return;
+      setOrders(orders);
+      setOrderItems(items);
+    })();
+    return () => {
+      alive = false;
+    };
   }, [user]);
 
   function reloadSubs() {
@@ -461,7 +525,7 @@ export default function AccountPage() {
                   <div>
                     <p className="text-[14px] tabular-nums text-ink">{o.order_no}</p>
                     <p className="mt-0.5 text-[13px] text-mute">
-                      {new Date(o.created_at).toLocaleDateString("ko-KR")}
+                      {fmtDateTime(o.created_at)}
                     </p>
                   </div>
                   <div className="text-right">
@@ -471,6 +535,33 @@ export default function AccountPage() {
                     </p>
                   </div>
                 </div>
+                {orderItems[o.id]?.length ? (
+                  <ul className="mt-3 space-y-1.5 border-t border-line pt-3">
+                    {orderItems[o.id].map((it, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-baseline justify-between gap-3 text-[13px]"
+                      >
+                        <span className="text-ink-soft">
+                          {it.product_name}{" "}
+                          <span className="text-mute">{it.volume}</span>
+                          {it.delivery_day ? (
+                            <span className="text-mute">
+                              {" · "}
+                              {DELIVERY_DAY_LABEL[it.delivery_day]} 배송
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-ink">
+                          <span className="text-mute">
+                            {formatKRW(it.unit_price)} × {it.qty}
+                          </span>{" "}
+                          = {formatKRW(it.unit_price * it.qty)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 {o.tracking_no && (
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-paper-2 px-3 py-2.5">
                     <p className="text-[13px] text-ink-soft">

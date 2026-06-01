@@ -44,7 +44,8 @@ export function ProductionPanel({
 }) {
   const [date, setDate] = useState(todayISO());
   const [draft, setDraft] = useState<Record<string, DraftRow>>({});
-  const [lossPct, setLossPct] = useState(5);
+  // 로스(손실)는 1회 생산당 고정 L. 통상 20L. (백분율이 아니라 고정 손실량으로 운영)
+  const [lossL, setLossL] = useState(20);
   const [intake, setIntake] = useState(0);
   const [intakeNote, setIntakeNote] = useState("");
   const [b2bTotals, setB2bTotals] = useState<Record<string, number>>({});
@@ -142,10 +143,19 @@ export function ProductionPanel({
     return m;
   }, [draft]);
 
-  // 실제 생산에 투입된 원유 환산(L) = 생산량 기준 원유 추정치.
-  const rawUsed = rawMilkLiters(producedQty, lossPct);
+  // 당일 총 필요 수량(온라인 + B2B) — 제품키별 개수.
+  const requiredQty = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const key of PRODUCTION_KEYS) m[key] = requiredFor(key);
+    return m;
+  }, [requiredFor]);
+
+  // 당일 원유 필요량(L) = 총 필요 수량을 만들기 위한 원유 + 1회 로스(20L 기본).
+  const rawRequired = rawMilkLiters(requiredQty, lossL);
+  // 실제 생산에 투입된 원유 환산(L) = 생산량 + 로스.
+  const rawUsed = rawMilkLiters(producedQty, lossL);
   // 생산계획 기준 필요 원유(참고용).
-  const rawPlanned = rawMilkLiters(plannedQty, lossPct);
+  const rawPlanned = rawMilkLiters(plannedQty, lossL);
   // 원유 수지 = 당일 입고 − 생산 투입. 음수면 부족.
   const milkBalance = Math.round((intake - rawUsed) * 10) / 10;
 
@@ -202,8 +212,13 @@ export function ProductionPanel({
       </div>
 
       {/* 원유 입고 + 환산 요약 */}
-      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="총 필요(개)" value={`${totalRequired}`} />
+        <Stat
+          label="당일 원유 필요량"
+          value={`${rawRequired.toLocaleString("ko-KR")} L`}
+          tone="gold"
+        />
         <label className="rounded-2xl border border-line bg-cream p-4">
           <span className="text-[13px] text-mute">당일 원유 입고</span>
           <span className="mt-1 flex items-baseline gap-1">
@@ -228,16 +243,17 @@ export function ProductionPanel({
           tone={milkBalance < 0 ? "danger" : milkBalance > 0 ? "gold" : "mute"}
         />
         <label className="rounded-2xl border border-line bg-cream p-4">
-          <span className="text-[13px] text-mute">손실·여유율</span>
+          <span className="text-[13px] text-mute">회당 로스(고정)</span>
           <span className="mt-1 flex items-baseline gap-1">
             <input
               type="number"
               min={0}
-              value={lossPct}
-              onChange={(e) => setLossPct(Math.max(0, Number(e.target.value) || 0))}
+              step="0.1"
+              value={lossL}
+              onChange={(e) => setLossL(Math.max(0, Number(e.target.value) || 0))}
               className="w-16 rounded-lg border border-line bg-paper px-2 py-1 font-serif-kr text-xl tabular-nums text-ink"
             />
-            <span className="font-serif-kr text-xl text-ink">%</span>
+            <span className="font-serif-kr text-xl text-ink">L</span>
           </span>
         </label>
       </div>
@@ -385,7 +401,8 @@ export function ProductionPanel({
 
       {/* 참고: 생산계획 기준 필요 원유 */}
       <p className="mt-4 text-[13px] text-mute">
-        참고 · 생산계획 기준 필요 원유: {rawPlanned.toLocaleString("ko-KR")} L
+        참고 · 생산계획 기준 필요 원유: {rawPlanned.toLocaleString("ko-KR")} L · 로스는 1회
+        생산당 고정 {lossL}L로 계산합니다(생산이 있는 날만 가산).
       </p>
     </section>
   );

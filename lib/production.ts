@@ -34,19 +34,28 @@ export function volumeMl(productKey: string): number {
   return VOLUME_ML[productKey] ?? 0;
 }
 
-// 수량 입력(제품키→개수)을 받아 원유 환산(L)을 계산.
-//   기본 환산 = Σ(용량mL × 개수) / 1000, 여기에 손실/여유율(lossPct, %)을 더한다.
-//   정밀 수율이 아닌 운영용 추정치 — 생산자가 lossPct로 보정한다.
-export function rawMilkLiters(
-  quantities: Readonly<Record<string, number>>,
-  lossPct: number
+// 수량(제품키→개수)만으로 환산한 순(純) 원유량(L) = Σ(용량mL × 개수) / 1000.
+//   로스(손실)는 포함하지 않은 제품 용량 기준 값.
+export function rawMilkBaseLiters(
+  quantities: Readonly<Record<string, number>>
 ): number {
   const baseMl = PRODUCTION_KEYS.reduce(
     (sum, key) => sum + volumeMl(key) * (quantities[key] ?? 0),
     0
   );
-  const factor = 1 + Math.max(0, lossPct) / 100;
-  return Math.round((baseMl / 1000) * factor * 10) / 10;
+  return Math.round((baseMl / 1000) * 10) / 10;
+}
+
+// 수량(제품키→개수)을 받아 실제 필요한 원유(L)를 계산.
+//   = 순 원유량(제품 용량) + 1회 생산당 고정 로스(lossLiters, 통상 20L).
+//   생산량이 0이면 로스도 0(그 날 생산이 없으면 원유도 필요 없다).
+export function rawMilkLiters(
+  quantities: Readonly<Record<string, number>>,
+  lossLiters: number
+): number {
+  const base = rawMilkBaseLiters(quantities);
+  if (base === 0) return 0;
+  return Math.round((base + Math.max(0, lossLiters)) * 10) / 10;
 }
 
 // 특정 날짜의 생산 기록을 모두 조회 → 제품키로 인덱싱한 맵으로 반환.

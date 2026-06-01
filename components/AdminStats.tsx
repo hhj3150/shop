@@ -19,6 +19,7 @@ type Item = {
   volume: string;
   qty: number;
   unit_price: number;
+  delivery_day?: DeliveryDay | null;
 };
 type Slot = { delivery_day: DeliveryDay; status: string };
 
@@ -54,6 +55,31 @@ export function AdminStats({
       active + canceled ? Math.round((active / (active + canceled)) * 100) : null;
     return { revenue, aov, conversion, active, canceled, retention };
   }, [orders, slots]);
+
+  // ── 재구매율 (확정 주문 2건 이상 회원 비중) ──────────────
+  const repeatRate = useMemo(() => {
+    const byUser = new Map<string, number>();
+    for (const o of orders) {
+      if (!isConfirmed(o.status)) continue;
+      byUser.set(o.user_id, (byUser.get(o.user_id) ?? 0) + 1);
+    }
+    const buyers = byUser.size;
+    const repeat = Array.from(byUser.values()).filter((n) => n >= 2).length;
+    return buyers ? Math.round((repeat / buyers) * 100) : null;
+  }, [orders]);
+
+  // ── 요일별 매출 (확정 구독 1회분, 단품은 요일 없음 → 제외) ─
+  const dayRevenue = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const it of items) {
+      if (!confirmedIds.has(it.order_id)) continue;
+      if (!it.delivery_day) continue;
+      m[it.delivery_day] = (m[it.delivery_day] ?? 0) + it.unit_price * it.qty;
+    }
+    const rows = DELIVERY_DAYS.map((d) => ({ day: d, revenue: m[d] ?? 0 }));
+    const max = Math.max(1, ...rows.map((r) => r.revenue));
+    return rows.map((r) => ({ ...r, pct: Math.round((r.revenue / max) * 100) }));
+  }, [items, confirmedIds]);
 
   // ── 요일별 점유율 ────────────────────────────────────────
   const dayOccupancy = useMemo(
@@ -126,7 +152,7 @@ export function AdminStats({
       </p>
 
       {/* KPI */}
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
         <Kpi label="회원 수" value={`${memberCount}명`} />
         <Kpi label="활성 구독자" value={`${kpi.active}명`} />
         <Kpi label="평균 주문액" value={formatKRW(kpi.aov)} />
@@ -136,6 +162,10 @@ export function AdminStats({
           value={kpi.retention === null ? "—" : `${kpi.retention}%`}
         />
         <Kpi label="해지" value={`${kpi.canceled}명`} />
+        <Kpi
+          label="재구매율"
+          value={repeatRate === null ? "—" : `${repeatRate}%`}
+        />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -181,6 +211,29 @@ export function AdminStats({
           )}
         </Card>
       </div>
+
+      {/* 요일별 매출 */}
+      <Card title="요일별 매출" sub="확정 구독 1회분 (단품 제외)" className="mt-6">
+        {dayRevenue.every((d) => d.revenue === 0) ? (
+          <p className="py-6 text-center text-[14px] text-mute">
+            확정 구독이 아직 없습니다.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {dayRevenue.map((d) => (
+              <li key={d.day} className="flex items-center gap-3">
+                <span className="w-7 shrink-0 text-[14px] text-ink-soft">
+                  {DELIVERY_DAY_LABEL[d.day].charAt(0)}
+                </span>
+                <Bar pct={d.pct} />
+                <span className="w-24 shrink-0 text-right text-[13px] tabular-nums text-mute">
+                  {formatKRW(d.revenue)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       {/* 주차별 매출 추이 */}
       <Card title="주차별 매출 추이" sub="최근 8주 · 확정 입금 기준" className="mt-6">

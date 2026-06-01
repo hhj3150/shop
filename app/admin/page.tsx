@@ -17,9 +17,15 @@ import { notify } from "@/lib/notify";
 import { AdminStats } from "@/components/AdminStats";
 import { BroadcastPanel } from "@/components/BroadcastPanel";
 import { ProductionPanel } from "@/components/ProductionPanel";
+import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
+import { MemberOrdersModal } from "@/components/MemberOrdersModal";
+import { ProductAdminPanel } from "@/components/ProductAdminPanel";
+import { DispatchPanel } from "@/components/DispatchPanel";
+import { ReturnsPanel } from "@/components/ReturnsPanel";
+import { SettlementPanel } from "@/components/SettlementPanel";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
-const TABS = ["종합 관리", "생산·재고"] as const;
+const TABS = ["종합 관리", "생산·재고", "상품·재고", "배송", "환불·교환", "정산·세금"] as const;
 type AdminTab = (typeof TABS)[number];
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
@@ -106,6 +112,17 @@ type ProfileRow = {
   created_at: string | null;
 };
 
+// 고객 등급(세그먼트) — 구독여부 + 최근 주문 경과일로 분류.
+type MemberSegment = "구독중" | "활성" | "주의" | "휴면" | "신규";
+const SEGMENTS: readonly MemberSegment[] = ["구독중", "활성", "주의", "휴면", "신규"];
+const SEGMENT_TONE: Record<MemberSegment, string> = {
+  구독중: "bg-gold/15 text-gold-deep",
+  활성: "bg-emerald-100 text-emerald-700",
+  주의: "bg-amber-100 text-amber-700",
+  휴면: "bg-ink/10 text-mute",
+  신규: "bg-sky-100 text-sky-700",
+};
+
 function todayISO(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -145,6 +162,11 @@ export default function AdminPage() {
   const [date, setDate] = useState(todayISO());
   const [tab, setTab] = useState<AdminTab>("종합 관리");
   const [memberQuery, setMemberQuery] = useState("");
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [selectedMember, setSelectedMember] = useState<string | null>(null);
+  // 마운트 시점 기준 '지금' — 회원 최근주문 경과일(recencyDays) 계산용.
+  //   렌더 중 Date.now() 직접 호출(비순수)을 피하려 1회만 고정한다.
+  const [now] = useState(() => Date.now());
 
   const isAdmin = Boolean(profile?.is_admin);
 
@@ -191,6 +213,21 @@ export default function AdminPage() {
   const orderById = useMemo(
     () => new Map(orders.map((o) => [o.id, o])),
     [orders]
+  );
+  // 주문별 품목 묶음 — 주문 드릴다운(주문 관리 표 펼치기)·회원 주문 모달에서 공용으로 쓴다.
+  const itemsByOrder = useMemo(() => {
+    const m = new Map<string, ItemRow[]>();
+    for (const it of items) {
+      const arr = m.get(it.order_id) ?? [];
+      arr.push(it);
+      m.set(it.order_id, arr);
+    }
+    return m;
+  }, [items]);
+  // 선택한 회원의 주문(최신순) — 회원 주문 이력 모달용.
+  const selectedMemberOrders = useMemo(
+    () => (selectedMember ? orders.filter((o) => o.user_id === selectedMember) : []),
+    [selectedMember, orders]
   );
   const nameByUser = useMemo(
     () => new Map(profiles.map((p) => [p.id, p.name])),
@@ -379,26 +416,89 @@ export default function AdminPage() {
     [cancellations]
   );
 
-  // ── 회원 전체 ─────────────────────────────────────────────
-  // 회원별 주문 건수·활성 구독 수를 함께 묶어 한눈에 본다.
-  type MemberRow = ProfileRow & { orderCount: number; activeSubs: number };
+  // ── 회원 전체 + 소비자 분석(CRM) ─────────────────────────
+  // 회원별로 누적구매(LTV)·확정주문수·객단가(AOV)·최근주문·활성구독을 집계하고,
+  //   최근성(recency)과 구독여부로 고객 등급(세그먼트)을 부여한다.
+  type MemberRow = ProfileRow & {
+    orderCount: number;
+    activeSubs: number;
+    ltv: number; // 확정(입금확인 이후) 주문 금액 합계
+    confirmedCount: number;
+    aov: number; // 객단가 = ltv / confirmedCount
+    lastOrderAt: string | null;
+    recencyDays: number | null;
+    segment: MemberSegment;
+  };
   const memberRows = useMemo<MemberRow[]>(() => {
     const orderCountByUser = new Map<string, number>();
+    const ltvByUser = new Map<string, number>();
+    const confirmedByUser = new Map<string, number>();
+    const lastOrderByUser = new Map<string, string>();
     for (const o of orders) {
       orderCountByUser.set(o.user_id, (orderCountByUser.get(o.user_id) ?? 0) + 1);
+      const prev = lastOrderByUser.get(o.user_id);
+      if (!prev || o.created_at > prev) lastOrderByUser.set(o.user_id, o.created_at);
+      if (confirmedOrderIds.has(o.id)) {
+        ltvByUser.set(o.user_id, (ltvByUser.get(o.user_id) ?? 0) + o.total_amount);
+        confirmedByUser.set(o.user_id, (confirmedByUser.get(o.user_id) ?? 0) + 1);
+      }
     }
     const activeByUser = new Map<string, number>();
     for (const s of slots) {
       if (s.status === "활성") activeByUser.set(s.user_id, (activeByUser.get(s.user_id) ?? 0) + 1);
     }
     return [...profiles]
-      .map((p) => ({
-        ...p,
-        orderCount: orderCountByUser.get(p.id) ?? 0,
-        activeSubs: activeByUser.get(p.id) ?? 0,
-      }))
-      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
-  }, [profiles, orders, slots]);
+      .map((p) => {
+        const activeSubs = activeByUser.get(p.id) ?? 0;
+        const confirmedCount = confirmedByUser.get(p.id) ?? 0;
+        const ltv = ltvByUser.get(p.id) ?? 0;
+        const lastOrderAt = lastOrderByUser.get(p.id) ?? null;
+        const recencyDays = lastOrderAt
+          ? Math.floor((now - new Date(lastOrderAt).getTime()) / 86_400_000)
+          : null;
+        const segment: MemberSegment =
+          activeSubs > 0
+            ? "구독중"
+            : confirmedCount === 0
+              ? "신규"
+              : recencyDays !== null && recencyDays <= 45
+                ? "활성"
+                : recencyDays !== null && recencyDays <= 90
+                  ? "주의"
+                  : "휴면";
+        return {
+          ...p,
+          orderCount: orderCountByUser.get(p.id) ?? 0,
+          activeSubs,
+          ltv,
+          confirmedCount,
+          aov: confirmedCount ? Math.round(ltv / confirmedCount) : 0,
+          lastOrderAt,
+          recencyDays,
+          segment,
+        };
+      })
+      .sort((a, b) => b.ltv - a.ltv || (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+  }, [profiles, orders, slots, confirmedOrderIds, now]);
+
+  // 세그먼트별 인원 — 분석 요약 칩.
+  const segmentCounts = useMemo(() => {
+    const m: Record<MemberSegment, number> = {
+      구독중: 0,
+      활성: 0,
+      주의: 0,
+      휴면: 0,
+      신규: 0,
+    };
+    for (const r of memberRows) m[r.segment] += 1;
+    return m;
+  }, [memberRows]);
+
+  // 선택한 회원의 분석 요약(모달 헤더용).
+  const selectedMemberRow = useMemo(
+    () => memberRows.find((m) => m.id === selectedMember) ?? null,
+    [memberRows, selectedMember]
+  );
 
   const filteredMembers = useMemo(() => {
     const q = memberQuery.trim().toLowerCase();
@@ -413,7 +513,10 @@ export default function AdminPage() {
 
   function exportMembersCsv() {
     const rows: string[][] = [
-      ["이름", "연락처", "우편번호", "주소", "상세주소", "가입일", "마케팅수신", "주문수", "활성구독"],
+      [
+        "이름", "연락처", "우편번호", "주소", "상세주소", "가입일", "마케팅수신",
+        "주문수", "활성구독", "누적구매(LTV)", "확정주문", "객단가", "최근주문", "최근경과(일)", "등급",
+      ],
     ];
     for (const m of memberRows) {
       rows.push([
@@ -426,9 +529,15 @@ export default function AdminPage() {
         m.marketing_consent ? "동의" : "미동의",
         String(m.orderCount),
         String(m.activeSubs),
+        String(m.ltv),
+        String(m.confirmedCount),
+        String(m.aov),
+        m.lastOrderAt ? new Date(m.lastOrderAt).toLocaleDateString("ko-KR") : "",
+        m.recencyDays === null ? "" : String(m.recencyDays),
+        m.segment,
       ]);
     }
-    downloadCsv("회원_전체명단.csv", rows);
+    downloadCsv("회원_소비자분석.csv", rows);
   }
 
   // ── 액션 ─────────────────────────────────────────────────
@@ -611,6 +720,16 @@ export default function AdminPage() {
 
       {tab === "생산·재고" && <ProductionPanel onlineDemandForDate={onlineDemandForDate} />}
 
+      {tab === "상품·재고" && <ProductAdminPanel />}
+
+      {tab === "배송" && (
+        <DispatchPanel orders={orders} itemsByOrder={itemsByOrder} onReload={load} />
+      )}
+
+      {tab === "환불·교환" && <ReturnsPanel orders={orders} />}
+
+      {tab === "정산·세금" && <SettlementPanel orders={orders} />}
+
       {tab === "종합 관리" && (
         <>
       {loading && <p className="mt-8 text-[14px] text-mute">데이터 불러오는 중…</p>}
@@ -647,30 +766,61 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+      {/* 세그먼트 요약 — 등급별 인원 */}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {SEGMENTS.map((seg) => (
+          <span
+            key={seg}
+            className={`rounded-full px-3 py-1 text-[13px] font-medium ${SEGMENT_TONE[seg]}`}
+          >
+            {seg} {segmentCounts[seg]}
+          </span>
+        ))}
+        <span className="rounded-full border border-line px-3 py-1 text-[13px] text-mute">
+          정렬: 누적구매 높은 순
+        </span>
+      </div>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[760px] border-collapse text-[14px]">
+        <table className="w-full min-w-[1000px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">이름</th>
+              <th className="py-2 font-normal">등급</th>
               <th className="py-2 font-normal">연락처</th>
               <th className="py-2 font-normal">주소</th>
               <th className="py-2 font-normal">가입일</th>
               <th className="py-2 text-center font-normal">마케팅</th>
               <th className="py-2 text-right font-normal">주문</th>
               <th className="py-2 text-right font-normal">활성구독</th>
+              <th className="py-2 text-right font-normal">누적구매</th>
+              <th className="py-2 text-right font-normal">최근주문</th>
             </tr>
           </thead>
           <tbody>
             {filteredMembers.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-4 text-center text-mute">
+                <td colSpan={10} className="py-4 text-center text-mute">
                   {memberRows.length === 0 ? "회원이 없습니다." : "검색 결과가 없습니다."}
                 </td>
               </tr>
             ) : (
               filteredMembers.map((m) => (
                 <tr key={m.id} className="border-b border-line/60 align-top">
-                  <td className="py-2.5 text-ink">{m.name || "—"}</td>
+                  <td className="py-2.5">
+                    <button
+                      onClick={() => setSelectedMember(m.id)}
+                      className="text-ink underline decoration-line underline-offset-2 transition-colors hover:text-gold-deep hover:decoration-gold"
+                    >
+                      {m.name || "—"}
+                    </button>
+                  </td>
+                  <td className="py-2.5">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[12px] font-medium ${SEGMENT_TONE[m.segment]}`}
+                    >
+                      {m.segment}
+                    </span>
+                  </td>
                   <td className="py-2.5 tabular-nums text-ink-soft">{m.phone || "—"}</td>
                   <td className="py-2.5 text-ink-soft">
                     {m.address
@@ -689,6 +839,10 @@ export default function AdminPage() {
                   </td>
                   <td className="py-2.5 text-right tabular-nums text-ink-soft">{m.orderCount || "·"}</td>
                   <td className="py-2.5 text-right tabular-nums text-gold-deep">{m.activeSubs || "·"}</td>
+                  <td className="py-2.5 text-right tabular-nums text-ink">{m.ltv ? formatKRW(m.ltv) : "·"}</td>
+                  <td className="py-2.5 text-right tabular-nums text-mute">
+                    {m.lastOrderAt ? new Date(m.lastOrderAt).toLocaleDateString("ko-KR") : "·"}
+                  </td>
                 </tr>
               ))
             )}
@@ -760,6 +914,9 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+
+      {/* 이번 주(월~금) 통합 생산·배송 계획 */}
+      <WeeklyPlanTable productKeys={productKeys} onlineDemandForDate={onlineDemandForDate} />
 
       {/* 당일/날짜별 배송 리스트 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">날짜별 배송 명단</h2>
@@ -949,10 +1106,21 @@ export default function AdminPage() {
             {orders.length === 0 ? (
               <tr><td colSpan={7} className="py-4 text-center text-mute">주문이 없습니다.</td></tr>
             ) : (
-              orders.map((o) => (
-                <tr key={o.id} className="border-b border-line/60 align-top">
+              orders.map((o) => {
+                const orderItems = itemsByOrder.get(o.id) ?? [];
+                const open = expandedOrder === o.id;
+                return (
+                <Fragment key={o.id}>
+                <tr className="border-b border-line/60 align-top">
                   <td className="py-2.5 tabular-nums text-ink">
-                    {o.order_no}
+                    <button
+                      onClick={() => setExpandedOrder(open ? null : o.id)}
+                      className="inline-flex items-center gap-1 transition-colors hover:text-gold-deep"
+                      aria-expanded={open}
+                    >
+                      <span className={`text-[11px] text-mute transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
+                      {o.order_no}
+                    </button>
                     {o.renews_slot_id && (
                       <span className="ml-1.5 rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-medium text-gold-deep">
                         연장
@@ -999,7 +1167,32 @@ export default function AdminPage() {
                     <TrackingCell order={o} onSave={saveTracking} />
                   </td>
                 </tr>
-              ))
+                {open && (
+                  <tr className="border-b border-line/60 bg-paper-2/40">
+                    <td colSpan={7} className="px-4 py-3">
+                      {orderItems.length === 0 ? (
+                        <span className="text-[13px] text-mute">담긴 품목 정보가 없습니다.</span>
+                      ) : (
+                        <ul className="flex flex-wrap gap-x-6 gap-y-1.5">
+                          {orderItems.map((it) => (
+                            <li key={it.id} className="text-[13px] text-ink-soft">
+                              {it.product_name} <span className="text-mute">{it.volume}</span>
+                              {it.delivery_day && (
+                                <span className="ml-1 text-mute">
+                                  ({DELIVERY_DAY_LABEL[it.delivery_day]})
+                                </span>
+                              )}
+                              <span className="ml-1.5 tabular-nums text-ink">×{it.qty}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -1014,6 +1207,24 @@ export default function AdminPage() {
         ))}
       </div>
         </>
+      )}
+
+      {selectedMember && (
+        <MemberOrdersModal
+          memberName={nameByUser.get(selectedMember) ?? "회원"}
+          summary={
+            selectedMemberRow && {
+              ltv: selectedMemberRow.ltv,
+              confirmedCount: selectedMemberRow.confirmedCount,
+              aov: selectedMemberRow.aov,
+              segment: selectedMemberRow.segment,
+              recencyDays: selectedMemberRow.recencyDays,
+            }
+          }
+          orders={selectedMemberOrders}
+          itemsByOrder={itemsByOrder}
+          onClose={() => setSelectedMember(null)}
+        />
       )}
     </div>
   );
