@@ -29,7 +29,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
   const { items, period, weeks, perDelivery, shipTotal, periodTotal, weeklyPrice, clear } = useCart();
-  const { map, refresh } = useStorefrontCatalog();
+  const { map, loading: catalogLoading, refresh } = useStorefrontCatalog();
   // 회당 상품 합계가 최소 주문금액 미만이면 신청 불가(버튼 비활성화 + 안내).
   const belowMin = perDelivery < MIN_ORDER_KRW;
   // 장바구니 항목 중 품절·판매중지가 하나라도 있으면 제출 차단(체크아웃 진입 재검증).
@@ -373,7 +373,7 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={busy || belowMin || hasBlocked}
+          disabled={busy || belowMin || hasBlocked || catalogLoading}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy

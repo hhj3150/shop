@@ -16,6 +16,8 @@ import {
   subShippingFee,
   type SubPeriod,
 } from "./products";
+import { useStorefrontCatalog } from "./storefront";
+import { mergeProduct } from "./storefront-merge";
 
 // 매주 1회 배송, 요일은 월–금 중 하나 선택.
 export type DeliveryDay = "mon" | "tue" | "wed" | "thu" | "fri";
@@ -99,11 +101,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [items, period, hydrated]);
 
+  // 가격 권위는 product_catalog(DB)다. 정적 price는 카탈로그 로드 전 폴백일 뿐.
+  const { map } = useStorefrontCatalog();
+
   const value = useMemo<CartContextValue>(() => {
     const rate = discountForPeriod(period);
     const weeklyPrice = (productId: string) => {
       const p = getProduct(productId);
-      return p ? subscribePrice(p.price, rate) : 0;
+      return p ? subscribePrice(mergeProduct(p, map.get(productId)).price, rate) : 0;
     };
     const count = items.reduce((n, i) => n + i.qty, 0);
     const perDelivery = items.reduce(
@@ -149,7 +154,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       remove: (key) => setItems((prev) => prev.filter((i) => i.key !== key)),
       clear: () => setItems([]),
     };
-  }, [items, period, isOpen]);
+  }, [items, period, isOpen, map]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
