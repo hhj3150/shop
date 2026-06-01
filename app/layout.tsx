@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_KR, Noto_Serif_KR, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
+import { SITE_URL } from "@/lib/site";
 import { CartProvider } from "@/lib/cart";
 import { AuthProvider } from "@/lib/auth";
 import { Nav } from "@/components/Nav";
@@ -30,7 +31,7 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://shop.a2jerseymilk.com"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "송영신목장 · A2 Jersey Hay Milk",
     template: "%s · 송영신목장",
