@@ -80,11 +80,14 @@ export default async function handler(): Promise<Response> {
       continue;
     }
     const m = buildRecoveryMessage(t, action);
-    await sendInfo(t.shipPhone, {
+    const result = await sendInfo(t.shipPhone, {
       text: m.text,
       subject: m.subject,
       alimtalk: { templateKey: m.templateKey, variables: m.variables },
     });
+    if (!result.ok) {
+      console.warn(`[payment-recovery] 발송 실패 ${t.orderNo}:`, result);
+    }
     sent += 1;
   }
 
