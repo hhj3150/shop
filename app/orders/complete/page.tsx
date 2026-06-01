@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { DepositAccount } from "@/components/DepositAccount";
+import { CopyAmount } from "@/components/CopyAmount";
 import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
 import { formatKRW } from "@/lib/products";
 import { DEPOSIT } from "@/lib/site";
@@ -102,9 +103,7 @@ function Complete() {
             {amount > 0 && (
               <div className="mt-4 flex items-baseline justify-between border-t border-dashed border-gold/40 pt-4">
                 <span className="text-[14px] text-mute">입금 금액</span>
-                <span className="font-serif-kr text-[22px] tabular-nums text-gold-deep">
-                  {formatKRW(amount)}
-                </span>
+                <CopyAmount amount={amount} />
               </div>
             )}
             <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
@@ -195,9 +194,7 @@ function Complete() {
           {amount > 0 && (
             <div className="mt-4 flex items-baseline justify-between border-t border-dashed border-gold/40 pt-4">
               <span className="text-[14px] text-mute">입금 금액 (기간분 일괄)</span>
-              <span className="font-serif-kr text-[22px] tabular-nums text-gold-deep">
-                {formatKRW(amount)}
-              </span>
+              <CopyAmount amount={amount} />
             </div>
           )}
           <p className="mt-4 text-[14px] leading-relaxed text-ink-soft">
