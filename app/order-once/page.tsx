@@ -13,7 +13,7 @@ import {
   ONCE_SHIPPING_KRW,
   onceShippingFee,
 } from "@/lib/products";
-import { createOnceOrder, type OnceItem } from "@/lib/orders";
+import { createOnceOrder, createGuestOnceOrder, type OnceItem } from "@/lib/orders";
 import { notify } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
@@ -70,9 +70,8 @@ function OrderOnce() {
   // 선물 주문은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 기존 무통장 흐름을 유지한다.
   const usePortOne = isPortOneConfigured && !isGift;
 
-  useEffect(() => {
-    if (ready && !user) router.replace("/login?next=/order-once");
-  }, [ready, user, router]);
+  // 단품 1회 구매는 비회원(게스트)도 가능하다 → 로그인 강제 리디렉션 없음.
+  // 선물하기·정기구독 등 회원 전용 기능만 user 유무로 분기한다.
 
   // ?add=<id> 로 들어오면 해당 제품을 최소 주문금액(25,000원)을 채우는 수량으로 미리 담는다.
   //   1개로는 최소금액 미만이라 '주문하기'가 비활성화되므로, 바로 주문 가능한 수량을 채워 둔다.
@@ -160,7 +159,6 @@ function OrderOnce() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!user) return;
     if (count === 0) {
       setError("구매하실 제품의 수량을 선택해 주세요.");
       return;
@@ -183,14 +181,19 @@ function OrderOnce() {
       const items: OnceItem[] = PRODUCTS.filter((p) => (qtys[p.id] ?? 0) > 0).map(
         (p) => ({ productId: p.id, qty: qtys[p.id], unitPrice: p.price })
       );
-      const { orderId, orderNo, shipDate, totalAmount } = await createOnceOrder(items, {
+      // 회원은 createOnceOrder(로그인 필요), 비회원은 createGuestOnceOrder 로 분기.
+      // 게스트는 선물하기를 노출하지 않으므로 isGift 는 항상 false 다.
+      const shipInfo = {
         ...ship,
         isGift,
         gifterName: profile?.name ?? ship.depositorName,
         giftMessage,
         cashReceiptType,
         cashReceiptId,
-      });
+      };
+      const { orderId, orderNo, shipDate, totalAmount } = user
+        ? await createOnceOrder(items, shipInfo)
+        : await createGuestOnceOrder(items, shipInfo);
       const shipLabel = formatDispatch(new Date(`${shipDate}T00:00:00`));
       const params = new URLSearchParams({
         no: orderNo,
@@ -198,6 +201,8 @@ function OrderOnce() {
         ship: shipLabel,
         amount: String(totalAmount),
       });
+      // 비회원 주문은 '내 주문 보기'(로그인 필요)를 숨기도록 완료 페이지에 표시.
+      if (!user) params.set("guest", "1");
 
       if (usePortOne) {
         // PortOne 결제창 호출. 모바일은 redirectUrl 로 이동하므로 아래 분기는 PC에서만 도달.
@@ -223,7 +228,9 @@ function OrderOnce() {
         return;
       }
 
-      void notify({ kind: isGift ? "gift_once" : "order_received", orderId });
+      // 정보성 문자는 세션 토큰으로 인증되므로 회원 주문에서만 발송한다.
+      // 비회원은 완료 페이지의 입금 안내로 갈음한다(웹훅 결제 시엔 입금확인 문자 자동 발송).
+      if (user) void notify({ kind: isGift ? "gift_once" : "order_received", orderId });
       router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "주문에 실패했습니다.");
@@ -232,7 +239,7 @@ function OrderOnce() {
     }
   }
 
-  if (!ready || !user) {
+  if (!ready) {
     return (
       <div className="mx-auto max-w-md px-5 pt-28 text-center text-mute sm:px-8">
         불러오는 중…
@@ -254,6 +261,20 @@ function OrderOnce() {
         <br />
         평일(월~목) 자정까지 주문하시면 다음 날, 금요일 주문은 월요일, 주말(토·일) 주문은 화요일에 발송됩니다. (발송은 월–금)
       </p>
+
+      {/* 비회원도 주문 가능 — 회원이면 배송지 자동입력·주문내역 조회가 편리하다는 안내 */}
+      {!user && (
+        <div className="mt-6 rounded-2xl border border-gold/30 bg-gold/5 px-5 py-4 text-[14px] leading-relaxed text-ink-soft">
+          비회원으로 바로 주문하실 수 있습니다.{" "}
+          <Link
+            href="/login?next=/order-once"
+            className="font-medium text-gold-deep underline-offset-4 hover:underline"
+          >
+            로그인
+          </Link>
+          하시면 배송지가 자동으로 채워지고, 주문·배송 내역을 한눈에 보실 수 있습니다.
+        </div>
+      )}
 
       {/* 제품 선택 */}
       <ul className="mt-8 space-y-3">

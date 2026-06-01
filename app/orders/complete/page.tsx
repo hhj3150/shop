@@ -27,6 +27,8 @@ function Complete() {
   const ship = sp.get("ship") ?? "";
   const amount = Number(sp.get("amount") ?? "0");
   const isPortOne = sp.get("pay") === "portone";
+  // 비회원 주문: '내 주문 보기'(로그인 필요) 대신 주문번호 보관 안내를 노출한다.
+  const isGuest = sp.get("guest") === "1";
   // PortOne 리디렉션 실패 시 code/message 가 쿼리로 돌아온다.
   const failCode = sp.get("code");
   const failMessage = sp.get("message");
@@ -113,11 +115,27 @@ function Complete() {
           </div>
         )}
 
+        {isGuest && (
+          <p className="mt-6 text-[13px] leading-relaxed text-mute">
+            비회원으로 주문하셨습니다. 문의 시 위 <span className="tabular-nums text-ink-soft">주문번호</span>를
+            알려 주시면 빠르게 확인해 드립니다.
+          </p>
+        )}
+
         <div className="mt-8 flex justify-center gap-3">
-          <Link href="/account" className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
-            내 주문 보기
-          </Link>
-          <Link href="/#products" className="rounded-full border border-line px-6 py-3 text-sm text-ink-soft hover:border-gold hover:text-gold">
+          {!isGuest && (
+            <Link href="/account" className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
+              내 주문 보기
+            </Link>
+          )}
+          <Link
+            href="/#products"
+            className={
+              isGuest
+                ? "rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep"
+                : "rounded-full border border-line px-6 py-3 text-sm text-ink-soft hover:border-gold hover:text-gold"
+            }
+          >
             계속 둘러보기
           </Link>
         </div>

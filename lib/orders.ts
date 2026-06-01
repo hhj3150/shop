@@ -154,3 +154,35 @@ export async function createOnceOrder(
     totalAmount: await fetchOrderTotal(orderId),
   };
 }
+
+// 비회원(게스트) 단품 1회 주문. 로그인 없이 생성하며, 게스트는 RLS로 자기 주문을
+// 조회할 수 없으므로 결제금액(total_amount)은 RPC 반환값을 그대로 신뢰한다(서버 권위값).
+// 현금영수증은 set_cash_receipt(로그인 필요)를 못 쓰므로 p_ship 에 실어 RPC가 함께 기록한다.
+export async function createGuestOnceOrder(
+  items: OnceItem[],
+  ship: ShippingInfo
+): Promise<{ orderId: string; orderNo: string; shipDate: string; totalAmount: number }> {
+  const filtered = items.filter((i) => i.qty > 0);
+  if (filtered.length === 0) throw new Error("담은 제품이 없습니다.");
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc("create_guest_once_order", {
+    p_items: filtered.map((i) => ({ product_id: i.productId, qty: i.qty })),
+    p_ship: {
+      ...shipPayload(ship),
+      cashReceiptType: ship.cashReceiptType ?? "발행안함",
+      cashReceiptId: ship.cashReceiptId ?? null,
+    },
+  });
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "주문 생성에 실패했습니다.");
+  }
+
+  return {
+    orderId: data.order_id as string,
+    orderNo: data.order_no as string,
+    shipDate: data.ship_date as string,
+    totalAmount: data.total_amount as number,
+  };
+}
