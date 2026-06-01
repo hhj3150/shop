@@ -35,7 +35,8 @@
 이 레포의 표준 제약: *"never use `service_role`; 금액은 서버 권위 RPC에서만"*. 크론이 전체 유저의 `입금대기`를 읽으려면 RLS를 넘어야 하는데, service_role로 RLS를 우회하는 대신:
 
 - 크론은 **anon 키 + 공유 시크릿**(`PAYMENT_RECOVERY_SECRET`, Netlify env)으로 RPC를 호출한다.
-- RPC는 `SECURITY DEFINER`(소유자 권한, RLS 합법 우회)로 첫 줄에서 `p_secret`를 대조 → 불일치면 `raise`. (기존 `cancel_unpaid_order`가 이미 SECURITY DEFINER인 것과 동일 패턴.)
+- RPC는 `SECURITY DEFINER`(소유자 권한, RLS 합법 우회)로 첫 줄에서 `p_secret`를 **Supabase Vault** 보관값과 대조 → 불일치면 `raise`. (기존 `confirm_payment`·billing RPC가 `vault.decrypted_secrets`에서 시크릿을 읽어 비교하는 것과 동일 패턴. `cancel_unpaid_order`도 SECURITY DEFINER.)
+  - Vault 비밀 이름 `payment_recovery_secret`. Netlify env `PAYMENT_RECOVERY_SECRET`와 **동일 값**으로 동기화 유지.
 - 금액(`total_amount`)은 RPC가 DB에서 직접 읽어 반환 → "금액은 서버 권위 RPC에서만" 충족.
 
 → service_role 키가 코드·env 어디에도 없음. RLS 우회는 시크릿으로 게이트된 단일 함수 안에 한정.
@@ -121,7 +122,7 @@ function buildRecoveryMessage(
 
 - **미설정 가드:** `isSolapiConfigured()` false 또는 `PAYMENT_RECOVERY_SECRET` 없음 → 함수 조용히 종료(로그만), 크래시·예외 없음.
 - **전화번호 없음:** `ship_phone`는 NOT NULL이라 정상이면 항상 존재. 빈 값이면 스킵+사유 로그.
-- **발송 실패:** 원장은 `apply_recovery_action`이 발송 **전** 기록하므로, Solapi 실패 시 그날은 미발송으로 끝남(재시도는 다음날 단계 경과로 자연 진행, 중복 아님). → 또는 발송 성공 후 기록으로 바꿀지는 구현 단계에서 trade-off 결정(아래 미해결 참조).
+- **발송 실패 (확정: 발송 전 기록):** `apply_recovery_action`이 발송 **전** 원장에 기록한다. Solapi 실패 시 그날 그 단계는 미발송으로 종료(다음날은 단계가 경과해 자연 진행, 중복 아님). 소량(500명) 거래성 메시지에서는 드문 누락이 중복발송보다 안전하므로 발송-후-기록 대신 이 방식을 기본값으로 확정.
 - **멱등성:** `order_reminders` PK(order_id, stage) + `decideAction`의 sent_stages 체크 → 같은 단계 재발송 없음. EXPIRE는 status 전이로 자연 멱등.
 - **경합:** EXPIRE는 RPC 내 `FOR UPDATE` + status 재확인으로 돈·슬롯 무결성 보장.
 - **시크릿:** `PAYMENT_RECOVERY_SECRET`·anon 키 모두 Netlify env로만. **공개 repo(hhj3150/shop) 커밋 금지.** service_role 미사용.
@@ -148,5 +149,6 @@ function buildRecoveryMessage(
 ## 12. 미해결 / 리스크 (구현 전 확인)
 
 1. **Netlify Scheduled Function 가용성** — 이 "MODIFIED Next.js 16" + `next build --webpack` 구성에서 `netlify/functions/*.mts` 스케줄 함수가 정상 빌드·배포되는지 실제 확인 필요. 불가 시 폴백: GitHub Actions 크론 → 시크릿 보호 라우트(동일 RPC 재사용).
-2. **원장 기록 시점** — 발송 전 기록(실패해도 재발송 안 함, 누락 위험) vs 발송 후 기록(중복 위험). 소량(500명) 거래성 메시지라 발송 전 기록 권장하나 구현 시 확정.
-3. **`PAYMENT_RECOVERY_SECRET` 길이·로테이션** — 충분히 긴 난수, Netlify env로만.
+2. **`PAYMENT_RECOVERY_SECRET` 길이·로테이션** — 충분히 긴 난수, Netlify env + Vault 양쪽 동기화. 로테이션 시 둘 다 교체.
+
+> (원장 기록 시점은 §8에서 "발송 전 기록"으로 확정 — 미해결 아님.)
