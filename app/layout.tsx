@@ -7,6 +7,8 @@ import { AuthProvider } from "@/lib/auth";
 import { Nav } from "@/components/Nav";
 import { BottomNav } from "@/components/BottomNav";
 import { CartDrawer } from "@/components/CartDrawer";
+import { JsonLd } from "@/components/JsonLd";
+import { buildOrganization, buildWebSite } from "@/lib/seo/schema";
 
 const notoSans = Noto_Sans_KR({
   variable: "--font-noto-sans",
@@ -67,6 +69,8 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-paper text-ink-soft">
         <AuthProvider>
+          <JsonLd data={buildOrganization()} />
+          <JsonLd data={buildWebSite()} />
           <CartProvider>
             <Nav />
             <main className="flex-1 pb-[68px] md:pb-0">{children}</main>

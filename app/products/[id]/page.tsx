@@ -14,6 +14,8 @@ import { ProductReviews } from "@/components/ProductReviews";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
 import { SwipeNav } from "@/components/SwipeNav";
+import { JsonLd } from "@/components/JsonLd";
+import { buildProduct } from "@/lib/seo/schema";
 
 export function generateStaticParams() {
   return PRODUCTS.map((p) => ({ id: p.id }));
@@ -55,6 +57,7 @@ export default async function ProductPage({
 
   return (
     <SwipeNav prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`}>
+      <JsonLd data={buildProduct(product)} />
       {/* 브레드크럼 */}
       <div className="mx-auto max-w-7xl px-5 pt-24 sm:px-8">
         <nav className="py-5 text-[13px] tracking-wide text-mute">
