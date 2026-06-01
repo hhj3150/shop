@@ -24,6 +24,24 @@ export function averageRating(reviews: ReviewRow[]): number {
   return Math.round((sum / reviews.length) * 10) / 10;
 }
 
+// 퍼널용 전체 후기 집계(순수). 후기 수·평균 별점·최근 N개를 함께 반환한다.
+export type ReviewSummary = {
+  count: number;
+  average: number;
+  recent: ReviewRow[];
+};
+
+export function reviewSummary(
+  reviews: ReviewRow[],
+  recentCount = 2
+): ReviewSummary {
+  return {
+    count: reviews.length,
+    average: averageRating(reviews),
+    recent: reviews.slice(0, Math.max(0, recentCount)),
+  };
+}
+
 export function formatReviewDate(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -36,6 +54,17 @@ export async function fetchReviews(productId: string): Promise<ReviewRow[]> {
     .from("reviews")
     .select("*")
     .eq("product_id", productId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ReviewRow[];
+}
+
+// 제품 구분 없이 전체 후기를 최신순으로 가져온다(퍼널 소셜 프루프 집계용).
+export async function fetchAllReviews(): Promise<ReviewRow[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("*")
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as ReviewRow[];

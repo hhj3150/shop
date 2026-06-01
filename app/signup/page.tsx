@@ -9,6 +9,7 @@ import { notify } from "@/lib/notify";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { MembershipAssurance } from "@/components/MembershipAssurance";
+import { SocialProof } from "@/components/SocialProof";
 import { formatPhoneKR } from "@/lib/signup-format";
 import { validateSignup } from "@/lib/signup-validation";
 
@@ -117,6 +118,7 @@ export default function SignupPage() {
       </p>
 
       <MembershipAssurance />
+      <SocialProof />
 
       {!configured && (
         <p className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] text-gold-deep">
