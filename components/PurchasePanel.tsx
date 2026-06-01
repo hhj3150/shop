@@ -79,6 +79,25 @@ export function PurchasePanel({ product }: { product: Product }) {
     setExtras({});
   };
 
+  // 판매 중지(active=false) 상품은 구매 영역을 안내로 대체한다(스펙 §5.2).
+  //   목록에서 이미 숨겨져 정상 동선에선 도달하지 않지만, 직접 링크 진입에 대비.
+  //   로딩 중엔 hidden=false(정적 폴백)이라 패널이 먼저 그려진 뒤 전환된다.
+  if (liveMain.hidden) {
+    return (
+      <div className="rounded-3xl border border-line bg-cream p-6 text-center sm:p-8">
+        <p className="text-[13px] uppercase tracking-[0.2em] text-gold-deep">
+          준비 중
+        </p>
+        <p className="mt-4 font-serif-kr text-xl text-ink">
+          지금은 판매하지 않는 상품입니다
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">
+          더 좋은 모습으로 다시 찾아뵙겠습니다. 다른 제품을 둘러봐 주세요.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
       <div className="flex items-center justify-between">
@@ -301,10 +320,10 @@ export function PurchasePanel({ product }: { product: Product }) {
 
         <button
           onClick={handleAdd}
-          disabled={catalogLoading || liveMain.soldOut || liveMain.hidden}
+          disabled={catalogLoading || liveMain.soldOut}
           className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-ink"
         >
-          {liveMain.hidden ? "판매 중지" : liveMain.soldOut ? "품절" : catalogLoading ? "확인 중…" : "구독 담기"}
+          {liveMain.soldOut ? "품절" : catalogLoading ? "확인 중…" : "구독 담기"}
         </button>
 
         <p className="mt-4 text-center text-[11.5px] leading-relaxed text-mute">
