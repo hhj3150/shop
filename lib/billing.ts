@@ -10,6 +10,7 @@
 //   (브라우저가 넘긴 billingKey 를 그대로 믿지 않는다.)
 
 import PortOne from "@portone/browser-sdk/v2";
+import { getSupabase } from "./supabase";
 
 const storeId = process.env.NEXT_PUBLIC_PORTONE_STORE_ID;
 // 정기결제(빌링) 전용 채널. 보통 일반 결제 채널과 분리해 발급받는다(카드 빌링 채널).
@@ -75,4 +76,79 @@ export async function requestBillingKey(
       error instanceof Error ? error.message : "빌링키 발급 중 오류가 발생했습니다.";
     return { ok: false, code: "EXCEPTION", message };
   }
+}
+
+export type RegisteredCard = {
+  name: string | null;
+  last4: string | null;
+  pgProvider: string | null;
+};
+
+export type RegisterBillingKeyResult =
+  | { ok: true; billingKeyId: string; card: RegisteredCard }
+  | { ok: false; code: string; message: string };
+
+// 발급된 billingKey 를 서버(/api/billing/register)로 보내 검증·저장한다.
+//   서버가 액세스토큰으로 본인을 확인하고, getBillingKeyInfo 로 PG 권위 검증 후 저장한다.
+//   PC/팝업 발급(requestBillingKey 가 billingKey 를 resolve)과 모바일 리디렉션 복귀
+//   양쪽에서 공용으로 쓴다.
+export async function registerBillingKey(
+  billingKey: string
+): Promise<RegisterBillingKeyResult> {
+  let token: string | undefined;
+  try {
+    const { data } = await getSupabase().auth.getSession();
+    token = data.session?.access_token;
+  } catch {
+    return { ok: false, code: "NO_SESSION", message: "로그인이 필요합니다." };
+  }
+  if (!token) {
+    return { ok: false, code: "NO_SESSION", message: "로그인이 필요합니다." };
+  }
+
+  try {
+    const res = await fetch("/api/billing/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ billingKey }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      reason?: string;
+      billingKeyId?: string;
+      card?: RegisteredCard;
+    };
+    if (!res.ok || !json.ok || !json.billingKeyId) {
+      return {
+        ok: false,
+        code: json.reason ?? `HTTP_${res.status}`,
+        message: "카드 등록에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      };
+    }
+    return {
+      ok: true,
+      billingKeyId: json.billingKeyId,
+      card: json.card ?? { name: null, last4: null, pgProvider: null },
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "카드 등록 중 오류가 발생했습니다.";
+    return { ok: false, code: "EXCEPTION", message };
+  }
+}
+
+// PC/팝업 환경용 통합 플로우: 빌링키 발급창 → (성공 시) 서버 검증·저장.
+//   모바일 리디렉션 환경에서는 requestBillingKey 가 billingKey 를 resolve 하지 않고
+//   redirectUrl 로 이동하므로, 복귀 페이지에서 쿼리의 billingKey 로 registerBillingKey 를 호출한다.
+export async function addBillingCard(
+  params: IssueBillingKeyParams
+): Promise<RegisterBillingKeyResult> {
+  const issued = await requestBillingKey(params);
+  if (!issued.ok) {
+    return { ok: false, code: issued.code, message: issued.message };
+  }
+  return registerBillingKey(issued.billingKey);
 }
