@@ -5,6 +5,7 @@ import {
   getDayCounts,
   remaining,
   isWaitlisted,
+  totalRemainingSeats,
   type DayCounts,
 } from "@/lib/subscriptions";
 import { DELIVERY_DAYS, DELIVERY_DAY_LABEL } from "@/lib/cart";
@@ -29,9 +30,7 @@ export function SlotAvailability() {
     };
   }, []);
 
-  const totalRemaining = counts
-    ? DELIVERY_DAYS.reduce((sum, d) => sum + remaining(counts[d]), 0)
-    : null;
+  const totalRemaining = counts ? totalRemainingSeats(counts) : null;
 
   return (
     <div className="mt-10 rounded-2xl border border-cream/15 bg-cream/[0.04] p-5 sm:p-6">
