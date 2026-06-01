@@ -67,7 +67,7 @@ export function totalRemainingSeats(counts: DayCounts): number {
   - 로딩 전: 잔잔한 스켈레톤(또는 `—`).
   - 정상: "**500**분 중 **{membersJoined}**분과 함께 · 남은 자리 **{remaining}**" — 남은 자리 숫자를 `gold-foil`/`tabular-nums`로 강조.
   - 매진(`remaining === 0`): "이번 시즌 마감 · 대기 등록으로 모십니다" 문구로 전환.
-  - 에러/환경변수 미설정: 카운터만 숨기고(또는 `—`) 히어로 나머지는 정상.
+  - 에러/환경변수 미설정: 카운터 자리에 `—` 표기(`SlotAvailability`와 동일), 히어로 나머지는 정상.
 - 밝은(순백) 히어로 배경에 맞춘 스타일. `SlotAvailability`(다크 배경)와 **표현은 분리**, 데이터/순수 로직만 공유.
 
 ## 6. 사진 자산
