@@ -14,6 +14,7 @@ import { PayMethodSelect } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { GiftOptions } from "@/components/GiftOptions";
+import { LoadMyInfoButton, type MyInfoFields } from "@/components/LoadMyInfo";
 import { CashReceiptFields } from "@/components/CashReceiptFields";
 import {
   DEFAULT_CASH_RECEIPT,
@@ -70,6 +71,11 @@ export default function CheckoutPage() {
 
   function update<K extends keyof typeof ship>(key: K, value: string) {
     setShip((prev) => ({ ...prev, [key]: value }));
+  }
+
+  // 회원정보 불러오기: 가입 시 저장한 이름·연락처·주소·입금자명을 한 번에 채운다(재구매 편의).
+  function fillFromProfile(fields: MyInfoFields) {
+    setShip((prev) => ({ ...prev, ...fields }));
   }
 
   // 선물 받는 분을 주소록에서 선택하면 배송지 필드를 그 값으로 채운다.
@@ -290,6 +296,9 @@ export default function CheckoutPage() {
             onMessageChange={setGiftMessage}
             onSelectRecipient={applyRecipient}
           />
+        )}
+        {!isGift && (
+          <LoadMyInfoButton profile={profile} onLoad={fillFromProfile} disabled={busy} />
         )}
         <Field id="name" label={isGift ? "받는 분 (선물 받으실 분)" : "받는 분"} required value={ship.name} onChange={(e) => update("name", e.target.value)} />
         <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." inputMode="numeric" required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
