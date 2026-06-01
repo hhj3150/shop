@@ -1,6 +1,6 @@
 import Image from "next/image";
-import Link from "next/link";
 import { MembershipCounter } from "./MembershipCounter";
+import { SubscribeFilmCTA } from "./SubscribeFilmCTA";
 
 export function Hero() {
   return (
@@ -47,12 +47,7 @@ export function Hero() {
 
           {/* CTA */}
           <div className="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:justify-center lg:justify-start">
-            <Link
-              href="/signup"
-              className="w-full rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform duration-300 ease-[var(--ease-soft)] hover:scale-[1.02] active:scale-[0.98] sm:w-auto"
-            >
-              정기구독 신청하기
-            </Link>
+            <SubscribeFilmCTA className="w-full rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform duration-300 ease-[var(--ease-soft)] hover:scale-[1.02] active:scale-[0.98] sm:w-auto" />
             <a
               href="https://www.a2jerseymilk.com"
               target="_blank"
