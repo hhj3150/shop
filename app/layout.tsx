@@ -45,6 +45,13 @@ export const metadata: Metadata = {
     description: "한 잔의 정직함. 경기도 안성, 송영신목장의 A2 저지 헤이밀크와 플레인 요거트.",
     type: "website",
     locale: "ko_KR",
+    images: [{ url: "/brand/og-default.jpg", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "송영신목장 · A2 Jersey Hay Milk",
+    description: "한 잔의 정직함. 경기도 안성, 송영신목장의 A2 저지 헤이밀크와 플레인 요거트.",
+    images: ["/brand/og-default.jpg"],
   },
 };
 
