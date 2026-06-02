@@ -140,9 +140,10 @@ alter table public.renewal_reminders enable row level security;
 ## 테스트 (vitest, node env, 순수 로직만)
 
 - **`decideRenewalStage`** (9): D-8→none · D-7→D7 · D-4→D7 · D-3→D3 · D-1→D3 · D7 sentStages 포함→none · D3 sentStages 포함→none · 만료 당일(d=0)→none · 만료 경과(d<0)→none.
-- **`deriveExpiry`** (3): 기본(extended=0,paused=0) · extended_weeks 반영 · paused_days 반영.
 - **`buildRenewalMessage`** (2): EXPIRE_SOON templateKey·변수 매핑 · 만료일 포맷.
 - KST 경계 케이스 포함(자정 직전/직후).
+
+> **만료일 공식은 TS 단위테스트 대상이 아니다.** SQL(`renewal_reminder_targets`)이 만료일을 단일 권위로 계산한다(범위 필터 + `expiry_date` 기준 `sent_stages` 조회를 위해 SQL이 어차피 계산해야 함). TS에 `deriveExpiry`를 두면 공식이 두 언어로 이중화되어 SSOT 위반 → 두지 않는다. SQL측 만료일 계산은 payment-recovery의 EXPIRE 경로처럼 **프로덕션 스모크 검증**으로 정답성을 확인한다.
 
 ## 에러 처리 / 운영
 
