@@ -35,3 +35,31 @@ export function decideRenewalStage(
   if (d <= 7) return sentStages.includes("D7") ? "none" : "D7";
   return "none";
 }
+
+export type RenewalMessage = {
+  templateKey: "EXPIRE_SOON";
+  variables: Record<string, string>;
+  subject: string;
+  text: string; // 알림톡 실패 시 LMS 폴백 본문
+};
+
+// 'YYYY-MM-DD' → "M월 D일".
+function expiryLabel(expiryDate: string): string {
+  const [, m, d] = expiryDate.split("-").map(Number);
+  return `${m}월 ${d}일`;
+}
+
+export function buildRenewalMessage(t: RenewalTarget): RenewalMessage {
+  const label = expiryLabel(t.expiryDate);
+  return {
+    templateKey: "EXPIRE_SOON",
+    variables: {
+      "#{고객명}": t.name,
+      "#{만료일}": label,
+    },
+    subject: `[${SHOP}] 구독 만료 안내`,
+    text:
+      `[${SHOP}] ${t.name}님, 정기구독이 ${label}에 만료됩니다.\n` +
+      `계속 받아보시려면 마이페이지에서 재구독을 신청해 주세요.`,
+  };
+}
