@@ -173,6 +173,8 @@ git commit -m "feat: renewal-retention decideRenewalStage (KST D-7/D-3 윈도우
 ```typescript
 import { buildRenewalMessage, type RenewalTarget } from "./renewal-retention";
 
+const SHOP_FOR_TEST = "송영신목장";
+
 describe("buildRenewalMessage (EXPIRE_SOON)", () => {
   const t: RenewalTarget = {
     slotId: 7,
@@ -196,8 +198,6 @@ describe("buildRenewalMessage (EXPIRE_SOON)", () => {
     expect(m.subject).toContain(SHOP_FOR_TEST);
   });
 });
-
-const SHOP_FOR_TEST = "송영신목장";
 ```
 
 > 참고: `import` 문은 파일 상단의 기존 import와 합쳐도 되고 중복 import해도 vitest는 허용한다. 구현자는 상단 import에 `buildRenewalMessage`, `type RenewalTarget`을 추가하는 방식으로 정리할 것.
