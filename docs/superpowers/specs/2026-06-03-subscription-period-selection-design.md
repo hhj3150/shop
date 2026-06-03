@@ -53,6 +53,17 @@ $$;
 - 적용 후 `block_weeks`에 8/12 저장 → 재구독 만료일·환불·D-7/D-3 알림 **자동 적용(추가 코드 0)**.
 - 멱등(`create or replace`). 적용 전후 라이브 주문 흐름 무중단(기존 1=4주는 동일하게 유지).
 
+> **⚠ 선행 마이그레이션 충돌 — 라이브 값 반드시 사전 확인.**
+> repo에 `period_discount`를 정의하는 SQL이 3개 공존한다:
+> - `schema.sql`: `1→0.10, else null`
+> - `migration-period-1month.sql`: `1→0.07, else null`
+> - `migration-period-3months.sql`: `1→0.10, 2→0.11, 3→0.12, else null`
+>
+> **파일만으로는 현재 라이브 DB의 함수 정의를 알 수 없다.** 만약 `migration-period-3months.sql`이 이미 적용돼 있다면, 8/12주가 **이미 11%/12%로 노출 중**일 수 있고 이번 마이그레이션은 이를 **12%/15%로 변경**한다(= 라이브 가격 변동). 따라서:
+> 1. 적용 **전** 반드시 `select period_discount(1), period_discount(2), period_discount(3);` 를 실행해 현재 값을 기록(전이 before/after 캡처).
+> 2. 본 마이그레이션은 `migration-period-3months.sql`을 **명시적으로 대체(supersede)**한다 — 두 파일이 같은 함수를 다른 값으로 정의하므로, 적용 후에는 본 파일이 단일 권위.
+> 3. 활성 구독자의 기존 `total_amount`는 주문 시점에 **이미 확정·저장**된 값이라 함수 변경의 소급 영향 없음(신규 주문부터 신요율).
+
 ### b. `lib/products.ts` — 표시용 옵션/라벨/할인/배지
 ```ts
 export type SubPeriod = 1 | 2 | 3;
@@ -79,6 +90,7 @@ export const PERIOD_BADGE: Partial<Record<SubPeriod, string>> = { 2: "인기", 3
 - `periodWeeks(1)=4`, `(2)=8`, `(3)=12`
 - `PERIOD_LABEL` / `PERIOD_BADGE` / `SUB_PERIODS` 3단 커버리지
 - 카트 합계: 각 기간별 `perDelivery*weeks(+배송)` 산식 검증(대표 1품목)
+- `discountForPeriod(m)`가 `SUB_PERIODS` 전 항목에서 `number`를 반환(undefined 아님) 검증 — `PERIOD_DISCOUNT`가 `Partial`로 새면 런타임에만 드러나므로 가드.
 - 기존 단일-기간 가정 테스트 있으면 수정.
 
 ## 5. 데이터 흐름
@@ -112,22 +124,26 @@ export const PERIOD_BADGE: Partial<Record<SubPeriod, string>> = { 2: "인기", 3
 | 금액 위변조 | 클라 값 전부 서버 재계산 → 안전 |
 | PortOne | 주문 total 재검증, 미설정 시 무통장 폴백(무중단) |
 | 잘못된 p_period | `period_discount`=null → RPC 예외 |
+| **재구독(request_renewal) 재결제 기간/요율** | **기존 그대로 유지 — 항상 4주·10%.** 사장님 확정 (4) "만료/연장은 기존 재구독 그대로"에 따라 `request_renewal`은 무변경(`v_weeks:=4`, `period_discount(1)` 하드코딩). 즉 8/12주 구독자가 만료 후 재구독하면 **연장분은 4주 단위·10%**로 재결제된다. 이는 의도된 동작(이번 spec 범위 밖). 원기간·원요율 자동 연장은 §8 YAGNI 참조. |
+| **cart.tsx localStorage 재방문자** | 기존 방문자의 `localStorage("sys-cart-v3")`에 `period:1`이 저장돼 있으면 새 기본값(8주)이 아닌 **이전 선택(1=4주)으로 복원**된다. 이는 의도된 동작(사용자의 마지막 선택 존중). 신규/캐시 비운 방문자만 8주 기본을 본다. 검증 시 이 차이를 인지할 것. |
 
 ## 7. 테스트 전략
 
 - **환경 제약:** 이 머신에서 vitest 4(rolldown) 번들러가 0 CPU로 멈추고, Node 25에서 tsc도 hang. → **node@22(22.22.3) + 커스텀 직접 러너**(`/tmp/vrun`)로 실제 `*.test.ts`를 실행(직전 79/79 통과 검증됨).
 - **게이트:** `tsc --noEmit` exit 0 + 전체 테스트 PASS(신규 products 테스트 포함).
-- **SQL:** 단위테스트 불가. 마이그레이션 적용 후 사장님이 각 기간 1건씩 테스트 주문으로 `total_amount` 육안 검증(수동 1회).
+- **SQL:** 단위테스트 불가. 마이그레이션 적용 후 사장님이 각 기간 1건씩 테스트 주문으로 `total_amount` 육안 검증(수동 1회). **플랜에서 대표 1품목의 기간별 예상 `total_amount`를 미리 산출해 제시** → 사장님이 막연한 육안이 아니라 구체 숫자와 대조.
 
 ## 8. 범위 밖 (YAGNI)
 
 - 구독 연차(tenure) 누진 할인(6개월↑15%, 1년↑20%)은 미구현 상태 유지 — 이번 기간-선택과 별개 축. 이번엔 `period_discount`만이 유일 할인.
 - 기간 중도 변경/업그레이드(4주→12주 전환) UI — 추후 별도 spec.
+- **재구독 시 원기간·원요율 자동 연장**(8/12주 구독자가 재구독해도 8/12주·12/15% 유지) — 현재 `request_renewal`은 4주·10% 고정. 원기간 승계는 별도 spec(만료 슬롯의 `period_months`를 읽어 `request_renewal`에 전달하는 변경 필요). 이번 범위 밖.
 - 정기결제(빌링키 자동청구)와의 결합 — 기존 폴백 유지.
 
 ## 9. 작업 순서(플랜에서 상세화)
 
-1. `migration-period-weeks-tiers.sql` 작성(서버 권위) — 사장님 적용.
+0. **(선행)** 라이브 DB에서 `select period_discount(1), period_discount(2), period_discount(3);` 실행 → 현재 요율 기록(before 캡처). 어느 선행 마이그레이션이 적용돼 있는지 확정.
+1. `migration-period-weeks-tiers.sql` 작성(서버 권위) — 사장님 적용. 적용 후 동일 쿼리 재실행(after 캡처: 0.10/0.12/0.15 확인).
 2. `lib/products.ts` 상수/타입 확장 + 단위테스트(TDD).
 3. `lib/cart.tsx` 기본 period 8주.
 4. `components/PurchasePanel.tsx` 기본 선택 + 배지.
