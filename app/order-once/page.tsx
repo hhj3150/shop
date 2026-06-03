@@ -13,14 +13,19 @@ import {
   ONCE_SHIPPING_KRW,
   onceShippingFee,
 } from "@/lib/products";
-import { createOnceOrder, createGuestOnceOrder, type OnceItem } from "@/lib/orders";
+import {
+  createOnceOrder,
+  createGuestOnceOrder,
+  registerPayActionDeposit,
+  type OnceItem,
+} from "@/lib/orders";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
 import { DepositAccount } from "@/components/DepositAccount";
-import { PayMethodSelect } from "@/components/PayMethodSelect";
+import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { GiftOptions } from "@/components/GiftOptions";
@@ -66,14 +71,17 @@ function OrderOnce() {
   const [busy, setBusy] = useState(false);
   const [isGift, setIsGift] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
-  const [payMethod, setPayMethod] = useState<PayMethod>("VIRTUAL_ACCOUNT");
+  const [method, setMethod] = useState<CheckoutMethod>("BANK");
   const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
   const [cashReceiptId, setCashReceiptId] = useState("");
 
   const { map, loading: catalogLoading, refresh } = useStorefrontCatalog();
 
-  // 선물 주문은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 기존 무통장 흐름을 유지한다.
-  const usePortOne = isPortOneConfigured && !isGift;
+  // 카드·간편결제(PortOne)는 PortOne 설정 시·선물이 아닐 때만 선택 가능하다.
+  //   선물은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 무통장(PayAction) 흐름으로 고정한다.
+  const canPortOne = isPortOneConfigured && !isGift;
+  // 실제 PortOne 결제는 무통장(BANK)이 아닌 결제수단을 골랐을 때만 사용한다.
+  const usePortOne = canPortOne && method !== "BANK";
 
   // 단품 1회 구매는 비회원(게스트)도 가능하다 → 로그인 강제 리디렉션 없음.
   // 선물하기·정기구독 등 회원 전용 기능만 user 유무로 분기한다.
@@ -185,6 +193,11 @@ function OrderOnce() {
       setError("받는 분, 연락처, 주소를 입력해 주세요.");
       return;
     }
+    // 무통장입금은 입금자명이 있어야 PayAction 자동매칭이 가능하다.
+    if (!usePortOne && !ship.depositorName.trim()) {
+      setError("무통장입금은 입금자명을 입력해 주세요. (입금 자동 확인에 필요합니다)");
+      return;
+    }
     const receiptError = validateCashReceipt(cashReceiptType, cashReceiptId);
     if (receiptError) {
       setError(receiptError);
@@ -229,7 +242,7 @@ function OrderOnce() {
           paymentId: orderNo,
           orderName,
           totalAmount,
-          payMethod,
+          payMethod: method as PayMethod,
           customerName: ship.name,
           customerPhone: ship.phone,
           redirectUrl,
@@ -242,8 +255,12 @@ function OrderOnce() {
         return;
       }
 
+      // 무통장(BANK) 흐름: PayAction 에 주문 등록(자동 입금확인 대상으로 감시 시작).
+      //   입금확인 문자 수신처: 선물이면 보내는 분 연락처, 일반/게스트는 배송 연락처.
+      const ordererPhone = isGift ? (profile?.phone ?? ship.phone) : ship.phone;
+      void registerPayActionDeposit(orderNo, ordererPhone);
       // 정보성 문자는 세션 토큰으로 인증되므로 회원 주문에서만 발송한다.
-      // 비회원은 완료 페이지의 입금 안내로 갈음한다(웹훅 결제 시엔 입금확인 문자 자동 발송).
+      // 비회원은 완료 페이지의 입금 안내로 갈음한다(입금확인 문자는 PayAction 이 자동 발송).
       if (user) void notify({ kind: isGift ? "gift_once" : "order_received", orderId });
       router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {
@@ -375,23 +392,23 @@ function OrderOnce() {
         )}
       </div>
 
-      {/* 결제수단: PortOne 설정 시 결제수단 선택, 미설정/선물 시 무통장 안내 */}
+      {/* 결제수단: PortOne 설정 시 무통장/카드/간편결제 선택, 무통장(또는 선물·미설정) 시 계좌 안내 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
+        {canPortOne && <PayMethodSelect value={method} onChange={setMethod} />}
         {usePortOne ? (
-          <>
-            <PayMethodSelect value={payMethod} onChange={setPayMethod} />
-            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-              {formatKRW(total)}을 결제합니다. 가상계좌는 입금이 확인되는 즉시 발송됩니다.
-            </p>
-          </>
+          <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
+            {formatKRW(total)}을 결제합니다. 결제가 확인되는 즉시 발송됩니다.
+          </p>
         ) : (
-          <>
-            <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
+          <div className={canPortOne ? "mt-4" : ""}>
+            {!canPortOne && (
+              <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
+            )}
             <DepositAccount />
             <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-              주문 후 위 계좌로 {formatKRW(total)}을 입금해 주세요. 입금이 확인되면 발송됩니다.
+              주문 후 위 계좌로 {formatKRW(total)}을 입금해 주세요. 입금이 확인되면 자동으로 발송됩니다.
             </p>
-          </>
+          </div>
         )}
       </div>
 
@@ -465,8 +482,8 @@ function OrderOnce() {
         </button>
         <p className="text-center text-[12px] text-mute">
           {usePortOne
-            ? `결제(가상계좌 입금 포함)가 확인되면 ${dispatch}에 발송됩니다.`
-            : `무통장입금 주문입니다. 입금 확인 후 ${dispatch}에 발송됩니다.`}
+            ? `결제가 확인되면 ${dispatch}에 발송됩니다.`
+            : `무통장입금 주문입니다. 입금이 확인되면 자동으로 ${dispatch}에 발송됩니다.`}
         </p>
         <p className="text-center text-[13px] text-mute">
           매주 받아보고 싶으시면{" "}

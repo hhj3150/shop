@@ -1,12 +1,12 @@
 "use client";
 
-import type { PayMethod } from "@/lib/portone";
+// 체크아웃 결제수단.
+//   - BANK(무통장입금): 농협 계좌 직접입금 → PayAction 이 자동 매칭·확인.
+//   - CARD / EASY_PAY: PortOne 즉시 결제.
+export type CheckoutMethod = "BANK" | "CARD" | "EASY_PAY";
 
-// 결제수단 선택. PortOne 설정 시에만 노출한다(미설정이면 무통장 안내로 폴백).
-//   - 가상계좌: 입금 즉시 자동 확인(웹훅) → 수동 입금확인 불필요.
-//   - 카드 / 간편결제: 즉시 결제 완료.
-const OPTIONS: { value: PayMethod; label: string; hint: string }[] = [
-  { value: "VIRTUAL_ACCOUNT", label: "가상계좌", hint: "전용 계좌로 입금하면 자동 확인" },
+const OPTIONS: { value: CheckoutMethod; label: string; hint: string }[] = [
+  { value: "BANK", label: "무통장입금", hint: "계좌로 입금하면 자동 확인됩니다" },
   { value: "CARD", label: "카드", hint: "신용·체크카드 즉시 결제" },
   { value: "EASY_PAY", label: "간편결제", hint: "카카오페이·네이버페이 등" },
 ];
@@ -15,8 +15,8 @@ export function PayMethodSelect({
   value,
   onChange,
 }: {
-  value: PayMethod;
-  onChange: (m: PayMethod) => void;
+  value: CheckoutMethod;
+  onChange: (m: CheckoutMethod) => void;
 }) {
   return (
     <fieldset className="space-y-2">

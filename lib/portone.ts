@@ -16,8 +16,8 @@ const channelKey = process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
 // 미설정 시 호출부는 기존 무통장입금 안내 흐름으로 폴백한다(라이브 무중단).
 export const isPortOneConfigured = Boolean(storeId && channelKey);
 
-// 결제수단: 가상계좌 / 카드 / 간편결제. (UI에서 사용자가 고른다)
-export type PayMethod = "VIRTUAL_ACCOUNT" | "CARD" | "EASY_PAY";
+// 결제수단: 카드 / 간편결제. (무통장입금은 PayAction 경로로 분리되어 PortOne 가상계좌는 사용하지 않는다)
+export type PayMethod = "CARD" | "EASY_PAY";
 
 export type StartPaymentParams = {
   // 주문번호(= orders.order_no). PortOne paymentId 로 그대로 사용한다.
@@ -49,12 +49,6 @@ export async function startPayment(
     return { ok: false, code: "NOT_CONFIGURED", message: "결제 모듈이 설정되지 않았습니다." };
   }
 
-  // 가상계좌는 입금 만료 기한이 필요한 PG가 있어 72시간으로 지정한다(정보성·안전값).
-  const virtualAccount =
-    params.payMethod === "VIRTUAL_ACCOUNT"
-      ? { accountExpiry: { validHours: 72 } }
-      : undefined;
-
   try {
     const res = await PortOne.requestPayment({
       storeId: storeId as string,
@@ -69,7 +63,6 @@ export async function startPayment(
         phoneNumber: params.customerPhone,
       },
       redirectUrl: params.redirectUrl,
-      ...(virtualAccount ? { virtualAccount } : {}),
     });
 
     // 리디렉션 환경에서는 res 가 undefined 일 수 있다(이동 중).

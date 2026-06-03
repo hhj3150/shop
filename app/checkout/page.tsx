@@ -6,13 +6,13 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
-import { createOrder } from "@/lib/orders";
+import { createOrder, registerPayActionDeposit } from "@/lib/orders";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { DepositAccount } from "@/components/DepositAccount";
-import { PayMethodSelect } from "@/components/PayMethodSelect";
+import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { GiftOptions } from "@/components/GiftOptions";
@@ -52,13 +52,15 @@ export default function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [isGift, setIsGift] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
-  const [payMethod, setPayMethod] = useState<PayMethod>("VIRTUAL_ACCOUNT");
+  const [method, setMethod] = useState<CheckoutMethod>("BANK");
   const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
   const [cashReceiptId, setCashReceiptId] = useState("");
 
-  // 선물 주문은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 기존 무통장 흐름을 유지한다.
-  //   (선물 주문자에게는 별도 입금 안내가 나간다)
-  const usePortOne = isPortOneConfigured && !isGift;
+  // 카드·간편결제(PortOne)는 PortOne 설정 시에만, 또 선물이 아닐 때만 선택 가능하다.
+  //   선물은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 무통장(PayAction) 흐름으로 고정한다.
+  const canPortOne = isPortOneConfigured && !isGift;
+  // 실제 PortOne 결제는 무통장(BANK)이 아닌 결제수단을 골랐을 때만 사용한다.
+  const usePortOne = canPortOne && method !== "BANK";
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/checkout");
@@ -132,6 +134,11 @@ export default function CheckoutPage() {
       setError("받는 분, 연락처, 주소를 입력해 주세요.");
       return;
     }
+    // 무통장입금은 입금자명이 있어야 PayAction 자동매칭이 가능하다.
+    if (!usePortOne && !ship.depositorName.trim()) {
+      setError("무통장입금은 입금자명을 입력해 주세요. (입금 자동 확인에 필요합니다)");
+      return;
+    }
     if (perDelivery < MIN_ORDER_KRW) {
       setError(`회당 최소 상품 금액은 ${formatKRW(MIN_ORDER_KRW)}입니다. (배송비 별도)`);
       return;
@@ -170,7 +177,7 @@ export default function CheckoutPage() {
           paymentId: orderNo,
           orderName: `${PERIOD_LABEL[period]} 정기구독`,
           totalAmount,
-          payMethod,
+          payMethod: method as PayMethod,
           customerName: ship.name,
           customerPhone: ship.phone,
           redirectUrl,
@@ -185,7 +192,11 @@ export default function CheckoutPage() {
         return;
       }
 
-      // 무통장(또는 선물) 흐름: 즉시 입금 안내 문자 발송 후 완료 페이지로.
+      // 무통장(또는 선물) 흐름: PayAction 에 주문 등록(자동 입금확인 대상으로 감시 시작).
+      //   입금확인 문자 수신처: 선물이면 보내는 분(주문자) 연락처, 일반은 배송 연락처.
+      const ordererPhone = isGift ? (profile?.phone ?? ship.phone) : ship.phone;
+      void registerPayActionDeposit(orderNo, ordererPhone);
+      // 즉시 입금 안내 문자 발송 후 완료 페이지로.
       void notify({ kind: isGift ? "gift_subscription" : "order_received", orderId });
       clear();
       router.push(`/orders/complete?${params.toString()}`);
@@ -280,27 +291,27 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* 결제수단: PortOne 설정 시 결제수단 선택, 미설정/선물 시 무통장 안내 */}
+      {/* 결제수단: PortOne 설정 시 무통장/카드/간편결제 선택, 무통장(또는 선물·미설정) 시 계좌 안내 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
+        {canPortOne && <PayMethodSelect value={method} onChange={setMethod} />}
         {usePortOne ? (
-          <>
-            <PayMethodSelect value={payMethod} onChange={setPayMethod} />
-            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-              {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(periodTotal)}을 한 번에 결제합니다.
-              가상계좌는 입금이 확인되는 즉시 발송이 시작됩니다.
-            </p>
-          </>
+          <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
+            {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(periodTotal)}을 한 번에 결제합니다.
+            결제가 확인되는 즉시 발송이 시작됩니다.
+          </p>
         ) : (
-          <>
-            <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
-              무통장입금 계좌
-            </p>
+          <div className={canPortOne ? "mt-4" : ""}>
+            {!canPortOne && (
+              <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
+                무통장입금 계좌
+              </p>
+            )}
             <DepositAccount />
             <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
               은행 앱·창구에서 위 계좌로 {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(periodTotal)}을
-              한 번에 입금해 주세요. 입금 확인 후 발송이 시작됩니다.
+              한 번에 입금해 주세요. 입금이 확인되면 자동으로 발송이 시작됩니다.
             </p>
-          </>
+          </div>
         )}
       </div>
 
@@ -386,8 +397,8 @@ export default function CheckoutPage() {
         </button>
         <p className="text-center text-[12px] text-mute">
           {usePortOne
-            ? "결제(가상계좌 입금 포함)가 확인되면 발송이 시작됩니다."
-            : "신청 시 입금 확인 대기 상태로 접수됩니다. 입금 확인 후 발송됩니다."}
+            ? "결제가 확인되면 발송이 시작됩니다."
+            : "신청 시 입금 확인 대기 상태로 접수됩니다. 입금이 확인되면 자동으로 발송됩니다."}
         </p>
       </form>
     </div>

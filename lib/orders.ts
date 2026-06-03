@@ -38,6 +38,25 @@ async function saveCashReceipt(orderId: string, ship: ShippingInfo): Promise<voi
   }
 }
 
+// 무통장입금 주문을 PayAction 에 등록(자동 입금확인 대상으로 감시 시작).
+// 서버 라우트가 PAYACTION_API_KEY 로 등록을 수행한다. 실패는 non-fatal —
+//   주문은 이미 생성되었으므로 등록 실패는 흡수하고 로깅만 한다(관리자 수동 처리 가능).
+//   ordererPhone: 입금확인 문자 수신처(선물=보내는 분, 일반=주문자 연락처).
+export async function registerPayActionDeposit(
+  orderNo: string,
+  ordererPhone: string
+): Promise<void> {
+  try {
+    await fetch("/api/payaction/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderNo, ordererPhone }),
+    });
+  } catch (error) {
+    console.error("PayAction 등록 호출 실패:", error);
+  }
+}
+
 // 신청 결과: 요일별로 몇 번째인지, 대기자인지.
 export type SlotResult = {
   deliveryDay: DeliveryDay;
