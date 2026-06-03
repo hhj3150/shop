@@ -8,6 +8,7 @@ import {
   PRODUCTS,
   SUB_PERIODS,
   PERIOD_LABEL,
+  PERIOD_BADGE,
   formatKRW,
   subscribePrice,
   discountForPeriod,
@@ -24,7 +25,7 @@ import { mergeProduct, visibleProducts } from "@/lib/storefront-merge";
 export function PurchasePanel({ product }: { product: Product }) {
   const { add, setPeriod } = useCart();
   const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("mon");
-  const [period, setPeriodLocal] = useState<SubPeriod>(1);
+  const [period, setPeriodLocal] = useState<SubPeriod>(2); // 8주 기본('인기')
   const [qty, setQty] = useState(1);
   const [extras, setExtras] = useState<Record<string, number>>({});
   const [counts, setCounts] = useState<DayCounts | null>(null);
@@ -127,6 +128,11 @@ export function PurchasePanel({ product }: { product: Product }) {
                   : "border-line text-ink-soft hover:border-gold/50"
               }`}
             >
+              {PERIOD_BADGE[m] && (
+                <span className="mb-0.5 rounded-full bg-gold/15 px-1.5 py-px text-[9px] font-medium leading-tight text-gold-deep">
+                  {PERIOD_BADGE[m]}
+                </span>
+              )}
               <span>{PERIOD_LABEL[m]}</span>
               <span className="mt-0.5 text-[10px] tabular-nums text-gold-deep">
                 −{Math.round(discountForPeriod(m) * 100)}%
