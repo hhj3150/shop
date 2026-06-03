@@ -73,7 +73,7 @@ function itemKey(i: Omit<CartItem, "key">): string {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
-  const [period, setPeriodState] = useState<SubPeriod>(1);
+  const [period, setPeriodState] = useState<SubPeriod>(2); // 8주 기본('인기')
   const [isOpen, setIsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
