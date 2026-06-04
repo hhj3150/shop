@@ -75,7 +75,7 @@ function OrderOnce() {
   const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
   const [cashReceiptId, setCashReceiptId] = useState("");
 
-  const { map, loading: catalogLoading, refresh } = useStorefrontCatalog();
+  const { map, refresh } = useStorefrontCatalog();
 
   // 카드·간편결제(PortOne)는 PortOne 설정 시·선물이 아닐 때만 선택 가능하다.
   //   선물은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 무통장(PayAction) 흐름으로 고정한다.
@@ -258,7 +258,9 @@ function OrderOnce() {
       // 무통장(BANK) 흐름: PayAction 에 주문 등록(자동 입금확인 대상으로 감시 시작).
       //   입금확인 문자 수신처: 선물이면 보내는 분 연락처, 일반/게스트는 배송 연락처.
       const ordererPhone = isGift ? (profile?.phone ?? ship.phone) : ship.phone;
-      void registerPayActionDeposit(orderNo, ordererPhone);
+      // await 로 등록 완결 후 라우팅 — fire-and-forget 이면 router.push 로 요청이 abort 돼
+      //   서버 라우트에 도달조차 못 했음. 등록 실패는 내부에서 흡수(non-fatal)되어 주문은 진행됨.
+      await registerPayActionDeposit(orderNo, ordererPhone);
       // 정보성 문자는 세션 토큰으로 인증되므로 회원 주문에서만 발송한다.
       // 비회원은 완료 페이지의 입금 안내로 갈음한다(입금확인 문자는 PayAction 이 자동 발송).
       if (user) void notify({ kind: isGift ? "gift_once" : "order_received", orderId });
@@ -469,7 +471,7 @@ function OrderOnce() {
 
         <button
           type="submit"
-          disabled={busy || belowMin || count === 0 || catalogLoading}
+          disabled={busy || belowMin || count === 0}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy

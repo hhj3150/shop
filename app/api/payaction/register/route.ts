@@ -40,6 +40,8 @@ export async function POST(req: Request) {
   if (!orderNo) {
     return NextResponse.json({ ok: false, reason: "missing_order_no" }, { status: 400 });
   }
+  // 진입 로그 — 호출이 서버 라우트에 도달했는지 확인(도달 안 함 vs 도달 후 성공/실패 구분).
+  console.log("[payaction/register] hit order_no:", orderNo);
 
   // DB 권위 필드 조회(금액·입금자명·주문일).
   const supabase = createClient(supabaseUrl, supabaseAnon, {
@@ -97,6 +99,8 @@ export async function POST(req: Request) {
 
   if (!result.ok) {
     console.warn("[payaction/register] 등록 실패:", result.reason, "order_no:", orderNo);
+  } else {
+    console.log("[payaction/register] 등록 성공 order_no:", orderNo);
   }
   return NextResponse.json(result);
 }

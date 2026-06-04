@@ -14,6 +14,9 @@ import {
 import { firstSubscriptionDelivery, toISODate } from "@/lib/ship-date";
 import { COURIERS, COURIER_IDS } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
+import { usePolling } from "@/lib/usePolling";
+import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
+import { payActionReasonLabel } from "@/lib/payaction-reason";
 import { AdminStats } from "@/components/AdminStats";
 import { BroadcastPanel } from "@/components/BroadcastPanel";
 import { ProductionPanel } from "@/components/ProductionPanel";
@@ -159,6 +162,9 @@ export default function AdminPage() {
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchSummary, setBatchSummary] = useState<string | null>(null);
   const [date, setDate] = useState(todayISO());
   const [tab, setTab] = useState<AdminTab>("종합 관리");
   const [memberQuery, setMemberQuery] = useState("");
@@ -174,8 +180,10 @@ export default function AdminPage() {
     if (ready && !user) router.replace("/login?next=/admin");
   }, [ready, user, router]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // silent=true 면 전체 로딩 표시를 띄우지 않는다 — 30초 자동 새로고침이
+  //   매번 화면을 '불러오는 중…'으로 깜빡이지 않게 하기 위함.
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     const sb = getSupabase();
     const [o, i, s, p] = await Promise.all([
       sb.from("orders").select("*").order("created_at", { ascending: false }),
@@ -189,12 +197,18 @@ export default function AdminPage() {
     setItems((i.data as ItemRow[]) ?? []);
     setSlots((s.data as SlotRow[]) ?? []);
     setProfiles((p.data as ProfileRow[]) ?? []);
+    setLastRefreshed(new Date());
     setLoading(false);
   }, []);
 
   useEffect(() => {
     if (isAdmin) load();
   }, [isAdmin, load]);
+
+  // 30초마다 조용히 자동 새로고침 — PayAction 무통장입금 자동확인(입금대기→입금확인)이
+  //   관리자 화면에 자동으로 반영돼, 새로고침 없이 배송준비로 진행할 수 있다.
+  const refreshSilently = useCallback(() => load({ silent: true }), [load]);
+  usePolling(refreshSilently, 30_000, isAdmin);
 
   const confirmedOrderIds = useMemo(
     () => new Set(orders.filter((o) => CONFIRMED.includes(o.status as (typeof CONFIRMED)[number])).map((o) => o.id)),
@@ -251,6 +265,37 @@ export default function AdminPage() {
     for (const o of orders) m[o.status] = (m[o.status] ?? 0) + 1;
     return m;
   }, [orders]);
+  // 입금확인 완료됐으나 아직 배송준비로 넘기지 않은 주문 수 — 관리자가 처리할 대기 작업량.
+  const depositPendingCount = useMemo(
+    () => orders.filter((o) => o.status === "입금확인").length,
+    [orders]
+  );
+  // PayAction 미등록(입금대기) 주문 — 자동매칭 감시에 올라가지 않아 입금확인이 안 되는 주문들.
+  //   관리자가 '일괄 재등록'으로 한 번에 PayAction 등록을 재시도한다.
+  const pendingOrders = useMemo(
+    () => orders.filter((o) => o.status === "입금대기"),
+    [orders]
+  );
+
+  // 입금대기 주문을 순차로 PayAction 재등록하고 성공/실패 건수를 요약한다.
+  //   순차 호출로 PayAction 서버 부하·레이트리밋을 피하고, 끝나면 한 번만 새로고침한다.
+  const batchReRegister = useCallback(async () => {
+    if (batchRunning || pendingOrders.length === 0) return;
+    setBatchRunning(true);
+    setBatchSummary(null);
+    let ok = 0;
+    const fails: string[] = [];
+    for (const o of pendingOrders) {
+      const r = await postPayActionRegister(o.order_no);
+      if (r.ok) ok += 1;
+      else fails.push(payActionReasonLabel(r.reason));
+    }
+    await load();
+    setBatchRunning(false);
+    const failNote =
+      fails.length > 0 ? ` · 실패 ${fails.length}건 (${Array.from(new Set(fails)).join(", ")})` : "";
+    setBatchSummary(`재등록 완료 — 성공 ${ok}건${failNote}`);
+  }, [batchRunning, pendingOrders, load]);
 
   const dayStats = useMemo(() => {
     return DELIVERY_DAYS.map((d) => {
@@ -687,12 +732,24 @@ export default function AdminPage() {
           <h1 className="mt-2 font-serif-kr text-[clamp(1.6rem,4vw,2.2rem)] font-medium text-ink">
             송영신목장 관리자
           </h1>
+          <p className="mt-1.5 flex items-center gap-2 text-[12px] text-mute no-print">
+            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+            30초마다 자동 새로고침
+            {lastRefreshed && (
+              <span className="tabular-nums">· 마지막 {lastRefreshed.toLocaleTimeString("ko-KR")}</span>
+            )}
+          </p>
         </div>
-        <div className="flex gap-2 no-print">
+        <div className="flex items-center gap-2 no-print">
+          {depositPendingCount > 0 && (
+            <span className="rounded-full bg-gold/15 px-3 py-2 text-[14px] font-medium text-gold-deep">
+              입금확인 {depositPendingCount}건 · 배송준비 대기
+            </span>
+          )}
           <Link href="/admin/news" className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
             소식 전하기
           </Link>
-          <button onClick={load} className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
+          <button onClick={() => load()} className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
             새로고침
           </button>
           <button onClick={() => window.print()} className="rounded-full bg-ink px-4 py-2 text-[14px] text-cream hover:bg-gold-deep">
@@ -1087,8 +1144,25 @@ export default function AdminPage() {
       <BroadcastPanel profiles={profiles} slots={slots} />
 
       {/* 주문 관리 — 상태 변경 */}
-      <h2 className="mt-12 font-serif-kr text-lg text-ink">주문 관리</h2>
-      <p className="mt-1 text-[13px] text-mute">상태를 변경하면 저장됩니다. ‘입금확인’으로 바꾸면 입금이 확인된 것으로 보고 구독이 활성화됩니다.</p>
+      <div className="mt-12 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-serif-kr text-lg text-ink">주문 관리</h2>
+        {pendingOrders.length > 0 && (
+          <div className="flex flex-col items-end gap-1 no-print">
+            <button
+              type="button"
+              onClick={batchReRegister}
+              disabled={batchRunning}
+              className="rounded-full border border-line px-3 py-1 text-[13px] font-medium text-mute transition-colors hover:border-gold hover:text-gold-deep disabled:opacity-50"
+            >
+              {batchRunning ? "재등록 중…" : `입금대기 ${pendingOrders.length}건 PayAction 일괄 재등록`}
+            </button>
+            {batchSummary && (
+              <span className="text-[12px] leading-snug text-ink-soft">{batchSummary}</span>
+            )}
+          </div>
+        )}
+      </div>
+      <p className="mt-1 text-[13px] text-mute">상태를 변경하면 저장됩니다. ‘입금확인’으로 바꾸면 입금이 확인된 것으로 보고 구독이 활성화됩니다. 입금대기 주문이 PayAction에 등록되지 않아 자동매칭이 안 될 때 ‘재등록’을 눌러 다시 시도하세요.</p>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-[14px]">
           <thead>
@@ -1153,15 +1227,20 @@ export default function AdminPage() {
                     )}
                   </td>
                   <td className="py-2.5 no-print">
-                    <select
-                      value={o.status}
-                      onChange={(e) => updateStatus(o, e.target.value)}
-                      className="rounded-lg border border-line bg-cream px-2 py-1 text-[14px] text-ink"
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
+                    <div className="flex flex-col items-start gap-1.5">
+                      <select
+                        value={o.status}
+                        onChange={(e) => updateStatus(o, e.target.value)}
+                        className="rounded-lg border border-line bg-cream px-2 py-1 text-[14px] text-ink"
+                      >
+                        {STATUSES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      {o.status === "입금대기" && (
+                        <PayActionReRegister orderNo={o.order_no} onDone={() => load()} />
+                      )}
+                    </div>
                   </td>
                   <td className="py-2.5 no-print">
                     <TrackingCell order={o} onSave={saveTracking} />

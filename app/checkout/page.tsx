@@ -29,7 +29,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
   const { items, period, weeks, perDelivery, shipTotal, periodTotal, weeklyPrice, clear } = useCart();
-  const { map, loading: catalogLoading, refresh } = useStorefrontCatalog();
+  const { map, refresh } = useStorefrontCatalog();
   // 회당 상품 합계가 최소 주문금액 미만이면 신청 불가(버튼 비활성화 + 안내).
   const belowMin = perDelivery < MIN_ORDER_KRW;
   // 장바구니 항목 중 품절·판매중지가 하나라도 있으면 제출 차단(체크아웃 진입 재검증).
@@ -195,7 +195,9 @@ export default function CheckoutPage() {
       // 무통장(또는 선물) 흐름: PayAction 에 주문 등록(자동 입금확인 대상으로 감시 시작).
       //   입금확인 문자 수신처: 선물이면 보내는 분(주문자) 연락처, 일반은 배송 연락처.
       const ordererPhone = isGift ? (profile?.phone ?? ship.phone) : ship.phone;
-      void registerPayActionDeposit(orderNo, ordererPhone);
+      // await 로 등록 완결 후 라우팅 — fire-and-forget 이면 router.push 로 요청이 abort 돼
+      //   서버 라우트에 도달조차 못 했음. 등록 실패는 내부에서 흡수(non-fatal)되어 주문은 진행됨.
+      await registerPayActionDeposit(orderNo, ordererPhone);
       // 즉시 입금 안내 문자 발송 후 완료 페이지로.
       void notify({ kind: isGift ? "gift_subscription" : "order_received", orderId });
       clear();
@@ -384,7 +386,7 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={busy || belowMin || hasBlocked || catalogLoading}
+          disabled={busy || belowMin || hasBlocked}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy

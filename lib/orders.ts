@@ -47,10 +47,13 @@ export async function registerPayActionDeposit(
   ordererPhone: string
 ): Promise<void> {
   try {
+    // keepalive: 완료 페이지로 라우팅·언마운트되는 도중에도 요청이 취소되지 않도록 유지.
+    //   (fire-and-forget 호출이 router.push 로 abort 돼 서버 라우트에 도달조차 못 하던 문제 해결)
     await fetch("/api/payaction/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orderNo, ordererPhone }),
+      keepalive: true,
     });
   } catch (error) {
     console.error("PayAction 등록 호출 실패:", error);
