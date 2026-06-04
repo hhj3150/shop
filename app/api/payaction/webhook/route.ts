@@ -31,22 +31,31 @@ export async function POST(req: Request) {
   const webhookKey = req.headers.get("x-webhook-key");
   const mallId = req.headers.get("x-mall-id");
   if (!verifyWebhookAuth(webhookKey, mallId)) {
+    // 인증 실패 진단(값 노출 없이 존재 여부만): 매칭완료인데 입금확인이 안 될 때
+    //   PAYACTION_WEBHOOK_KEY 환경값 불일치를 즉시 가려내기 위함.
+    console.warn(
+      "[payaction/webhook] 인증 실패 — x-webhook-key 존재:",
+      Boolean(webhookKey),
+      "x-mall-id 존재:",
+      Boolean(mallId)
+    );
     return NextResponse.json({ status: "error", reason: "unauthorized" }, { status: 401 });
   }
 
   // 2) 본문 파싱. 형식이 깨졌으면 재전송해도 동일하므로 200 으로 종료.
+  //    응답 본문은 PayAction 규약상 정확히 {status:"success"} 여야 한다(여분 필드 금지 — 실패 간주 방지).
   let payload: { order_number?: string; order_status?: string; processing_date?: string };
   try {
     payload = await req.json();
   } catch {
-    return NextResponse.json({ status: "success", ignored: "invalid_body" });
+    return NextResponse.json({ status: "success" });
   }
 
   const orderNo = (payload.order_number ?? "").trim();
   const orderStatus = payload.order_status ?? "매칭완료";
   const processingDate = payload.processing_date ?? null;
   if (!orderNo) {
-    return NextResponse.json({ status: "success", ignored: "missing_order_number" });
+    return NextResponse.json({ status: "success" });
   }
 
   // 멱등 키: x-trace-id(문서상 항상 전송). 누락 시 주문번호+처리시각으로 대체해 멱등성 유지.
@@ -82,7 +91,15 @@ export async function POST(req: Request) {
   if (r.error) {
     // 주문없음 등 재시도해도 동일한 사유 → 로깅 후 200 으로 종료(발송중단 방지).
     console.warn("[payaction/webhook] 처리 불가:", r.error, "order_no:", orderNo);
+  } else {
+    // 정상 처리 로그(Netlify) — 첫 실제 웹훅이 입금확인까지 갔는지 추적.
+    console.log(
+      "[payaction/webhook] 처리 완료 order_no:", orderNo,
+      "changed:", r.changed ?? false,
+      "note:", r.status ?? r.ignored ?? (r.idempotent ? "idempotent" : "ok")
+    );
   }
 
-  return NextResponse.json({ status: "success", changed: r.changed ?? false });
+  // PayAction 규약: 정상 수신 응답은 정확히 {status:"success"} (여분 필드 시 실패 간주 위험).
+  return NextResponse.json({ status: "success" });
 }
