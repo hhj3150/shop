@@ -11,7 +11,6 @@ import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
-import { DepositAccount } from "@/components/DepositAccount";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
@@ -245,8 +244,8 @@ export default function CheckoutPage() {
         {PERIOD_LABEL[period]} 정기구독 신청
       </h1>
       <p className="mt-3 text-[14px] leading-relaxed text-mute">
-        신청 후 아래 계좌로 <span className="text-ink-soft">{PERIOD_LABEL[period]}분({weeks}회)을
-        한 번에</span> 입금해 주세요. 입금이 확인된 회원께만 발송하며, 발송 준비가 되면
+        신청을 완료하면 다음 화면에서 <span className="text-ink-soft">{PERIOD_LABEL[period]}분({weeks}회)
+        정확한 입금 금액과 계좌</span>를 안내해 드립니다. 입금이 확인된 회원께만 발송하며, 발송 준비가 되면
         등록하신 번호로 안내드립니다.
       </p>
 
@@ -305,13 +304,15 @@ export default function CheckoutPage() {
           <div className={canPortOne ? "mt-4" : ""}>
             {!canPortOne && (
               <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
-                무통장입금 계좌
+                무통장입금
               </p>
             )}
-            <DepositAccount />
             <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-              은행 앱·창구에서 위 계좌로 {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(periodTotal)}을
-              한 번에 입금해 주세요. 입금이 확인되면 자동으로 발송이 시작됩니다.
+              아래 <span className="font-medium text-ink">신청하기</span>를 누르면 주문이 접수되고,
+              다음 화면에서 <span className="font-medium text-ink">정확한 입금 금액과 계좌</span>를 안내해 드립니다.
+              <span className="mt-1 block text-mute">
+                주문 완료 전에 입금하시면 자동 확인이 되지 않으니, 반드시 안내된 금액으로 입금해 주세요.
+              </span>
             </p>
           </div>
         )}

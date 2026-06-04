@@ -24,7 +24,6 @@ import { visibleProducts, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
-import { DepositAccount } from "@/components/DepositAccount";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
@@ -404,11 +403,14 @@ function OrderOnce() {
         ) : (
           <div className={canPortOne ? "mt-4" : ""}>
             {!canPortOne && (
-              <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
+              <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">무통장입금</p>
             )}
-            <DepositAccount />
             <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-              주문 후 위 계좌로 {formatKRW(total)}을 입금해 주세요. 입금이 확인되면 자동으로 발송됩니다.
+              아래 <span className="font-medium text-ink">주문하기</span>를 누르면 주문이 접수되고,
+              다음 화면에서 <span className="font-medium text-ink">정확한 입금 금액과 계좌</span>를 안내해 드립니다.
+              <span className="mt-1 block text-mute">
+                주문 완료 전에 입금하시면 자동 확인이 되지 않으니, 반드시 안내된 금액으로 입금해 주세요.
+              </span>
             </p>
           </div>
         )}
