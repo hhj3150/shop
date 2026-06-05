@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { BRAND_HOME, BUSINESS, DEPOSIT } from "@/lib/site";
+import { BRAND_HOME, BUSINESS } from "@/lib/site";
 
 export function Footer() {
   return (
@@ -51,10 +51,6 @@ export function Footer() {
               </a>
             </p>
             <p className="mt-3 text-[14px] text-mute">평일 10:00–17:00 · 점심 12:00–13:00</p>
-            <p className="mt-3 text-[13px] text-mute">
-              입금계좌 {DEPOSIT.bank} {DEPOSIT.account}
-              <br />예금주 {DEPOSIT.holder}
-            </p>
           </div>
         </div>
 
