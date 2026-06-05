@@ -12,7 +12,10 @@ import {
   SUB_PERIODS,
   PERIOD_LABEL,
   MIN_ORDER_KRW,
+  PRODUCTS,
 } from "@/lib/products";
+import { useStorefrontCatalog } from "@/lib/storefront";
+import { visibleProducts } from "@/lib/storefront-merge";
 
 export function CartDrawer() {
   const router = useRouter();
@@ -30,7 +33,9 @@ export function CartDrawer() {
     setPeriod,
     setQty,
     remove,
+    add,
   } = useCart();
+  const { map } = useStorefrontCatalog();
 
   // Escape·배경 스크롤 잠금·포커스 트랩을 공통 훅으로 처리.
   const dialogRef = useDialog<HTMLElement>(isOpen, close);
@@ -38,6 +43,13 @@ export function CartDrawer() {
   // 회당(매주) 상품 합계가 최소 주문금액 미만이면 배송 불가 → 주문하기 차단 + 안내.
   //   (이전엔 미만이어도 checkout 으로 넘어가 거기서 막혀 '주문이 안된다' 클레임이 잦았음)
   const belowMin = perDelivery < MIN_ORDER_KRW;
+
+  // 함께 담기 — 이전 화면으로 돌아가지 않고 장바구니에서 바로 다른 제품을 더 담는다.
+  //   (단품 1개로 최소금액 미달일 때 되돌아가던 번거로움 제거). 같은 요일로 담는다.
+  const targetDay = items[0]?.deliveryDay ?? "wed";
+  const addable = visibleProducts(PRODUCTS, map).filter(
+    (p) => !items.some((i) => i.productId === p.id && i.deliveryDay === targetDay)
+  );
 
   function goCheckout() {
     if (belowMin) return;
@@ -86,6 +98,7 @@ export function CartDrawer() {
               <p className="mt-2 text-sm text-mute">목장에서 갓 짜낸 한 병을 담아보세요.</p>
             </div>
           ) : (
+            <>
             <ul className="divide-y divide-line">
               {items.map((item) => {
                 const p = getProduct(item.productId);
@@ -151,6 +164,50 @@ export function CartDrawer() {
                 );
               })}
             </ul>
+
+            {/* 함께 담기 — 이전 화면으로 돌아가지 않고 여기서 바로 추가(같은 요일) */}
+            {addable.length > 0 && (
+              <div className="mt-6 border-t border-line pt-5">
+                <p className="text-[12px] uppercase tracking-[0.18em] text-mute">함께 담기</p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-ink-soft">
+                  같은 요일({DELIVERY_DAY_LABEL[targetDay]})에 다른 제품도 바로 더 담으실 수 있어요.
+                </p>
+                <ul className="mt-3 space-y-2.5">
+                  {addable.map((p) => (
+                    <li key={p.id} className="flex items-center gap-3">
+                      <div className="relative h-12 w-10 shrink-0 overflow-hidden rounded-lg bg-paper-2">
+                        <Image
+                          src={p.image}
+                          alt={`${p.name} ${p.volume}`}
+                          fill
+                          sizes="40px"
+                          className="object-contain p-1"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] text-ink">
+                          {p.name} {p.volume}
+                        </p>
+                        <p className="mt-0.5 text-[12px] tabular-nums text-gold-deep">
+                          {formatKRW(weeklyPrice(p.id))} / 회
+                          {p.soldOut && <span className="ml-1.5 text-mute">품절</span>}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => add({ productId: p.id, qty: 1, deliveryDay: targetDay })}
+                        disabled={p.soldOut}
+                        className="shrink-0 rounded-full border border-line px-3.5 py-2 text-[13px] font-medium text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:opacity-40"
+                        aria-label={`${p.name} ${p.volume} 담기`}
+                      >
+                        담기
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            </>
           )}
         </div>
 
