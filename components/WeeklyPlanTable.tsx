@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 // 이번 주(월~금) 실제 날짜 기준 생산·배송 통합 계획표.
 //   각 날짜의 수요는 부모가 넘긴 onlineDemandForDate(정기 요일분 + 단품 발송분)를 그대로 재사용한다
@@ -35,11 +35,27 @@ export function WeeklyPlanTable({
   productKeys: string[];
   onlineDemandForDate: (date: string) => Record<string, number>;
 }) {
-  const days = useMemo(() => weekdayDates(new Date()), []);
+  // 주 단위 앞/뒤 이동(0=이번 주)으로 생산예측 기간을 선택한다.
+  const [weekOffset, setWeekOffset] = useState(0);
+  const days = useMemo(() => {
+    const base = new Date();
+    base.setDate(base.getDate() + weekOffset * 7);
+    return weekdayDates(base);
+  }, [weekOffset]);
   const demandByDay = useMemo(
     () => days.map((d) => onlineDemandForDate(isoDate(d))),
     [days, onlineDemandForDate]
   );
+  const weekLabel =
+    weekOffset === 0
+      ? "이번 주"
+      : weekOffset === 1
+      ? "다음 주"
+      : weekOffset === -1
+      ? "지난 주"
+      : weekOffset > 0
+      ? `${weekOffset}주 후`
+      : `${-weekOffset}주 전`;
 
   const rowTotal = (key: string) =>
     demandByDay.reduce((s, dem) => s + (dem[key] ?? 0), 0);
@@ -49,10 +65,39 @@ export function WeeklyPlanTable({
 
   return (
     <>
-      <h2 className="mt-12 font-serif-kr text-lg text-ink">이번 주 생산·배송 계획</h2>
-      <p className="mt-1 text-[13px] text-mute">
-        {isoDate(days[0])} ~ {isoDate(days[4])} · 확정 주문(입금확인) 기준, 정기 요일분과 단품
-        발송분을 날짜별로 합산했습니다. 일시정지 구독은 제외됩니다.
+      <h2 className="mt-12 font-serif-kr text-lg text-ink">{weekLabel} 생산·배송 계획</h2>
+      <div className="mt-2 flex flex-wrap items-center gap-2 no-print">
+        <button
+          type="button"
+          onClick={() => setWeekOffset(weekOffset - 1)}
+          aria-label="이전 주"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+        >
+          ◀
+        </button>
+        <span className="min-w-[180px] text-center text-[14px] tabular-nums text-ink-soft">
+          {isoDate(days[0])} ~ {isoDate(days[4])}
+        </span>
+        <button
+          type="button"
+          onClick={() => setWeekOffset(weekOffset + 1)}
+          aria-label="다음 주"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+        >
+          ▶
+        </button>
+        {weekOffset !== 0 && (
+          <button
+            type="button"
+            onClick={() => setWeekOffset(0)}
+            className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+          >
+            이번 주
+          </button>
+        )}
+      </div>
+      <p className="mt-2 text-[13px] text-mute">
+        확정 주문(입금확인) 기준, 정기 요일분과 단품 발송분을 날짜별로 합산했습니다. 일시정지 구독은 제외됩니다.
       </p>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-[14px]">
