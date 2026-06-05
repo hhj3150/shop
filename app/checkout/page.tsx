@@ -8,6 +8,7 @@ import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL, subShippingFee } from "@/lib/products";
 import { isSpecialDeliveryPostcode } from "@/lib/regions";
 import { createOrder, registerPayActionDeposit } from "@/lib/orders";
+import { backfillProfileShipping } from "@/lib/profile";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
@@ -171,6 +172,9 @@ export default function CheckoutPage() {
         cashReceiptType,
         cashReceiptId,
       });
+
+      // 본인 주소 주문이면, 프로필의 빈 배송칸(연락처·주소)을 자동 보완 → 다음 주문부터 따라온다.
+      if (profile && !isGift) void backfillProfileShipping(profile, ship);
 
       // 완료 페이지로 넘길 슬롯 컨텍스트(선착순 순번 등)를 쿼리에 싣는다.
       const first = slots[0];

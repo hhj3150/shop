@@ -20,6 +20,7 @@ import {
   registerPayActionDeposit,
   type OnceItem,
 } from "@/lib/orders";
+import { backfillProfileShipping } from "@/lib/profile";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
@@ -231,6 +232,9 @@ function OrderOnce() {
       const { orderId, orderNo, shipDate, totalAmount } = user
         ? await createOnceOrder(items, shipInfo)
         : await createGuestOnceOrder(items, shipInfo);
+
+      // 회원 본인 주소 주문이면, 프로필의 빈 배송칸을 자동 보완 → 다음 주문부터 따라온다.
+      if (user && profile && !isGift) void backfillProfileShipping(profile, ship);
       const shipLabel = formatDispatch(new Date(`${shipDate}T00:00:00`));
       const params = new URLSearchParams({
         no: orderNo,
