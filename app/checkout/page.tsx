@@ -310,10 +310,9 @@ export default function CheckoutPage() {
               </p>
             )}
             <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-              아래 <span className="font-medium text-ink">신청하기</span>를 누르면 주문이 접수되고,
-              다음 화면에서 <span className="font-medium text-ink">정확한 입금 금액과 계좌</span>를 안내해 드립니다.
+              <span className="font-medium text-ink">주문 완료 후, 입금 금액·계좌 안내</span>
               <span className="mt-1 block text-mute">
-                주문 완료 전에 입금하시면 자동 확인이 되지 않으니, 반드시 안내된 금액으로 입금해 주세요.
+                안내된 금액 그대로 보내주시면 자동으로 확인돼요. 미리 입금하지 않으셔도 괜찮습니다.
               </span>
             </p>
           </div>
@@ -403,7 +402,7 @@ export default function CheckoutPage() {
         <p className="text-center text-[12px] text-mute">
           {usePortOne
             ? "결제가 확인되면 발송이 시작됩니다."
-            : "신청 시 입금 확인 대기 상태로 접수됩니다. 입금이 확인되면 자동으로 발송됩니다."}
+            : "입금이 확인되면 자동으로 발송해 드려요."}
         </p>
         <p className="mt-2 text-center text-[11.5px] leading-relaxed text-mute">
           신선식품 특성상 단순 변심에 의한 청약철회·교환·환불은 제한될 수 있습니다. 입금 후 발송 준비 전 취소는 전액 환불되며, 상품 하자·오배송은 교환·환불해 드립니다.
