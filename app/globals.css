@@ -58,6 +58,12 @@ body {
   color: #fff;
 }
 
+/* 키보드 포커스 — 은은한 HEY 블루 링(접근성 디테일). 마우스 클릭엔 안 보임. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-hey-blue);
+  outline-offset: 2px;
+}
+
 .font-display {
   font-family: var(--font-display);
   /* 라틴 디스플레이 서체는 살짝 좁혀야 균형이 잡힌다(개별 tracking 지정 시 덮어씀). */

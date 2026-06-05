@@ -63,7 +63,7 @@ export function ProductShowcase() {
               onClick={() => setFilter(f.key)}
               aria-pressed={filter === f.key}
               className={`rounded-full px-5 py-2 text-[14px] font-medium tracking-wide transition-colors ${
-                filter === f.key ? "bg-ink text-cream" : "text-ink-soft hover:text-ink"
+                filter === f.key ? "bg-ink text-cream" : "text-ink-soft hover:text-hey-blue"
               }`}
             >
               {f.label}

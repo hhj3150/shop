@@ -9,16 +9,19 @@ const STEPS = [
     n: "01",
     t: "요일을 정합니다",
     d: "월–금 중 하루. 그날 새벽 갓 짜낸 한 병이 곧장 문 앞에.",
+    color: "var(--color-hey-rose)",
   },
   {
     n: "02",
     t: "기간만큼, 한 번에",
     d: "4·8·12주분을 한 번 입금. 약속한 요일마다 채워 드립니다. 매번 결제는 없습니다.",
+    color: "var(--color-hey-green)",
   },
   {
     n: "03",
     t: "창립 500인의 특권",
     d: "기간이 길수록 커지는 회원가 10–15%. 부담 없이, 원하는 만큼.",
+    color: "var(--color-hey-blue)",
   },
 ];
 
@@ -55,7 +58,10 @@ export function SubscriptionBand() {
         <div className="mt-12 grid gap-10 sm:grid-cols-3">
           {STEPS.map((s, i) => (
             <Reveal key={s.n} delay={i * 110}>
-              <div className="border-t border-cream/20 pt-6">
+              <div
+                style={{ borderTopColor: s.color, borderTopWidth: 2 }}
+                className="border-t border-cream/20 pt-6"
+              >
                 <p className="gold-foil font-display text-3xl">{s.n}</p>
                 <h3 className="mt-3 font-serif-kr text-lg">{s.t}</h3>
                 <p className="mt-2 text-[13.5px] leading-relaxed text-cream/65">{s.d}</p>
