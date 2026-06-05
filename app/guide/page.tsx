@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { LegalLayout, Article } from "@/components/LegalLayout";
-import { DEPOSIT, BUSINESS } from "@/lib/site";
+import { BUSINESS } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "배송 · 교환/환불 안내",
@@ -12,11 +12,8 @@ export default function GuidePage() {
     <LegalLayout eyebrow="Guide" title="배송 · 교환/환불 안내" updated="2026-05-30">
       <Article heading="주문 및 결제">
         <p>본 몰은 회원에게만 판매하며, 결제는 무통장입금으로만 진행됩니다.</p>
-        <p>주문 후 아래 계좌로 입금해 주시면, 목장에서 입금을 확인한 뒤 발송을 준비하고 등록하신 번호로 문자 안내를 보내 드립니다.</p>
-        <p className="font-medium text-ink">
-          {DEPOSIT.bank} {DEPOSIT.account} · 예금주 {DEPOSIT.holder}
-        </p>
-        <p>입금자명은 주문 시 입력하신 입금자명과 동일하게 입금해 주시면 확인이 빠릅니다.</p>
+        <p>주문을 완료하시면 다음 화면에서 정확한 입금 금액과 계좌를 안내해 드립니다. 안내된 금액 그대로 입금해 주시면, 목장에서 입금을 확인한 뒤 발송을 준비하고 등록하신 번호로 문자 안내를 보내 드립니다.</p>
+        <p>주문 완료 전에 입금하시면 자동 확인이 되지 않으니, 반드시 주문을 마친 뒤 안내된 금액으로 입금해 주세요. 입금자명은 주문 시 입력하신 입금자명과 동일하게 입금해 주셔야 빠르게 확인됩니다.</p>
       </Article>
 
       <Article heading="배송">
