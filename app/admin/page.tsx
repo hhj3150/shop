@@ -16,6 +16,7 @@ import { COURIERS, COURIER_IDS } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
 import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
+import { AdminAssistant } from "@/components/AdminAssistant";
 import { payActionReasonLabel } from "@/lib/payaction-reason";
 import { AdminStats } from "@/components/AdminStats";
 import { BroadcastPanel } from "@/components/BroadcastPanel";
@@ -866,6 +867,11 @@ export default function AdminPage() {
         <Stat label="확정 구독 매출" value={formatKRW(revenue)} />
         <Stat label="대기자" value={`${waitlist.length}명`} />
       </section>
+
+      {/* AI 비서 — 자연어 질문 즉답(읽기 전용) */}
+      <div className="mt-6 no-print">
+        <AdminAssistant />
+      </div>
 
       {/* 통계 분석 */}
       <AdminStats orders={orders} items={items} slots={slots} memberCount={profiles.length} />
