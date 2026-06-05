@@ -17,6 +17,7 @@ import { notify } from "@/lib/notify";
 import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
 import { AdminAssistant } from "@/components/AdminAssistant";
+import { NewsRadarAdminFeed } from "@/components/NewsRadarAdminFeed";
 import { payActionReasonLabel } from "@/lib/payaction-reason";
 import { AdminStats } from "@/components/AdminStats";
 import { BroadcastPanel } from "@/components/BroadcastPanel";
@@ -871,6 +872,11 @@ export default function AdminPage() {
       {/* AI 비서 — 자연어 질문 즉답(읽기 전용) */}
       <div className="mt-6 no-print">
         <AdminAssistant />
+      </div>
+
+      {/* 업계 소식 레이더 — 주 1회 자동 수집 */}
+      <div className="mt-6 no-print">
+        <NewsRadarAdminFeed />
       </div>
 
       {/* 통계 분석 */}
