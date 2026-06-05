@@ -264,8 +264,7 @@ export default function CheckoutPage() {
       </h1>
       <p className="mt-3 text-[14px] leading-relaxed text-mute">
         신청을 완료하면 다음 화면에서 <span className="text-ink-soft">{PERIOD_LABEL[period]}분({weeks}회)
-        정확한 입금 금액과 계좌</span>를 안내해 드립니다. 입금이 확인된 회원께만 발송하며, 발송 준비가 되면
-        등록하신 번호로 안내드립니다.
+        입금 금액·계좌</span>를 안내합니다. 입금 확인 후 발송하며, 준비되면 문자로 알려드립니다.
       </p>
 
       {/* 주문 요약 */}
@@ -403,9 +402,8 @@ export default function CheckoutPage() {
         />
 
         <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
-          선택하신 요일에 매주 한 번 받으시며, {PERIOD_LABEL[period]}분({weeks}회)을
-          한 번에 입금해 주시면 입금 확인 후 발송이 시작됩니다. 정기구독은 요일별 선착순
-          100명, 전체 500명 한정입니다.
+          선택한 요일에 매주 한 번. {PERIOD_LABEL[period]}분({weeks}회)을 한 번에 입금하면
+          확인 후 발송됩니다. 요일별 100명·전체 500명 한정.
         </p>
 
         {hasBlocked && (
