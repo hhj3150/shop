@@ -491,6 +491,9 @@ function OrderOnce() {
             ? `결제가 확인되면 ${dispatch}에 발송됩니다.`
             : `무통장입금 주문입니다. 입금이 확인되면 자동으로 ${dispatch}에 발송됩니다.`}
         </p>
+        <p className="mt-2 text-center text-[11.5px] leading-relaxed text-mute">
+          신선식품 특성상 단순 변심에 의한 청약철회·교환·환불은 제한될 수 있습니다. 입금 후 발송 준비 전 취소는 전액 환불되며, 상품 하자·오배송은 교환·환불해 드립니다.
+        </p>
         <p className="text-center text-[13px] text-mute">
           매주 받아보고 싶으시면{" "}
           <Link href="/#subscribe" className="text-gold-deep underline-offset-4 hover:underline">
