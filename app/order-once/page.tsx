@@ -309,12 +309,12 @@ function OrderOnce() {
         한 번만, 골라 담기
       </h1>
       <p className="mt-3 text-[14px] leading-relaxed text-mute">
-        구독 없이 원하는 제품만 골라 한 번 받으실 수 있습니다. 상품 합계{" "}
-        <span className="text-ink-soft">{formatKRW(ONCE_MIN_KRW)} 이상</span>부터 주문되며,
-        배송비는 주문 금액과 관계없이 {formatKRW(ONCE_SHIPPING_KRW)}입니다.
-        입금이 확인되면 <span className="text-ink-soft">{dispatch}</span>에 발송됩니다.
+        구독 없이, 원하는 것만 한 번. 상품 합계{" "}
+        <span className="text-ink-soft">{formatKRW(ONCE_MIN_KRW)} 이상</span> · 배송비{" "}
+        {formatKRW(ONCE_SHIPPING_KRW)}. 입금이 확인되면{" "}
+        <span className="text-ink-soft">{dispatch}</span>에 발송됩니다.
         <br />
-        평일(월~목) 자정까지 주문하시면 다음 날, 금요일 주문은 월요일, 주말(토·일) 주문은 화요일에 발송됩니다. (발송은 월–금)
+        평일(월–목) 자정 전 주문은 다음 날, 금요일은 월요일, 주말은 화요일 발송. (발송 월–금)
       </p>
 
       {/* 비회원도 주문 가능 — 회원이면 배송지 자동입력·주문내역 조회가 편리하다는 안내 */}
