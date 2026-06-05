@@ -10,6 +10,12 @@ export const RADAR_QUERIES: RadarQuery[] = [
   { topic: "헤이밀크", q: '"hay milk" OR Heumilch' },
   { topic: "동물복지", q: 'dairy "animal welfare"' },
   { topic: "저탄소 낙농", q: '"low-carbon" dairy OR "regenerative dairy" OR "sustainable dairy"' },
+  // 유제품·건강(우유·요거트 등)으로 커버 확장.
+  { topic: "우유와 건강", q: '"milk" ("health" OR "nutrition" OR "bone health" OR "protein")' },
+  { topic: "요거트·장건강", q: '"yogurt" ("gut health" OR "probiotics" OR "health")' },
+  { topic: "유제품 영양", q: '"dairy" ("health benefits" OR "nutrition" OR "heart health")' },
+  // 미국 식단 가이드(Dietary Guidelines for Americans) 발표·개정 소식.
+  { topic: "미국 식단 가이드", q: '"Dietary Guidelines for Americans" (dairy OR milk OR 2025 OR 2026 OR 2030 OR 2031)' },
 ];
 
 // Google News RSS 검색 URL(무료, 키 불필요). 최근 7일 영문 글로벌.
@@ -58,7 +64,8 @@ export function buildRadarPrompt(candidates: Array<RssItem & { topic: string }>)
     )
     .join("\n");
   return [
-    "다음은 최근 1주간 수집한 뉴스 후보입니다. A2 우유·저지 젖소·헤이밀크·낙농 동물복지·저탄소(지속가능) 낙농 주제와",
+    "다음은 최근 1주간 수집한 뉴스 후보입니다. A2 우유·저지 젖소·헤이밀크·낙농 동물복지·저탄소(지속가능) 낙농,",
+    "우유·요거트 등 유제품과 건강·영양, 미국 식단 가이드(Dietary Guidelines for Americans) 주제와",
     "가장 연관성 높고 신뢰할 만한 '단 1건'을 고르세요. 광고·낚시성·무관 기사는 제외합니다.",
     "고른 1건을 한국어로 자연스럽게 번역·요약해 아래 JSON 형식으로만 답하세요(다른 텍스트 금지).",
     "",

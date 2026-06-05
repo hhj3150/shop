@@ -56,11 +56,26 @@ describe("buildRadarPrompt", () => {
 });
 
 describe("RADAR_QUERIES", () => {
-  it("핵심 5개 주제를 감시한다", () => {
+  it("핵심 낙농 주제를 감시한다", () => {
     const topics = RADAR_QUERIES.map((q) => q.topic);
     expect(topics).toContain("A2 우유");
     expect(topics).toContain("헤이밀크");
     expect(topics).toContain("동물복지");
     expect(topics).toContain("저탄소 낙농");
+  });
+
+  it("유제품·건강 및 미국 식단 가이드 주제를 포함한다", () => {
+    const topics = RADAR_QUERIES.map((q) => q.topic);
+    expect(topics).toContain("우유와 건강");
+    expect(topics).toContain("요거트·장건강");
+    expect(topics).toContain("유제품 영양");
+    expect(topics).toContain("미국 식단 가이드");
+  });
+
+  it("모든 검색어는 비어 있지 않다", () => {
+    for (const { topic, q } of RADAR_QUERIES) {
+      expect(topic.trim().length).toBeGreaterThan(0);
+      expect(q.trim().length).toBeGreaterThan(0);
+    }
   });
 });
