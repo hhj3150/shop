@@ -11,6 +11,7 @@ import {
   discountForPeriod,
   SUB_PERIODS,
   PERIOD_LABEL,
+  MIN_ORDER_KRW,
 } from "@/lib/products";
 
 export function CartDrawer() {
@@ -34,7 +35,12 @@ export function CartDrawer() {
   // Escape·배경 스크롤 잠금·포커스 트랩을 공통 훅으로 처리.
   const dialogRef = useDialog<HTMLElement>(isOpen, close);
 
+  // 회당(매주) 상품 합계가 최소 주문금액 미만이면 배송 불가 → 주문하기 차단 + 안내.
+  //   (이전엔 미만이어도 checkout 으로 넘어가 거기서 막혀 '주문이 안된다' 클레임이 잦았음)
+  const belowMin = perDelivery < MIN_ORDER_KRW;
+
   function goCheckout() {
+    if (belowMin) return;
     close();
     router.push(user ? "/checkout" : "/login?next=/checkout");
   }
@@ -195,15 +201,35 @@ export function CartDrawer() {
                 {formatKRW(periodTotal)}
               </span>
             </div>
-            <p className="mt-2 text-[13px] leading-relaxed text-gold-deep">
-              매주 같은 요일에 받으시며, 선택하신 {PERIOD_LABEL[period]}분({weeks}회)을
-              한 번에 입금 확인 후 발송됩니다.
-            </p>
+            {belowMin ? (
+              <div
+                role="alert"
+                className="mt-3 rounded-xl border border-gold/50 bg-gold/10 px-4 py-3 text-[13px] leading-relaxed text-gold-deep"
+              >
+                회당(매주) 상품 금액이{" "}
+                <span className="font-semibold tabular-nums">{formatKRW(MIN_ORDER_KRW)}</span>{" "}
+                이상이어야 배송할 수 있어요. 현재 회당 {formatKRW(perDelivery)}이라{" "}
+                <span className="font-semibold tabular-nums">
+                  {formatKRW(MIN_ORDER_KRW - perDelivery)}
+                </span>{" "}
+                더 담아 주세요.
+              </div>
+            ) : (
+              <p className="mt-2 text-[13px] leading-relaxed text-gold-deep">
+                매주 같은 요일에 받으시며, 선택하신 {PERIOD_LABEL[period]}분({weeks}회)을
+                한 번에 입금 확인 후 발송됩니다.
+              </p>
+            )}
             <button
               onClick={goCheckout}
-              className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99]"
+              disabled={belowMin}
+              className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-ink"
             >
-              {user ? "주문하기 (무통장입금)" : "로그인하고 주문하기"}
+              {belowMin
+                ? `${formatKRW(MIN_ORDER_KRW - perDelivery)} 더 담아야 주문 가능`
+                : user
+                ? "주문하기 (무통장입금)"
+                : "로그인하고 주문하기"}
             </button>
             <p className="mt-3 text-center text-[12px] text-mute">
               회원 전용 · 입금 확인 후 발송 · 문자 안내
