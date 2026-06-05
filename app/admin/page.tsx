@@ -797,6 +797,9 @@ export default function AdminPage() {
     <div className="mx-auto max-w-6xl px-5 pb-24 pt-28 sm:px-8" id="report">
       <style>{`@media print { .no-print { display: none !important; } #report { padding-top: 0 !important; } }`}</style>
 
+      {/* AI 비서 — 모든 탭에서 우하단 플로팅으로 접근(읽기 전용 즉답) */}
+      <AdminAssistant />
+
       <div className="flex items-end justify-between">
         <div>
           <p className="eyebrow text-gold-deep">Admin · 물류 ERP</p>
@@ -873,11 +876,6 @@ export default function AdminPage() {
       {/* 전환 퍼널 — 측정 대시보드 */}
       <div className="mt-6 no-print">
         <FunnelDashboard />
-      </div>
-
-      {/* AI 비서 — 자연어 질문 즉답(읽기 전용) */}
-      <div className="mt-6 no-print">
-        <AdminAssistant />
       </div>
 
       {/* 업계 소식 레이더 — 주 1회 자동 수집 */}
