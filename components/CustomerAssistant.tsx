@@ -4,10 +4,14 @@
 //   개별 주문/환불은 다루지 않고 고객센터로 안내한다(서버 가드레일). 관리자 화면에선 숨김.
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useCart } from "@/lib/cart";
 import { useVoiceInput } from "@/lib/useVoiceInput";
 import { speak, stopSpeaking } from "@/lib/speech";
 
 type Msg = { role: "user" | "assistant"; content: string };
+type AddItem = { productId: string; qty: number };
+// 음성/채팅으로 담을 때 기본 배송 요일. 요일·기간은 장바구니/결제에서 변경 가능.
+const DEFAULT_DELIVERY_DAY = "mon" as const;
 
 const SUGGESTIONS = [
   "A2 우유가 뭔가요?",
@@ -26,6 +30,9 @@ export function CustomerAssistant() {
   const [showNudge, setShowNudge] = useState(false);
   // 음성 답변 on/off. 음성으로 물으면 자동으로 켜진다(음성 질문 → 음성 답변).
   const [voiceOut, setVoiceOut] = useState(false);
+  // 담기 보조로 장바구니에 항목을 담았으면 '주문하러 가기' CTA를 띄운다.
+  const [addedToCart, setAddedToCart] = useState(false);
+  const { add: addToCart, open: openCart } = useCart();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const voice = useVoiceInput({
@@ -66,13 +73,13 @@ export function CustomerAssistant() {
     setInput("");
     setLoading(true);
     try {
-      const res = await fetch("/api/assistant", {
+      const res = await fetch("/api/assistant/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next }),
       });
       const json = (await res.json().catch(() => null)) as
-        | { ok: boolean; reply?: string; reason?: string }
+        | { ok: boolean; reply?: string; reason?: string; add?: AddItem[] }
         | null;
       if (!json?.ok || !json.reply) {
         setError(
@@ -85,6 +92,14 @@ export function CustomerAssistant() {
       } else {
         const reply = json.reply as string;
         setMessages((m) => [...m, { role: "assistant", content: reply }]);
+        // 담기 보조: 모델이 담을 항목을 돌려주면 정기구독 장바구니에 반영(결제는 안 함).
+        const toAdd = Array.isArray(json.add) ? json.add : [];
+        if (toAdd.length > 0) {
+          toAdd.forEach((it) =>
+            addToCart({ productId: it.productId, deliveryDay: DEFAULT_DELIVERY_DAY, qty: it.qty })
+          );
+          setAddedToCart(true);
+        }
         // 음성으로 물었으면(speak=true) 또는 음성답변이 켜져 있으면 읽어준다.
         if (opts?.speak ?? voiceOut) {
           speak(reply).catch(() => {
@@ -230,6 +245,25 @@ export function CustomerAssistant() {
                   {s}
                 </button>
               ))}
+            </div>
+          )}
+
+          {addedToCart && (
+            <div className="px-4 pb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  stopSpeaking();
+                  setOpen(false);
+                  openCart();
+                }}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-gold-deep px-4 py-2.5 text-[13px] font-medium text-cream transition-colors hover:bg-ink"
+              >
+                장바구니에서 확인하고 주문하기 →
+              </button>
+              <p className="mt-1 text-center text-[11px] text-mute">
+                요일·기간·결제는 다음 화면에서 직접 확인하세요.
+              </p>
             </div>
           )}
 

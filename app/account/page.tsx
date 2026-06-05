@@ -19,6 +19,7 @@ import {
   type MySubscription,
 } from "@/lib/subscriptions";
 import { computeSchedule } from "@/lib/subscription-schedule";
+import { speak } from "@/lib/speech";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
 import { DEPOSIT } from "@/lib/site";
@@ -426,6 +427,32 @@ export default function AccountPage() {
                         </div>
                       ) : (
                         <>
+                          {!s.paused && sch.started && sch.remaining <= 2 && (
+                            <div className="mb-3 rounded-2xl border border-gold/50 bg-gold/10 p-4">
+                              <p className="text-[14px] font-medium text-gold-deep">
+                                정기배송이 곧 끝나요
+                              </p>
+                              <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+                                남은 {sch.remaining}회 · 종료 예정 {fmtDate(sch.endDate)}. 다시
+                                받아보시려면 아래에서 연장하실 수 있어요.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  speak(
+                                    `${PERIOD_LABEL[s.periodMonths as SubPeriod] ?? `${s.periodMonths ?? 1}개월`} 정기구독이 곧 끝나요. 남은 횟수 ${sch.remaining}회, 종료 예정 ${fmtDate(sch.endDate)}입니다. 다시 받아보시겠어요? 연장하시면 같은 요일로 이어집니다.`
+                                  ).catch(() => {})
+                                }
+                                className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-gold/50 px-4 py-2 text-[13px] text-gold-deep transition-colors hover:bg-gold/15"
+                              >
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                                  <path d="M11 5L6 9H2v6h4l5 4V5z" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" strokeLinecap="round" />
+                                </svg>
+                                음성으로 안내 듣기
+                              </button>
+                            </div>
+                          )}
                           <button
                             onClick={() => onRenew(s.slotId)}
                             disabled={busy === s.slotId}
