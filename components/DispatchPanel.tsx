@@ -51,6 +51,20 @@ function todayISO(): string {
   return d.toISOString().slice(0, 10);
 }
 
+// 엑셀(한글) 호환 CSV 다운로드 — UTF-8 BOM 포함.
+function downloadCsv(filename: string, rows: string[][]) {
+  const csv = rows
+    .map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))
+    .join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function DispatchPanel({
   orders,
   itemsByOrder,
@@ -102,6 +116,32 @@ export function DispatchPanel({
 
   function trackingOf(o: DispatchOrder): string {
     return tracking[o.id] ?? o.tracking_no ?? "";
+  }
+
+  // 배송 담당자용 발송 명단 엑셀 — 현재 목록(queue) 기준. 받는분·연락처·주소·제품·택배사·송장.
+  function exportDispatchCsv() {
+    const rows: string[][] = [
+      ["발송예정일", "받는분", "연락처", "우편번호", "주소", "상세주소", "보낼 제품(수량)", "택배사", "송장번호", "상태"],
+    ];
+    for (const o of queue) {
+      const its = itemsByOrder.get(o.id) ?? [];
+      const products = its.map((it) => `${it.product_name} ${it.volume}×${it.qty}`).join(" / ");
+      const courierLabel = o.courier ? COURIERS[o.courier]?.label ?? o.courier : "";
+      rows.push([
+        o.ship_date ?? (useDateFilter ? date : ""),
+        o.ship_name,
+        o.ship_phone,
+        o.ship_postcode ?? "",
+        o.ship_address,
+        o.ship_address_detail ?? "",
+        products,
+        courierLabel,
+        trackingOf(o),
+        o.status,
+      ]);
+    }
+    const tag = useDateFilter ? date : "전체";
+    downloadCsv(`발송명단_${tag}.csv`, rows);
   }
 
   // 선택분 일괄 발송: 송장 입력된 건만 배송중 전환 + 발송일·택배사 기록 + 알림.
@@ -165,9 +205,20 @@ export function DispatchPanel({
     <section className="mt-8">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-serif-kr text-lg text-ink">배송 일괄처리</h2>
-        <span className="text-[12.5px] text-mute">
-          배송 대상 {queue.length}건 · 선택 {selected.size}건
-        </span>
+        <div className="flex items-center gap-3 no-print">
+          <span className="text-[12.5px] text-mute">
+            배송 대상 {queue.length}건 · 선택 {selected.size}건
+          </span>
+          {queue.length > 0 && (
+            <button
+              type="button"
+              onClick={exportDispatchCsv}
+              className="rounded-full border border-gold/50 bg-gold/10 px-3.5 py-1.5 text-[13px] font-semibold text-gold-deep transition-colors hover:bg-gold/20"
+            >
+              📋 발송 명단 엑셀
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 필터 + 일괄 도구 */}
