@@ -37,6 +37,42 @@ export function RegenerativeBand() {
           </p>
         </div>
 
+        {/* 원칙 — 자연이 허락한 만큼 */}
+        <div className="mt-10 grid gap-3 sm:grid-cols-3">
+          {[
+            "자연이 허락한 만큼만 생산합니다.",
+            "토양과 소의 건강을 먼저 생각합니다.",
+            "미생물의 건강을 생각합니다.",
+          ].map((line) => (
+            <div
+              key={line}
+              className="rounded-2xl border border-line bg-cream px-5 py-4 text-[14px] leading-relaxed text-ink"
+            >
+              {line}
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 text-[15px] leading-relaxed text-ink-soft">
+          미생물이 건강해야 땅이 건강하고, 소가 건강하고, 우리의 장과 뇌까지 건강으로 이어진다고
+          믿습니다.
+        </p>
+
+        {/* 장-뇌 축(gut–brain axis) 간단 소개 — 일반 과학 개념 + 효능 단정 금지 */}
+        <div className="mt-8 rounded-2xl border border-gold/40 bg-gold/5 p-6">
+          <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
+            Gut–Brain Axis · 장–뇌 축
+          </p>
+          <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
+            최근 과학이 주목하는 <strong className="text-ink">장–뇌 축</strong>은, 장 속 미생물과
+            뇌가 서로 신호를 주고받는다는 개념입니다. 건강한 미생물 생태계가 소화·면역·기분에까지
+            영향을 준다고 알려져 있습니다. 그래서 우리는 흙 속 미생물부터 건강하게 돌보는 일이, 소와
+            사람의 건강한 미생물로 이어진다고 믿습니다.
+          </p>
+          <p className="mt-3 text-[11.5px] text-mute">
+            ※ 식품으로서의 이야기이며, 특정 질병의 예방·치료 효능을 뜻하지 않습니다.
+          </p>
+        </div>
+
         {/* 함께 보면 좋은 곳 — Kiss the Ground (출처 링크, 제휴 아님) */}
         <div className="mt-10 rounded-2xl border border-line bg-cream p-6">
           <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
