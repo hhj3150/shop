@@ -13,6 +13,7 @@ import {
   ONCE_SHIPPING_KRW,
   onceShippingFee,
 } from "@/lib/products";
+import { isSpecialDeliveryPostcode } from "@/lib/regions";
 import {
   createOnceOrder,
   createGuestOnceOrder,
@@ -74,6 +75,8 @@ function OrderOnce() {
   const [method, setMethod] = useState<CheckoutMethod>("BANK");
   const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
   const [cashReceiptId, setCashReceiptId] = useState("");
+  // 특수배송지역(제주·도서산간 등) 신선도 고지 동의.
+  const [acceptFresh, setAcceptFresh] = useState(false);
 
   const { map, refresh } = useStorefrontCatalog();
 
@@ -126,7 +129,10 @@ function OrderOnce() {
       visibleProducts(PRODUCTS, map).reduce((n, p) => n + (qtys[p.id] ?? 0), 0),
     [qtys, map]
   );
-  const shipping = onceShippingFee(subtotal);
+  // 배송지 우편번호 기준 배송비. 특수배송지역(제주·도서산간 등)은 5,000원이며
+  //   서버(RPC)가 청구하는 금액과 일치시킨다.
+  const isSpecialRegion = isSpecialDeliveryPostcode(ship.postcode);
+  const shipping = onceShippingFee(subtotal, ship.postcode);
   const total = subtotal + shipping;
   const belowMin = subtotal < ONCE_MIN_KRW;
 
@@ -191,6 +197,10 @@ function OrderOnce() {
     }
     if (!ship.name.trim() || !ship.phone.trim() || !ship.address.trim()) {
       setError("받는 분, 연락처, 주소를 입력해 주세요.");
+      return;
+    }
+    if (isSpecialRegion && !acceptFresh) {
+      setError("제주·도서산간 등 특수배송지역은 신선도 안내에 동의하셔야 주문할 수 있습니다.");
       return;
     }
     // 무통장입금은 입금자명이 있어야 PayAction 자동매칭이 가능하다.
@@ -377,7 +387,12 @@ function OrderOnce() {
           <span className="tabular-nums text-ink-soft">{formatKRW(subtotal)}</span>
         </div>
         <div className="mt-2 flex justify-between text-[14px]">
-          <span className="text-mute">배송비</span>
+          <span className="text-mute">
+            배송비
+            {isSpecialRegion && (
+              <span className="ml-1.5 text-[12px] text-gold-deep">제주·도서산간 5,000원</span>
+            )}
+          </span>
           <span className="tabular-nums text-ink-soft">
             {formatKRW(shipping)}
           </span>
@@ -447,6 +462,26 @@ function OrderOnce() {
         </div>
         <Field id="address" label="주소" required value={ship.address} onChange={(e) => update("address", e.target.value)} />
         <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
+
+        {isSpecialRegion && (
+          <div className="rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
+            <p className="text-[14px] font-medium text-gold-deep">신선함이 생명입니다</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+              입력하신 지역(제주·도서산간 등)은 당일·익일 배송이 어려워 도착까지 하루 이상 걸릴 수
+              있고, 그만큼 신선도가 떨어질 수 있습니다. 이 지역은 배송비가 5,000원입니다.
+            </p>
+            <label className="mt-3 flex items-start gap-2 text-[13px] text-ink">
+              <input
+                type="checkbox"
+                checked={acceptFresh}
+                onChange={(e) => setAcceptFresh(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
+              />
+              <span>신선도 안내를 확인했고, 배송비 5,000원에 동의합니다.</span>
+            </label>
+          </div>
+        )}
+
         <Field id="depositorName" label="입금자명" hint="통장 입금 대조를 위해 실제 입금하실 분의 이름을 적어 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
@@ -473,7 +508,7 @@ function OrderOnce() {
 
         <button
           type="submit"
-          disabled={busy || belowMin || count === 0}
+          disabled={busy || belowMin || count === 0 || (isSpecialRegion && !acceptFresh)}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
-import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
+import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL, subShippingFee } from "@/lib/products";
+import { isSpecialDeliveryPostcode } from "@/lib/regions";
 import { createOrder, registerPayActionDeposit } from "@/lib/orders";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, isCatalogRejection } from "@/lib/storefront-merge";
@@ -28,7 +29,7 @@ import type { Recipient } from "@/lib/recipients";
 export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
-  const { items, period, weeks, perDelivery, shipTotal, periodTotal, weeklyPrice, clear } = useCart();
+  const { items, period, weeks, perDelivery, weeklyPrice, clear } = useCart();
   const { map, refresh } = useStorefrontCatalog();
   // 회당 상품 합계가 최소 주문금액 미만이면 신청 불가(버튼 비활성화 + 안내).
   const belowMin = perDelivery < MIN_ORDER_KRW;
@@ -55,6 +56,14 @@ export default function CheckoutPage() {
   const [method, setMethod] = useState<CheckoutMethod>("BANK");
   const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
   const [cashReceiptId, setCashReceiptId] = useState("");
+  // 특수배송지역(제주·도서산간 등) 신선도 고지 동의.
+  const [acceptFresh, setAcceptFresh] = useState(false);
+
+  // 배송지 우편번호로 배송비를 다시 계산한다. 특수배송지역은 회당 5,000원이며
+  //   서버(RPC)가 청구하는 금액과 일치시킨다. cart의 기본값(4,000원)을 덮어쓴다.
+  const isSpecialRegion = isSpecialDeliveryPostcode(ship.postcode);
+  const shipTotal = subShippingFee(perDelivery, ship.postcode) * weeks;
+  const periodTotal = perDelivery * weeks + shipTotal;
 
   // 카드·간편결제(PortOne)는 PortOne 설정 시에만, 또 선물이 아닐 때만 선택 가능하다.
   //   선물은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 무통장(PayAction) 흐름으로 고정한다.
@@ -132,6 +141,10 @@ export default function CheckoutPage() {
     if (!user) return;
     if (!ship.name.trim() || !ship.phone.trim() || !ship.address.trim()) {
       setError("받는 분, 연락처, 주소를 입력해 주세요.");
+      return;
+    }
+    if (isSpecialRegion && !acceptFresh) {
+      setError("제주·도서산간 등 특수배송지역은 신선도 안내에 동의하셔야 신청할 수 있습니다.");
       return;
     }
     // 무통장입금은 입금자명이 있어야 PayAction 자동매칭이 가능하다.
@@ -281,7 +294,12 @@ export default function CheckoutPage() {
           <span className="tabular-nums text-ink-soft">{formatKRW(perDelivery)}</span>
         </div>
         <div className="mt-1.5 flex justify-between">
-          <span className="text-mute">배송비 ({weeks}회)</span>
+          <span className="text-mute">
+            배송비 ({weeks}회)
+            {isSpecialRegion && (
+              <span className="ml-1.5 text-[12px] text-gold-deep">제주·도서산간 회당 5,000원</span>
+            )}
+          </span>
           <span className="tabular-nums text-ink-soft">
             {formatKRW(shipTotal)}
           </span>
@@ -350,6 +368,26 @@ export default function CheckoutPage() {
         </div>
         <Field id="address" label="주소" required value={ship.address} onChange={(e) => update("address", e.target.value)} />
         <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
+
+        {isSpecialRegion && (
+          <div className="rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
+            <p className="text-[14px] font-medium text-gold-deep">신선함이 생명입니다</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+              입력하신 지역(제주·도서산간 등)은 당일·익일 배송이 어려워 도착까지 하루 이상 걸릴 수
+              있고, 그만큼 신선도가 떨어질 수 있습니다. 이 지역은 배송비가 회당 5,000원입니다.
+            </p>
+            <label className="mt-3 flex items-start gap-2 text-[13px] text-ink">
+              <input
+                type="checkbox"
+                checked={acceptFresh}
+                onChange={(e) => setAcceptFresh(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
+              />
+              <span>신선도 안내를 확인했고, 배송비 회당 5,000원에 동의합니다.</span>
+            </label>
+          </div>
+        )}
+
         <Field id="depositorName" label="입금자명" hint="통장 입금 대조를 위해 실제 입금하실 분의 이름을 적어 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
@@ -388,7 +426,7 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={busy || belowMin || hasBlocked}
+          disabled={busy || belowMin || hasBlocked || (isSpecialRegion && !acceptFresh)}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy

@@ -1,3 +1,8 @@
+import {
+  SPECIAL_DELIVERY_SHIPPING_KRW,
+  isSpecialDeliveryPostcode,
+} from "./regions";
+
 export type ProductLine = "milk" | "yogurt";
 
 export type ProductSpec = {
@@ -45,9 +50,16 @@ export const MIN_ORDER_KRW = 25000; // 1회(매주) 배송 최소 상품 금액 
 export const SUB_SHIPPING_KRW = 4000; // 회당(매주) 배송비
 
 // 정기구독 회당 배송비. 주문 금액과 무관하게 항상 자부담(무료배송 없음).
-export function subShippingFee(perDeliveryListTotal: number): number {
+//   postcode가 특수배송지역(제주·도서산간 등)이면 회당 5,000원.
+//   미지정(장바구니 등 주소 입력 전)이면 일반 4,000원으로 표시한다.
+export function subShippingFee(
+  perDeliveryListTotal: number,
+  postcode?: string | null
+): number {
   if (perDeliveryListTotal <= 0) return 0;
-  return SUB_SHIPPING_KRW;
+  return isSpecialDeliveryPostcode(postcode)
+    ? SPECIAL_DELIVERY_SHIPPING_KRW
+    : SUB_SHIPPING_KRW;
 }
 
 // 구독 기간(개월): 1=4주, 2=8주, 3=12주. 사용자에겐 '주'로 노출(PERIOD_LABEL).
@@ -86,9 +98,15 @@ export const ONCE_MIN_KRW = 25000; // 단품 최소 상품 합계
 export const ONCE_SHIPPING_KRW = 4000; // 단품 기본 배송비
 
 // 단품 상품 합계에 대한 배송비 계산. 금액과 무관하게 항상 자부담.
-export function onceShippingFee(subtotal: number): number {
+//   postcode가 특수배송지역(제주·도서산간 등)이면 5,000원.
+export function onceShippingFee(
+  subtotal: number,
+  postcode?: string | null
+): number {
   if (subtotal <= 0) return 0;
-  return ONCE_SHIPPING_KRW;
+  return isSpecialDeliveryPostcode(postcode)
+    ? SPECIAL_DELIVERY_SHIPPING_KRW
+    : ONCE_SHIPPING_KRW;
 }
 
 // 정기구독 정원: 요일별 100명, 월–금 5일 = 전체 500명. 초과 시 대기자.

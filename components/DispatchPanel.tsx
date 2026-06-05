@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { notify } from "@/lib/notify";
-import { COURIERS, COURIER_IDS } from "@/lib/couriers";
+import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 
 // 배송 처리에 필요한 최소 주문 필드(관리자 페이지 OrderRow 의 부분집합).
@@ -293,7 +293,7 @@ export function DispatchPanel({
     const rows: string[][] = [header];
     for (const r of queue) {
       const o = r.o;
-      const courierLabel = o.courier ? COURIERS[o.courier]?.label ?? o.courier : "";
+      const courierName = courierLabel(o.courier);
       const roundDates = ["", "", "", ""];
       roundDates[r.round - 1] = r.shipISO;
       rows.push([
@@ -311,7 +311,7 @@ export function DispatchPanel({
         r.q[1] ? String(r.q[1]) : "",
         r.q[2] ? String(r.q[2]) : "",
         r.q[3] ? String(r.q[3]) : "",
-        courierLabel,
+        courierName,
         trackingOf(o),
         receiptStatus(o),
         o.status,
