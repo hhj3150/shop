@@ -6,7 +6,7 @@ import Image from "next/image";
 //     (가운데 다크 여백이 크게 비지 않도록), 애플식 집중 구도.
 export function FarmBand() {
   const EYEBROW = "Anseong · Made by Soil";
-  const SUB = "경기도 안성 송영신목장에서 매주 갓 짜냅니다.";
+  const SUB = "아침에 짠 우유를 그날 오후 가공해, 다음 날 콜드체인으로. 우유는 신선함이 생명입니다.";
 
   return (
     <section className="relative w-full overflow-hidden bg-ink">
