@@ -52,6 +52,12 @@ const JS_DAY_TO_KEY: Record<number, DeliveryDay | null> = {
   6: null,
 };
 
+// ISO 날짜(YYYY-MM-DD) → 배송 요일키(주말은 null). 배송 명단·생산 수요 계산 공용.
+function weekdayOf(iso: string): DeliveryDay | null {
+  const [y, mo, da] = iso.split("-").map(Number);
+  return y ? JS_DAY_TO_KEY[new Date(y, mo - 1, da).getDay()] : null;
+}
+
 type OrderRow = {
   id: string;
   user_id: string;
@@ -166,6 +172,7 @@ export default function AdminPage() {
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchSummary, setBatchSummary] = useState<string | null>(null);
   const [date, setDate] = useState(todayISO());
+  const [dateTo, setDateTo] = useState(todayISO());
   const [tab, setTab] = useState<AdminTab>("종합 관리");
   const [memberQuery, setMemberQuery] = useState("");
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
@@ -355,13 +362,7 @@ export default function AdminPage() {
     [matrix, productKeys, items, orderById, confirmedOrderIds]
   );
 
-  // ── 선택 날짜 배송 리스트 ─────────────────────────────────
-  const selectedWeekday = useMemo<DeliveryDay | null>(() => {
-    const [y, mo, da] = date.split("-").map(Number);
-    if (!y) return null;
-    return JS_DAY_TO_KEY[new Date(y, mo - 1, da).getDay()];
-  }, [date]);
-
+  // ── 선택 기간 배송 명단 (당일 ~ 기간) ─────────────────────
   // 한 배송 건(정기 1회분 또는 단품 주문). kind 로 정기/단품을 구분.
   type DeliveryEntry = {
     order: OrderRow;
@@ -370,74 +371,100 @@ export default function AdminPage() {
     kind: "정기" | "단품";
   };
 
-  // 정기는 정기끼리 먼저, 그 안에서 같은 구성품끼리 묶어 정렬한다(포장 편의).
-  const deliveryList = useMemo<DeliveryEntry[]>(() => {
-    const entries: DeliveryEntry[] = [];
+  // 임의 날짜(d)의 배송 명단. 정기는 그 요일분, 단품은 ship_date 일치분.
+  //   정렬: 정기 먼저, 같은 구성품끼리(포장 편의).
+  const rosterForDate = useCallback(
+    (d: string): DeliveryEntry[] => {
+      const entries: DeliveryEntry[] = [];
+      const wd = weekdayOf(d);
 
-    // ① 정기구독 — 선택 요일에 발송되는 확정·미정지 구독.
-    if (selectedWeekday) {
-      const byOrder = new Map<string, ItemRow[]>();
+      if (wd) {
+        const byOrder = new Map<string, ItemRow[]>();
+        for (const it of items) {
+          if (it.delivery_day !== wd) continue;
+          if (!confirmedOrderIds.has(it.order_id)) continue;
+          if (pausedOrderIds.has(it.order_id)) continue;
+          const arr = byOrder.get(it.order_id) ?? [];
+          arr.push(it);
+          byOrder.set(it.order_id, arr);
+        }
+        for (const [orderId, its] of byOrder) {
+          const order = orderById.get(orderId);
+          if (!order || order.order_type === "단품") continue;
+          entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
+        }
+      }
+
+      const onceByOrder = new Map<string, ItemRow[]>();
       for (const it of items) {
-        if (it.delivery_day !== selectedWeekday) continue;
-        if (!confirmedOrderIds.has(it.order_id)) continue;
-        if (pausedOrderIds.has(it.order_id)) continue;
-        const arr = byOrder.get(it.order_id) ?? [];
+        const order = orderById.get(it.order_id);
+        if (!order || order.order_type !== "단품") continue;
+        if (order.ship_date !== d) continue;
+        if (!confirmedOrderIds.has(order.id)) continue;
+        const arr = onceByOrder.get(order.id) ?? [];
         arr.push(it);
-        byOrder.set(it.order_id, arr);
+        onceByOrder.set(order.id, arr);
       }
-      for (const [orderId, its] of byOrder) {
-        const order = orderById.get(orderId);
-        if (!order || order.order_type === "단품") continue;
-        entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
+      for (const [orderId, its] of onceByOrder) {
+        const order = orderById.get(orderId)!;
+        entries.push({ order, items: its, sig: compositionSignature(its), kind: "단품" });
       }
-    }
 
-    // ② 단품(1회) — 선택한 날짜(ship_date)에 발송 예정인 확정 단품 주문.
-    const onceByOrder = new Map<string, ItemRow[]>();
-    for (const it of items) {
-      const order = orderById.get(it.order_id);
-      if (!order || order.order_type !== "단품") continue;
-      if (order.ship_date !== date) continue;
-      if (!confirmedOrderIds.has(order.id)) continue;
-      const arr = onceByOrder.get(order.id) ?? [];
-      arr.push(it);
-      onceByOrder.set(order.id, arr);
-    }
-    for (const [orderId, its] of onceByOrder) {
-      const order = orderById.get(orderId)!;
-      entries.push({ order, items: its, sig: compositionSignature(its), kind: "단품" });
-    }
+      const rank = (k: DeliveryEntry["kind"]) => (k === "정기" ? 0 : 1);
+      return entries.sort(
+        (a, b) =>
+          rank(a.kind) - rank(b.kind) ||
+          a.sig.localeCompare(b.sig, "ko") ||
+          a.order.ship_name.localeCompare(b.order.ship_name, "ko")
+      );
+    },
+    [items, confirmedOrderIds, pausedOrderIds, orderById]
+  );
 
-    const rank = (k: DeliveryEntry["kind"]) => (k === "정기" ? 0 : 1);
-    return entries.sort(
-      (a, b) =>
-        rank(a.kind) - rank(b.kind) ||
-        a.sig.localeCompare(b.sig, "ko") ||
-        a.order.ship_name.localeCompare(b.order.ship_name, "ko")
-    );
-  }, [selectedWeekday, items, confirmedOrderIds, pausedOrderIds, orderById, date]);
-
-  // 같은 구분·구성품끼리 한 묶음으로. 포장 시 묶음 단위로 처리.
-  const deliveryGroups = useMemo(() => {
-    const groups: { kind: "정기" | "단품"; sig: string; rows: DeliveryEntry[] }[] = [];
-    for (const row of deliveryList) {
-      const last = groups[groups.length - 1];
-      if (last && last.kind === row.kind && last.sig === row.sig) last.rows.push(row);
-      else groups.push({ kind: row.kind, sig: row.sig, rows: [row] });
+  // 선택 기간(date ~ dateTo) 날짜 목록. 최대 62일 가드. dateTo<date 면 당일로.
+  const rangeDates = useMemo<string[]>(() => {
+    const to = dateTo && dateTo >= date ? dateTo : date;
+    const out: string[] = [];
+    const cur = new Date(`${date}T00:00:00`);
+    const end = new Date(`${to}T00:00:00`);
+    while (cur <= end && out.length < 62) {
+      out.push(toISODate(cur));
+      cur.setDate(cur.getDate() + 1);
     }
-    return groups;
-  }, [deliveryList]);
+    return out;
+  }, [date, dateTo]);
 
-  const deliveryProductTotals = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const d of deliveryList) {
-      for (const it of d.items) {
-        const k = `${it.product_name} ${it.volume}`;
-        m[k] = (m[k] ?? 0) + it.qty;
+  // 날짜별 배송 명단 + 포장 묶음(같은 구분·구성품) + 제품 합계.
+  const deliveryByDate = useMemo(() => {
+    return rangeDates.map((d) => {
+      const entries = rosterForDate(d);
+      const groups: { kind: "정기" | "단품"; sig: string; rows: DeliveryEntry[] }[] = [];
+      for (const row of entries) {
+        const last = groups[groups.length - 1];
+        if (last && last.kind === row.kind && last.sig === row.sig) last.rows.push(row);
+        else groups.push({ kind: row.kind, sig: row.sig, rows: [row] });
       }
+      const totals: Record<string, number> = {};
+      for (const e of entries) {
+        for (const it of e.items) {
+          const k = `${it.product_name} ${it.volume}`;
+          totals[k] = (totals[k] ?? 0) + it.qty;
+        }
+      }
+      return { date: d, weekday: weekdayOf(d), entries, groups, totals };
+    });
+  }, [rangeDates, rosterForDate]);
+
+  // 기간 전체 합계(건수/제품).
+  const rangeTotals = useMemo(() => {
+    const product: Record<string, number> = {};
+    let count = 0;
+    for (const day of deliveryByDate) {
+      count += day.entries.length;
+      for (const [k, v] of Object.entries(day.totals)) product[k] = (product[k] ?? 0) + v;
     }
-    return m;
-  }, [deliveryList]);
+    return { count, product };
+  }, [deliveryByDate]);
 
   // ── 대기자 ───────────────────────────────────────────────
   const waitlist = useMemo(
@@ -664,26 +691,30 @@ export default function AdminPage() {
   // 화면의 배송 명단(선택 날짜 기준, 정기+단품)을 그대로 CSV로 내보낸다.
   function exportDeliveryCsv() {
     const rows: string[][] = [
-      ["구분", "포장묶음", "주문번호", "이름", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
+      ["발송일", "요일", "구분", "포장묶음", "주문번호", "이름", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
     ];
-    deliveryGroups.forEach((g, gi) => {
-      for (const { order: o, items: its } of g.rows) {
-        rows.push([
-          g.kind,
-          String(gi + 1),
-          o.order_no,
-          o.ship_name,
-          o.ship_phone,
-          o.ship_postcode ?? "",
-          o.ship_address,
-          o.ship_address_detail ?? "",
-          its.map((it) => `${it.product_name} ${it.volume}×${it.qty}`).join(" / "),
-          o.status,
-        ]);
-      }
-    });
-    const label = selectedWeekday ? DELIVERY_DAY_LABEL[selectedWeekday] : "주말";
-    downloadCsv(`배송명단_${date}_${label}.csv`, rows);
+    for (const day of deliveryByDate) {
+      const label = day.weekday ? DELIVERY_DAY_LABEL[day.weekday] : "주말";
+      day.groups.forEach((g, gi) => {
+        for (const { order: o, items: its } of g.rows) {
+          rows.push([
+            day.date,
+            label,
+            g.kind,
+            String(gi + 1),
+            o.order_no,
+            o.ship_name,
+            o.ship_phone,
+            o.ship_postcode ?? "",
+            o.ship_address,
+            o.ship_address_detail ?? "",
+            its.map((it) => `${it.product_name} ${it.volume}×${it.qty}`).join(" / "),
+            o.status,
+          ]);
+        }
+      });
+    }
+    downloadCsv(`배송명단_${date}_${dateTo}.csv`, rows);
   }
 
   function exportCancellationsCsv() {
@@ -975,19 +1006,42 @@ export default function AdminPage() {
       {/* 이번 주(월~금) 통합 생산·배송 계획 */}
       <WeeklyPlanTable productKeys={productKeys} onlineDemandForDate={onlineDemandForDate} />
 
-      {/* 당일/날짜별 배송 리스트 */}
-      <h2 className="mt-12 font-serif-kr text-lg text-ink">날짜별 배송 명단</h2>
-      <div className="mt-3 flex flex-wrap items-center gap-3 no-print">
+      {/* 기간별 배송 명단 — 당일 또는 기간(from~to) 선택 */}
+      <h2 className="mt-12 font-serif-kr text-lg text-ink">기간별 배송 명단</h2>
+      <div className="mt-3 flex flex-wrap items-center gap-2 no-print">
         <input
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
           className="rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
+          aria-label="배송 시작일"
         />
-        <span className="text-[14px] text-mute">
-          {selectedWeekday ? `${DELIVERY_DAY_LABEL[selectedWeekday]} 정기 + 단품 발송분` : "주말 — 정기배송 없음 (단품만)"}
-        </span>
-        {deliveryList.length > 0 && (
+        <span className="text-mute">~</span>
+        <input
+          type="date"
+          value={dateTo}
+          min={date}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
+          aria-label="배송 종료일"
+        />
+        <button
+          onClick={() => setDateTo(date)}
+          className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft hover:border-gold hover:text-gold-deep"
+        >
+          당일
+        </button>
+        <button
+          onClick={() => {
+            const e = new Date(`${date}T00:00:00`);
+            e.setDate(e.getDate() + 6);
+            setDateTo(toISODate(e));
+          }}
+          className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft hover:border-gold hover:text-gold-deep"
+        >
+          7일
+        </button>
+        {rangeTotals.count > 0 && (
           <button
             onClick={exportDeliveryCsv}
             className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold-deep"
@@ -997,9 +1051,12 @@ export default function AdminPage() {
         )}
       </div>
 
-      {Object.keys(deliveryProductTotals).length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {Object.entries(deliveryProductTotals).map(([k, v]) => (
+      {rangeTotals.count > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-ink/8 px-3 py-1 text-[13px] font-medium text-ink">
+            기간 합계 {rangeTotals.count}건
+          </span>
+          {Object.entries(rangeTotals.product).map(([k, v]) => (
             <span key={k} className="rounded-full bg-gold/10 px-3 py-1 text-[13px] text-gold-deep">
               {k} · {v}개
             </span>
@@ -1007,55 +1064,74 @@ export default function AdminPage() {
         </div>
       )}
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-[14px]">
-          <thead>
-            <tr className="border-b border-line text-left text-mute">
-              <th className="py-2 font-normal">이름</th>
-              <th className="py-2 font-normal">연락처</th>
-              <th className="py-2 font-normal">주소</th>
-              <th className="py-2 font-normal">제품(수량)</th>
-              <th className="py-2 font-normal">상태</th>
-            </tr>
-          </thead>
-          <tbody>
-            {deliveryList.length === 0 ? (
-              <tr><td colSpan={5} className="py-4 text-center text-mute">해당 날짜 배송분이 없습니다.</td></tr>
-            ) : (
-              deliveryGroups.map((g, gi) => (
-                <Fragment key={`${g.kind}-${gi}`}>
-                  <tr className="bg-gold/8">
-                    <td colSpan={5} className="px-1 py-2 text-[13px] font-medium text-gold-deep">
-                      <span
-                        className={`mr-2 rounded-full px-2 py-0.5 text-[12px] font-semibold ${
-                          g.kind === "단품"
-                            ? "bg-ink/10 text-ink"
-                            : "bg-gold/20 text-gold-deep"
-                        }`}
-                      >
-                        {g.kind}
+      <div className="mt-5 space-y-8">
+        {rangeTotals.count === 0 ? (
+          <p className="text-[14px] text-mute">선택하신 기간에 배송분이 없습니다.</p>
+        ) : (
+          deliveryByDate
+            .filter((day) => day.entries.length > 0)
+            .map((day) => (
+              <div key={day.date}>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-2">
+                  <h3 className="font-serif-kr text-[15px] text-ink">
+                    {day.date} ({day.weekday ? DELIVERY_DAY_LABEL[day.weekday] : "주말"})
+                  </h3>
+                  <span className="text-[13px] text-mute">{day.entries.length}건</span>
+                  <span className="flex flex-wrap gap-1.5 no-print">
+                    {Object.entries(day.totals).map(([k, v]) => (
+                      <span key={k} className="rounded-full bg-gold/10 px-2.5 py-0.5 text-[12px] text-gold-deep">
+                        {k} {v}
                       </span>
-                      포장 묶음 {gi + 1} · {g.sig} <span className="text-mute">({g.rows.length}건)</span>
-                    </td>
-                  </tr>
-                  {g.rows.map(({ order, items: its }) => (
-                    <tr key={order.id} className="border-b border-line/60 align-top">
-                      <td className="py-2.5 text-ink">{order.ship_name}</td>
-                      <td className="py-2.5 tabular-nums text-ink-soft">{order.ship_phone}</td>
-                      <td className="py-2.5 text-ink-soft">
-                        ({order.ship_postcode}) {order.ship_address} {order.ship_address_detail ?? ""}
-                      </td>
-                      <td className="py-2.5 text-ink-soft">
-                        {its.map((it) => `${it.product_name} ${it.volume}×${it.qty}`).join(", ")}
-                      </td>
-                      <td className="py-2.5 text-gold-deep">{order.status}</td>
-                    </tr>
-                  ))}
-                </Fragment>
-              ))
-            )}
-          </tbody>
-        </table>
+                    ))}
+                  </span>
+                </div>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[640px] border-collapse text-[14px]">
+                    <thead>
+                      <tr className="border-b border-line text-left text-mute">
+                        <th className="py-2 font-normal">이름</th>
+                        <th className="py-2 font-normal">연락처</th>
+                        <th className="py-2 font-normal">주소</th>
+                        <th className="py-2 font-normal">제품(수량)</th>
+                        <th className="py-2 font-normal">상태</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {day.groups.map((g, gi) => (
+                        <Fragment key={`${day.date}-${g.kind}-${gi}`}>
+                          <tr className="bg-gold/8">
+                            <td colSpan={5} className="px-1 py-2 text-[13px] font-medium text-gold-deep">
+                              <span
+                                className={`mr-2 rounded-full px-2 py-0.5 text-[12px] font-semibold ${
+                                  g.kind === "단품" ? "bg-ink/10 text-ink" : "bg-gold/20 text-gold-deep"
+                                }`}
+                              >
+                                {g.kind}
+                              </span>
+                              포장 묶음 {gi + 1} · {g.sig} <span className="text-mute">({g.rows.length}건)</span>
+                            </td>
+                          </tr>
+                          {g.rows.map(({ order, items: its }) => (
+                            <tr key={order.id} className="border-b border-line/60 align-top">
+                              <td className="py-2.5 text-ink">{order.ship_name}</td>
+                              <td className="py-2.5 tabular-nums text-ink-soft">{order.ship_phone}</td>
+                              <td className="py-2.5 text-ink-soft">
+                                ({order.ship_postcode}) {order.ship_address} {order.ship_address_detail ?? ""}
+                              </td>
+                              <td className="py-2.5 text-ink-soft">
+                                {its.map((it) => `${it.product_name} ${it.volume}×${it.qty}`).join(", ")}
+                              </td>
+                              <td className="py-2.5 text-gold-deep">{order.status}</td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+        )}
       </div>
 
       {/* 대기자 명단 */}
