@@ -77,24 +77,29 @@ export function NewsRadarAdminFeed() {
   }
 
   return (
-    <div className="rounded-2xl border border-line bg-cream p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className="overflow-hidden rounded-2xl border-2 border-gold/50 bg-gradient-to-br from-gold/20 via-cream to-cream shadow-sm">
+      {/* 강조 헤더 바 */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-gold-deep to-gold px-5 py-3 text-cream">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-2 w-2 rounded-full bg-gold" aria-hidden />
-          <h2 className="font-serif-kr text-lg text-ink">업계 소식 레이더</h2>
-          <span className="text-[12px] text-mute">주 1회 자동 · A2·저지·헤이밀크·동물복지·저탄소</span>
+          <span className="text-[18px]" aria-hidden>🌍</span>
+          <h2 className="font-serif-kr text-lg font-medium">업계 소식 레이더</h2>
+          <span className="hidden text-[12px] text-cream/80 sm:inline">주 1회 자동 · 글로벌 낙농 소식</span>
         </div>
         <button
           type="button"
           onClick={runNow}
           disabled={running}
-          className="rounded-full border border-line px-3 py-1.5 text-[13px] font-medium text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:opacity-50 no-print"
+          className="rounded-full bg-cream px-4 py-1.5 text-[13px] font-semibold text-gold-deep shadow-sm transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-60 no-print"
         >
-          {running ? "수집 중…" : "지금 한 번 수집"}
+          {running ? "수집 중…" : "🔄 지금 한 번 수집"}
         </button>
       </div>
 
-      {runMsg && <p className="mt-2 text-[13px] text-ink-soft">{runMsg}</p>}
+      <div className="p-5">
+      <p className="text-[12.5px] text-mute">A2 · 저지 · 헤이밀크 · 동물복지 · 저탄소 낙농 — 매주 가장 의미 있는 1건을 한글로.</p>
+      {runMsg && (
+        <p className="mt-2 rounded-lg bg-gold/15 px-3 py-2 text-[13px] font-medium text-gold-deep">{runMsg}</p>
+      )}
 
       {loaded && items.length === 0 ? (
         <p className="mt-3 text-[13px] text-mute">
@@ -126,6 +131,7 @@ export function NewsRadarAdminFeed() {
           ))}
         </ul>
       )}
+      </div>
     </div>
   );
 }
