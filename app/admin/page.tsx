@@ -58,6 +58,23 @@ function weekdayOf(iso: string): DeliveryDay | null {
   return y ? JS_DAY_TO_KEY[new Date(y, mo - 1, da).getDay()] : null;
 }
 
+// PostgREST 기본 행 상한(보통 1000)을 넘겨 전부 가져온다(.range 페이지네이션).
+//   행 수가 상한 미만이면 요청 1회로 끝나, 데이터가 적을 땐 기존과 동일하게 동작한다.
+async function fetchAll<T>(
+  query: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>
+): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await query(from, from + PAGE - 1);
+    const rows = (data as T[] | null) ?? [];
+    if (error || rows.length === 0) break;
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
 type OrderRow = {
   id: string;
   user_id: string;
@@ -195,17 +212,22 @@ export default function AdminPage() {
     if (!opts?.silent) setLoading(true);
     const sb = getSupabase();
     const [o, i, s, p] = await Promise.all([
-      sb.from("orders").select("*").order("created_at", { ascending: false }),
-      sb.from("order_items").select("*"),
-      sb.from("subscription_slots").select("*"),
-      sb
-        .from("profiles")
-        .select("id, name, phone, marketing_consent, postcode, address, address_detail, created_at"),
+      fetchAll<OrderRow>((from, to) =>
+        sb.from("orders").select("*").order("created_at", { ascending: false }).range(from, to)
+      ),
+      fetchAll<ItemRow>((from, to) => sb.from("order_items").select("*").range(from, to)),
+      fetchAll<SlotRow>((from, to) => sb.from("subscription_slots").select("*").range(from, to)),
+      fetchAll<ProfileRow>((from, to) =>
+        sb
+          .from("profiles")
+          .select("id, name, phone, marketing_consent, postcode, address, address_detail, created_at")
+          .range(from, to)
+      ),
     ]);
-    setOrders((o.data as OrderRow[]) ?? []);
-    setItems((i.data as ItemRow[]) ?? []);
-    setSlots((s.data as SlotRow[]) ?? []);
-    setProfiles((p.data as ProfileRow[]) ?? []);
+    setOrders(o);
+    setItems(i);
+    setSlots(s);
+    setProfiles(p);
     setLastRefreshed(new Date());
     setLoading(false);
   }, []);
