@@ -51,7 +51,12 @@ export function RegenerativeBand() {
 
         {/* 장-뇌 축(gut–brain axis) 간단 소개 — 일반 과학 개념 + 효능 단정 금지 */}
         <div className="mt-8 rounded-2xl border border-gold/40 bg-gold/5 p-6">
-          <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
+          <p className="flex items-center gap-2 text-[13px] uppercase tracking-[0.18em] text-gold-deep">
+            <span
+              aria-hidden
+              style={{ backgroundColor: "var(--color-hey-blue)" }}
+              className="h-1.5 w-1.5 rounded-full"
+            />
             Gut–Brain Axis · 장–뇌 축
           </p>
           <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
@@ -65,7 +70,12 @@ export function RegenerativeBand() {
 
         {/* 함께 보면 좋은 곳 — Kiss the Ground (출처 링크, 제휴 아님) */}
         <div className="mt-10 rounded-2xl border border-line bg-cream p-6">
-          <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
+          <p className="flex items-center gap-2 text-[13px] uppercase tracking-[0.18em] text-gold-deep">
+            <span
+              aria-hidden
+              style={{ backgroundColor: "var(--color-hey-green)" }}
+              className="h-1.5 w-1.5 rounded-full"
+            />
             함께 보면 좋은 곳
           </p>
           <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">

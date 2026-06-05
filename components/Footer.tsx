@@ -18,6 +18,22 @@ export function Footer() {
             <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-mute">
               경기도 안성에서 A2 저지 헤이밀크를 직접 짓고 발효합니다.
             </p>
+            {/* 로고 색 점 — 브랜드 시그니처(최소 포인트) */}
+            <div className="mt-5 flex gap-1.5" aria-hidden>
+              {[
+                "var(--color-hey-rose)",
+                "var(--color-hey-green)",
+                "var(--color-hey-orange)",
+                "var(--color-hey-blue)",
+                "var(--color-hey-deep-orange)",
+              ].map((c, i) => (
+                <span
+                  key={i}
+                  style={{ backgroundColor: c }}
+                  className="h-2 w-2 rounded-full"
+                />
+              ))}
+            </div>
           </div>
 
           <div>
