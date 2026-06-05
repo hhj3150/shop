@@ -24,13 +24,23 @@ export function RegenerativeBand() {
           <p className="text-ink">흙에서 마음까지 — From Soil to Soul.</p>
         </div>
 
-        {/* 원칙 — 자연이 허락한 만큼 */}
+        {/* 원칙 — 자연이 허락한 만큼 (HEY 액센트 포인트) */}
         <div className="mt-10 grid gap-3 sm:grid-cols-3">
-          {["자연이 허락한 만큼.", "토양과 소의 건강.", "미생물의 건강."].map((line) => (
+          {[
+            { line: "자연이 허락한 만큼.", color: "var(--color-hey-green)" },
+            { line: "토양과 소의 건강.", color: "var(--color-hey-orange)" },
+            { line: "미생물의 건강.", color: "var(--color-hey-blue)" },
+          ].map(({ line, color }) => (
             <div
               key={line}
+              style={{ borderLeftColor: color, borderLeftWidth: 3 }}
               className="rounded-2xl border border-line bg-cream px-5 py-4 text-[15px] font-medium text-ink"
             >
+              <span
+                aria-hidden
+                style={{ backgroundColor: color }}
+                className="mb-2.5 block h-2 w-2 rounded-full"
+              />
               {line}
             </div>
           ))}

@@ -12,6 +12,13 @@
   --color-line: #e6ddca;
   --color-cream: #fffdf8;
 
+  /* HEY MILK 공식 액센트 팔레트 — 절제된 포인트 컬러(베이스는 페이퍼·잉크·골드 유지). */
+  --color-hey-rose: #d47c89;
+  --color-hey-green: #6bab3a;
+  --color-hey-orange: #df9238;
+  --color-hey-blue: #2e6eb3;
+  --color-hey-deep-orange: #db5d16;
+
   --font-sans: var(--font-noto-sans), system-ui, sans-serif;
   --font-serif: var(--font-noto-serif), Georgia, serif;
   --font-display: var(--font-cormorant), Georgia, serif;
