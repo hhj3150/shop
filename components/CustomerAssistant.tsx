@@ -4,10 +4,17 @@
 //   개별 주문/환불은 다루지 않고 고객센터로 안내한다(서버 가드레일). 관리자 화면에선 숨김.
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useVoiceInput } from "@/lib/useVoiceInput";
+import { speak, stopSpeaking } from "@/lib/speech";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-const SUGGESTIONS = ["정기구독 어떻게 신청하나요?", "배송은 언제 시작되나요?", "교환·환불 되나요?"];
+const SUGGESTIONS = [
+  "A2 우유가 뭔가요?",
+  "저지 우유는 뭐가 좋아요?",
+  "누구에게 좋나요?",
+  "정기구독 어떻게 신청하나요?",
+];
 
 export function CustomerAssistant() {
   const pathname = usePathname();
@@ -17,7 +24,17 @@ export function CustomerAssistant() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNudge, setShowNudge] = useState(false);
+  // 음성 답변 on/off. 음성으로 물으면 자동으로 켜진다(음성 질문 → 음성 답변).
+  const [voiceOut, setVoiceOut] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const voice = useVoiceInput({
+    onTranscript: (text) => {
+      setVoiceOut(true);
+      void send(text, { speak: true });
+    },
+    onError: (msg) => setError(msg),
+  });
 
   // 첫 방문(세션당 1회)에만 '물어보세요' 말풍선을 띄운다 — 매 페이지 따라다니지 않게.
   useEffect(() => {
@@ -40,7 +57,7 @@ export function CustomerAssistant() {
   // 관리자 화면에선 노출하지 않는다(관리자 전용 AI 비서가 따로 있음).
   if (pathname?.startsWith("/admin")) return null;
 
-  async function send(text: string) {
+  async function send(text: string, opts?: { speak?: boolean }) {
     const q = text.trim();
     if (!q || loading) return;
     setError(null);
@@ -66,7 +83,14 @@ export function CustomerAssistant() {
             : "잠시 후 다시 시도해 주세요. (고객센터 031-674-3150)"
         );
       } else {
-        setMessages((m) => [...m, { role: "assistant", content: json.reply as string }]);
+        const reply = json.reply as string;
+        setMessages((m) => [...m, { role: "assistant", content: reply }]);
+        // 음성으로 물었으면(speak=true) 또는 음성답변이 켜져 있으면 읽어준다.
+        if (opts?.speak ?? voiceOut) {
+          speak(reply).catch(() => {
+            // 음성은 보조 — 실패해도 텍스트 답변은 그대로 유지.
+          });
+        }
       }
     } catch {
       setError("네트워크 오류가 발생했습니다.");
@@ -82,7 +106,7 @@ export function CustomerAssistant() {
       {!open && showNudge && (
         <div className="fixed bottom-[150px] right-5 z-40 flex max-w-[240px] items-start gap-2 rounded-2xl border border-line bg-cream px-4 py-3 shadow-xl md:bottom-[88px] md:right-6 no-print">
           <p className="text-[13px] leading-snug text-ink">
-            궁금한 점, <span className="font-medium text-gold-deep">무엇이든 물어보세요</span> — A2·구독·배송까지 바로 답해 드려요.
+            궁금한 점, <span className="font-medium text-gold-deep">무엇이든 물어보세요</span> — A2·저지·헤이밀크 같은 제품 이야기부터 추천·구독·배송까지 바로 답해 드려요.
           </p>
           <button
             type="button"
@@ -124,23 +148,53 @@ export function CustomerAssistant() {
           <div className="flex items-center justify-between border-b border-line bg-ink px-4 py-3 text-cream">
             <div>
               <p className="text-[14px] font-medium">송영신목장 도우미</p>
-              <p className="text-[11px] text-cream/60">AI 자동응답 · 개별 문의는 고객센터</p>
+              <p className="text-[11px] text-cream/60">제품 지식·추천·배송까지 · 개별 문의는 고객센터</p>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              aria-label="닫기"
-              className="-mr-1 flex h-9 w-9 items-center justify-center text-cream/80 hover:text-cream"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  setVoiceOut((v) => {
+                    if (v) stopSpeaking(); // 끄면 재생 중인 음성도 멈춤
+                    return !v;
+                  });
+                }}
+                aria-label={voiceOut ? "음성 답변 끄기" : "음성 답변 켜기"}
+                aria-pressed={voiceOut}
+                className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+                  voiceOut ? "text-gold" : "text-cream/60 hover:text-cream"
+                }`}
+              >
+                {voiceOut ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                    <path d="M11 5L6 9H2v6h4l5 4V5z" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                    <path d="M11 5L6 9H2v6h4l5 4V5z" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M22 9l-6 6M16 9l6 6" strokeLinecap="round" />
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  stopSpeaking();
+                  setOpen(false);
+                }}
+                aria-label="닫기"
+                className="-mr-1 flex h-9 w-9 items-center justify-center text-cream/80 hover:text-cream"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
             {messages.length === 0 ? (
               <p className="text-[13px] leading-relaxed text-ink-soft">
-                안녕하세요! 정기구독·배송·결제 등 궁금한 점을 물어봐 주세요. 개별 주문·환불은 고객센터(031-674-3150)로 안내드립니다.
+                안녕하세요! A2 우유·저지·헤이밀크·요거트 같은 제품 이야기와 추천부터 정기구독·배송·결제까지, 궁금한 점을 무엇이든 물어봐 주세요. (예: "A2 우유가 뭔가요?", "저지 우유 특징은?", "누구에게 좋나요?") 개별 주문·환불은 고객센터(031-674-3150)로 안내드립니다.
               </p>
             ) : (
               messages.map((m, i) => (
@@ -179,6 +233,12 @@ export function CustomerAssistant() {
             </div>
           )}
 
+          {voice.supported && (voice.recording || voice.transcribing) && (
+            <p className="px-4 pb-1 text-[12px] text-gold-deep" aria-live="polite">
+              {voice.recording ? "듣고 있어요… 손을 떼면 전송돼요" : "인식 중…"}
+            </p>
+          )}
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -186,11 +246,42 @@ export function CustomerAssistant() {
             }}
             className="flex gap-2 border-t border-line px-3 py-3"
           >
+            {voice.supported && (
+              <button
+                type="button"
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  void voice.start();
+                }}
+                onPointerUp={(e) => {
+                  e.preventDefault();
+                  voice.stop();
+                }}
+                onPointerLeave={() => {
+                  if (voice.recording) voice.stop();
+                }}
+                disabled={loading || voice.transcribing}
+                aria-label="누르고 말하기"
+                aria-pressed={voice.recording}
+                title="누르고 있는 동안 말하기"
+                style={{ touchAction: "none" }}
+                className={`flex h-10 w-10 shrink-0 select-none items-center justify-center rounded-xl border transition-colors disabled:opacity-50 ${
+                  voice.recording
+                    ? "border-red-400 bg-red-50 text-red-600"
+                    : "border-line bg-white text-ink-soft hover:border-gold hover:text-gold-deep"
+                }`}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <rect x="9" y="3" width="6" height="11" rx="3" />
+                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3" strokeLinecap="round" />
+                </svg>
+              </button>
+            )}
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               maxLength={500}
-              placeholder="메시지를 입력하세요"
+              placeholder={voice.recording ? "듣고 있어요…" : "메시지를 입력하세요"}
               className="flex-1 rounded-xl border border-line bg-white px-3 py-2 text-[14px] text-ink"
             />
             <button
