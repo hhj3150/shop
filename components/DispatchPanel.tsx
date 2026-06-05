@@ -118,28 +118,63 @@ export function DispatchPanel({
     return tracking[o.id] ?? o.tracking_no ?? "";
   }
 
-  // 배송 담당자용 발송 명단 엑셀 — 현재 목록(queue) 기준. 받는분·연락처·주소·제품·택배사·송장.
+  // 제품을 4개 칸으로 분리: 우유180 / 우유750 / 요거트180 / 요거트500.
+  function productBucket(name: string, volume: string): number {
+    const yog = name.includes("요거트");
+    const v = volume.replace(/[^0-9]/g, "");
+    if (yog && v === "180") return 2;
+    if (yog && v === "500") return 3;
+    if (!yog && v === "180") return 0;
+    if (!yog && v === "750") return 1;
+    return -1;
+  }
+
+  // 배송 담당자용 발송 명단 엑셀 — 제품별 수량 칸 + 합계 행(빠뜨림 방지). 현재 목록(queue) 기준.
   function exportDispatchCsv() {
-    const rows: string[][] = [
-      ["발송예정일", "받는분", "연락처", "우편번호", "주소", "상세주소", "보낼 제품(수량)", "택배사", "송장번호", "상태"],
+    const PCOLS = ["우유 180", "우유 750", "요거트 180", "요거트 500"];
+    const header = [
+      "발송일", "이름", "연락처", "구분", "배송요일", "우편번호", "주소", "상세주소",
+      ...PCOLS, "택배사", "송장번호", "소득공 발행일", "상태",
     ];
+    const rows: string[][] = [header];
+    const totals = [0, 0, 0, 0];
     for (const o of queue) {
       const its = itemsByOrder.get(o.id) ?? [];
-      const products = its.map((it) => `${it.product_name} ${it.volume}×${it.qty}`).join(" / ");
+      const q = [0, 0, 0, 0];
+      let day = "";
+      for (const it of its) {
+        const b = productBucket(it.product_name, it.volume);
+        if (b >= 0) q[b] += it.qty;
+        if (it.delivery_day) day = DELIVERY_DAY_LABEL[it.delivery_day];
+      }
+      for (let i = 0; i < 4; i++) totals[i] += q[i];
+      const isOnce = o.order_type === "단품";
       const courierLabel = o.courier ? COURIERS[o.courier]?.label ?? o.courier : "";
       rows.push([
         o.ship_date ?? (useDateFilter ? date : ""),
         o.ship_name,
         o.ship_phone,
+        isOnce ? "단품" : "구독",
+        day || (isOnce ? "단품" : ""),
         o.ship_postcode ?? "",
         o.ship_address,
         o.ship_address_detail ?? "",
-        products,
+        q[0] ? String(q[0]) : "",
+        q[1] ? String(q[1]) : "",
+        q[2] ? String(q[2]) : "",
+        q[3] ? String(q[3]) : "",
         courierLabel,
         trackingOf(o),
+        "", // 소득공 발행일 — 담당자 기입용
         o.status,
       ]);
     }
+    // 합계 행
+    rows.push([
+      "합계", "", "", "", "", "", "", "",
+      String(totals[0]), String(totals[1]), String(totals[2]), String(totals[3]),
+      "", "", "", `${queue.length}건`,
+    ]);
     const tag = useDateFilter ? date : "전체";
     downloadCsv(`발송명단_${tag}.csv`, rows);
   }
