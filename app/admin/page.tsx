@@ -175,6 +175,8 @@ export default function AdminPage() {
   const [dateTo, setDateTo] = useState(todayISO());
   const [tab, setTab] = useState<AdminTab>("종합 관리");
   const [memberQuery, setMemberQuery] = useState("");
+  const [orderQuery, setOrderQuery] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>("전체");
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   // 마운트 시점 기준 '지금' — 회원 최근주문 경과일(recencyDays) 계산용.
@@ -283,6 +285,19 @@ export default function AdminPage() {
     () => orders.filter((o) => o.status === "입금대기"),
     [orders]
   );
+
+  // 주문 관리 표 전용 필터(이름·입금자·주문번호·연락처 검색 + 상태). 전역 orders 는 그대로 둔다.
+  const managedOrders = useMemo(() => {
+    const q = orderQuery.trim().toLowerCase();
+    return orders.filter((o) => {
+      if (orderStatusFilter !== "전체" && o.status !== orderStatusFilter) return false;
+      if (!q) return true;
+      const hay = [o.order_no, o.depositor_name ?? "", o.ship_name ?? "", o.ship_phone ?? ""]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [orders, orderQuery, orderStatusFilter]);
 
   // 입금대기 주문을 순차로 PayAction 재등록하고 성공/실패 건수를 요약한다.
   //   순차 호출로 PayAction 서버 부하·레이트리밋을 피하고, 끝나면 한 번만 새로고침한다.
@@ -1239,6 +1254,39 @@ export default function AdminPage() {
         )}
       </div>
       <p className="mt-1 text-[13px] text-mute">상태를 변경하면 저장됩니다. ‘입금확인’으로 바꾸면 입금이 확인된 것으로 보고 구독이 활성화됩니다. 입금대기 주문이 PayAction에 등록되지 않아 자동매칭이 안 될 때 ‘재등록’을 눌러 다시 시도하세요.</p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 no-print">
+        <input
+          type="search"
+          value={orderQuery}
+          onChange={(e) => setOrderQuery(e.target.value)}
+          placeholder="이름·입금자·주문번호·연락처 검색"
+          className="min-w-[220px] flex-1 rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
+        />
+        <select
+          value={orderStatusFilter}
+          onChange={(e) => setOrderStatusFilter(e.target.value)}
+          className="rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
+        >
+          <option value="전체">전체 상태</option>
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <span className="tabular-nums text-[13px] text-mute">{managedOrders.length}건</span>
+        {(orderQuery || orderStatusFilter !== "전체") && (
+          <button
+            onClick={() => {
+              setOrderQuery("");
+              setOrderStatusFilter("전체");
+            }}
+            className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft hover:border-gold hover:text-gold-deep"
+          >
+            초기화
+          </button>
+        )}
+      </div>
+
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[640px] border-collapse text-[14px]">
           <thead>
@@ -1253,10 +1301,10 @@ export default function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {orders.length === 0 ? (
-              <tr><td colSpan={7} className="py-4 text-center text-mute">주문이 없습니다.</td></tr>
+            {managedOrders.length === 0 ? (
+              <tr><td colSpan={7} className="py-4 text-center text-mute">{orders.length === 0 ? "주문이 없습니다." : "검색 결과가 없습니다."}</td></tr>
             ) : (
-              orders.map((o) => {
+              managedOrders.map((o) => {
                 const orderItems = itemsByOrder.get(o.id) ?? [];
                 const open = expandedOrder === o.id;
                 return (
