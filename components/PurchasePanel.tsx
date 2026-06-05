@@ -21,6 +21,7 @@ import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/sub
 import { firstSubscriptionDelivery, formatDispatch } from "@/lib/ship-date";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, visibleProducts } from "@/lib/storefront-merge";
+import { track } from "@/lib/track";
 
 export function PurchasePanel({ product }: { product: Product }) {
   const { add, setPeriod } = useCart();
@@ -69,6 +70,7 @@ export function PurchasePanel({ product }: { product: Product }) {
     setExtras((prev) => ({ ...prev, [id]: Math.max(0, q) }));
 
   const handleAdd = () => {
+    track("add_to_cart");
     setPeriod(period);
     add({ productId: product.id, deliveryDay, qty });
     addons.forEach((p) => {

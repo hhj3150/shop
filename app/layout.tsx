@@ -8,6 +8,7 @@ import { Nav } from "@/components/Nav";
 import { BottomNav } from "@/components/BottomNav";
 import { CartDrawer } from "@/components/CartDrawer";
 import { CustomerAssistant } from "@/components/CustomerAssistant";
+import { Track } from "@/components/Track";
 import { JsonLd } from "@/components/JsonLd";
 import { buildOrganization, buildWebSite } from "@/lib/seo/schema";
 
@@ -85,6 +86,7 @@ export default function RootLayout({
             <BottomNav />
             <CartDrawer />
             <CustomerAssistant />
+            <Track event="visit" once />
           </CartProvider>
         </AuthProvider>
       </body>

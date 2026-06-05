@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { track } from "@/lib/track";
 import { DepositAccount } from "@/components/DepositAccount";
 import { CopyAmount } from "@/components/CopyAmount";
 import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
@@ -33,6 +34,11 @@ function Complete() {
   // PortOne 리디렉션 실패 시 code/message 가 쿼리로 돌아온다.
   const failCode = sp.get("code");
   const failMessage = sp.get("message");
+
+  // 퍼널: 주문이 실제로 접수된 경우에만(주문번호 있고 결제실패 아님) 1회 기록.
+  useEffect(() => {
+    if (orderNo && !(isPortOne && failCode)) track("purchase", { once: true });
+  }, [orderNo, isPortOne, failCode]);
 
   // PortOne 결제 실패/취소 → 재시도 안내.
   if (isPortOne && failCode) {

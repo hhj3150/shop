@@ -9,6 +9,7 @@ import {
   discountForPeriod,
 } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
+import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
 import { ProductReviews } from "@/components/ProductReviews";
 import { Footer } from "@/components/Footer";
@@ -58,6 +59,7 @@ export default async function ProductPage({
   return (
     <SwipeNav prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`}>
       <JsonLd data={buildProduct(product)} />
+      <Track event="view_product" />
       {/* 브레드크럼 */}
       <div className="mx-auto max-w-7xl px-5 pt-24 sm:px-8">
         <nav className="py-5 text-[13px] tracking-wide text-mute">

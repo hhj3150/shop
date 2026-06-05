@@ -18,6 +18,7 @@ import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
 import { AdminAssistant } from "@/components/AdminAssistant";
 import { NewsRadarAdminFeed } from "@/components/NewsRadarAdminFeed";
+import { FunnelDashboard } from "@/components/FunnelDashboard";
 import { payActionReasonLabel } from "@/lib/payaction-reason";
 import { AdminStats } from "@/components/AdminStats";
 import { BroadcastPanel } from "@/components/BroadcastPanel";
@@ -868,6 +869,11 @@ export default function AdminPage() {
         <Stat label="확정 구독 매출" value={formatKRW(revenue)} />
         <Stat label="대기자" value={`${waitlist.length}명`} />
       </section>
+
+      {/* 전환 퍼널 — 측정 대시보드 */}
+      <div className="mt-6 no-print">
+        <FunnelDashboard />
+      </div>
 
       {/* AI 비서 — 자연어 질문 즉답(읽기 전용) */}
       <div className="mt-6 no-print">

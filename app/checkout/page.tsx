@@ -14,6 +14,7 @@ import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
+import { Track } from "@/components/Track";
 import { GiftOptions } from "@/components/GiftOptions";
 import { LoadMyInfoButton, type MyInfoFields } from "@/components/LoadMyInfo";
 import { CashReceiptFields } from "@/components/CashReceiptFields";
@@ -239,6 +240,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-5 pb-24 pt-28 sm:px-8">
+      <Track event="begin_checkout" once />
       <p className="eyebrow text-gold-deep">Checkout</p>
       <h1 className="mt-3 font-serif-kr text-[clamp(1.7rem,5vw,2.3rem)] font-medium text-ink">
         {PERIOD_LABEL[period]} 정기구독 신청

@@ -27,6 +27,7 @@ import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
+import { Track } from "@/components/Track";
 import { GiftOptions } from "@/components/GiftOptions";
 import { LoadMyInfoButton, type MyInfoFields } from "@/components/LoadMyInfo";
 import { CashReceiptFields } from "@/components/CashReceiptFields";
@@ -288,6 +289,7 @@ function OrderOnce() {
 
   return (
     <div className="mx-auto max-w-2xl px-5 pb-24 pt-28 sm:px-8">
+      <Track event="begin_checkout" once />
       <p className="eyebrow text-gold-deep">Single Order · 단품 구매</p>
       <h1 className="mt-3 font-serif-kr text-[clamp(1.7rem,5vw,2.3rem)] font-medium text-ink">
         한 번만, 골라 담기

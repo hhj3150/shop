@@ -16,6 +16,7 @@ import {
 } from "@/lib/products";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts } from "@/lib/storefront-merge";
+import { track } from "@/lib/track";
 
 export function CartDrawer() {
   const router = useRouter();
@@ -195,7 +196,10 @@ export function CartDrawer() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => add({ productId: p.id, qty: 1, deliveryDay: targetDay })}
+                        onClick={() => {
+                          track("add_to_cart");
+                          add({ productId: p.id, qty: 1, deliveryDay: targetDay });
+                        }}
                         disabled={p.soldOut}
                         className="shrink-0 rounded-full border border-line px-3.5 py-2 text-[13px] font-medium text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:opacity-40"
                         aria-label={`${p.name} ${p.volume} 담기`}
