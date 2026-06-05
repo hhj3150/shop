@@ -83,10 +83,6 @@ export function ProductShowcase() {
               </h3>
               <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[14px] text-mute">
                 <span>{p.volume}</span>
-                <span aria-hidden>·</span>
-                <span className={p.taxFree ? "text-gold-deep" : "text-mute"}>
-                  {p.taxFree ? "면세" : "과세"}
-                </span>
               </div>
               {p.soldOut && (
                 <span className="mt-2 inline-block rounded-full bg-ink/8 px-3 py-1 text-[12px] font-semibold tracking-wide text-mute">

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW, PERIOD_LABEL, type SubPeriod } from "@/lib/products";
 import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
+import { registerPayActionDeposit } from "@/lib/orders";
 import {
   getMySubscriptions,
   pauseSubscription,
@@ -216,6 +217,8 @@ export default function AccountPage() {
     setBusy(slotId);
     try {
       const res = await requestRenewal(slotId);
+      // 갱신 주문을 PayAction 에 등록 → 회원이 안내된 금액을 입금하면 자동으로 입금확인(반자동 갱신).
+      await registerPayActionDeposit(res.orderNo, profile?.phone ?? "");
       setRenewal({ slotId, orderNo: res.orderNo, total: res.total });
       void notify({ kind: "renewal_guide", orderId: res.orderId });
       reloadOrders();

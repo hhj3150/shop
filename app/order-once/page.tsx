@@ -341,7 +341,6 @@ function OrderOnce() {
                 </p>
                 <p className="mt-0.5 text-[13px] tabular-nums text-gold-deep">
                   {formatKRW(p.price)}
-                  <span className="ml-1.5 text-mute">{p.taxFree ? "면세" : "과세"}</span>
                   {p.soldOut && <span className="ml-1.5 text-mute">· 품절</span>}
                 </p>
               </div>
