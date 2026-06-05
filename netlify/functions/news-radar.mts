@@ -6,7 +6,7 @@ import {
   parseRss,
   buildRadarPrompt,
   type RssItem,
-} from "../../lib/news-radar.ts";
+} from "../../lib/news-radar";
 
 // 주 1회: A2·저지·헤이밀크·동물복지·저탄소 낙농 뉴스를 검색해 가장 연관성 높은 1건을
 //   OpenAI 로 골라 한글 번역·요약 후 news_radar 에 저장(관리자 피드 + 고객 노출).
