@@ -2,7 +2,7 @@
 
 // 고객응대 AI 위젯(FAQ·안내 전용). 우하단 플로팅 버튼 → 채팅 패널.
 //   개별 주문/환불은 다루지 않고 고객센터로 안내한다(서버 가드레일). 관리자 화면에선 숨김.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 type Msg = { role: "user" | "assistant"; content: string };
@@ -16,7 +16,26 @@ export function CustomerAssistant() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showNudge, setShowNudge] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 첫 방문(세션당 1회)에만 '물어보세요' 말풍선을 띄운다 — 매 페이지 따라다니지 않게.
+  useEffect(() => {
+    try {
+      if (!sessionStorage.getItem("cs_nudge_seen")) setShowNudge(true);
+    } catch {
+      // 무시
+    }
+  }, []);
+
+  function dismissNudge() {
+    setShowNudge(false);
+    try {
+      sessionStorage.setItem("cs_nudge_seen", "1");
+    } catch {
+      // 무시
+    }
+  }
 
   // 관리자 화면에선 노출하지 않는다(관리자 전용 AI 비서가 따로 있음).
   if (pathname?.startsWith("/admin")) return null;
@@ -59,11 +78,33 @@ export function CustomerAssistant() {
 
   return (
     <>
+      {/* 첫 방문 넛지 말풍선 — 무엇이든 물어보세요 */}
+      {!open && showNudge && (
+        <div className="fixed bottom-[150px] right-5 z-40 flex max-w-[240px] items-start gap-2 rounded-2xl border border-line bg-cream px-4 py-3 shadow-xl md:bottom-[88px] md:right-6 no-print">
+          <p className="text-[13px] leading-snug text-ink">
+            궁금한 점, <span className="font-medium text-gold-deep">무엇이든 물어보세요</span> — A2·구독·배송까지 바로 답해 드려요.
+          </p>
+          <button
+            type="button"
+            onClick={dismissNudge}
+            aria-label="안내 닫기"
+            className="-mr-1 -mt-1 shrink-0 text-mute hover:text-ink"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* 플로팅 버튼 */}
       {!open && (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true);
+            dismissNudge();
+          }}
           aria-label="도움말 채팅 열기"
           className="fixed bottom-[84px] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-cream shadow-xl transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
         >
