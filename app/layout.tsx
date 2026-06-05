@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/auth";
 import { Nav } from "@/components/Nav";
 import { BottomNav } from "@/components/BottomNav";
 import { CartDrawer } from "@/components/CartDrawer";
+import { CustomerAssistant } from "@/components/CustomerAssistant";
 import { JsonLd } from "@/components/JsonLd";
 import { buildOrganization, buildWebSite } from "@/lib/seo/schema";
 
@@ -83,6 +84,7 @@ export default function RootLayout({
             <main className="flex-1 pb-[68px] md:pb-0">{children}</main>
             <BottomNav />
             <CartDrawer />
+            <CustomerAssistant />
           </CartProvider>
         </AuthProvider>
       </body>
