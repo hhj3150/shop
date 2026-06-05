@@ -23,6 +23,21 @@ describe("isSpecialDeliveryPostcode", () => {
     expect(isSpecialDeliveryPostcode("40241")).toBe(false);
   });
 
+  it("인천 섬 지역(중구·강화·옹진)을 특수지역으로 본다", () => {
+    expect(isSpecialDeliveryPostcode("22387")).toBe(true); // 인천 중구 무의도
+    expect(isSpecialDeliveryPostcode("23007")).toBe(true); // 인천 강화 섬
+    expect(isSpecialDeliveryPostcode("23110")).toBe(true); // 인천 옹진 섬1
+    expect(isSpecialDeliveryPostcode("23130")).toBe(true); // 인천 옹진 섬2(백령 등)
+    expect(isSpecialDeliveryPostcode("23117")).toBe(false); // 섬 구간 밖
+  });
+
+  it("충남 개별 도서 우편번호를 특수지역으로 본다", () => {
+    expect(isSpecialDeliveryPostcode("31708")).toBe(true); // 당진 섬
+    expect(isSpecialDeliveryPostcode("32133")).toBe(true); // 태안 섬
+    expect(isSpecialDeliveryPostcode("33411")).toBe(true); // 보령 섬
+    expect(isSpecialDeliveryPostcode("31709")).toBe(false); // 인접 일반
+  });
+
   it("일반 도시 우편번호는 일반 지역이다", () => {
     expect(isSpecialDeliveryPostcode("06236")).toBe(false); // 서울 강남
     expect(isSpecialDeliveryPostcode("48058")).toBe(false); // 부산 해운대
