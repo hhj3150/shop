@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS } from "@/lib/couriers";
-import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
+import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 
 // 배송 처리에 필요한 최소 주문 필드(관리자 페이지 OrderRow 의 부분집합).
 type DispatchOrder = {
@@ -24,6 +24,9 @@ type DispatchOrder = {
   courier: string | null;
   tracking_no: string | null;
   shipped_at: string | null;
+  created_at: string;
+  cash_receipt_type: string | null;
+  cash_receipt_issued: boolean | null;
 };
 
 type DispatchItem = {
@@ -32,6 +35,16 @@ type DispatchItem = {
   qty: number;
   delivery_day: DeliveryDay | null;
 };
+
+// 회차 계산용 — 구독 슬롯의 시작일만 필요.
+type DispatchSlot = {
+  order_id: string | null;
+  started_at: string | null;
+};
+
+// 4개 제품 칸의 용량(mL) — 총 L량 계산에 사용. 순서: 우유180·우유750·요거트180·요거트500.
+const BUCKET_ML = [180, 750, 180, 500] as const;
+const BUCKET_LABEL = ["우유180", "우유750", "요거트180", "요거트500"] as const;
 
 // 결제 후 배송 대상 상태(완료·취소·미입금 제외).
 const SHIPPABLE = ["입금확인", "배송준비", "배송중"];
@@ -65,13 +78,54 @@ function downloadCsv(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
+// 제품을 4개 칸으로 분리: 우유180(0) / 우유750(1) / 요거트180(2) / 요거트500(3). 그 외 -1.
+function productBucket(name: string, volume: string): number {
+  const yog = name.includes("요거트");
+  const v = volume.replace(/[^0-9]/g, "");
+  if (yog && v === "180") return 2;
+  if (yog && v === "500") return 3;
+  if (!yog && v === "180") return 0;
+  if (!yog && v === "750") return 1;
+  return -1;
+}
+
+// 구독 회차(1~4) — 시작일 대비 발송일이 몇 주차인지. 월 단위(4주)로 순환해 1~4로 환산.
+//   단품·시작일 미상은 1회로 본다. 사람이 직접 칸을 채워 넣는 시트와도 호환된다.
+function roundFor(orderType: string, shipISO: string, startedISO: string | null): number {
+  if (orderType === "단품" || !startedISO) return 1;
+  const start = Date.parse(`${startedISO.slice(0, 10)}T00:00:00`);
+  const ship = Date.parse(`${shipISO}T00:00:00`);
+  if (Number.isNaN(start) || Number.isNaN(ship) || ship < start) return 1;
+  const weeks = Math.floor((ship - start) / (7 * 86_400_000));
+  return (weeks % 4) + 1;
+}
+
+// 정렬 가능한 컬럼 키.
+type SortKey = "name" | "type" | "day" | "status" | "region" | "count" | "round";
+
+// 한 주문의 배송 작업에 필요한 모든 파생값(품목 수량·합계·요일·회차)을 미리 계산해 둔다.
+type DispatchRow = {
+  o: DispatchOrder;
+  items: DispatchItem[];
+  q: number[]; // [우유180, 우유750, 요거트180, 요거트500]
+  count: number; // 총 개수
+  liters: number; // 총 L량
+  dayKey: DeliveryDay | null;
+  dayLabel: string;
+  round: number;
+  shipISO: string; // 이 발송 건의 발송(예정)일
+  region: string; // 정렬·검색용 지역 문자열
+};
+
 export function DispatchPanel({
   orders,
   itemsByOrder,
+  slots = [],
   onReload,
 }: {
   orders: DispatchOrder[];
   itemsByOrder: Map<string, DispatchItem[]>;
+  slots?: DispatchSlot[];
   onReload: () => Promise<void> | void;
 }) {
   const [date, setDate] = useState(todayISO());
@@ -81,6 +135,13 @@ export function DispatchPanel({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 검색·필터·정렬 상태.
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"전체" | "구독" | "단품">("전체");
+  const [dayFilter, setDayFilter] = useState<"전체" | DeliveryDay>("전체");
+  const [statusFilter, setStatusFilter] = useState<string>("전체");
+  const [sortKey, setSortKey] = useState<SortKey>("day");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   // 선택 날짜의 요일(구독 매칭용). 주말이면 null → 구독은 매칭 안 됨.
   const dayOfDate = useMemo<DeliveryDay | null>(() => {
@@ -88,18 +149,108 @@ export function DispatchPanel({
     return WEEKDAY[d.getDay()] ?? null;
   }, [date]);
 
-  // 배송 큐 — 배송 가능 상태만, 날짜 필터 적용 시 단품=ship_date / 구독=요일 일치.
-  const queue = useMemo(() => {
-    return orders.filter((o) => {
-      if (!SHIPPABLE.includes(o.status)) return false;
-      if (!useDateFilter) return true;
-      if (o.order_type === "단품") return o.ship_date === date;
-      const its = itemsByOrder.get(o.id) ?? [];
-      return dayOfDate !== null && its.some((it) => it.delivery_day === dayOfDate);
-    });
-  }, [orders, itemsByOrder, useDateFilter, date, dayOfDate]);
+  // 주문 → 구독 시작일(회차 계산용).
+  const startedByOrder = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const s of slots) if (s.order_id) m.set(s.order_id, s.started_at);
+    return m;
+  }, [slots]);
 
-  const allSelected = queue.length > 0 && queue.every((o) => selected.has(o.id));
+  // 배송 가능 주문을 파생값(품목 수량·합계·요일·회차)까지 계산해 행으로 만든다.
+  const allRows = useMemo<DispatchRow[]>(() => {
+    return orders
+      .filter((o) => SHIPPABLE.includes(o.status))
+      .map((o) => {
+        const items = itemsByOrder.get(o.id) ?? [];
+        const q = [0, 0, 0, 0];
+        let dayKey: DeliveryDay | null = null;
+        for (const it of items) {
+          const b = productBucket(it.product_name, it.volume);
+          if (b >= 0) q[b] += it.qty;
+          if (it.delivery_day) dayKey = it.delivery_day;
+        }
+        const count = q.reduce((a, b) => a + b, 0);
+        const liters =
+          Math.round(q.reduce((sum, n, i) => sum + n * BUCKET_ML[i], 0) / 100) / 10;
+        const shipISO = o.ship_date ?? (useDateFilter ? date : o.shipped_at ?? date);
+        const started = startedByOrder.get(o.id) ?? o.created_at;
+        const region = `${o.ship_postcode ?? ""} ${o.ship_address} ${o.ship_address_detail ?? ""}`.trim();
+        const isOnce = o.order_type === "단품";
+        return {
+          o,
+          items,
+          q,
+          count,
+          liters,
+          dayKey,
+          dayLabel: dayKey ? DELIVERY_DAY_LABEL[dayKey] : isOnce ? "단품" : "",
+          round: roundFor(o.order_type, shipISO, started),
+          shipISO,
+          region,
+        };
+      });
+  }, [orders, itemsByOrder, startedByOrder, useDateFilter, date]);
+
+  // 날짜 → 검색 → 구분/요일/상태 필터 → 정렬. 모든 컬럼 정렬 가능.
+  const queue = useMemo<DispatchRow[]>(() => {
+    const ql = query.trim().toLowerCase();
+    const dayIdx = (d: DeliveryDay | null) => (d ? DELIVERY_DAYS.indexOf(d) : 99);
+    const filtered = allRows.filter((r) => {
+      const o = r.o;
+      if (useDateFilter) {
+        if (o.order_type === "단품") {
+          if (o.ship_date !== date) return false;
+        } else if (!(dayOfDate !== null && r.dayKey === dayOfDate)) {
+          return false;
+        }
+      }
+      if (typeFilter !== "전체" && o.order_type !== typeFilter) return false;
+      if (dayFilter !== "전체" && r.dayKey !== dayFilter) return false;
+      if (statusFilter !== "전체" && o.status !== statusFilter) return false;
+      if (ql) {
+        const hay = `${o.ship_name} ${o.ship_phone} ${o.order_no} ${r.region}`.toLowerCase();
+        if (!hay.includes(ql)) return false;
+      }
+      return true;
+    });
+    const dir = sortDir === "asc" ? 1 : -1;
+    const cmp = (a: DispatchRow, b: DispatchRow): number => {
+      switch (sortKey) {
+        case "name":
+          return a.o.ship_name.localeCompare(b.o.ship_name, "ko") * dir;
+        case "type":
+          return a.o.order_type.localeCompare(b.o.order_type, "ko") * dir;
+        case "day":
+          return (dayIdx(a.dayKey) - dayIdx(b.dayKey) || a.round - b.round) * dir;
+        case "status":
+          return (SHIPPABLE.indexOf(a.o.status) - SHIPPABLE.indexOf(b.o.status)) * dir;
+        case "region":
+          return a.region.localeCompare(b.region, "ko") * dir;
+        case "count":
+          return (a.count - b.count) * dir;
+        case "round":
+          return (a.round - b.round) * dir;
+        default:
+          return 0;
+      }
+    };
+    return [...filtered].sort(cmp);
+  }, [
+    allRows, query, typeFilter, dayFilter, statusFilter,
+    sortKey, sortDir, useDateFilter, date, dayOfDate,
+  ]);
+
+  // 현재 목록의 제품별 합계(개수·L량) — 화면 요약 + 엑셀 합계행 공용.
+  const totals = useMemo(() => {
+    const q = [0, 0, 0, 0];
+    for (const r of queue) for (let i = 0; i < 4; i++) q[i] += r.q[i];
+    const liters = q.map((n, i) => Math.round((n * BUCKET_ML[i]) / 100) / 10);
+    const litersTotal = Math.round(liters.reduce((a, b) => a + b, 0) * 10) / 10;
+    const count = q.reduce((a, b) => a + b, 0);
+    return { q, liters, litersTotal, count };
+  }, [queue]);
+
+  const allSelected = queue.length > 0 && queue.every((r) => selected.has(r.o.id));
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -111,69 +262,71 @@ export function DispatchPanel({
   }
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(queue.map((o) => o.id)));
+    setSelected(allSelected ? new Set() : new Set(queue.map((r) => r.o.id)));
   }
 
   function trackingOf(o: DispatchOrder): string {
     return tracking[o.id] ?? o.tracking_no ?? "";
   }
 
-  // 제품을 4개 칸으로 분리: 우유180 / 우유750 / 요거트180 / 요거트500.
-  function productBucket(name: string, volume: string): number {
-    const yog = name.includes("요거트");
-    const v = volume.replace(/[^0-9]/g, "");
-    if (yog && v === "180") return 2;
-    if (yog && v === "500") return 3;
-    if (!yog && v === "180") return 0;
-    if (!yog && v === "750") return 1;
-    return -1;
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
   }
 
-  // 배송 담당자용 발송 명단 엑셀 — 제품별 수량 칸 + 합계 행(빠뜨림 방지). 현재 목록(queue) 기준.
+  function receiptStatus(o: DispatchOrder): string {
+    if (o.cash_receipt_issued) return "발행완료";
+    if (o.cash_receipt_type && o.cash_receipt_type !== "발행안함") return "발행필요";
+    return "";
+  }
+
+  // 배송 담당자용 발송 명단 엑셀 — 회차별 발송일 칸 + 제품 수량 + 총개수/총 L량 합계(빠뜨림 방지).
   function exportDispatchCsv() {
-    const PCOLS = ["우유 180", "우유 750", "요거트 180", "요거트 500"];
     const header = [
-      "발송일", "이름", "연락처", "구분", "배송요일", "우편번호", "주소", "상세주소",
-      ...PCOLS, "택배사", "송장번호", "소득공 발행일", "상태",
+      "유입", "이름", "연락처", "우편번호", "주소", "상세주소", "최근주문",
+      "구분", "배송요일", "1회", "2회", "3회", "4회",
+      ...BUCKET_LABEL, "택배사", "송장번호", "소득공발행", "상태",
     ];
     const rows: string[][] = [header];
-    const totals = [0, 0, 0, 0];
-    for (const o of queue) {
-      const its = itemsByOrder.get(o.id) ?? [];
-      const q = [0, 0, 0, 0];
-      let day = "";
-      for (const it of its) {
-        const b = productBucket(it.product_name, it.volume);
-        if (b >= 0) q[b] += it.qty;
-        if (it.delivery_day) day = DELIVERY_DAY_LABEL[it.delivery_day];
-      }
-      for (let i = 0; i < 4; i++) totals[i] += q[i];
-      const isOnce = o.order_type === "단품";
+    for (const r of queue) {
+      const o = r.o;
       const courierLabel = o.courier ? COURIERS[o.courier]?.label ?? o.courier : "";
+      const roundDates = ["", "", "", ""];
+      roundDates[r.round - 1] = r.shipISO;
       rows.push([
-        o.ship_date ?? (useDateFilter ? date : ""),
+        "", // 유입경로 — 현재 미수집(담당자 기입용)
         o.ship_name,
         o.ship_phone,
-        isOnce ? "단품" : "구독",
-        day || (isOnce ? "단품" : ""),
         o.ship_postcode ?? "",
         o.ship_address,
         o.ship_address_detail ?? "",
-        q[0] ? String(q[0]) : "",
-        q[1] ? String(q[1]) : "",
-        q[2] ? String(q[2]) : "",
-        q[3] ? String(q[3]) : "",
+        o.created_at?.slice(0, 10) ?? "",
+        o.order_type === "단품" ? "단품" : "구독",
+        r.dayLabel,
+        ...roundDates,
+        r.q[0] ? String(r.q[0]) : "",
+        r.q[1] ? String(r.q[1]) : "",
+        r.q[2] ? String(r.q[2]) : "",
+        r.q[3] ? String(r.q[3]) : "",
         courierLabel,
         trackingOf(o),
-        "", // 소득공 발행일 — 담당자 기입용
+        receiptStatus(o),
         o.status,
       ]);
     }
-    // 합계 행
+    // 합계: 총 개수 + 총 L량.
     rows.push([
-      "합계", "", "", "", "", "", "", "",
-      String(totals[0]), String(totals[1]), String(totals[2]), String(totals[3]),
+      "총 개수", "", "", "", "", "", "", "", "", "", "", "", "",
+      String(totals.q[0]), String(totals.q[1]), String(totals.q[2]), String(totals.q[3]),
       "", "", "", `${queue.length}건`,
+    ]);
+    rows.push([
+      "총 L량", "", "", "", "", "", "", "", "", "", "", "", "",
+      `${totals.liters[0]}L`, `${totals.liters[1]}L`, `${totals.liters[2]}L`, `${totals.liters[3]}L`,
+      "", "", "", `${totals.litersTotal}L`,
     ]);
     const tag = useDateFilter ? date : "전체";
     downloadCsv(`발송명단_${tag}.csv`, rows);
@@ -181,7 +334,9 @@ export function DispatchPanel({
 
   // 선택분 일괄 발송: 송장 입력된 건만 배송중 전환 + 발송일·택배사 기록 + 알림.
   async function bulkShip() {
-    const targets = queue.filter((o) => selected.has(o.id) && trackingOf(o).trim());
+    const targets = queue
+      .filter((r) => selected.has(r.o.id) && trackingOf(r.o).trim())
+      .map((r) => r.o);
     if (targets.length === 0) {
       setError("송장번호가 입력된 선택 주문이 없습니다.");
       return;
@@ -215,7 +370,7 @@ export function DispatchPanel({
 
   // 선택분 상태 일괄 전환(배송준비 / 배송완료).
   async function bulkStatus(status: string) {
-    const targets = queue.filter((o) => selected.has(o.id));
+    const targets = queue.filter((r) => selected.has(r.o.id)).map((r) => r.o);
     if (targets.length === 0) {
       setError("선택된 주문이 없습니다.");
       return;
@@ -234,6 +389,20 @@ export function DispatchPanel({
     } finally {
       setBusy(false);
     }
+  }
+
+  // 정렬 가능한 헤더 셀.
+  function sortTh(k: SortKey, label: string, extra = "") {
+    const active = sortKey === k;
+    return (
+      <th
+        onClick={() => toggleSort(k)}
+        className={`cursor-pointer select-none py-2.5 pr-3 font-medium transition-colors hover:text-ink ${active ? "text-ink" : ""} ${extra}`}
+      >
+        {label}
+        <span className="text-gold-deep">{active ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</span>
+      </th>
+    );
   }
 
   return (
@@ -256,7 +425,7 @@ export function DispatchPanel({
         </div>
       </div>
 
-      {/* 필터 + 일괄 도구 */}
+      {/* 검색 + 필터 */}
       <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paper p-3 no-print">
         <label className="flex items-center gap-1.5 text-[13px] text-ink-soft">
           <input
@@ -264,7 +433,7 @@ export function DispatchPanel({
             checked={useDateFilter}
             onChange={(e) => setUseDateFilter(e.target.checked)}
           />
-          날짜 필터
+          날짜
         </label>
         <input
           type="date"
@@ -274,6 +443,51 @@ export function DispatchPanel({
           className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink disabled:opacity-40"
         />
         <span className="mx-1 h-5 w-px bg-line" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="이름·연락처·주소·주문번호 검색"
+          className="min-w-[200px] flex-1 rounded-lg border border-line bg-cream px-3 py-1.5 text-[13px] text-ink outline-none focus:border-gold"
+        />
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+          className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink"
+        >
+          <option value="전체">구분 전체</option>
+          <option value="구독">구독</option>
+          <option value="단품">단품</option>
+        </select>
+        <select
+          value={dayFilter}
+          onChange={(e) => setDayFilter(e.target.value as typeof dayFilter)}
+          className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink"
+        >
+          <option value="전체">요일 전체</option>
+          {DELIVERY_DAYS.map((d) => (
+            <option key={d} value={d}>
+              {DELIVERY_DAY_LABEL[d]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink"
+        >
+          <option value="전체">상태 전체</option>
+          {SHIPPABLE.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* 일괄 도구 */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paper p-3 no-print">
+        <span className="text-[13px] text-ink-soft">택배사</span>
         <select
           value={courier}
           onChange={(e) => setCourier(e.target.value)}
@@ -308,6 +522,20 @@ export function DispatchPanel({
         </button>
       </div>
 
+      {/* 현재 목록 제품별 합계 — 빠뜨림 방지용 한눈 요약 */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl bg-gold/8 px-4 py-2.5 text-[13px]">
+        {BUCKET_LABEL.map((label, i) => (
+          <span key={label} className="text-ink-soft">
+            {label}{" "}
+            <strong className="tabular-nums text-ink">{totals.q[i]}</strong>개
+            <span className="ml-0.5 text-mute tabular-nums">({totals.liters[i]}L)</span>
+          </span>
+        ))}
+        <span className="ml-auto font-semibold text-gold-deep">
+          총 {totals.count}개 · {totals.litersTotal}L
+        </span>
+      </div>
+
       {error && (
         <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-600">
           {error}
@@ -315,30 +543,41 @@ export function DispatchPanel({
       )}
 
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse text-[14px]">
+        <table className="w-full min-w-[1080px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-[12.5px] text-mute">
               <th className="py-2.5 pr-3">
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} />
               </th>
-              <th className="py-2.5 pr-3 font-medium">주문번호</th>
-              <th className="py-2.5 pr-3 font-medium">받는 분</th>
-              <th className="py-2.5 pr-3 font-medium">품목</th>
-              <th className="py-2.5 pr-3 font-medium">배송지</th>
-              <th className="py-2.5 pr-3 font-medium">상태</th>
+              {sortTh("name", "받는 분")}
+              {sortTh("type", "구분·회차")}
+              {sortTh("day", "요일")}
+              <th className="py-2.5 px-1 text-center font-medium">우180</th>
+              <th className="py-2.5 px-1 text-center font-medium">우750</th>
+              <th className="py-2.5 px-1 text-center font-medium">요180</th>
+              <th className="py-2.5 px-1 text-center font-medium">요500</th>
+              {sortTh("count", "개수", "text-center")}
+              {sortTh("region", "배송지")}
+              {sortTh("status", "상태")}
               <th className="py-2.5 font-medium">송장번호</th>
             </tr>
           </thead>
           <tbody>
             {queue.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-[14px] text-mute">
+                <td colSpan={12} className="py-8 text-center text-[14px] text-mute">
                   배송 대상 주문이 없습니다.
                 </td>
               </tr>
             ) : (
-              queue.map((o) => {
-                const its = itemsByOrder.get(o.id) ?? [];
+              queue.map((r) => {
+                const o = r.o;
+                const qcell = (n: number) =>
+                  n ? (
+                    <span className="font-semibold tabular-nums text-ink">{n}</span>
+                  ) : (
+                    <span className="text-line">·</span>
+                  );
                 return (
                   <tr key={o.id} className="border-b border-line/70 align-top">
                     <td className="py-3 pr-3">
@@ -349,35 +588,22 @@ export function DispatchPanel({
                       />
                     </td>
                     <td className="py-3 pr-3">
-                      <p className="tabular-nums text-ink">{o.order_no}</p>
-                      <p className="text-[12px] text-mute">
-                        {o.order_type}
-                        {o.order_type === "단품" && o.ship_date
-                          ? ` · ${o.ship_date}`
-                          : ""}
-                      </p>
-                    </td>
-                    <td className="py-3 pr-3">
                       <p className="text-ink">{o.ship_name}</p>
                       <p className="text-[12px] tabular-nums text-mute">{o.ship_phone}</p>
+                      <p className="text-[11px] tabular-nums text-line">{o.order_no}</p>
                     </td>
                     <td className="py-3 pr-3 text-[13px] text-ink-soft">
-                      {its.length === 0 ? (
-                        <span className="text-mute">—</span>
-                      ) : (
-                        <ul className="space-y-0.5">
-                          {its.map((it, idx) => (
-                            <li key={idx}>
-                              {it.volume}
-                              {it.delivery_day
-                                ? ` (${DELIVERY_DAY_LABEL[it.delivery_day].charAt(0)})`
-                                : ""}{" "}
-                              ×{it.qty}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      {o.order_type === "단품" ? "단품" : "구독"}
+                      <span className="ml-1 rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-semibold text-gold-deep">
+                        {r.round}회
+                      </span>
                     </td>
+                    <td className="py-3 pr-3 text-[13px] text-ink-soft">{r.dayLabel || "—"}</td>
+                    <td className="py-3 px-1 text-center">{qcell(r.q[0])}</td>
+                    <td className="py-3 px-1 text-center">{qcell(r.q[1])}</td>
+                    <td className="py-3 px-1 text-center">{qcell(r.q[2])}</td>
+                    <td className="py-3 px-1 text-center">{qcell(r.q[3])}</td>
+                    <td className="py-3 pr-3 text-center text-[13px] tabular-nums text-ink">{r.count}</td>
                     <td className="py-3 pr-3 text-[12.5px] text-ink-soft">
                       {o.ship_postcode ? `(${o.ship_postcode}) ` : ""}
                       {o.ship_address}
@@ -400,12 +626,30 @@ export function DispatchPanel({
               })
             )}
           </tbody>
+          {queue.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 border-line text-[13px] font-semibold text-ink">
+                <td className="py-2.5" />
+                <td className="py-2.5 pr-3" colSpan={3}>
+                  합계 {queue.length}건
+                </td>
+                <td className="py-2.5 px-1 text-center tabular-nums">{totals.q[0]}</td>
+                <td className="py-2.5 px-1 text-center tabular-nums">{totals.q[1]}</td>
+                <td className="py-2.5 px-1 text-center tabular-nums">{totals.q[2]}</td>
+                <td className="py-2.5 px-1 text-center tabular-nums">{totals.q[3]}</td>
+                <td className="py-2.5 pr-3 text-center tabular-nums">{totals.count}</td>
+                <td className="py-2.5 pr-3 text-gold-deep" colSpan={3}>
+                  총 {totals.litersTotal}L
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
       <p className="mt-4 text-[12.5px] text-mute">
-        ※ ‘선택 발송’은 송장번호가 입력된 주문만 배송중으로 전환하고 발송 알림을 보냅니다.
-        택배사는 선택분 전체에 동일 적용됩니다.
+        ※ 헤더를 누르면 정렬됩니다. ‘선택 발송’은 송장번호가 입력된 주문만 배송중으로 전환하고
+        발송 알림을 보냅니다. 택배사는 선택분 전체에 동일 적용됩니다. 엑셀에는 회차별 발송일·유입·소득공발행 칸이 함께 출력됩니다.
       </p>
     </section>
   );

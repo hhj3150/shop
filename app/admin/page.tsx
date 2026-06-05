@@ -854,7 +854,7 @@ export default function AdminPage() {
       {tab === "상품·재고" && <ProductAdminPanel />}
 
       {tab === "배송" && (
-        <DispatchPanel orders={orders} itemsByOrder={itemsByOrder} onReload={load} />
+        <DispatchPanel orders={orders} itemsByOrder={itemsByOrder} slots={slots} onReload={load} />
       )}
 
       {tab === "환불·교환" && <ReturnsPanel orders={orders} />}
