@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildCustomerSystemPrompt } from "@/lib/assistant/knowledge";
+import { clientIp, checkRateLimit } from "@/lib/assistant/ratelimit";
 
 // 고객응대 AI(FAQ·안내 전용). 공개 엔드포인트 — 고객 데이터·도구를 쓰지 않고
 //   지식 베이스만으로 답한다. 개별 사안은 고객센터/마이페이지로 안내(프롬프트 가드레일).
@@ -43,6 +44,12 @@ export async function POST(req: Request) {
 
   if (cleanHistory.length === 0) {
     return NextResponse.json({ ok: false, reason: "empty_message" }, { status: 400 });
+  }
+
+  // 남용·비용 방지: IP 당 분당 호출 상한.
+  const allowed = await checkRateLimit(clientIp(req), 20, 60);
+  if (!allowed) {
+    return NextResponse.json({ ok: false, reason: "rate_limited" }, { status: 429 });
   }
 
   const messages: ChatMessage[] = [

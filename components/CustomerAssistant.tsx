@@ -42,6 +42,8 @@ export function CustomerAssistant() {
         setError(
           json?.reason === "openai_not_configured"
             ? "지금은 자동응답을 준비 중입니다. 고객센터로 문의해 주세요."
+            : json?.reason === "rate_limited"
+            ? "잠시 문의가 많습니다. 잠깐 후 다시 시도해 주세요. (급한 문의는 031-674-3150)"
             : "잠시 후 다시 시도해 주세요. (고객센터 031-674-3150)"
         );
       } else {
