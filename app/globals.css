@@ -252,3 +252,29 @@ body {
   background: var(--color-line);
   border-radius: 999px;
 }
+
+/* ───────────────────────────────────────────────────────────────
+   모바일 가독성 — 작은 글자 키우기.
+   본문 대부분이 px 고정 크기(text-[13px] 등)라 루트 폰트로는 커지지 않는다.
+   데스크톱(≥640px)은 그대로 두고, 모바일에서만 작은 텍스트 계층을 +1px 올려
+   가독성을 높인다(계층·비율 유지, 16px 상한). line-height 는 건드리지 않아
+   기존 leading-* 와 충돌하지 않는다. 레이어 밖 규칙이라 Tailwind 유틸리티
+   (utilities 레이어)보다 우선 적용된다.
+   ─────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .text-\[9px\]     { font-size: 10px; }
+  .text-\[10px\]    { font-size: 11px; }
+  .text-\[10\.5px\] { font-size: 11.5px; }
+  .text-\[11px\]    { font-size: 12px; }
+  .text-\[11\.5px\] { font-size: 12.5px; }
+  .text-\[12px\]    { font-size: 13px; }
+  .text-\[12\.5px\] { font-size: 13.5px; }
+  .text-\[13px\]    { font-size: 14px; }
+  .text-\[13\.5px\] { font-size: 14.5px; }
+  .text-\[14px\]    { font-size: 15px; }
+  .text-\[14\.5px\] { font-size: 15.5px; }
+  .text-\[15px\]    { font-size: 16px; }
+  /* Tailwind 기본 계층도 같은 기조로 한 단계 키운다(font-size 만). */
+  .text-xs { font-size: 13px; }
+  .text-sm { font-size: 15px; }
+}
