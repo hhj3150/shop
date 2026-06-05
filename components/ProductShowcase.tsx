@@ -48,7 +48,7 @@ export function ProductShowcase() {
           <span className="text-mute">곁에 둘 가치가 있는 것만.</span>
         </h2>
         <p className="mt-5 text-[clamp(1rem,2.4vw,1.3rem)] font-medium leading-relaxed text-ink-soft">
-          아침에 짠 우유를 그날 오후 가공해, 다음 날 콜드체인으로.{" "}
+          아침에 짜서, 다음 날 도착.{" "}
           <span className="text-gold-deep">우유는 신선함이 생명입니다.</span>
         </p>
       </Reveal>
