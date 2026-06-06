@@ -150,6 +150,10 @@ describe("parseScoredArray", () => {
     expect(parseScoredArray("no json")).toEqual([]);
     expect(parseScoredArray("[broken")).toEqual([]);
   });
+  it("앞에 대괄호가 포함된 설명이 있어도 실제 배열을 파싱한다", () => {
+    const out = parseScoredArray('[기준] 점수표\n[{"index":1,"reason":"r"}]');
+    expect(out).toEqual([{ index: 1, reason: "r" }]);
+  });
 });
 
 describe("mergeScored", () => {
@@ -175,5 +179,13 @@ describe("mergeScored", () => {
   it("범위 밖 index 는 무시한다", () => {
     const out = mergeScored([{ index: 9 }], candidates);
     expect(out).toEqual([]);
+  });
+
+  it("문자열 index 도 숫자로 해석한다", () => {
+    const raw = [{ index: "1", title_ko: "저지" }];
+    const out = mergeScored(raw, candidates);
+    expect(out).toHaveLength(1);
+    expect(out[0].source_url).toBe("https://x/jersey");
+    expect(out[0].title_ko).toBe("저지");
   });
 });

@@ -188,20 +188,26 @@ export function buildScoringPrompt(
   ].join("\n");
 }
 
-// 텍스트에서 첫 JSON 배열만 추출·파싱. 실패 시 빈 배열.
+// 텍스트에서 JSON 배열을 찾아 파싱. 앞에 설명·대괄호가 섞여 있어도 각 '[' 위치에서 재시도.
 export function parseScoredArray(text: string): Record<string, unknown>[] {
-  const m = text.match(/\[[\s\S]*\]/);
-  if (!m) return [];
-  try {
-    const v = JSON.parse(m[0]);
-    return Array.isArray(v) ? (v as Record<string, unknown>[]) : [];
-  } catch {
-    return [];
+  const end = text.lastIndexOf("]");
+  if (end === -1) return [];
+  let start = text.indexOf("[");
+  while (start !== -1 && start < end) {
+    try {
+      const v = JSON.parse(text.slice(start, end + 1));
+      if (Array.isArray(v)) return v as Record<string, unknown>[];
+    } catch {
+      // 다음 '[' 위치에서 재시도
+    }
+    start = text.indexOf("[", start + 1);
   }
+  return [];
 }
 
 function num(v: unknown): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+  const n = typeof v === "string" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) ? n : 0;
 }
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
@@ -212,13 +218,13 @@ export function mergeScored(
   raw: Record<string, unknown>[],
   candidates: FieldCandidate[]
 ): ScoredCandidate[] {
-  const out: ScoredCandidate[] = [];
+  const merged: ScoredCandidate[] = [];
   for (const r of raw) {
     const idx = num(r.index);
     const src = candidates[idx];
     if (!src) continue;
     const s = (r.scores ?? {}) as Record<string, unknown>;
-    out.push({
+    merged.push({
       field: src.field,
       fieldPriority: src.fieldPriority,
       scores: {
@@ -237,5 +243,5 @@ export function mergeScored(
       original_title: src.title,
     });
   }
-  return out;
+  return merged;
 }
