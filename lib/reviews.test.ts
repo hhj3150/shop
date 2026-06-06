@@ -9,12 +9,12 @@ import {
 function row(rating: number, created_at: string): ReviewRow {
   return {
     id: created_at,
-    user_id: "u",
     product_id: "p",
     author_name: "송영신",
     rating,
     body: "좋아요",
     created_at,
+    is_mine: false,
   };
 }
 
@@ -27,9 +27,32 @@ describe("averageRating", () => {
   });
 });
 
+// 이 규칙은 서버(SQL public.mask_name)와 1:1로 일치해야 한다.
+// 공개 RPC(list_reviews)가 실명을 서버에서 마스킹하므로, 네트워크 응답엔
+// 실명이 실리지 않고 클라이언트 maskName 호출은 멱등한 방어선이 된다.
 describe("maskName", () => {
-  it("첫 글자만 남기고 마스킹", () => {
+  it("첫 글자만 남기고 나머지는 마스킹(한글)", () => {
     expect(maskName("송영신")).toBe("송**");
+    expect(maskName("하현제")).toBe("하**");
+  });
+  it("두 글자 이름도 첫 글자만 남긴다", () => {
+    expect(maskName("김밥")).toBe("김*");
+  });
+  it("한 글자는 그대로 둔다", () => {
+    expect(maskName("하")).toBe("하");
+  });
+  it("빈 문자열·공백뿐이면 '회원'", () => {
+    expect(maskName("")).toBe("회원");
+    expect(maskName("   ")).toBe("회원");
+  });
+  it("앞뒤 공백은 제거 후 마스킹", () => {
+    expect(maskName("  송영신  ")).toBe("송**");
+  });
+  it("영문 이름도 같은 규칙", () => {
+    expect(maskName("Kim")).toBe("K**");
+  });
+  it("이미 마스킹된 값에 다시 적용해도 동일(멱등)", () => {
+    expect(maskName("송**")).toBe("송**");
   });
 });
 

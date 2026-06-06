@@ -151,7 +151,7 @@ export function ProductReviews({ productId }: { productId: string }) {
             <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-ink-soft">
               {r.body}
             </p>
-            {(isAdmin || user?.id === r.user_id) && (
+            {(isAdmin || r.is_mine) && (
               <button
                 type="button"
                 onClick={() => onDelete(r.id)}
