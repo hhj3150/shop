@@ -15,6 +15,23 @@ type RadarRow = {
   created_at: string;
   published: boolean;
 };
+type Scores = {
+  recency: number; interest: number; relevance: number;
+  conversion: number; storytelling: number;
+};
+type Candidate = {
+  field: string;
+  fieldPriority: number;
+  scores: Scores;
+  reason: string;
+  exclude: boolean;
+  title_ko: string;
+  summary_ko: string;
+  source_name: string;
+  source_url: string;
+  original_title: string;
+  totalScore?: number;
+};
 
 export function NewsRadarAdminFeed() {
   const [items, setItems] = useState<RadarRow[]>([]);
@@ -22,6 +39,10 @@ export function NewsRadarAdminFeed() {
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [term, setTerm] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [addingUrl, setAddingUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data } = await getSupabase()
@@ -83,6 +104,71 @@ export function NewsRadarAdminFeed() {
     }
   }
 
+  async function search() {
+    if (searching) return;
+    setSearching(true);
+    setRunMsg(null);
+    setCandidates([]);
+    try {
+      const { data } = await getSupabase().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        setRunMsg("로그인이 필요합니다.");
+        return;
+      }
+      const res = await fetch("/api/admin/news-radar-search", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ term: term.trim() }),
+      });
+      const json = (await res.json().catch(() => null)) as
+        | { ok: boolean; candidates?: Candidate[]; reason?: string }
+        | null;
+      if (!json?.ok) {
+        setRunMsg(
+          json?.reason === "not_configured"
+            ? "환경변수 미설정(OPENAI_API_KEY 확인)"
+            : `검색 실패: ${json?.reason ?? "알 수 없음"}`
+        );
+        return;
+      }
+      setCandidates(json.candidates ?? []);
+      if ((json.candidates ?? []).length === 0) setRunMsg("후보를 찾지 못했습니다.");
+    } catch {
+      setRunMsg("네트워크 오류가 발생했습니다.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  // 선택 후보를 '대기'로 적재(관리자 RPC). 성공 시 후보 목록에서 제거하고 본문 목록 새로고침.
+  async function addDraft(c: Candidate) {
+    if (addingUrl) return;
+    setAddingUrl(c.source_url);
+    setRunMsg(null);
+    try {
+      const { data, error } = await getSupabase().rpc("news_radar_insert_draft", {
+        p_title_ko: c.title_ko,
+        p_summary_ko: c.summary_ko,
+        p_source_name: c.source_name,
+        p_source_url: c.source_url,
+        p_original_title: c.original_title,
+        p_topic: c.field,
+      });
+      if (error) {
+        setRunMsg(`대기 추가 실패: ${error.message}`);
+        return;
+      }
+      setCandidates((prev) => prev.filter((x) => x.source_url !== c.source_url));
+      setRunMsg(data ? "대기 목록에 추가했습니다." : "이미 수집된 소식입니다(중복).");
+      await load();
+    } catch {
+      setRunMsg("네트워크 오류가 발생했습니다.");
+    } finally {
+      setAddingUrl(null);
+    }
+  }
+
   async function runNow() {
     if (running) return;
     setRunning(true);
@@ -100,7 +186,7 @@ export function NewsRadarAdminFeed() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = (await res.json().catch(() => null)) as
-        | { ok: boolean; status?: string; title?: string; reason?: string }
+        | { ok: boolean; status?: string; insertedCount?: number; titles?: string[]; reason?: string }
         | null;
       if (!json?.ok) {
         setRunMsg(
@@ -109,7 +195,7 @@ export function NewsRadarAdminFeed() {
             : `수집 실패: ${json?.reason ?? "알 수 없음"}`
         );
       } else if (json.status === "inserted") {
-        setRunMsg(`새 소식 1건 수집: ${json.title ?? ""}`);
+        setRunMsg(`새 소식 ${json.insertedCount ?? 1}건 수집 완료`);
         await load();
       } else if (json.status === "duplicate") {
         setRunMsg("이미 수집된 소식입니다(중복).");
@@ -150,6 +236,70 @@ export function NewsRadarAdminFeed() {
       {runMsg && (
         <p className="mt-2 rounded-lg bg-gold/15 px-3 py-2 text-[13px] font-medium text-gold-deep">{runMsg}</p>
       )}
+
+      {/* 관리자 검색 — 자유 검색어(빈칸이면 8분야 전략 자동) → 후보 점수화 */}
+      <div className="mt-3 rounded-xl border border-line bg-cream/60 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void search();
+            }}
+            placeholder="검색어(비우면 8분야 자동 검색)"
+            className="min-w-[180px] flex-1 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] text-ink outline-none focus:border-gold"
+          />
+          <button
+            type="button"
+            onClick={search}
+            disabled={searching}
+            className="rounded-full bg-gold-deep px-4 py-1.5 text-[13px] font-semibold text-cream shadow-sm transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-60 no-print"
+          >
+            {searching ? "검색 중…" : "🔎 검색"}
+          </button>
+        </div>
+
+        {candidates.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {candidates.map((c) => (
+              <li key={c.source_url} className="rounded-lg border border-line bg-white p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[12px] font-semibold text-gold-deep tabular-nums">
+                    점수 {Math.round(c.totalScore ?? 0)}/100
+                  </span>
+                  <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[12px] text-gold-deep">{c.field}</span>
+                </div>
+                <a
+                  href={c.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 block text-[14px] font-medium text-ink transition-colors hover:text-gold-deep"
+                >
+                  {c.title_ko} <span className="text-[12px] text-mute">↗</span>
+                </a>
+                <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">{c.summary_ko}</p>
+                {/* 기준별 점수(투명성) */}
+                <p className="mt-1 text-[11.5px] text-mute tabular-nums">
+                  최신성 {c.scores.recency} · 관심도 {c.scores.interest} · 연관성 {c.scores.relevance} · 전환 {c.scores.conversion} · 스토리 {c.scores.storytelling}
+                </p>
+                {c.reason && <p className="mt-1 text-[12px] text-mute">선정 사유: {c.reason}</p>}
+                {c.source_name && <p className="mt-0.5 text-[12px] text-mute">{c.source_name}</p>}
+                <div className="mt-2 no-print">
+                  <button
+                    type="button"
+                    onClick={() => addDraft(c)}
+                    disabled={addingUrl === c.source_url}
+                    className="rounded-full bg-hey-green px-3 py-1 text-[12.5px] font-semibold text-cream transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-60"
+                  >
+                    {addingUrl === c.source_url ? "추가 중…" : "대기 추가"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {loaded && items.length === 0 ? (
         <p className="mt-3 text-[13px] text-mute">
