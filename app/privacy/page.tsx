@@ -9,11 +9,14 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <LegalLayout eyebrow="Privacy" title="개인정보처리방침" updated="2026-05-30">
+    <LegalLayout eyebrow="Privacy" title="개인정보처리방침" updated="2026-06-06">
       <Article heading="1. 수집하는 개인정보 항목">
         <p>회사는 회원가입 및 주문·배송을 위하여 다음의 개인정보를 수집합니다.</p>
         <p>- 필수: 이름, 휴대폰 번호, 이메일(로그인 계정), 비밀번호, 배송지 주소</p>
-        <p>- 주문 시: 받는 분 정보, 입금자명, 배송 메모</p>
+        <p>- 주문 시: 받는 분 정보(이름·연락처·주소), 입금자명, 배송 메모</p>
+        <p>- 구독 해지·환불 시: 환불 계좌 정보(은행명, 계좌번호, 예금주)</p>
+        <p>- 선택(동의 시): 광고성 정보 수신 동의 여부</p>
+        <p>- AI 음성 안내 이용 시: 이용자가 입력한 음성(음성 인식·답변 생성을 위해 처리되며 별도 저장하지 않습니다)</p>
       </Article>
 
       <Article heading="2. 개인정보의 수집 및 이용 목적">
@@ -36,11 +39,20 @@ export default function PrivacyPage() {
       <Article heading="4-1. 개인정보 처리의 위탁">
         <p>회사는 원활한 서비스 제공을 위해 아래와 같이 개인정보 처리 업무를 위탁하며, 위탁계약 시 개인정보가 안전하게 관리되도록 합니다.</p>
         <p>- 클라우드 인프라·데이터 보관: Supabase</p>
+        <p>- 웹사이트 호스팅: Netlify</p>
         <p>- 주문·입금·배송 안내 문자 발송: Solapi(솔라피)</p>
         <p>- 무통장입금 자동 확인: PayAction(페이액션)</p>
         <p>- 카드·간편결제(이용 시): PortOne(포트원)</p>
-        <p>- AI 고객 안내(상담 응대): OpenAI</p>
-        <p>위 수탁사 중 일부(OpenAI 등)는 국외에서 정보를 처리할 수 있습니다. AI 상담 입력 내용은 응답 생성을 위해 처리되므로, 주민등록번호·카드번호 등 민감·개인정보는 입력하지 말아 주세요.</p>
+        <p>- AI 음성·문자 안내(상담 응대): OpenAI</p>
+      </Article>
+
+      <Article heading="4-2. 개인정보의 국외 이전">
+        <p>회사는 클라우드 인프라·호스팅 및 AI 안내 제공을 위해 일부 개인정보를 국외에서 처리·보관할 수 있습니다.</p>
+        <p>- 이전받는 자 및 국가: OpenAI(미국), Supabase·Netlify(국외 데이터센터)</p>
+        <p>- 이전 항목: 서비스 제공에 필요한 최소 정보(주문·문의 처리 정보, AI 음성 안내 이용 시 음성 입력)</p>
+        <p>- 이전 목적: 클라우드 인프라·호스팅 운영, AI 음성·문자 응답 생성</p>
+        <p>- 보유·이용 기간: 처리 목적 달성 시까지(각 수탁사의 정책에 따름)</p>
+        <p>AI 안내 입력 내용은 응답 생성을 위해 처리되므로, 주민등록번호·카드번호 등 민감·개인정보는 입력하지 말아 주세요.</p>
       </Article>
 
       <Article heading="5. 개인정보의 파기 절차 및 방법">
@@ -64,6 +76,24 @@ export default function PrivacyPage() {
         <p>연락처: {BUSINESS.tel} · {BUSINESS.mobile}</p>
         <p>이메일: {BUSINESS.email}</p>
         <p>상호: {BUSINESS.company}</p>
+      </Article>
+
+      <Article heading="8. 개인정보의 안전성 확보 조치">
+        <p>회사는 개인정보 보호를 위해 다음의 조치를 취합니다.</p>
+        <p>- 접근 권한 관리 및 행 수준 보안(RLS)을 통한 접근 통제 — 이용자는 본인의 정보에만 접근할 수 있습니다.</p>
+        <p>- 전송 구간 암호화(HTTPS) 및 비밀번호의 일방향 암호화 저장</p>
+        <p>- 개인정보 취급자 최소화 및 관리자 권한 분리</p>
+      </Article>
+
+      <Article heading="9. 권익침해 구제 방법">
+        <p>개인정보 침해에 대한 신고·상담이 필요한 경우 아래 기관에 문의할 수 있습니다.</p>
+        <p>- 개인정보분쟁조정위원회: 1833-6972 (www.kopico.go.kr)</p>
+        <p>- 개인정보침해신고센터: 118 (privacy.kisa.or.kr)</p>
+        <p>- 대검찰청 사이버수사과: 1301 / 경찰청 사이버수사국: 182</p>
+      </Article>
+
+      <Article heading="10. 방침의 변경">
+        <p>본 방침은 법령·서비스 변경에 따라 개정될 수 있으며, 변경 시 시행일자와 변경 내용을 본 페이지에 게시합니다.</p>
       </Article>
     </LegalLayout>
   );
