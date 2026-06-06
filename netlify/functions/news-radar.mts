@@ -1,7 +1,7 @@
 import type { Config } from "@netlify/functions";
 import { runNewsRadar } from "../../lib/news-radar-run";
 
-// 주 1회: A2·저지·헤이밀크·동물복지·저탄소 낙농 뉴스 1건을 한글 번역·저장(관리자 피드 + 고객 노출).
+// 주 1회: 8개 분야를 검색·점수화해 TOP3 뉴스를 한글 번역·'대기' 적재(관리자 검토 후 게시).
 //   실행 로직은 lib/news-radar-run 공용(관리자 즉시실행과 동일).
 
 export default async function handler(): Promise<Response> {

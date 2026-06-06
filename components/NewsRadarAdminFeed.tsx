@@ -231,7 +231,7 @@ export function NewsRadarAdminFeed() {
       </div>
 
       <div className="p-5">
-      <p className="text-[12.5px] text-mute">A2 · 저지 · 헤이밀크 · 동물복지 · 저탄소 낙농 — 매주 가장 의미 있는 1건을 한글로.</p>
+      <p className="text-[12.5px] text-mute">A2 · 저지 · 헤이밀크 · 동물복지 · 저탄소 낙농 — 매주 8개 분야를 검색해 점수 높은 TOP3를 한글로.</p>
       <p className="mt-1 text-[12.5px] text-mute">수집된 소식은 <b>대기</b> 상태입니다. <b>게시</b>한 글만 메인에 노출되고, 필요 없는 글은 삭제하세요.</p>
       {runMsg && (
         <p className="mt-2 rounded-lg bg-gold/15 px-3 py-2 text-[13px] font-medium text-gold-deep">{runMsg}</p>
