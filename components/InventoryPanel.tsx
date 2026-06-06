@@ -5,20 +5,21 @@
 //   입고/조정/폐기는 stock_adjust RPC(음수 차단·무제한 차단)로만 일어난다.
 //   배송 출고 차감은 배송 탭의 [출고 확정]에서 stock_ship_out 으로 처리한다(여기 아님).
 import { useEffect, useMemo, useState } from "react";
-import { isLowStock, MOVEMENT_KINDS, type MovementKind } from "@/lib/inventory";
+import { isLowStock, expiryAlert, MOVEMENT_KINDS, type MovementKind } from "@/lib/inventory";
 import {
   loadInventory,
   loadMovements,
+  loadExpiries,
   stockAdjust,
   type InventoryRow,
   type StockMovement,
 } from "@/lib/inventory-data";
 import { saveCatalogProduct } from "@/lib/catalog";
 
-// 행별 거래 입력 초안. dir 은 '조정'에서만 의미(증/감). 입고=+, 폐기=−는 자동.
-type ActionDraft = { kind: MovementKind; qty: string; dir: "+" | "-"; note: string };
+// 행별 거래 입력 초안. dir 은 '조정'에서만 의미(증/감). 입고=+, 폐기=−는 자동. expiry 는 입고에만.
+type ActionDraft = { kind: MovementKind; qty: string; dir: "+" | "-"; note: string; expiry: string };
 
-const EMPTY_DRAFT: ActionDraft = { kind: "입고", qty: "", dir: "+", note: "" };
+const EMPTY_DRAFT: ActionDraft = { kind: "입고", qty: "", dir: "+", note: "", expiry: "" };
 
 // 관리자가 직접 기록할 수 있는 유형(출고는 배송 출고에서 자동, 수동 입력 제외).
 const MANUAL_KINDS = MOVEMENT_KINDS.filter((k) => k !== "출고");
@@ -40,21 +41,29 @@ function signedDelta(kind: MovementKind, qty: number, dir: "+" | "-"): number {
 export function InventoryPanel() {
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [expiries, setExpiries] = useState<Map<string, string[]>>(new Map());
   const [drafts, setDrafts] = useState<Record<string, ActionDraft>>({});
   const [safety, setSafety] = useState<Record<string, string>>({});
   const [initStock, setInitStock] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 경보 판정 기준 시각 — 한 번만 생성해 모든 행이 같은 today 로 비교(KST).
+  const [now] = useState(() => new Date());
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [inv, mv] = await Promise.all([loadInventory(), loadMovements()]);
+        const [inv, mv, exp] = await Promise.all([
+          loadInventory(),
+          loadMovements(),
+          loadExpiries(),
+        ]);
         if (!alive) return;
         setRows(inv);
         setMovements(mv);
+        setExpiries(exp);
         setSafety(
           Object.fromEntries(
             inv.map((r) => [r.id, r.safety_stock === null ? "" : String(r.safety_stock)])
@@ -81,6 +90,19 @@ export function InventoryPanel() {
     [rows]
   );
 
+  // 임박·만료 제품 수(배치 수 아님). stock>0 관리 품목만 — lowCount 와 같은 패턴.
+  const expiryCounts = useMemo(() => {
+    let warning = 0;
+    let expired = 0;
+    for (const r of rows) {
+      if (r.stock === null || r.stock <= 0) continue;
+      const s = expiryAlert(expiries.get(r.id) ?? [], now).status;
+      if (s === "warning") warning++;
+      else if (s === "expired") expired++;
+    }
+    return { warning, expired };
+  }, [rows, expiries, now]);
+
   function draftOf(id: string): ActionDraft {
     return drafts[id] ?? EMPTY_DRAFT;
   }
@@ -102,13 +124,21 @@ export function InventoryPanel() {
     setError(null);
     try {
       const delta = signedDelta(d.kind, qty, d.dir);
-      const newStock = await stockAdjust(p.id, delta, d.kind, d.note);
-      // 성공 → 현재고 즉시 반영 + 이력 재조회(불변 갱신).
+      const newStock = await stockAdjust(
+        p.id,
+        delta,
+        d.kind,
+        d.note,
+        d.kind === "입고" && d.expiry ? d.expiry : undefined
+      );
+      // 성공 → 현재고 즉시 반영 + 이력·유통기한 재조회(불변 갱신).
       setRows((prev) =>
         prev.map((x) => (x.id === p.id ? { ...x, stock: newStock } : x))
       );
       setDrafts((prev) => ({ ...prev, [p.id]: EMPTY_DRAFT }));
-      setMovements(await loadMovements());
+      const [mv, exp] = await Promise.all([loadMovements(), loadExpiries()]);
+      setMovements(mv);
+      setExpiries(exp);
     } catch (e) {
       setError(e instanceof Error ? e.message : "거래 기록 실패");
     } finally {
@@ -184,6 +214,16 @@ export function InventoryPanel() {
               🔴 부족 {lowCount}
             </span>
           )}
+          {expiryCounts.expired > 0 && (
+            <span className="rounded-full bg-rose-100 px-2.5 py-1 text-rose-700">
+              🔴 만료 {expiryCounts.expired}
+            </span>
+          )}
+          {expiryCounts.warning > 0 && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-700">
+              🟠 임박 {expiryCounts.warning}
+            </span>
+          )}
         </div>
       </div>
       <p className="mt-1 text-[13px] text-mute">
@@ -238,6 +278,23 @@ export function InventoryPanel() {
                             부족
                           </span>
                         )}
+                        {p.stock! > 0 &&
+                          (() => {
+                            const a = expiryAlert(expiries.get(p.id) ?? [], now);
+                            if (a.status === "expired")
+                              return (
+                                <span className="ml-1.5 rounded bg-rose-100 px-1.5 py-0.5 text-[11px] font-semibold text-rose-700">
+                                  🔴 만료
+                                </span>
+                              );
+                            if (a.status === "warning")
+                              return (
+                                <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                                  🟠 임박 D-{a.days} (유통 {a.nearest?.slice(5).replace("-", "/")})
+                                </span>
+                              );
+                            return null;
+                          })()}
                       </span>
                     ) : (
                       <span className="text-[12.5px] text-mute">무제한</span>
@@ -303,6 +360,15 @@ export function InventoryPanel() {
                           onChange={(e) => patchDraft(p.id, { qty: e.target.value })}
                           className="w-20 rounded-lg border border-line bg-cream px-2 py-1.5 text-right text-[13px] tabular-nums text-ink outline-none focus:border-gold"
                         />
+                        {d.kind === "입고" && (
+                          <input
+                            type="date"
+                            value={d.expiry}
+                            title="유통기한(선택)"
+                            onChange={(e) => patchDraft(p.id, { expiry: e.target.value })}
+                            className="rounded-lg border border-line bg-cream px-2 py-1.5 text-[13px] text-ink outline-none focus:border-gold"
+                          />
+                        )}
                         <input
                           type="text"
                           value={d.note}
@@ -396,7 +462,12 @@ export function InventoryPanel() {
                     >
                       {m.delta > 0 ? `+${m.delta}` : m.delta}
                     </td>
-                    <td className="py-2 text-[13px] text-mute">{m.note ?? ""}</td>
+                    <td className="py-2 text-[13px] text-mute">
+                      {m.note ?? ""}
+                      {m.expiry_date && (
+                        <span className="text-mute"> · 유통 {m.expiry_date.slice(5)}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
