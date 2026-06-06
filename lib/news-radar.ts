@@ -18,9 +18,9 @@ export const RADAR_QUERIES: RadarQuery[] = [
   { topic: "미국 식단 가이드", q: '"Dietary Guidelines for Americans" (dairy OR milk OR 2025 OR 2026 OR 2030 OR 2031)' },
 ];
 
-// Google News RSS 검색 URL(무료, 키 불필요). 최근 7일 영문 글로벌.
-export function googleNewsRssUrl(query: string): string {
-  const q = encodeURIComponent(`${query} when:7d`);
+// Google News RSS 검색 URL(무료, 키 불필요). 기본 7일, 인자로 기간(일) 조절.
+export function googleNewsRssUrl(query: string, days = 7): string {
+  const q = encodeURIComponent(`${query} when:${days}d`);
   return `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`;
 }
 

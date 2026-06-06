@@ -8,6 +8,10 @@ describe("googleNewsRssUrl", () => {
     expect(url).toContain("when%3A7d");
     expect(url).toContain("A2");
   });
+
+  it("기간 인자를 주면 when:Nd 로 반영한다", () => {
+    expect(googleNewsRssUrl('"A2 milk"', 30)).toContain("when%3A30d");
+  });
 });
 
 describe("parseRss", () => {
