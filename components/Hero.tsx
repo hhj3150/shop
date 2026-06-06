@@ -37,7 +37,8 @@ export function Hero() {
 
           {/* 서브 한 줄 */}
           <p className="mt-6 max-w-md text-[14.5px] leading-relaxed text-mute sm:text-[15px]">
-            하루 500리터만 생산합니다. 더 만들 수 있지만, 그러지 않습니다.
+            하루 500리터만 생산합니다.
+            <br />더 만들 수 있지만, 그러지 않습니다.
           </p>
 
           {/* 라이브 카운터 */}
