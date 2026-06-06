@@ -18,7 +18,7 @@ const PER_FIELD_MAX = 3; // 분야당 후보 상한(토큰·비용 관리)
 const TOTAL_MAX = 24; // 전체 후보 상한
 const TOP_N = 3; // 적재 건수
 
-// 8분야 병렬 검색(분야당 쿼리세트를 순회하며 PER_FIELD_MAX 까지). 최근 30일.
+// 8분야 순차 수집(분야당 PER_FIELD_MAX 까지, 전체 TOTAL_MAX 상한). 최근 30일.
 export async function collectFieldCandidates(): Promise<FieldCandidate[]> {
   const out: FieldCandidate[] = [];
   for (const f of RADAR_FIELDS) {
