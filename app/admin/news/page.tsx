@@ -137,16 +137,24 @@ export default function AdminNewsPage() {
   }
 
   async function togglePublish(r: NewsRow) {
-    await getSupabase()
+    const { error } = await getSupabase()
       .from("news")
       .update({ published: !r.published, updated_at: new Date().toISOString() })
       .eq("id", r.id);
+    if (error) {
+      setMsg(`상태 변경 실패: ${error.message}`);
+      return;
+    }
     await load();
   }
 
   async function remove(r: NewsRow) {
     if (!window.confirm(`"${r.title}" 소식을 삭제할까요? 되돌릴 수 없습니다.`)) return;
-    await getSupabase().from("news").delete().eq("id", r.id);
+    const { error } = await getSupabase().from("news").delete().eq("id", r.id);
+    if (error) {
+      setMsg(`삭제 실패: ${error.message}`);
+      return;
+    }
     await load();
   }
 

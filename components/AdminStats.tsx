@@ -148,7 +148,7 @@ export function AdminStats({
     <section id="stats" className="mt-12">
       <h2 className="font-serif-kr text-lg text-ink">통계 분석</h2>
       <p className="mt-1 text-[13px] text-mute">
-        확정 구독(입금확인 이후) 기준입니다. 매출은 1회분 입금액 합계.
+        확정 구독(입금확인 이후) 기준입니다. 매출은 1회분 입금액 합계이며, 환불·해지 차감 전 총액입니다.
       </p>
 
       {/* KPI */}
