@@ -12,7 +12,7 @@ export default async function handler(): Promise<Response> {
     apiKey: process.env.OPENAI_API_KEY ?? "",
     model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
   });
-  console.log("[news-radar]", r.status, r.reason ?? r.title ?? "");
+  console.log("[news-radar]", r.status, r.reason ?? r.titles?.[0] ?? "");
   return new Response(JSON.stringify(r), {
     status: r.ok ? 200 : 502,
     headers: { "content-type": "application/json" },
