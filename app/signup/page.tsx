@@ -12,6 +12,7 @@ import { MembershipAssurance } from "@/components/MembershipAssurance";
 import { SocialProof } from "@/components/SocialProof";
 import { formatPhoneKR } from "@/lib/signup-format";
 import { validateSignup } from "@/lib/signup-validation";
+import { REFERRAL_STORAGE_KEY } from "@/components/ReferralCapture";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -87,6 +88,16 @@ export default function SignupPage() {
           marketing_consent_at: marketingAgree ? new Date().toISOString() : null,
         });
         if (profErr) throw profErr;
+        // 추천코드(추천 링크로 유입 시 저장됨) 등록. best-effort — 실패해도 가입 흐름을 막지 않는다.
+        try {
+          const ref = window.localStorage.getItem(REFERRAL_STORAGE_KEY);
+          if (ref) {
+            await supabase.rpc("claim_referral", { p_code: ref });
+            window.localStorage.removeItem(REFERRAL_STORAGE_KEY);
+          }
+        } catch {
+          // 추천 등록 실패는 무시(가입 보호)
+        }
         // 가입 환영 문자(정보성). best-effort — 실패해도 가입 흐름을 막지 않는다.
         void notify({ kind: "welcome" });
         router.push("/account");

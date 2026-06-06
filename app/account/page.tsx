@@ -25,6 +25,7 @@ import { notify } from "@/lib/notify";
 import { DEPOSIT } from "@/lib/site";
 import { RecipientBook } from "@/components/RecipientBook";
 import { ShareButton } from "@/components/ShareButton";
+import { ReferralCard } from "@/components/ReferralCard";
 
 type RenewalInfo = { slotId: number; orderNo: string; total: number };
 
@@ -292,6 +293,8 @@ export default function AccountPage() {
           )}
         </div>
       )}
+
+      <ReferralCard />
 
       <ShareButton />
 

@@ -18,6 +18,7 @@ import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
 import { AdminAssistant } from "@/components/AdminAssistant";
 import { NewsRadarAdminFeed } from "@/components/NewsRadarAdminFeed";
+import { ReferralAdminPanel } from "@/components/ReferralAdminPanel";
 import { FunnelDashboard } from "@/components/FunnelDashboard";
 import { payActionReasonLabel } from "@/lib/payaction-reason";
 import { AdminStats } from "@/components/AdminStats";
@@ -881,6 +882,11 @@ export default function AdminPage() {
       {/* 업계 소식 레이더 — 주 1회 자동 수집 */}
       <div className="mt-6 no-print">
         <NewsRadarAdminFeed />
+      </div>
+
+      {/* 친구 추천(리퍼럴) 현황 + 보상 원장 */}
+      <div className="mt-6 no-print">
+        <ReferralAdminPanel />
       </div>
 
       {/* 통계 분석 */}
