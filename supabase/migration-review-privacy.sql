@@ -60,7 +60,8 @@ grant execute on function public.list_reviews(text) to anon, authenticated;
 
 -- ── 검증(선택) — 적용 후 확인 ──
 --   -- 마스킹·user_id 미노출 확인(author_name 이 '하**' 형태, 결과에 user_id 컬럼 없음):
---   select * from public.list_reviews(null);
+--   -- 인자 없이 호출(기본 null = 전체). bare NULL 의 타입 모호성을 피하려면 list_reviews() 사용.
+--   select * from public.list_reviews();
 --   -- 마스킹 규칙 스폿 체크:
 --   select public.mask_name('하현제');  -- → 하**
 --   select public.mask_name('하');      -- → 하
