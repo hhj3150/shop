@@ -91,7 +91,46 @@ type SlotJoinRow = {
   } | null;
 };
 
-// 로그인한 회원의 구독 슬롯 목록(해지 제외). 스케줄 계산용 원자료를 그대로 돌려준다.
+// 입금확인된 연장주문 금액 원자료(슬롯별 합산용).
+type ExtAmountRow = {
+  renews_slot_id: number | null;
+  total_amount: number | null;
+};
+
+// 슬롯 원자료 + '입금확인' 연장주문 금액을 합쳐 미리보기용 구독 모델을 만든다.
+//   totalWeeks   = 원주문 block_weeks + 연장 누적 회차(extended_weeks)
+//   totalAmount  = 원주문 total_amount + Σ(해당 슬롯 입금확인 연장주문 total_amount)
+// 서버(cancel_subscription)의 환불 산식과 동일한 분자·분모를 갖도록 맞춘다.
+export function toMySubscriptions(
+  rows: SlotJoinRow[],
+  extRows: ExtAmountRow[]
+): MySubscription[] {
+  const extBySlot = extRows.reduce<Record<number, number>>((acc, r) => {
+    if (r.renews_slot_id == null) return acc;
+    return {
+      ...acc,
+      [r.renews_slot_id]: (acc[r.renews_slot_id] ?? 0) + (r.total_amount ?? 0),
+    };
+  }, {});
+
+  return rows.map((row) => ({
+    slotId: row.id,
+    deliveryDay: row.delivery_day,
+    status: row.status,
+    startedAt: row.started_at,
+    paused: row.paused,
+    pausedAt: row.paused_at,
+    pausedDays: row.paused_days,
+    // 총 배송 회차 = 원 주문 block_weeks + 연장 누적 회차
+    totalWeeks: (row.orders?.block_weeks ?? 0) + (row.extended_weeks ?? 0),
+    periodMonths: row.orders?.period_months ?? 1,
+    orderNo: row.orders?.order_no ?? null,
+    // 총 납입액 = 원 주문 + 입금확인된 연장주문 합계
+    totalAmount: (row.orders?.total_amount ?? 0) + (extBySlot[row.id] ?? 0),
+  }));
+}
+
+// 로그인한 회원의 구독 슬롯 목록(해지 제외). 스케줄·환불 계산용 원자료를 그대로 돌려준다.
 export async function getMySubscriptions(): Promise<MySubscription[]> {
   const sb = getSupabase();
   // 본인 것만 — 관리자 계정은 RLS상 전체 조회가 가능하므로 user_id 를 반드시 명시한다.
@@ -110,20 +149,21 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
     .order("started_at", { ascending: true });
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as unknown as SlotJoinRow[]).map((row) => ({
-    slotId: row.id,
-    deliveryDay: row.delivery_day,
-    status: row.status,
-    startedAt: row.started_at,
-    paused: row.paused,
-    pausedAt: row.paused_at,
-    pausedDays: row.paused_days,
-    // 총 배송 회차 = 원 주문 block_weeks + 연장 누적 회차
-    totalWeeks: (row.orders?.block_weeks ?? 0) + (row.extended_weeks ?? 0),
-    periodMonths: row.orders?.period_months ?? 1,
-    orderNo: row.orders?.order_no ?? null,
-    totalAmount: row.orders?.total_amount ?? 0,
-  }));
+  // 입금확인된 연장주문 금액(슬롯별)을 함께 가져와 총 납입액에 합산한다.
+  // extended_weeks 는 연장주문 입금확인 시에만 누적되므로 status='입금확인' 만 합산해야
+  // 회차와 금액이 정확히 대응한다(미입금 연장은 회차·금액 모두 제외).
+  const { data: extData, error: extError } = await sb
+    .from("orders")
+    .select("renews_slot_id, total_amount")
+    .eq("user_id", uid)
+    .eq("status", "입금확인")
+    .not("renews_slot_id", "is", null);
+  if (extError) throw new Error(extError.message);
+
+  return toMySubscriptions(
+    (data ?? []) as unknown as SlotJoinRow[],
+    (extData ?? []) as ExtAmountRow[]
+  );
 }
 
 // 남은(미배송) 회차 환불액 = round(총입금액 / 총회차) × 남은회차.
