@@ -5,6 +5,7 @@
 import { getSupabase } from "@/lib/supabase";
 
 // 카탈로그 1행. stock=null 이면 재고 미관리(무제한), 0 이면 품절.
+//   safety_stock=null 이면 부족 경보 안 함.
 export type CatalogProduct = {
   id: string;
   name: string;
@@ -12,6 +13,7 @@ export type CatalogProduct = {
   price: number;
   cost: number;
   stock: number | null;
+  safety_stock: number | null;
   tax_free: boolean;
   active: boolean;
 };
@@ -21,6 +23,7 @@ export type CatalogPatch = {
   price?: number;
   cost?: number;
   stock?: number | null;
+  safety_stock?: number | null;
   active?: boolean;
 };
 
@@ -30,7 +33,7 @@ export async function loadCatalog(): Promise<CatalogProduct[]> {
     const sb = getSupabase();
     const { data, error } = await sb
       .from("product_catalog")
-      .select("id, name, volume, price, cost, stock, tax_free, active")
+      .select("id, name, volume, price, cost, stock, safety_stock, tax_free, active")
       .order("id");
     if (error) throw error;
     return (data as CatalogProduct[]) ?? [];
@@ -52,6 +55,9 @@ export async function saveCatalogProduct(
     if (patch.cost !== undefined) clean.cost = Math.max(0, Math.round(patch.cost));
     if (patch.stock !== undefined)
       clean.stock = patch.stock === null ? null : Math.max(0, Math.round(patch.stock));
+    if (patch.safety_stock !== undefined)
+      clean.safety_stock =
+        patch.safety_stock === null ? null : Math.max(0, Math.round(patch.safety_stock));
     if (patch.active !== undefined) clean.active = patch.active;
     const { error } = await sb.from("product_catalog").update(clean).eq("id", id);
     if (error) throw error;

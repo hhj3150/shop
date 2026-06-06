@@ -5,6 +5,7 @@
 //   단품은 발송예정일(ship_date), 구독은 요일(delivery_day)로 날짜 필터.
 import { useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { stockShipOut } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
@@ -133,11 +134,13 @@ export function DispatchPanel({
   orders,
   itemsByOrder,
   slots = [],
+  shippedKeys = new Set(),
   onReload,
 }: {
   orders: DispatchOrder[];
   itemsByOrder: Map<string, DispatchItem[]>;
   slots?: DispatchSlot[];
+  shippedKeys?: Set<string>; // 이미 출고된 `${order_id}|${ship_date}` 키(재고 차감 완료)
   onReload: () => Promise<void> | void;
 }) {
   const [date, setDate] = useState(todayISO());
@@ -154,6 +157,9 @@ export function DispatchPanel({
   const [statusFilter, setStatusFilter] = useState<string>("전체");
   const [sortKey, setSortKey] = useState<SortKey>("day");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // 이번 화면에서 방금 출고 확정한 행(즉시 비활성). 서버 shippedKeys 와 합쳐 판정.
+  const [justShipped, setJustShipped] = useState<Set<string>>(new Set());
+  const [shippingId, setShippingId] = useState<string | null>(null);
 
   // 선택 날짜의 요일(구독 매칭용). 주말이면 null → 구독은 매칭 안 됨.
   const dayOfDate = useMemo<DeliveryDay | null>(() => {
@@ -319,6 +325,33 @@ export function DispatchPanel({
     if (o.cash_receipt_issued) return "발행완료";
     if (o.cash_receipt_type && o.cash_receipt_type !== "발행안함") return "발행필요";
     return "";
+  }
+
+  // 배송 행 = (주문, 발송일) 단위. 재고 차감·이중차감 판정의 키.
+  function shipKey(r: DispatchRow): string {
+    return `${r.o.id}|${r.shipISO}`;
+  }
+
+  function isShipped(r: DispatchRow): boolean {
+    const k = shipKey(r);
+    return shippedKeys.has(k) || justShipped.has(k);
+  }
+
+  // 출고 확정 → stock_ship_out 으로 그 발송일분 재고 자동 차감. 주차당 1회만(서버 보장).
+  //   성공·이미출고 모두 행을 비활성으로 두고 재고를 재조회한다.
+  async function shipOut(r: DispatchRow) {
+    const k = shipKey(r);
+    setShippingId(k);
+    setError(null);
+    try {
+      await stockShipOut(r.o.id, r.shipISO);
+      setJustShipped((prev) => new Set(prev).add(k));
+      await onReload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "출고 처리 실패");
+    } finally {
+      setShippingId(null);
+    }
   }
 
   // 배송 담당자용 발송 명단 엑셀 — 회차별 발송일 칸 + 제품 수량 + 총개수/총 L량 합계(빠뜨림 방지).
@@ -602,12 +635,13 @@ export function DispatchPanel({
               {sortTh("region", "배송지")}
               {sortTh("status", "상태")}
               <th className="py-2.5 font-medium">송장번호</th>
+              <th className="py-2.5 font-medium">출고</th>
             </tr>
           </thead>
           <tbody>
             {queue.length === 0 ? (
               <tr>
-                <td colSpan={12} className="py-8 text-center text-[14px] text-mute">
+                <td colSpan={13} className="py-8 text-center text-[14px] text-mute">
                   배송 대상 주문이 없습니다.
                 </td>
               </tr>
@@ -670,6 +704,22 @@ export function DispatchPanel({
                         className="w-36 rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] tabular-nums text-ink outline-none focus:border-gold"
                       />
                     </td>
+                    <td className="py-3">
+                      {isShipped(r) ? (
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
+                          출고됨
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => shipOut(r)}
+                          disabled={shippingId === shipKey(r)}
+                          className="rounded-full border border-gold/50 bg-gold/10 px-3 py-1.5 text-[12.5px] font-semibold text-gold-deep transition-colors enabled:hover:bg-gold/20 disabled:opacity-40"
+                        >
+                          {shippingId === shipKey(r) ? "처리 중…" : "출고 확정"}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })
@@ -687,7 +737,7 @@ export function DispatchPanel({
                 <td className="py-2.5 px-1 text-center tabular-nums">{totals.q[2]}</td>
                 <td className="py-2.5 px-1 text-center tabular-nums">{totals.q[3]}</td>
                 <td className="py-2.5 pr-3 text-center tabular-nums">{totals.count}</td>
-                <td className="py-2.5 pr-3 text-gold-deep" colSpan={3}>
+                <td className="py-2.5 pr-3 text-gold-deep" colSpan={4}>
                   총 {totals.litersTotal}L
                 </td>
               </tr>

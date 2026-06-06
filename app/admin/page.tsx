@@ -27,7 +27,9 @@ import { ProductionPanel } from "@/components/ProductionPanel";
 import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
 import { MemberOrdersModal } from "@/components/MemberOrdersModal";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
+import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
+import { loadShippedKeys } from "@/lib/inventory-data";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
 import { SettlementPanel } from "@/components/SettlementPanel";
 
@@ -190,6 +192,8 @@ export default function AdminPage() {
   const [items, setItems] = useState<ItemRow[]>([]);
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  // 이미 출고된 (주문|발송일) 키 — 배송 행 [출고 확정] 비활성용(이중차감 방지).
+  const [shippedKeys, setShippedKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [batchRunning, setBatchRunning] = useState(false);
@@ -217,7 +221,7 @@ export default function AdminPage() {
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
     const sb = getSupabase();
-    const [o, i, s, p] = await Promise.all([
+    const [o, i, s, p, shipped] = await Promise.all([
       fetchAll<OrderRow>((from, to) =>
         sb.from("orders").select("*").order("created_at", { ascending: false }).range(from, to)
       ),
@@ -229,11 +233,13 @@ export default function AdminPage() {
           .select("id, name, phone, marketing_consent, postcode, address, address_detail, created_at")
           .range(from, to)
       ),
+      loadShippedKeys().catch(() => new Set<string>()),
     ]);
     setOrders(o);
     setItems(i);
     setSlots(s);
     setProfiles(p);
+    setShippedKeys(shipped);
     setLastRefreshed(new Date());
     setLoading(false);
   }, []);
@@ -854,10 +860,21 @@ export default function AdminPage() {
 
       {tab === "생산·재고" && <ProductionPanel onlineDemandForDate={onlineDemandForDate} />}
 
-      {tab === "상품·재고" && <ProductAdminPanel />}
+      {tab === "상품·재고" && (
+        <>
+          <ProductAdminPanel />
+          <InventoryPanel />
+        </>
+      )}
 
       {tab === "배송" && (
-        <DispatchPanel orders={orders} itemsByOrder={itemsByOrder} slots={slots} onReload={load} />
+        <DispatchPanel
+          orders={orders}
+          itemsByOrder={itemsByOrder}
+          slots={slots}
+          shippedKeys={shippedKeys}
+          onReload={load}
+        />
       )}
 
       {tab === "환불·교환" && <ReturnsPanel orders={orders} />}
