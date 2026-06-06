@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isLowStock, nextStock, MOVEMENT_KINDS } from "./inventory";
+import { isLowStock, nextStock, MOVEMENT_KINDS, daysUntil, expiryAlert } from "./inventory";
 
 describe("isLowStock", () => {
   it("현재고 ≤ 안전재고 → 부족", () => {
@@ -37,5 +37,57 @@ describe("nextStock", () => {
 describe("MOVEMENT_KINDS", () => {
   it("4종 거래 유형(입고·출고·조정·폐기)", () => {
     expect(MOVEMENT_KINDS).toEqual(["입고", "출고", "조정", "폐기"]);
+  });
+});
+
+describe("daysUntil (KST)", () => {
+  it("오늘 만료 → 0", () => {
+    // 2026-06-10T01:00 KST = 2026-06-09T16:00Z. KST 오늘은 6/10.
+    expect(daysUntil("2026-06-10", new Date("2026-06-09T16:00:00Z"))).toBe(0);
+  });
+  it("내일 만료 → +1", () => {
+    // 2026-06-09T23:00 KST = 2026-06-09T14:00Z. KST 오늘 6/9, 만료 6/10.
+    expect(daysUntil("2026-06-10", new Date("2026-06-09T14:00:00Z"))).toBe(1);
+  });
+  it("지난 유통기한 → 음수", () => {
+    expect(daysUntil("2026-06-08", new Date("2026-06-10T03:00:00Z"))).toBe(-2);
+  });
+});
+
+describe("expiryAlert (D-3)", () => {
+  const today = new Date("2026-06-10T03:00:00Z"); // KST 6/10 정오
+
+  it("오늘 만료(days=0) → warning", () => {
+    expect(expiryAlert(["2026-06-10"], today)).toEqual({
+      status: "warning",
+      nearest: "2026-06-10",
+      days: 0,
+    });
+  });
+  it("D-3 경계(days=3) → warning", () => {
+    expect(expiryAlert(["2026-06-13"], today).status).toBe("warning");
+  });
+  it("D-4(days=4) → ok", () => {
+    expect(expiryAlert(["2026-06-14"], today)).toEqual({
+      status: "ok",
+      nearest: "2026-06-14",
+      days: 4,
+    });
+  });
+  it("여러 개면 가장 임박한 미래분 기준", () => {
+    expect(expiryAlert(["2026-07-20", "2026-06-12"], today)).toEqual({
+      status: "warning",
+      nearest: "2026-06-12",
+      days: 2,
+    });
+  });
+  it("전부 과거 → expired(가장 최근 과거)", () => {
+    const r = expiryAlert(["2026-06-01", "2026-06-08"], today);
+    expect(r.status).toBe("expired");
+    expect(r.nearest).toBe("2026-06-08");
+    expect(r.days).toBeLessThan(0);
+  });
+  it("빈 배열 → none", () => {
+    expect(expiryAlert([], today)).toEqual({ status: "none", nearest: null, days: null });
   });
 });

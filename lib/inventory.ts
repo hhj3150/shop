@@ -26,3 +26,37 @@ export function nextStock(current: number | null, delta: number): number | null 
   }
   return result;
 }
+
+// ── 유통기한(모듈 ②) ──────────────────────────────────────────
+
+// 유통기한('YYYY-MM-DD', KST)까지 남은 KST 달력일. 오늘=0, 내일=+1, 지남=음수.
+//   renewal-retention.ts 의 kstDaysUntil 과 동일 방식(UTC+9, Date.UTC 에폭 차) — UTC 실행 off-by-one 방지.
+export function daysUntil(expiry: string, today: Date): number {
+  const [y, m, d] = expiry.split("-").map(Number);
+  const expiryEpoch = Date.UTC(y, m - 1, d);
+  const k = new Date(today.getTime() + 9 * 60 * 60 * 1000);
+  const todayEpoch = Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate());
+  return Math.round((expiryEpoch - todayEpoch) / 86_400_000);
+}
+
+export type ExpiryStatus = "expired" | "warning" | "ok" | "none";
+export type ExpiryAlert = { status: ExpiryStatus; nearest: string | null; days: number | null };
+
+// 제품의 유통기한 목록 → 경보 상태. 미래분이 있으면 가장 임박한 것 기준(D-warnDays 이내=warning),
+//   미래분이 없고 과거만 있으면 expired, 비면 none. (배치 잔량은 보지 않음 — 스펙 approach B.)
+export function expiryAlert(
+  expiries: string[],
+  today: Date,
+  warnDays = 3
+): ExpiryAlert {
+  if (expiries.length === 0) return { status: "none", nearest: null, days: null };
+  const withDays = expiries.map((e) => ({ e, d: daysUntil(e, today) }));
+  const upcoming = withDays.filter((x) => x.d >= 0).sort((a, b) => a.d - b.d);
+  if (upcoming.length > 0) {
+    const { e, d } = upcoming[0];
+    return { status: d <= warnDays ? "warning" : "ok", nearest: e, days: d };
+  }
+  // 전부 과거 → 가장 최근 과거(=d 최댓값).
+  const latestPast = [...withDays].sort((a, b) => b.d - a.d)[0];
+  return { status: "expired", nearest: latestPast.e, days: latestPast.d };
+}
