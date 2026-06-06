@@ -9,10 +9,10 @@ import { courierLabel, trackingUrl } from "@/lib/couriers";
 // 토큰을 검증하고, DB의 권위 있는 값으로 수신번호·문구를 구성해 발송한다.
 // (문구를 클라이언트가 정하지 못하게 하여 임의 발송/스팸을 차단)
 
-type OrderKind = "order_received" | "payment_confirmed" | "shipped";
+type OrderKind = "order_received" | "payment_confirmed" | "shipped" | "delivered";
 type GiftKind = "gift_subscription" | "gift_once";
 type RenewalKind = "renewal_guide" | "renewal_confirmed";
-const ADMIN_KINDS = new Set(["payment_confirmed", "shipped", "renewal_confirmed"]);
+const ADMIN_KINDS = new Set(["payment_confirmed", "shipped", "delivered", "renewal_confirmed"]);
 
 type Body = {
   kind: OrderKind | GiftKind | RenewalKind | "subscription_cancelled" | "welcome";
@@ -165,6 +165,27 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     const r = await sendInfo(o.ship_phone as string, {
       text,
       subject: `[${SHOP}] 입금 확인`,
+      alimtalk,
+    });
+    return NextResponse.json(r);
+  }
+
+  if (kind === "delivered") {
+    // 배송 완료 안내 (알림톡 DELIVERED, 미승인 시 LMS 폴백).
+    const text =
+      `[${SHOP}] ${name}님, 상품이 배송 완료되었습니다.\n` +
+      `주문번호 ${o.order_no}\n` +
+      `신선할 때 맛있게 드세요. 또 찾아주시면 감사하겠습니다.`;
+    const alimtalk: AlimtalkSpec = {
+      templateKey: "DELIVERED",
+      variables: {
+        "#{고객명}": name,
+        "#{주문번호}": o.order_no as string,
+      },
+    };
+    const r = await sendInfo(o.ship_phone as string, {
+      text,
+      subject: `[${SHOP}] 배송 완료`,
       alimtalk,
     });
     return NextResponse.json(r);

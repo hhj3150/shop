@@ -14,6 +14,7 @@ export type NotifyTemplateKey =
   | "PAYMENT_CONFIRMED" // 입금 확인
   | "WELCOME" // 회원가입 환영
   | "SHIPPED" // 발송 안내(송장 등록)
+  | "DELIVERED" // 배송 완료 안내
   | "SUBSCRIPTION_CANCELLED" // 구독 해지 접수
   | "GIFT_RECIPIENT" // 선물 도착 안내(받는 분)
   | "RENEW_GUIDE" // 구독 연장 접수 + 입금 안내
@@ -27,6 +28,7 @@ const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
   PAYMENT_CONFIRMED: "SOLAPI_TEMPLATE_PAYMENT_CONFIRMED",
   WELCOME: "SOLAPI_TEMPLATE_WELCOME",
   SHIPPED: "SOLAPI_TEMPLATE_SHIPPING",
+  DELIVERED: "SOLAPI_TEMPLATE_DELIVERED",
   SUBSCRIPTION_CANCELLED: "SOLAPI_TEMPLATE_SUBSCRIPTION_CANCEL",
   GIFT_RECIPIENT: "SOLAPI_TEMPLATE_GIFT_ARRIVAL",
   RENEW_GUIDE: "SOLAPI_TEMPLATE_RENEW_GUIDE",
@@ -41,6 +43,7 @@ export const TEMPLATE_VARS: Record<NotifyTemplateKey, readonly string[]> = {
   PAYMENT_CONFIRMED: ["#{고객명}", "#{주문번호}"],
   WELCOME: ["#{고객명}"],
   SHIPPED: ["#{고객명}", "#{주문번호}", "#{택배사}", "#{송장번호}"],
+  DELIVERED: ["#{고객명}", "#{주문번호}"],
   SUBSCRIPTION_CANCELLED: ["#{고객명}", "#{환불금액}"],
   GIFT_RECIPIENT: ["#{받는분}", "#{보내는분}", "#{제품요약}"],
   RENEW_GUIDE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{입금계좌}"],

@@ -684,7 +684,13 @@ export default function AdminPage() {
       patch.paid_at = new Date().toISOString();
       patch.pay_method = "무통장";
     }
-    await sb.from("orders").update(patch).eq("id", order.id);
+    // 쓰기 실패(RLS·제약·일시오류)를 조용히 넘기지 않는다 — 신뢰 경로라 실패 시
+    //   문자 발송·후속 처리를 중단하고 관리자에게 즉시 알린다.
+    const { error: updErr } = await sb.from("orders").update(patch).eq("id", order.id);
+    if (updErr) {
+      alert(`주문 상태 변경 실패: ${updErr.message}`);
+      return;
+    }
     // 입금확인 → 슬롯을 활성화하고, 요일별 첫 배송일을 시작일로 부여.
     if (status === "입금확인") {
       const { data: pending } = await sb
@@ -694,12 +700,17 @@ export default function AdminPage() {
         .eq("status", "신청");
       for (const s of (pending ?? []) as { id: number; delivery_day: DeliveryDay }[]) {
         const start = toISODate(firstSubscriptionDelivery(s.delivery_day));
-        await sb
+        const { error: slotErr } = await sb
           .from("subscription_slots")
           .update({ status: "활성", started_at: start })
           .eq("id", s.id);
+        if (slotErr) alert(`구독 슬롯 활성화 실패: ${slotErr.message}`);
       }
       void notify({ kind: "payment_confirmed", orderId: order.id });
+    }
+    // 배송완료 → 고객에게 배송 완료 안내 발송.
+    if (status === "배송완료") {
+      void notify({ kind: "delivered", orderId: order.id });
     }
     await load();
   }
@@ -732,8 +743,16 @@ export default function AdminPage() {
         patch.status = "배송중";
       }
     }
-    await sb.from("orders").update(patch).eq("id", order.id);
-    if (tracking) void notify({ kind: "shipped", orderId: order.id });
+    const { error } = await sb.from("orders").update(patch).eq("id", order.id);
+    if (error) {
+      alert(`송장 저장 실패: ${error.message}`);
+      return;
+    }
+    // 새로 '배송중'으로 전환된 건에만 발송 안내 — 이미 배송중인 주문을 재저장할 때
+    //   중복 발송 문자를 보내지 않는다(상태 전이일 때만 발송).
+    if (tracking && (order.status === "입금확인" || order.status === "배송준비")) {
+      void notify({ kind: "shipped", orderId: order.id });
+    }
     await load();
   }
 

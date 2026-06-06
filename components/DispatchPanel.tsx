@@ -420,7 +420,7 @@ export function DispatchPanel({
     setError(null);
     try {
       const sb = getSupabase();
-      await Promise.all(
+      const results = await Promise.all(
         targets.map((o) =>
           sb
             .from("orders")
@@ -431,10 +431,19 @@ export function DispatchPanel({
               status: "배송중",
             })
             .eq("id", o.id)
+            .then(({ error }) => ({ o, error }))
         )
       );
-      for (const o of targets) void notify({ kind: "shipped", orderId: o.id });
+      // 업데이트 성공 + 새로 '배송중'으로 전환된 건에만 발송 문자를 보낸다.
+      //   (조용한 실패 시 오발송 방지 / 이미 배송중인 건 중복 발송 방지)
+      for (const { o, error } of results) {
+        if (!error && o.status !== "배송중") void notify({ kind: "shipped", orderId: o.id });
+      }
       setSelected(new Set());
+      const failed = results.filter((r) => r.error);
+      if (failed.length) {
+        setError(`${failed.length}건 발송 처리 실패: ${failed[0].error?.message ?? "알 수 없는 오류"}`);
+      }
       await onReload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "일괄 발송 처리 실패");
@@ -454,10 +463,23 @@ export function DispatchPanel({
     setError(null);
     try {
       const sb = getSupabase();
-      await Promise.all(
-        targets.map((o) => sb.from("orders").update({ status }).eq("id", o.id))
+      const results = await Promise.all(
+        targets.map((o) =>
+          sb.from("orders").update({ status }).eq("id", o.id).then(({ error }) => ({ o, error }))
+        )
       );
+      // 배송완료로 전환된 건은 고객에게 배송 완료 안내 발송(업데이트 성공분만).
+      //   (배송완료는 SHIPPABLE 큐에서 제외되므로 재선택·중복 발송 위험 없음)
+      if (status === "배송완료") {
+        for (const { o, error } of results) {
+          if (!error) void notify({ kind: "delivered", orderId: o.id });
+        }
+      }
       setSelected(new Set());
+      const failed = results.filter((r) => r.error);
+      if (failed.length) {
+        setError(`${failed.length}건 상태 전환 실패: ${failed[0].error?.message ?? "알 수 없는 오류"}`);
+      }
       await onReload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "상태 전환 실패");
