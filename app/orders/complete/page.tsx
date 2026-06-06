@@ -56,8 +56,8 @@ function Complete() {
           <p className="mt-3 inline-block rounded-full border border-line bg-cream/80 px-3.5 py-1.5 text-[13px] tabular-nums text-mute">주문번호 {orderNo}</p>
         )}
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-[14px] leading-relaxed text-red-700">
-          {failMessage || "결제가 취소되었거나 승인되지 않았습니다."}
-          <br />
+          {failMessage || "결제가 취소되었거나 승인되지 않았습니다."}{" "}
+          <br className="hidden sm:block" />
           주문은 입금 대기 상태로 남아 있으니 다시 시도하실 수 있습니다.
         </div>
         <div className="mt-9 flex justify-center gap-3">
@@ -90,8 +90,8 @@ function Complete() {
         {ship && (
           <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/10 px-5 py-4 text-[14px] leading-relaxed text-gold-deep">
             {isPortOne ? "결제가 확인되면 " : "입금이 확인되면 "}
-            <span className="font-semibold">{ship}</span>에 발송됩니다.
-            <br />
+            <span className="font-semibold">{ship}</span>에 발송됩니다.{" "}
+            <br className="hidden sm:block" />
             (발송은 월–금에만 진행됩니다.)
           </div>
         )}

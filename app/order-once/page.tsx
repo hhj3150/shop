@@ -312,8 +312,8 @@ function OrderOnce() {
         구독 없이, 원하는 것만 한 번. 상품 합계{" "}
         <span className="text-ink-soft">{formatKRW(ONCE_MIN_KRW)} 이상</span> · 배송비{" "}
         {formatKRW(ONCE_SHIPPING_KRW)}. 입금이 확인되면{" "}
-        <span className="text-ink-soft">{dispatch}</span>에 발송됩니다.
-        <br />
+        <span className="text-ink-soft">{dispatch}</span>에 발송됩니다.{" "}
+        <br className="hidden sm:block" />
         평일(월–목) 자정 전 주문은 다음 날, 금요일은 월요일, 주말은 화요일 발송. (발송 월–금)
       </p>
 
