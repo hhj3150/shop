@@ -7,6 +7,7 @@ import {
   buildScoringPrompt,
   parseScoredArray,
   mergeScored,
+  activeRadarFields,
 } from "./news-radar-strategy";
 import type { ScoredCandidate } from "./news-radar-strategy";
 
@@ -14,6 +15,7 @@ function makeScored(over: Partial<ScoredCandidate> = {}): ScoredCandidate {
   return {
     field: "A2 우유",
     fieldPriority: 1,
+    category: "human",
     scores: { recency: 0, interest: 0, relevance: 0, conversion: 0, storytelling: 0 },
     reason: "",
     exclude: false,
@@ -187,5 +189,62 @@ describe("mergeScored", () => {
     expect(out).toHaveLength(1);
     expect(out[0].source_url).toBe("https://x/jersey");
     expect(out[0].title_ko).toBe("저지");
+  });
+
+  it("분야 후보의 category 는 원후보에서, 모델 category 보다 우선한다", () => {
+    const petCands = [
+      { field: "반려동물 건강·휴먼그레이드", fieldPriority: 8, title: "pet", link: "https://x/pet", source: "S", pubDate: "d", category: "pet" as const },
+    ];
+    const out = mergeScored([{ index: 0, category: "human" }], petCands);
+    expect(out[0].category).toBe("pet");
+  });
+
+  it("검색 후보(category 없음)는 모델 분류를 따른다", () => {
+    const out = mergeScored([{ index: 0, category: "pet" }], candidates);
+    expect(out[0].category).toBe("pet");
+  });
+
+  it("category 정보가 전혀 없으면 'human' 으로 기본 설정", () => {
+    const out = mergeScored([{ index: 0 }], candidates);
+    expect(out[0].category).toBe("human");
+  });
+});
+
+describe("RADAR_FIELDS category", () => {
+  it("펫 분야만 category='pet', 나머지는 'human'", () => {
+    const pet = RADAR_FIELDS.find((f) => f.key === "pet-health-human-grade");
+    expect(pet?.category).toBe("pet");
+    for (const f of RADAR_FIELDS.filter((x) => x.key !== "pet-health-human-grade")) {
+      expect(f.category).toBe("human");
+    }
+  });
+});
+
+describe("activeRadarFields", () => {
+  it("flag off 면 펫 제외 7분야", () => {
+    const fields = activeRadarFields(false);
+    expect(fields).toHaveLength(7);
+    expect(fields.some((f) => f.category === "pet")).toBe(false);
+  });
+  it("flag on 이면 펫 포함 8분야", () => {
+    const fields = activeRadarFields(true);
+    expect(fields).toHaveLength(8);
+    expect(fields.some((f) => f.category === "pet")).toBe(true);
+  });
+});
+
+describe("buildScoringPrompt — 효능·category 규칙", () => {
+  const cands = [
+    { field: "A2 우유", fieldPriority: 1, title: "A2 milk study", link: "https://x/1", source: "S", pubDate: "d" },
+  ];
+  it("질병 예방·치료 효능 단정 콘텐츠 제외 규칙을 포함한다", () => {
+    const p = buildScoringPrompt(cands);
+    expect(p).toContain("효능");
+    expect(p).toMatch(/예방.?치료/);
+  });
+  it("category 분류(pet/human)를 출력 스키마에 포함한다", () => {
+    const p = buildScoringPrompt(cands);
+    expect(p).toContain("category");
+    expect(p).toContain("pet");
   });
 });

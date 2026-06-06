@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { googleNewsRssUrl, parseRss } from "./news-radar";
 import {
-  RADAR_FIELDS,
+  activeRadarFields,
   buildScoringPrompt,
   parseScoredArray,
   mergeScored,
@@ -9,19 +9,22 @@ import {
   type FieldCandidate,
   type ScoredCandidate,
 } from "./news-radar-strategy";
+import { PET_CONTENT_ENABLED } from "./news-radar-flags";
 
 // 소식 레이더 실행(주간 스케줄 + 관리자 즉시실행 공용).
-//   8분야 RSS 검색 → OpenAI 5기준 점수화 → 합산 정렬 TOP3 → secret RPC 적재(중복 무시, 대기 상태).
+//   분야 RSS 검색 → OpenAI 5기준 점수화 → 합산 정렬 TOP3 → secret RPC 적재(중복 무시, 대기 상태).
+//   펫 게이트: PET_CONTENT_ENABLED=false 면 자동 수집은 사람 유제품 분야만(펫 제외).
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const PER_FIELD_MAX = 3; // 분야당 후보 상한(토큰·비용 관리)
 const TOTAL_MAX = 24; // 전체 후보 상한
 const TOP_N = 3; // 적재 건수
 
-// 8분야 순차 수집(분야당 PER_FIELD_MAX 까지, 전체 TOTAL_MAX 상한). 최근 30일.
+// 활성 분야 순차 수집(분야당 PER_FIELD_MAX 까지, 전체 TOTAL_MAX 상한). 최근 30일.
+//   PET_CONTENT_ENABLED=false 면 펫 분야 제외(사람 유제품만).
 export async function collectFieldCandidates(): Promise<FieldCandidate[]> {
   const out: FieldCandidate[] = [];
-  for (const f of RADAR_FIELDS) {
+  for (const f of activeRadarFields(PET_CONTENT_ENABLED)) {
     let perField = 0;
     for (const q of f.queries) {
       if (perField >= PER_FIELD_MAX) break;
@@ -32,7 +35,7 @@ export async function collectFieldCandidates(): Promise<FieldCandidate[]> {
         if (!res.ok) continue;
         const xml = await res.text();
         for (const it of parseRss(xml, PER_FIELD_MAX - perField)) {
-          out.push({ ...it, field: f.label, fieldPriority: f.priority });
+          out.push({ ...it, field: f.label, fieldPriority: f.priority, category: f.category });
           perField += 1;
           if (perField >= PER_FIELD_MAX) break;
         }
@@ -131,6 +134,7 @@ export async function runNewsRadar(cfg: RadarRunConfig): Promise<RadarRunResult>
       p_source_url: c.source_url,
       p_original_title: c.original_title,
       p_topic: c.field,
+      p_category: c.category,
       p_published_at: null,
     });
     if (error) return { ok: false, status: "error", reason: error.message, insertedCount: inserted, titles };

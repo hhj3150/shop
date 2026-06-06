@@ -22,6 +22,7 @@ type Scores = {
 type Candidate = {
   field: string;
   fieldPriority: number;
+  category: "human" | "pet";
   scores: Scores;
   reason: string;
   exclude: boolean;
@@ -154,6 +155,7 @@ export function NewsRadarAdminFeed() {
         p_source_url: c.source_url,
         p_original_title: c.original_title,
         p_topic: c.field,
+        p_category: c.category,
       });
       if (error) {
         setRunMsg(`대기 추가 실패: ${error.message}`);
@@ -269,6 +271,11 @@ export function NewsRadarAdminFeed() {
                     점수 {Math.round(c.totalScore ?? 0)}/100
                   </span>
                   <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[12px] text-gold-deep">{c.field}</span>
+                  {c.category === "pet" && (
+                    <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[12px] font-medium text-mute" title="펫 콘텐츠는 현재 공개 밴드에 노출되지 않습니다(관리자 참고용).">
+                      🐾 펫 · 비공개
+                    </span>
+                  )}
                 </div>
                 <a
                   href={c.source_url}

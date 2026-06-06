@@ -2,19 +2,24 @@
 //   외부 호출(RSS·OpenAI)은 run/route 에서. 쿼리맵·프롬프트·파싱·정렬은 여기서.
 import type { RssItem } from "./news-radar";
 
+export type RadarCategory = "human" | "pet";
+
 export type RadarField = {
   key: string; // 안정적 영문 키
   label: string; // 한글 분야 라벨(= topic 으로 저장)
   priority: number; // 1(최우선)~8
+  category: RadarCategory; // 사람 유제품 vs 반려동물(펫 게이트)
   queries: string[]; // 영문 검색 쿼리 세트(우선순위 전략 반영)
 };
 
 // 우선순위(스펙 1~8). 쿼리는 우선순위 전략 1~9를 8분야에 분배.
+//   ⑧ 펫 분야는 category='pet' — PET_CONTENT_ENABLED 플래그로 자동 수집·공개를 게이트.
 export const RADAR_FIELDS: RadarField[] = [
   {
     key: "a2-milk",
     label: "A2 우유",
     priority: 1,
+    category: "human",
     queries: [
       '"A2 milk" ("health" OR "research" OR "study" OR "consumer trend")',
       '"A2 beta-casein" ("digestion" OR "protein" OR "study")',
@@ -25,6 +30,7 @@ export const RADAR_FIELDS: RadarField[] = [
     key: "jersey-milk",
     label: "저지 우유",
     priority: 2,
+    category: "human",
     queries: [
       '"Jersey milk" ("nutrition" OR "protein" OR "butterfat" OR "calcium")',
       '"Jersey cow" milk ("omega-3" OR "CLA" OR "premium")',
@@ -34,6 +40,7 @@ export const RADAR_FIELDS: RadarField[] = [
     key: "hay-milk",
     label: "헤이밀크",
     priority: 3,
+    category: "human",
     queries: [
       '"hay milk" OR Heumilch ("quality" OR "certification" OR "grass-fed")',
       '"grass-fed" dairy ("pasture" OR "milk quality")',
@@ -43,6 +50,7 @@ export const RADAR_FIELDS: RadarField[] = [
     key: "yogurt-fermentation",
     label: "요거트·발효",
     priority: 4,
+    category: "human",
     queries: [
       '"plain yogurt" ("probiotics" OR "postbiotics" OR "fermentation")',
       '"yogurt" ("gut health" OR "immune" OR "premium")',
@@ -52,6 +60,7 @@ export const RADAR_FIELDS: RadarField[] = [
     key: "gut-microbiome",
     label: "장건강·마이크로바이옴",
     priority: 5,
+    category: "human",
     queries: [
       '"gut microbiome" ("dairy" OR "yogurt" OR "probiotics" OR "immune")',
       'protein ("muscle" OR "sarcopenia" OR "healthy aging") dairy',
@@ -61,6 +70,7 @@ export const RADAR_FIELDS: RadarField[] = [
     key: "animal-welfare-sustainability",
     label: "동물복지·지속가능",
     priority: 6,
+    category: "human",
     queries: [
       'dairy ("animal welfare" OR "pasture-raised")',
       '("low-carbon" OR "regenerative" OR "sustainable") dairy',
@@ -70,6 +80,7 @@ export const RADAR_FIELDS: RadarField[] = [
     key: "premium-food-trends",
     label: "프리미엄 식품 트렌드",
     priority: 7,
+    category: "human",
     queries: [
       '"premium dairy" ("brand" OR "consumer trend" OR "Europe")',
       '"premium yogurt" OR "functional food" ("trend" OR "market")',
@@ -79,6 +90,7 @@ export const RADAR_FIELDS: RadarField[] = [
     key: "pet-health-human-grade",
     label: "반려동물 건강·휴먼그레이드",
     priority: 8,
+    category: "pet",
     queries: [
       '("dog gut health" OR "pet probiotics") ("microbiome" OR "immune")',
       '("human grade" OR "farm to bowl") pet food',
@@ -86,6 +98,11 @@ export const RADAR_FIELDS: RadarField[] = [
     ],
   },
 ];
+
+// 펫 게이트: 플래그 off 면 펫 분야(category='pet')를 제외한 사람 유제품 분야만 반환.
+export function activeRadarFields(petEnabled: boolean): RadarField[] {
+  return petEnabled ? RADAR_FIELDS : RADAR_FIELDS.filter((f) => f.category !== "pet");
+}
 
 // 100점 루브릭 5기준(각 0~20). 가중치 없음 — 합산 0~100. 분야 우선순위는 동점 tiebreak(rankCandidates)에서만.
 export type CriteriaScores = {
@@ -104,16 +121,21 @@ export const CRITERIA_KEYS = [
   "storytelling",
 ] as const satisfies readonly (keyof CriteriaScores)[];
 
-// RSS 원후보 + 분야 메타(수집 단계에서 부여).
-export type FieldCandidate = RssItem & { field: string; fieldPriority: number };
+// RSS 원후보 + 분야 메타(수집 단계에서 부여). category 는 8분야 수집 시 분야에서, 자유검색은 미정(모델 분류).
+export type FieldCandidate = RssItem & {
+  field: string;
+  fieldPriority: number;
+  category?: RadarCategory;
+};
 
 // OpenAI 점수화 결과(원후보와 병합 완료).
 export type ScoredCandidate = {
   field: string; // 분야 라벨(한글) = topic
   fieldPriority: number; // 1~8 (동점 tiebreak)
+  category: RadarCategory; // 'human' | 'pet' (펫 게이트용)
   scores: CriteriaScores;
   reason: string; // 한글 선정 사유
-  exclude: boolean; // 광고·PR·협찬 → true
+  exclude: boolean; // 광고·PR·협찬·효능 단정 → true
   title_ko: string;
   summary_ko: string;
   source_name: string;
@@ -177,14 +199,17 @@ export function buildScoringPrompt(
     "5기준(각 0~20): recency(최신성), interest(검색량·관심도),",
     "  relevance(송영신목장 A2·저지·헤이밀크·플레인 요거트와의 연관성 — 과학적 근거·프리미엄 가치 포함),",
     "  conversion(판매 전환 가능성), storytelling(스토리텔링 가능성).",
-    "제외(exclude=true): 광고성 기사·보도자료(PR)·협찬 콘텐츠. 우선 출처: 논문·공공기관·대학·전문 언론.",
+    "제외(exclude=true): 광고성 기사·보도자료(PR)·협찬 콘텐츠.",
+    "제외(exclude=true): 제품과 결부해 특정 질병의 예방·치료 효능을 단정하는 콘텐츠(식품표시광고법 위반 소지).",
+    "우선 출처: 논문·공공기관·대학·전문 언론.",
+    "category: 반려동물(펫) 관련이면 \"pet\", 사람용이면 \"human\" 으로 분류하세요.",
     "reason 에는 점수를 그렇게 준 핵심 근거를 한글 1문장으로 적으세요.",
     "",
     "후보:",
     list,
     "",
     "각 후보를 아래 객체로, 전체를 JSON 배열로만 답하세요(다른 텍스트 금지).",
-    '{"index":0,"scores":{"recency":0,"interest":0,"relevance":0,"conversion":0,"storytelling":0},"reason":"한글 사유 1문장","exclude":false,"title_ko":"한글 제목","summary_ko":"2~3문장 한글 요약","source_name":"매체명"}',
+    '{"index":0,"scores":{"recency":0,"interest":0,"relevance":0,"conversion":0,"storytelling":0},"reason":"한글 사유 1문장","exclude":false,"category":"human","title_ko":"한글 제목","summary_ko":"2~3문장 한글 요약","source_name":"매체명"}',
   ].join("\n");
 }
 
@@ -227,6 +252,8 @@ export function mergeScored(
     merged.push({
       field: src.field,
       fieldPriority: src.fieldPriority,
+      // 분야 수집 후보는 분야의 category 를 신뢰(우선), 자유검색 후보는 모델 분류를 사용. 둘 다 없으면 'human'.
+      category: src.category ?? (str(r.category) === "pet" ? "pet" : "human"),
       scores: {
         recency: num(s.recency),
         interest: num(s.interest),

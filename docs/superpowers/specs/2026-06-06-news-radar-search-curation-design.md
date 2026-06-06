@@ -39,8 +39,27 @@
 - `components/NewsRadarAdminFeed.tsx`: 검색창 + [검색], 결과 후보 카드(점수·사유 표시) + [대기 추가](선택 insert). 기존 게시/숨김/삭제 유지.
 - 신규 RPC `news_radar_insert_draft`(is_admin, published=false) — 관리자 선택 후보 적재용(기존 secret-gate insert와 별개, 관리자 게이트).
 
+## 펫 콘텐츠 게이트 (피처 플래그) — 2026-06-06 추가
+사람용 프리미엄 유제품몰이라 펫 콘텐츠가 고객 화면에 섞이면 초점이 분산된다. 펫 상품 라인이 아직 없으므로 게이트로 막는다.
+- 신설 `lib/news-radar-flags.ts`의 `PET_CONTENT_ENABLED`(기본 `false`).
+- **false(기본)**:
+  - 주간 자동 수집·점수화는 **사람 유제품 7개 분야만**(⑧ Pet Health & Human Grade Pet Food 제외).
+  - 공개 밴드(`NewsRadarBand`)에 **펫 카테고리 절대 미노출**.
+  - 단, **관리자 검색창에서는 펫 주제 수동 검색 허용**(온디맨드). 펫 후보는 `category='pet'` 로 태깅.
+- **true(펫 라인 출시 시)**: ⑧ 분야 자동 수집 포함 + 공개 밴드 노출.
+- ⑧ 분야 전략 코드(`RADAR_FIELDS`)는 **그대로 유지**하고 게이트만 적용 — `activeRadarFields(flag)`(off=7분야, on=8분야).
+- DB: `news_radar.category text not null default 'human'`. secret/draft insert RPC 가 `category` 적재(기본 'human'). 공개 밴드는 flag off 일 때 `category='pet'` 제외.
+- 분야 메타에 `category: 'human' | 'pet'` 추가, 점수 결과(`ScoredCandidate`)에도 `category` 전파. 관리자 자유검색 후보는 OpenAI 가 'pet'/'human' 분류.
+
+## 큐레이션 콘텐츠 면책·효능 표현 안전(식품표시광고법) — 2026-06-06 추가
+외부 연구·보도를 인용하므로 질병 예방·치료 효능을 단정하지 않도록 안전장치를 둔다.
+- 공개 밴드에 **면책 한 줄** 노출: `※ 외부 연구·언론 보도를 인용한 정보이며, 특정 질병의 예방·치료 효능을 단정하지 않습니다.`
+- 출처(언론사명 + 원문 링크)는 계속 표기.
+- AI 선정 프롬프트에 규칙 추가: **제품과 결부된 질병 예방·치료 효능을 단정하는 콘텐츠는 선정 금지**(`exclude=true`).
+
 ## 검증
 - 8분야 쿼리맵·점수 정렬·중복제거 등 순수 로직 vitest TDD.
+- 펫 게이트(`activeRadarFields`)·`category` 병합·프롬프트 규칙 단위 테스트.
 - 프롬프트 JSON 파싱·후보 N개 처리 단위 테스트.
 - tsc + vitest green. 마이그레이션(있으면) 수동 적용. 커밋 전 사용자 승인.
 
