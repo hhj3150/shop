@@ -8,6 +8,7 @@ import { getSupabase } from "@/lib/supabase";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
+import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 
 // 배송 처리에 필요한 최소 주문 필드(관리자 페이지 OrderRow 의 부분집합).
 type DispatchOrder = {
@@ -15,6 +16,8 @@ type DispatchOrder = {
   order_no: string;
   status: string;
   order_type: string;
+  block_weeks: number | null; // 구독 1회 결제분 회차(연장 전 원 회차)
+  renews_slot_id: number | null; // 연장 결제 주문이면 잇는 슬롯 id(품목 미생성·발송 안 함)
   ship_date: string | null;
   ship_name: string;
   ship_phone: string;
@@ -36,10 +39,16 @@ type DispatchItem = {
   delivery_day: DeliveryDay | null;
 };
 
-// 회차 계산용 — 구독 슬롯의 시작일만 필요.
+// 회차·제외 판정용 슬롯 상태(관리자 SlotRow 의 부분집합).
 type DispatchSlot = {
   order_id: string | null;
   started_at: string | null;
+  status: string;
+  paused: boolean;
+  paused_at: string | null;
+  paused_days: number;
+  extended_weeks: number | null;
+  delivery_day: DeliveryDay | null;
 };
 
 // 4개 제품 칸의 용량(mL) — 총 L량 계산에 사용. 순서: 우유180·우유750·요거트180·요거트500.
@@ -89,15 +98,16 @@ function productBucket(name: string, volume: string): number {
   return -1;
 }
 
-// 구독 회차(1~4) — 시작일 대비 발송일이 몇 주차인지. 월 단위(4주)로 순환해 1~4로 환산.
-//   단품·시작일 미상은 1회로 본다. 사람이 직접 칸을 채워 넣는 시트와도 호환된다.
+// 구독 회차 — 시작일 대비 발송일이 몇 주차인지(1-base). 정지·총회차를 모르는
+//   비(非)슬롯 경로(단품 등) 전용 보조 계산. 슬롯이 있으면 dispatchScheduleForSlot 를 쓴다.
+//   단품·시작일 미상은 1회로 본다. (과거 %4 순환은 5회차+를 1회차로 위장시켜 제거함.)
 function roundFor(orderType: string, shipISO: string, startedISO: string | null): number {
   if (orderType === "단품" || !startedISO) return 1;
   const start = Date.parse(`${startedISO.slice(0, 10)}T00:00:00`);
   const ship = Date.parse(`${shipISO}T00:00:00`);
   if (Number.isNaN(start) || Number.isNaN(ship) || ship < start) return 1;
   const weeks = Math.floor((ship - start) / (7 * 86_400_000));
-  return (weeks % 4) + 1;
+  return weeks + 1;
 }
 
 // 정렬 가능한 컬럼 키.
@@ -112,7 +122,9 @@ type DispatchRow = {
   liters: number; // 총 L량
   dayKey: DeliveryDay | null;
   dayLabel: string;
-  round: number;
+  round: number; // 이 발송일 기준 회차(1-base)
+  total: number; // 총 회차(구독: block_weeks + extended_weeks, 단품: 1)
+  remaining: number; // 남은 회차(구독만 의미, 단품 0)
   shipISO: string; // 이 발송 건의 발송(예정)일
   region: string; // 정렬·검색용 지역 문자열
 };
@@ -149,47 +161,73 @@ export function DispatchPanel({
     return WEEKDAY[d.getDay()] ?? null;
   }, [date]);
 
-  // 주문 → 구독 시작일(회차 계산용).
-  const startedByOrder = useMemo(() => {
-    const m = new Map<string, string | null>();
-    for (const s of slots) if (s.order_id) m.set(s.order_id, s.started_at);
+  // 주문 → 구독 슬롯(회차·제외 판정용). 연장은 원주문을 가리키므로 order_id 로 매핑.
+  const slotByOrder = useMemo(() => {
+    const m = new Map<string, DispatchSlot>();
+    for (const s of slots) if (s.order_id) m.set(s.order_id, s);
     return m;
   }, [slots]);
 
   // 배송 가능 주문을 파생값(품목 수량·합계·요일·회차)까지 계산해 행으로 만든다.
+  //   제외 대상(해지·일시정지·회차소진 구독, 연장 결제 유령주문)은 큐에서 빼
+  //   과배송·오배송을 막는다. 합계도 제외 후 기준이라 시트가 정확해진다.
   const allRows = useMemo<DispatchRow[]>(() => {
-    return orders
-      .filter((o) => SHIPPABLE.includes(o.status))
-      .map((o) => {
-        const items = itemsByOrder.get(o.id) ?? [];
-        const q = [0, 0, 0, 0];
-        let dayKey: DeliveryDay | null = null;
-        for (const it of items) {
-          const b = productBucket(it.product_name, it.volume);
-          if (b >= 0) q[b] += it.qty;
-          if (it.delivery_day) dayKey = it.delivery_day;
-        }
-        const count = q.reduce((a, b) => a + b, 0);
-        const liters =
-          Math.round(q.reduce((sum, n, i) => sum + n * BUCKET_ML[i], 0) / 100) / 10;
-        const shipISO = o.ship_date ?? (useDateFilter ? date : o.shipped_at ?? date);
-        const started = startedByOrder.get(o.id) ?? o.created_at;
-        const region = `${o.ship_postcode ?? ""} ${o.ship_address} ${o.ship_address_detail ?? ""}`.trim();
-        const isOnce = o.order_type === "단품";
-        return {
-          o,
-          items,
-          q,
-          count,
-          liters,
-          dayKey,
-          dayLabel: dayKey ? DELIVERY_DAY_LABEL[dayKey] : isOnce ? "단품" : "",
-          round: roundFor(o.order_type, shipISO, started),
-          shipISO,
-          region,
-        };
+    const today = new Date();
+    const rows: DispatchRow[] = [];
+    for (const o of orders) {
+      if (!SHIPPABLE.includes(o.status)) continue;
+      // 연장 결제 주문: 품목 미생성·발송은 원주문 행에서 이어짐 → 유령행 제외.
+      if (o.renews_slot_id != null) continue;
+
+      const items = itemsByOrder.get(o.id) ?? [];
+      const q = [0, 0, 0, 0];
+      let dayKey: DeliveryDay | null = null;
+      for (const it of items) {
+        const b = productBucket(it.product_name, it.volume);
+        if (b >= 0) q[b] += it.qty;
+        if (it.delivery_day) dayKey = it.delivery_day;
+      }
+      const count = q.reduce((a, b) => a + b, 0);
+      const liters =
+        Math.round(q.reduce((sum, n, i) => sum + n * BUCKET_ML[i], 0) / 100) / 10;
+      const shipISO = o.ship_date ?? (useDateFilter ? date : o.shipped_at ?? date);
+      const region = `${o.ship_postcode ?? ""} ${o.ship_address} ${o.ship_address_detail ?? ""}`.trim();
+      const isOnce = o.order_type === "단품";
+
+      // 회차·제외 판정: 슬롯이 있으면 정지·총회차 반영한 정확 계산, 없으면 보조 계산.
+      const slot = slotByOrder.get(o.id);
+      let round: number;
+      let total: number;
+      let remaining: number;
+      if (!isOnce && slot) {
+        const sch = dispatchScheduleForSlot(slot, o.block_weeks ?? 0, shipISO, today);
+        if (sch.excluded) continue; // 해지·일시정지·회차소진 → 큐에서 제외
+        round = sch.round;
+        total = sch.total;
+        remaining = sch.remaining;
+      } else {
+        round = roundFor(o.order_type, shipISO, slot?.started_at ?? o.created_at);
+        total = isOnce ? 1 : 0; // 단품 1회, 슬롯 미상 구독은 총회차 미상(0)
+        remaining = 0;
+      }
+
+      rows.push({
+        o,
+        items,
+        q,
+        count,
+        liters,
+        dayKey,
+        dayLabel: dayKey ? DELIVERY_DAY_LABEL[dayKey] : isOnce ? "단품" : "",
+        round,
+        total,
+        remaining,
+        shipISO,
+        region,
       });
-  }, [orders, itemsByOrder, startedByOrder, useDateFilter, date]);
+    }
+    return rows;
+  }, [orders, itemsByOrder, slotByOrder, useDateFilter, date]);
 
   // 날짜 → 검색 → 구분/요일/상태 필터 → 정렬. 모든 컬럼 정렬 가능.
   const queue = useMemo<DispatchRow[]>(() => {
@@ -287,15 +325,17 @@ export function DispatchPanel({
   function exportDispatchCsv() {
     const header = [
       "유입", "이름", "연락처", "우편번호", "주소", "상세주소", "최근주문",
-      "구분", "배송요일", "1회", "2회", "3회", "4회",
+      "구분", "배송요일", "회차", "남은회차", "발송일",
       ...BUCKET_LABEL, "택배사", "송장번호", "소득공발행", "상태",
     ];
     const rows: string[][] = [header];
     for (const r of queue) {
       const o = r.o;
       const courierName = courierLabel(o.courier);
-      const roundDates = ["", "", "", ""];
-      roundDates[r.round - 1] = r.shipISO;
+      const isOnce = o.order_type === "단품";
+      // 회차/총회차 — 연장(8·12주) 구독도 5회차+ 가 정확히 출력된다.
+      const roundCell = isOnce ? "단품" : r.total > 0 ? `${r.round}/${r.total}` : String(r.round);
+      const remainCell = !isOnce && r.total > 0 ? String(r.remaining) : "";
       rows.push([
         "", // 유입경로 — 현재 미수집(담당자 기입용)
         o.ship_name,
@@ -304,9 +344,11 @@ export function DispatchPanel({
         o.ship_address,
         o.ship_address_detail ?? "",
         o.created_at?.slice(0, 10) ?? "",
-        o.order_type === "단품" ? "단품" : "구독",
+        isOnce ? "단품" : "구독",
         r.dayLabel,
-        ...roundDates,
+        roundCell,
+        remainCell,
+        r.shipISO,
         r.q[0] ? String(r.q[0]) : "",
         r.q[1] ? String(r.q[1]) : "",
         r.q[2] ? String(r.q[2]) : "",
@@ -317,14 +359,14 @@ export function DispatchPanel({
         o.status,
       ]);
     }
-    // 합계: 총 개수 + 총 L량.
+    // 합계: 총 개수 + 총 L량. (선두 11칸: 이름~발송일 비움)
     rows.push([
-      "총 개수", "", "", "", "", "", "", "", "", "", "", "", "",
+      "총 개수", "", "", "", "", "", "", "", "", "", "",
       String(totals.q[0]), String(totals.q[1]), String(totals.q[2]), String(totals.q[3]),
       "", "", "", `${queue.length}건`,
     ]);
     rows.push([
-      "총 L량", "", "", "", "", "", "", "", "", "", "", "", "",
+      "총 L량", "", "", "", "", "", "", "", "", "", "",
       `${totals.liters[0]}L`, `${totals.liters[1]}L`, `${totals.liters[2]}L`, `${totals.liters[3]}L`,
       "", "", "", `${totals.litersTotal}L`,
     ]);
@@ -595,8 +637,15 @@ export function DispatchPanel({
                     <td className="py-3 pr-3 text-[13px] text-ink-soft">
                       {o.order_type === "단품" ? "단품" : "구독"}
                       <span className="ml-1 rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-semibold text-gold-deep">
-                        {r.round}회
+                        {o.order_type === "단품"
+                          ? "1회"
+                          : r.total > 0
+                            ? `${r.round}/${r.total}회`
+                            : `${r.round}회`}
                       </span>
+                      {o.order_type !== "단품" && r.total > 0 && (
+                        <span className="ml-1 text-[11px] text-mute">남은 {r.remaining}</span>
+                      )}
                     </td>
                     <td className="py-3 pr-3 text-[13px] text-ink-soft">{r.dayLabel || "—"}</td>
                     <td className="py-3 px-1 text-center">{qcell(r.q[0])}</td>

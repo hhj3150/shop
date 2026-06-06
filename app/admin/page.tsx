@@ -85,6 +85,7 @@ type OrderRow = {
   order_no: string;
   status: string;
   order_type: string; // '구독' | '단품'
+  block_weeks: number | null; // 구독 1회 결제분 회차(연장 전 원 회차)
   ship_date: string | null; // 단품 발송 예정일 (YYYY-MM-DD)
   total_amount: number;
   depositor_name: string | null;
@@ -124,6 +125,7 @@ type SlotRow = {
   paused: boolean;
   paused_at: string | null;
   paused_days: number;
+  extended_weeks: number | null; // 연장 누적 회차(총 회차 = 원주문 block_weeks + extended_weeks)
   cancel_reason: string | null;
   refund_account: string | null;
   refund_amount: number | null;
