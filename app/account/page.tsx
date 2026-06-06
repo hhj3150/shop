@@ -73,14 +73,16 @@ function fmtDateTime(iso: string | null): string {
 
 // 본인 주문 + 품목을 한 번에 조회(RLS가 본인으로 한정). setState 없는 순수 조회 함수 —
 //   effect/핸들러 양쪽에서 재사용하고, 호출부에서 결과로 상태를 갱신한다.
-async function fetchOrdersWithItems(): Promise<{
+async function fetchOrdersWithItems(userId: string): Promise<{
   orders: OrderRow[];
   items: Record<string, OrderItemRow[]>;
 }> {
   const supabase = getSupabase();
+  // 본인 것만 — 관리자 계정은 RLS상 전체 주문 조회가 가능하므로 user_id 를 반드시 명시한다.
   const { data } = await supabase
     .from("orders")
     .select("id, order_no, status, total_amount, courier, tracking_no, created_at")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
   const orders = (data as OrderRow[]) ?? [];
   if (orders.length === 0) return { orders, items: {} };
@@ -122,7 +124,8 @@ export default function AccountPage() {
 
   // 핸들러(주문 취소·갱신)에서 호출하는 재조회 래퍼.
   async function reloadOrders() {
-    const { orders, items } = await fetchOrdersWithItems();
+    if (!user) return;
+    const { orders, items } = await fetchOrdersWithItems(user.id);
     setOrders(orders);
     setOrderItems(items);
   }
@@ -131,7 +134,7 @@ export default function AccountPage() {
     if (!user) return;
     let alive = true;
     (async () => {
-      const { orders, items } = await fetchOrdersWithItems();
+      const { orders, items } = await fetchOrdersWithItems(user.id);
       if (!alive) return;
       setOrders(orders);
       setOrderItems(items);

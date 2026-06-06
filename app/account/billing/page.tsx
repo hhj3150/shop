@@ -66,6 +66,8 @@ function BillingManager() {
       const { data, error: qErr } = await getSupabase()
         .from("billing_keys")
         .select("id, card_name, card_last4, pg_provider, issued_at")
+        // 본인 것만 — 관리자 계정은 RLS상 전체 조회가 가능하므로 user_id 를 반드시 명시한다.
+        .eq("user_id", user.id)
         .eq("status", "활성")
         .order("issued_at", { ascending: false });
       if (qErr) throw qErr;

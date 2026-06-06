@@ -93,11 +93,19 @@ type SlotJoinRow = {
 
 // 로그인한 회원의 구독 슬롯 목록(해지 제외). 스케줄 계산용 원자료를 그대로 돌려준다.
 export async function getMySubscriptions(): Promise<MySubscription[]> {
-  const { data, error } = await getSupabase()
+  const sb = getSupabase();
+  // 본인 것만 — 관리자 계정은 RLS상 전체 조회가 가능하므로 user_id 를 반드시 명시한다.
+  const {
+    data: { session },
+  } = await sb.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return [];
+  const { data, error } = await sb
     .from("subscription_slots")
     .select(
       "id, delivery_day, status, started_at, paused, paused_at, paused_days, extended_weeks, orders(block_weeks, period_months, order_no, total_amount)"
     )
+    .eq("user_id", uid)
     .neq("status", "해지")
     .order("started_at", { ascending: true });
   if (error) throw new Error(error.message);
