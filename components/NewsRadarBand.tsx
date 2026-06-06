@@ -1,7 +1,7 @@
 "use client";
 
-// 세계 낙농 소식(레이더) — 주 1회 자동 수집한 A2·저지·헤이밀크·동물복지·저탄소
-//   소식을 한글로 노출(고객용). 데이터 없으면 렌더하지 않는다.
+// 세계 낙농 소식(레이더) — A2·저지·헤이밀크·동물복지·저탄소 소식을 한글로 노출(고객용).
+//   관리자가 '게시'한 글만 보인다(published=true). 게시본이 없으면 렌더하지 않는다.
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 
@@ -22,6 +22,7 @@ export function NewsRadarBand() {
     getSupabase()
       .from("news_radar")
       .select("id,title_ko,summary_ko,source_name,source_url,topic,created_at")
+      .eq("published", true)
       .order("created_at", { ascending: false })
       .limit(3)
       .then(({ data }) => setItems((data as RadarRow[]) ?? []));

@@ -1,6 +1,7 @@
 "use client";
 
 // 관리자 업계 소식 피드 — 레이더가 모은 소식 이력(최신순) + '지금 한 번 수집' 즉시실행.
+//   수집된 소식은 '대기' 상태. 관리자가 검토해 게시한 글만 메인(고객)에 노출되고, 삭제할 수 있다.
 import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 
@@ -12,6 +13,7 @@ type RadarRow = {
   source_url: string;
   topic: string | null;
   created_at: string;
+  published: boolean;
 };
 
 export function NewsRadarAdminFeed() {
@@ -19,11 +21,12 @@ export function NewsRadarAdminFeed() {
   const [loaded, setLoaded] = useState(false);
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data } = await getSupabase()
       .from("news_radar")
-      .select("id,title_ko,summary_ko,source_name,source_url,topic,created_at")
+      .select("id,title_ko,summary_ko,source_name,source_url,topic,created_at,published")
       .order("created_at", { ascending: false })
       .limit(20);
     setItems((data as RadarRow[]) ?? []);
@@ -33,6 +36,52 @@ export function NewsRadarAdminFeed() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // 게시/숨김 토글 — 게시한 글만 메인(고객)에 노출된다.
+  async function setPublished(id: string, next: boolean) {
+    if (busyId) return;
+    setBusyId(id);
+    setRunMsg(null);
+    try {
+      const { error } = await getSupabase().rpc("news_radar_set_published", {
+        p_id: id,
+        p_published: next,
+      });
+      if (error) {
+        setRunMsg(`상태 변경 실패: ${error.message}`);
+        return;
+      }
+      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, published: next } : it)));
+      setRunMsg(next ? "메인에 게시했습니다." : "메인에서 숨겼습니다.");
+    } catch {
+      setRunMsg("네트워크 오류가 발생했습니다.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // 삭제 — 검색·수집된 것 중 빼고 싶은 글 제거(되돌릴 수 없음).
+  async function remove(id: string) {
+    if (busyId) return;
+    if (typeof window !== "undefined" && !window.confirm("이 소식을 삭제할까요? 되돌릴 수 없습니다.")) {
+      return;
+    }
+    setBusyId(id);
+    setRunMsg(null);
+    try {
+      const { error } = await getSupabase().rpc("news_radar_delete", { p_id: id });
+      if (error) {
+        setRunMsg(`삭제 실패: ${error.message}`);
+        return;
+      }
+      setItems((prev) => prev.filter((it) => it.id !== id));
+      setRunMsg("소식을 삭제했습니다.");
+    } catch {
+      setRunMsg("네트워크 오류가 발생했습니다.");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function runNow() {
     if (running) return;
@@ -97,6 +146,7 @@ export function NewsRadarAdminFeed() {
 
       <div className="p-5">
       <p className="text-[12.5px] text-mute">A2 · 저지 · 헤이밀크 · 동물복지 · 저탄소 낙농 — 매주 가장 의미 있는 1건을 한글로.</p>
+      <p className="mt-1 text-[12.5px] text-mute">수집된 소식은 <b>대기</b> 상태입니다. <b>게시</b>한 글만 메인에 노출되고, 필요 없는 글은 삭제하세요.</p>
       {runMsg && (
         <p className="mt-2 rounded-lg bg-gold/15 px-3 py-2 text-[13px] font-medium text-gold-deep">{runMsg}</p>
       )}
@@ -110,6 +160,15 @@ export function NewsRadarAdminFeed() {
           {items.map((n) => (
             <li key={n.id} className="py-3">
               <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={
+                    n.published
+                      ? "rounded-full bg-hey-green/15 px-2 py-0.5 text-[12px] font-medium text-hey-green"
+                      : "rounded-full bg-ink/5 px-2 py-0.5 text-[12px] font-medium text-mute"
+                  }
+                >
+                  {n.published ? "🟢 게시중" : "⚪ 대기"}
+                </span>
                 {n.topic && (
                   <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[12px] text-gold-deep">{n.topic}</span>
                 )}
@@ -127,6 +186,29 @@ export function NewsRadarAdminFeed() {
               </a>
               <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">{n.summary_ko}</p>
               {n.source_name && <p className="mt-0.5 text-[12px] text-mute">{n.source_name}</p>}
+
+              <div className="mt-2 flex flex-wrap items-center gap-2 no-print">
+                <button
+                  type="button"
+                  onClick={() => setPublished(n.id, !n.published)}
+                  disabled={busyId === n.id}
+                  className={
+                    n.published
+                      ? "rounded-full border border-line bg-cream px-3 py-1 text-[12.5px] font-medium text-ink transition-colors hover:border-gold disabled:opacity-60"
+                      : "rounded-full bg-hey-green px-3 py-1 text-[12.5px] font-semibold text-cream transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-60"
+                  }
+                >
+                  {busyId === n.id ? "처리 중…" : n.published ? "숨기기" : "메인에 게시"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(n.id)}
+                  disabled={busyId === n.id}
+                  className="rounded-full border border-line px-3 py-1 text-[12.5px] font-medium text-hey-deep-orange transition-colors hover:border-hey-deep-orange disabled:opacity-60"
+                >
+                  삭제
+                </button>
+              </div>
             </li>
           ))}
         </ul>
