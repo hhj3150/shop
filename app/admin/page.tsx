@@ -716,11 +716,17 @@ export default function AdminPage() {
           .eq("id", s.id);
         if (slotErr) slotErrors.push(slotErr.message);
       }
-      // 여러 슬롯 실패 시 알림을 한 번만 띄운다(슬롯마다 alert 가 쏟아지지 않게).
+      // 슬롯 활성화가 하나라도 실패하면 구독이 실제로는 예약되지 않은 상태다.
+      //   이때 "입금 확인·순차 발송" 안내 문자를 보내면 오안내가 되므로, 알림만 띄우고
+      //   SMS 는 보내지 않는다(단품은 활성화 대상 슬롯이 없어 항상 성공 → 정상 발송).
       if (slotErrors.length > 0) {
-        alert(`구독 슬롯 활성화 실패 ${slotErrors.length}건: ${[...new Set(slotErrors)].join(", ")}`);
+        alert(
+          `구독 슬롯 활성화 실패 ${slotErrors.length}건: ${[...new Set(slotErrors)].join(", ")}\n` +
+            `입금확인 안내 문자는 보내지 않았습니다. 슬롯 문제 해결 후 다시 시도하세요.`
+        );
+      } else {
+        void notify({ kind: "payment_confirmed", orderId: order.id });
       }
-      void notify({ kind: "payment_confirmed", orderId: order.id });
     }
     // 배송완료 → 고객에게 배송 완료 안내 발송.
     if (status === "배송완료") {
