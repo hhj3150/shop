@@ -39,6 +39,16 @@ export function firstSubscriptionDelivery(
   return d;
 }
 
+// 기준일(baseISO, 그날 포함) 이후 가장 가까운 해당 요일 배송일 ISO.
+//   구독 시작일 연기/지정용: started_at 을 미래 요일로 맞춘다.
+//   firstSubscriptionDelivery 는 from '다음 날'부터 탐색하므로, 기준일 '포함'을 위해
+//   하루 전을 넘긴다.
+export function firstDeliveryOnOrAfter(deliveryDay: string, baseISO: string): string {
+  const base = new Date(`${baseISO}T00:00:00`);
+  base.setDate(base.getDate() - 1);
+  return toISODate(firstSubscriptionDelivery(deliveryDay, base));
+}
+
 /** 'YYYY-MM-DD' (DB 저장용). */
 export function toISODate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

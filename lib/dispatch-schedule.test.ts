@@ -89,4 +89,16 @@ describe("dispatchScheduleForSlot", () => {
     const r = dispatchScheduleForSlot(baseSlot(), 4, "2026-05-25");
     expect(r.round).toBe(1);
   });
+
+  // ── 미래 시작일 지정(구독 시작일 연기) ──
+  it("시작일 전 발송일은 제외(미래 시작 지정 시 그 전엔 발송 안 함)", () => {
+    // started_at 을 06-08 로 지정 → 06-01 발송일은 아직 시작 전 → 제외.
+    const r = dispatchScheduleForSlot(baseSlot({ started_at: "2026-06-08" }), 4, "2026-06-01");
+    expect(r.excluded).toBe(true);
+  });
+
+  it("지정한 시작일 당일은 발송한다(제외 안 됨)", () => {
+    const r = dispatchScheduleForSlot(baseSlot({ started_at: "2026-06-08" }), 4, "2026-06-08");
+    expect(r.excluded).toBe(false);
+  });
 });

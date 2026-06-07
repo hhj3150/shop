@@ -45,7 +45,10 @@ export function dispatchScheduleForSlot(
   // 회차소진: 발송일이 마지막 배송 예정일(endDate)을 지났는가. 당일(==)은 발송 대상.
   //   ISO(YYYY-MM-DD) 문자열 비교는 날짜 대소와 일치한다.
   const pastEnd = atShip.endDate != null && shipISO > atShip.endDate;
-  const excluded = slot.status === "해지" || slot.paused || pastEnd;
+  // 시작 전: 발송일이 시작일(started_at)보다 이르면 아직 발송 대상이 아니다.
+  //   started_at 을 미래로 지정(구독 시작일 연기)하면 그 전 발송을 막는다. 당일(==)은 발송.
+  const beforeStart = slot.started_at != null && shipISO < slot.started_at;
+  const excluded = slot.status === "해지" || slot.paused || pastEnd || beforeStart;
 
   return { excluded, round, total, remaining };
 }

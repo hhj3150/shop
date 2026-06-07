@@ -14,7 +14,7 @@ import {
   DELIVERY_DAY_LABEL,
   type DeliveryDay,
 } from "@/lib/cart";
-import { firstSubscriptionDelivery, toISODate } from "@/lib/ship-date";
+import { firstSubscriptionDelivery, firstDeliveryOnOrAfter, toISODate } from "@/lib/ship-date";
 import { COURIERS, COURIER_IDS } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
 import { usePolling } from "@/lib/usePolling";
@@ -211,6 +211,9 @@ export default function AdminPage() {
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   // 배송지(주문 스냅샷) 정정 폼이 열린 주문 id. 펼침과 독립적으로 토글한다.
   const [editingShipOrder, setEditingShipOrder] = useState<string | null>(null);
+  // 구독 시작일 연기 폼이 열린 주문 id + 입력된 기준일.
+  const [startDeferOrder, setStartDeferOrder] = useState<string | null>(null);
+  const [startDeferDate, setStartDeferDate] = useState<string>("");
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   // 마운트 시점 기준 '지금' — 회원 최근주문 경과일(recencyDays) 계산용.
   //   렌더 중 Date.now() 직접 호출(비순수)을 피하려 1회만 고정한다.
@@ -772,6 +775,28 @@ export default function AdminPage() {
       .eq("id", order.id);
     if (error) throw new Error(error.message);
     setEditingShipOrder(null);
+    await load();
+  }
+
+  // 구독 시작일 연기/지정. 이미 입금했지만 사정상 늦게 시작하려는 고객을 위해,
+  //   started_at 을 '기준일 이후 첫 슬롯 요일'로 바꾼다. 그 전까진 발송이 없고 그날부터
+  //   시작된다(슬롯은 활성 유지 — 자리는 점유). RLS 상 관리자만 슬롯 수정 가능.
+  async function deferStart(slot: SlotRow, baseISO: string) {
+    if (!baseISO) {
+      alert("시작 기준일을 선택해 주세요.");
+      return;
+    }
+    const newStart = firstDeliveryOnOrAfter(slot.delivery_day, baseISO);
+    const { error } = await getSupabase()
+      .from("subscription_slots")
+      .update({ started_at: newStart })
+      .eq("id", slot.id);
+    if (error) {
+      alert(`구독 시작일 변경 실패: ${error.message}`);
+      return;
+    }
+    setStartDeferOrder(null);
+    setStartDeferDate("");
     await load();
   }
 
@@ -1626,6 +1651,67 @@ export default function AdminPage() {
                           ))}
                         </ul>
                       )}
+                      {/* 구독 시작일 연기/지정 — 입금했으나 늦게 시작하려는 고객용 */}
+                      {o.order_type === "구독" &&
+                        (() => {
+                          const slot = slotByOrder.get(o.id);
+                          if (!slot || slot.status === "해지") return null;
+                          return (
+                            <div className="mt-3 border-t border-line/60 pt-3">
+                              {startDeferOrder === o.id ? (
+                                <div className="flex flex-wrap items-end gap-2">
+                                  <label className="text-[13px] text-ink-soft">
+                                    <span className="mr-2 text-mute">시작 기준일</span>
+                                    <input
+                                      type="date"
+                                      value={startDeferDate}
+                                      onChange={(e) => setStartDeferDate(e.target.value)}
+                                      className="rounded-lg border border-line bg-paper px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-gold"
+                                    />
+                                  </label>
+                                  <span className="text-[12px] text-mute">
+                                    → {startDeferDate
+                                      ? `${firstDeliveryOnOrAfter(slot.delivery_day, startDeferDate)} (${DELIVERY_DAY_LABEL[slot.delivery_day]}) 첫 발송`
+                                      : "날짜 선택 시 첫 발송일 미리보기"}
+                                  </span>
+                                  <button
+                                    onClick={() => deferStart(slot, startDeferDate)}
+                                    className="rounded-full bg-ink px-3 py-1.5 text-[13px] text-cream hover:opacity-90"
+                                  >
+                                    적용
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setStartDeferOrder(null);
+                                      setStartDeferDate("");
+                                    }}
+                                    className="rounded-full px-3 py-1.5 text-[13px] text-mute hover:text-ink"
+                                  >
+                                    취소
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-start justify-between gap-3">
+                                  <p className="text-[13px] leading-relaxed text-ink-soft">
+                                    <span className="text-mute">구독 시작일 · </span>
+                                    {slot.started_at
+                                      ? `${slot.started_at} (${DELIVERY_DAY_LABEL[slot.delivery_day]})`
+                                      : "미시작"}
+                                  </p>
+                                  <button
+                                    onClick={() => {
+                                      setStartDeferOrder(o.id);
+                                      setStartDeferDate(slot.started_at ?? "");
+                                    }}
+                                    className="shrink-0 rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+                                  >
+                                    시작일 변경
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       {/* 배송지(이 주문의 스냅샷) — 잘못 기재된 주소·연락처 정정 */}
                       <div className="mt-3 border-t border-line/60 pt-3">
                         {editingShipOrder === o.id ? (
