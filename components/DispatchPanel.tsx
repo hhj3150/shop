@@ -11,6 +11,12 @@ import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
+import {
+  BUCKET_ML,
+  BUCKET_LABEL,
+  productBucket,
+  findUnmappedKeys,
+} from "@/lib/dispatch-buckets";
 
 // 배송 처리에 필요한 최소 주문 필드(관리자 페이지 OrderRow 의 부분집합).
 type DispatchOrder = {
@@ -53,10 +59,6 @@ type DispatchSlot = {
   delivery_day: DeliveryDay | null;
 };
 
-// 4개 제품 칸의 용량(mL) — 총 L량 계산에 사용. 순서: 우유180·우유750·요거트180·요거트500.
-const BUCKET_ML = [180, 750, 180, 500] as const;
-const BUCKET_LABEL = ["우유180", "우유750", "요거트180", "요거트500"] as const;
-
 // 결제 후 배송 대상 상태(완료·취소·미입금 제외).
 const SHIPPABLE = ["입금확인", "배송준비", "배송중"];
 const WEEKDAY: readonly (DeliveryDay | null)[] = [
@@ -87,17 +89,6 @@ function downloadCsv(filename: string, rows: string[][]) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-// 제품을 4개 칸으로 분리: 우유180(0) / 우유750(1) / 요거트180(2) / 요거트500(3). 그 외 -1.
-function productBucket(name: string, volume: string): number {
-  const yog = name.includes("요거트");
-  const v = volume.replace(/[^0-9]/g, "");
-  if (yog && v === "180") return 2;
-  if (yog && v === "500") return 3;
-  if (!yog && v === "180") return 0;
-  if (!yog && v === "750") return 1;
-  return -1;
 }
 
 // 구독 회차 — 시작일 대비 발송일이 몇 주차인지(1-base). 정지·총회차를 모르는
@@ -174,6 +165,18 @@ export function DispatchPanel({
     for (const s of slots) if (s.order_id) m.set(s.order_id, s);
     return m;
   }, [slots]);
+
+  // 4개 칸(우유180/750·요거트180/500)에 매핑되지 않는 제품 — 수량·총합·발송명단에서
+  //   조용히 빠지므로 화면에 경고해 관리자가 분류 누락을 알아차리게 한다.
+  const unmappedKeys = useMemo(() => {
+    const its: { product_name: string; volume: string; qty: number }[] = [];
+    for (const o of orders) {
+      if (!SHIPPABLE.includes(o.status)) continue;
+      if (o.renews_slot_id != null) continue;
+      for (const it of itemsByOrder.get(o.id) ?? []) its.push(it);
+    }
+    return findUnmappedKeys(its);
+  }, [orders, itemsByOrder]);
 
   // 배송 가능 주문을 파생값(품목 수량·합계·요일·회차)까지 계산해 행으로 만든다.
   //   제외 대상(해지·일시정지·회차소진 구독, 연장 결제 유령주문)은 큐에서 빼
@@ -645,6 +648,13 @@ export function DispatchPanel({
       {error && (
         <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-600">
           {error}
+        </p>
+      )}
+
+      {unmappedKeys.length > 0 && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
+          ⚠️ 발송명단 4칸(우유180/750·요거트180/500)에 없는 제품 {unmappedKeys.length}종이
+          수량·총합에서 빠집니다: {unmappedKeys.join(", ")}. 제품 분류를 확인하세요.
         </p>
       )}
 
