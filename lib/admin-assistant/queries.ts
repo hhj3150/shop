@@ -1,6 +1,7 @@
 // 관리자 AI 비서의 읽기 전용 계산(순수 함수). 라우트가 Supabase 행을 넘기면 답 데이터를 만든다.
 //   admin 화면의 집계 규칙(확정 상태 + 일시정지 제외, 정기 요일분 + 단품 ship_date)과 동일하게 맞춘다.
 //   순수 함수라 단위 테스트로 보장한다(AI 가 숫자를 지어내지 않게, 사실은 여기서만 계산).
+import { kstYmd } from "../kst";
 
 export type DeliveryDay = "mon" | "tue" | "wed" | "thu" | "fri";
 
@@ -206,7 +207,7 @@ export function salesSummary(
   let revenue = 0;
   for (const o of orders) {
     if (!(CONFIRMED_STATUSES as readonly string[]).includes(o.status)) continue;
-    const day = (o.created_at ?? "").slice(0, 10);
+    const day = kstYmd(o.created_at ?? ""); // UTC → KST 일자(일 경계 오귀속 방지)
     if (day < fromISO || day > to) continue;
     count += 1;
     revenue += o.total_amount ?? 0;

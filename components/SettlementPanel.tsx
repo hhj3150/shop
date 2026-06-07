@@ -9,6 +9,7 @@ import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { loadCatalog, type CatalogProduct } from "@/lib/catalog";
 import { buildSettlementCsvRows } from "@/lib/settlement-csv";
+import { kstYearMonth } from "@/lib/kst";
 
 const CONFIRMED = ["입금확인", "배송준비", "배송중", "배송완료"];
 
@@ -83,7 +84,8 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
     const s = new Set<string>();
     for (const o of orders) {
       if (!CONFIRMED.includes(o.status)) continue;
-      if ((o.created_at ?? "").slice(0, 7) === month) s.add(o.id);
+      // created_at 은 UTC timestamptz → KST 월로 환산해 버킷팅(월 경계 오귀속 방지).
+      if (kstYearMonth(o.created_at ?? "") === month) s.add(o.id);
     }
     return s;
   }, [orders, month]);
