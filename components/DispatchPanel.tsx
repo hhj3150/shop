@@ -10,6 +10,7 @@ import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
+import { buildTotalsRow } from "@/lib/dispatch-csv";
 
 // 배송 처리에 필요한 최소 주문 필드(관리자 페이지 OrderRow 의 부분집합).
 type DispatchOrder = {
@@ -392,17 +393,26 @@ export function DispatchPanel({
         o.status,
       ]);
     }
-    // 합계: 총 개수 + 총 L량. (선두 11칸: 이름~발송일 비움)
-    rows.push([
-      "총 개수", "", "", "", "", "", "", "", "", "", "",
-      String(totals.q[0]), String(totals.q[1]), String(totals.q[2]), String(totals.q[3]),
-      "", "", "", `${queue.length}건`,
-    ]);
-    rows.push([
-      "총 L량", "", "", "", "", "", "", "", "", "", "",
-      `${totals.liters[0]}L`, `${totals.liters[1]}L`, `${totals.liters[2]}L`, `${totals.liters[3]}L`,
-      "", "", "", `${totals.litersTotal}L`,
-    ]);
+    // 합계: 총 개수 + 총 L량. 제품 칸 위치를 헤더에서 도출해 한 칸 밀림을 막는다.
+    const firstBucketIndex = header.indexOf(BUCKET_LABEL[0]);
+    rows.push(
+      buildTotalsRow({
+        label: "총 개수",
+        width: header.length,
+        firstBucketIndex,
+        buckets: totals.q.map((n) => String(n)),
+        grandTotal: `${queue.length}건`,
+      })
+    );
+    rows.push(
+      buildTotalsRow({
+        label: "총 L량",
+        width: header.length,
+        firstBucketIndex,
+        buckets: totals.liters.map((n) => `${n}L`),
+        grandTotal: `${totals.litersTotal}L`,
+      })
+    );
     const tag = useDateFilter ? date : "전체";
     downloadCsv(`발송명단_${tag}.csv`, rows);
   }
