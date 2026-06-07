@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { loadCatalog, type CatalogProduct } from "@/lib/catalog";
+import { buildSettlementCsvRows } from "@/lib/settlement-csv";
 
 const CONFIRMED = ["입금확인", "배송준비", "배송중", "배송완료"];
 
@@ -140,21 +141,13 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
   }, [items, monthOrderIds, catById]);
 
   function exportCsv() {
-    const head = ["제품", "용량", "수량", "매출", "원가", "마진"];
-    const lines = summary.rows.map((r) =>
-      [r.name, r.volume, r.qty, r.revenue, r.cost, r.margin].join(",")
-    );
-    const foot = [
-      "",
-      ["과세매출", summary.taxableGross].join(","),
-      ["면세매출", summary.taxFreeGross].join(","),
-      ["공급가액(과세)", summary.supply].join(","),
-      ["부가세(10%)", summary.vat].join(","),
-      ["총매출", summary.revenue].join(","),
-      ["총원가", summary.totalCost].join(","),
-      ["총마진", summary.margin].join(","),
-    ];
-    const csv = "﻿" + [head.join(","), ...lines, ...foot].join("\n");
+    // 모든 행을 6칸으로 정렬(합계 금액을 매출/원가/마진 컬럼에) + 셀 이스케이프 + CRLF + BOM.
+    const rows = buildSettlementCsvRows(summary);
+    const csv =
+      "﻿" +
+      rows
+        .map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))
+        .join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     const a = document.createElement("a");
     a.href = url;
