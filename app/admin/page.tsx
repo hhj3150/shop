@@ -20,7 +20,6 @@ import { notify } from "@/lib/notify";
 import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
 import { AdminAssistant } from "@/components/AdminAssistant";
-import { NewsRadarAdminFeed } from "@/components/NewsRadarAdminFeed";
 import { ReferralAdminPanel } from "@/components/ReferralAdminPanel";
 import { FunnelDashboard } from "@/components/FunnelDashboard";
 import { payActionReasonLabel } from "@/lib/payaction-reason";
@@ -941,6 +940,9 @@ export default function AdminPage() {
           <Link href="/admin/news" className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
             소식 전하기
           </Link>
+          <Link href="/admin/news-radar" className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
+            소식 레이더
+          </Link>
           <button onClick={() => load()} className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
             새로고침
           </button>
@@ -1072,11 +1074,6 @@ export default function AdminPage() {
       {/* 전환 퍼널 — 측정 대시보드 */}
       <div className="mt-6 no-print">
         <FunnelDashboard />
-      </div>
-
-      {/* 업계 소식 레이더 — 주 1회 자동 수집 */}
-      <div className="mt-6 no-print">
-        <NewsRadarAdminFeed />
       </div>
 
       {/* 친구 추천(리퍼럴) 현황 + 보상 원장 */}
