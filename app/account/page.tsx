@@ -26,6 +26,7 @@ import { DEPOSIT } from "@/lib/site";
 import { RecipientBook } from "@/components/RecipientBook";
 import { ShareButton } from "@/components/ShareButton";
 import { ReferralCard } from "@/components/ReferralCard";
+import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 
 type RenewalInfo = { slotId: number; orderNo: string; total: number };
 
@@ -107,7 +108,8 @@ async function fetchOrdersWithItems(userId: string): Promise<{
 
 export default function AccountPage() {
   const router = useRouter();
-  const { ready, user, profile, signOut } = useAuth();
+  const { ready, user, profile, signOut, refreshProfile } = useAuth();
+  const [editingInfo, setEditingInfo] = useState(false);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [orderItems, setOrderItems] = useState<Record<string, OrderItemRow[]>>({});
   const [subs, setSubs] = useState<MySubscription[]>([]);
@@ -234,6 +236,26 @@ export default function AccountPage() {
     }
   }
 
+  // 본인 기준 정보(연락처·주소) 저장. RLS(profiles_update_own)가 본인 행으로 한정한다.
+  //   저장 후 프로필을 다시 불러와 화면(그리고 다음 주문 자동 입력값)에 즉시 반영한다.
+  //   관리자 화면은 같은 profiles 테이블을 30초마다 자동 새로고침하므로 함께 반영된다.
+  async function saveMyInfo(values: ProfileEditValues) {
+    if (!user) return;
+    const { error } = await getSupabase()
+      .from("profiles")
+      .update({
+        name: values.name,
+        phone: values.phone,
+        postcode: values.postcode || null,
+        address: values.address || null,
+        address_detail: values.address_detail || null,
+      })
+      .eq("id", user.id);
+    if (error) throw new Error(error.message);
+    await refreshProfile();
+    setEditingInfo(false);
+  }
+
   async function onCancelOrder(orderId: string, orderNo: string) {
     if (
       !confirm(
@@ -279,20 +301,51 @@ export default function AccountPage() {
       </div>
 
       {profile && (
-        <div className="mt-8 rounded-2xl border border-line bg-cream p-6 text-[14px] leading-relaxed text-ink-soft">
-          <p>{profile.phone}</p>
-          {profile.address && (
-            <p className="mt-1 text-mute">
-              ({profile.postcode}) {profile.address} {profile.address_detail}
-            </p>
-          )}
-          {profile.is_admin && (
-            <Link
-              href="/admin"
-              className="mt-4 inline-flex rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep"
-            >
-              관리자 모드
-            </Link>
+        <div className="mt-8 rounded-2xl border border-line bg-cream p-6">
+          {editingInfo ? (
+            <>
+              <p className="mb-4 text-[13px] font-medium text-ink">내 정보 수정</p>
+              <ProfileEditor
+                initial={{
+                  name: profile.name,
+                  phone: profile.phone,
+                  postcode: profile.postcode ?? "",
+                  address: profile.address ?? "",
+                  address_detail: profile.address_detail ?? "",
+                }}
+                onSave={saveMyInfo}
+                onCancel={() => setEditingInfo(false)}
+              />
+            </>
+          ) : (
+            <div className="text-[14px] leading-relaxed text-ink-soft">
+              <div className="flex items-start justify-between gap-3">
+                <p>{profile.phone}</p>
+                <button
+                  onClick={() => setEditingInfo(true)}
+                  className="shrink-0 rounded-full border border-line px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+                >
+                  정보 수정
+                </button>
+              </div>
+              {profile.address ? (
+                <p className="mt-1 text-mute">
+                  ({profile.postcode}) {profile.address} {profile.address_detail}
+                </p>
+              ) : (
+                <p className="mt-1 text-mute">
+                  배송 주소가 아직 없습니다. ‘정보 수정’에서 등록해 주세요.
+                </p>
+              )}
+              {profile.is_admin && (
+                <Link
+                  href="/admin"
+                  className="mt-4 inline-flex rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep"
+                >
+                  관리자 모드
+                </Link>
+              )}
+            </div>
           )}
         </div>
       )}

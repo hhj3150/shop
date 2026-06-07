@@ -26,6 +26,7 @@ import { BroadcastPanel } from "@/components/BroadcastPanel";
 import { ProductionPanel } from "@/components/ProductionPanel";
 import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
 import { MemberOrdersModal } from "@/components/MemberOrdersModal";
+import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
@@ -205,6 +206,8 @@ export default function AdminPage() {
   const [orderQuery, setOrderQuery] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("전체");
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  // 배송지(주문 스냅샷) 정정 폼이 열린 주문 id. 펼침과 독립적으로 토글한다.
+  const [editingShipOrder, setEditingShipOrder] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   // 마운트 시점 기준 '지금' — 회원 최근주문 경과일(recencyDays) 계산용.
   //   렌더 중 Date.now() 직접 호출(비순수)을 피하려 1회만 고정한다.
@@ -712,6 +715,44 @@ export default function AdminPage() {
     if (status === "배송완료") {
       void notify({ kind: "delivered", orderId: order.id });
     }
+    await load();
+  }
+
+  // 회원 기준 정보(연락처·주소) 정정. 잘못 기재된 회원 프로필을 관리자가 직접 고친다.
+  //   RLS(profiles_update_admin)가 관리자에게만 타 회원 수정을 허용한다. 저장 후 재조회.
+  async function saveMember(userId: string, values: ProfileEditValues) {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from("profiles")
+      .update({
+        name: values.name,
+        phone: values.phone,
+        postcode: values.postcode || null,
+        address: values.address || null,
+        address_detail: values.address_detail || null,
+      })
+      .eq("id", userId);
+    if (error) throw new Error(error.message);
+    await load();
+  }
+
+  // 주문 배송지(스냅샷) 정정. 주문엔 주문 시점의 배송지가 따로 저장되므로(프로필과 별개)
+  //   이미 들어온 주문의 잘못된 주소·연락처는 이 주문 행에서 직접 고쳐야 배송 명단에 반영된다.
+  //   RLS(orders_update_admin)가 관리자에게만 허용한다. 저장 후 재조회.
+  async function saveOrderShipping(order: OrderRow, values: ProfileEditValues) {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from("orders")
+      .update({
+        ship_name: values.name,
+        ship_phone: values.phone,
+        ship_postcode: values.postcode || null,
+        ship_address: values.address,
+        ship_address_detail: values.address_detail || null,
+      })
+      .eq("id", order.id);
+    if (error) throw new Error(error.message);
+    setEditingShipOrder(null);
     await load();
   }
 
@@ -1472,6 +1513,43 @@ export default function AdminPage() {
                           ))}
                         </ul>
                       )}
+                      {/* 배송지(이 주문의 스냅샷) — 잘못 기재된 주소·연락처 정정 */}
+                      <div className="mt-3 border-t border-line/60 pt-3">
+                        {editingShipOrder === o.id ? (
+                          <div className="max-w-md">
+                            <p className="mb-2 text-[13px] font-medium text-ink">배송지 수정</p>
+                            <ProfileEditor
+                              initial={{
+                                name: o.ship_name ?? "",
+                                phone: o.ship_phone ?? "",
+                                postcode: o.ship_postcode ?? "",
+                                address: o.ship_address ?? "",
+                                address_detail: o.ship_address_detail ?? "",
+                              }}
+                              saveLabel="배송지 저장"
+                              onSave={(values) => saveOrderShipping(o, values)}
+                              onCancel={() => setEditingShipOrder(null)}
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-[13px] leading-relaxed text-ink-soft">
+                              <span className="text-mute">배송지 · </span>
+                              {o.ship_name} {o.ship_phone}
+                              <br />
+                              <span className="text-mute">
+                                ({o.ship_postcode}) {o.ship_address} {o.ship_address_detail ?? ""}
+                              </span>
+                            </p>
+                            <button
+                              onClick={() => setEditingShipOrder(o.id)}
+                              className="shrink-0 rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+                            >
+                              배송지 수정
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -1506,8 +1584,18 @@ export default function AdminPage() {
               recencyDays: selectedMemberRow.recencyDays,
             }
           }
+          member={
+            selectedMemberRow && {
+              name: selectedMemberRow.name ?? "",
+              phone: selectedMemberRow.phone ?? "",
+              postcode: selectedMemberRow.postcode ?? "",
+              address: selectedMemberRow.address ?? "",
+              address_detail: selectedMemberRow.address_detail ?? "",
+            }
+          }
           orders={selectedMemberOrders}
           itemsByOrder={itemsByOrder}
+          onSaveMember={(values) => saveMember(selectedMember, values)}
           onClose={() => setSelectedMember(null)}
         />
       )}

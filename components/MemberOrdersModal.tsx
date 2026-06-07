@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { formatKRW } from "@/lib/products";
+import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 
 // 관리자: 회원 한 명의 주문·품목 이력을 모아 보는 모달.
 //   회원 표에서 이름을 누르면 그 회원의 주문(최신순)과 각 주문의 담긴 품목을 펼쳐 본다.
@@ -30,19 +31,29 @@ type MemberSummary = {
   recencyDays: number | null;
 };
 
+// 모달에서 정정 가능한 회원 기준 정보. 관리자 표의 행 데이터에서 전달.
+type MemberInfo = ProfileEditValues;
+
 export function MemberOrdersModal({
   memberName,
   summary,
+  member,
   orders,
   itemsByOrder,
+  onSaveMember,
   onClose,
 }: {
   memberName: string;
   summary?: MemberSummary | null;
+  member?: MemberInfo | null;
   orders: OrderLike[];
   itemsByOrder: Map<string, ItemLike[]>;
+  // 회원 기준 정보(연락처·주소) 저장. 실패 시 throw 하면 폼이 오류를 표시한다.
+  onSaveMember?: (values: ProfileEditValues) => Promise<void>;
   onClose: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+
   // ESC 로 닫기.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -97,6 +108,43 @@ export function MemberOrdersModal({
             닫기
           </button>
         </div>
+
+        {/* 회원 기준 정보 — 잘못 기재된 연락처·주소를 관리자가 정정한다. */}
+        {member && onSaveMember && (
+          <div className="mt-5 rounded-2xl border border-line bg-paper p-4">
+            {editing ? (
+              <>
+                <p className="mb-3 text-[13px] font-medium text-ink">회원 정보 수정</p>
+                <ProfileEditor
+                  initial={member}
+                  saveLabel="회원 정보 저장"
+                  onSave={async (values) => {
+                    await onSaveMember(values);
+                    setEditing(false);
+                  }}
+                  onCancel={() => setEditing(false)}
+                />
+              </>
+            ) : (
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-[13px] leading-relaxed text-ink-soft">
+                  <p className="tabular-nums text-ink">{member.phone || "연락처 없음"}</p>
+                  <p className="mt-0.5 text-mute">
+                    {member.address
+                      ? `${member.postcode ? `(${member.postcode}) ` : ""}${member.address} ${member.address_detail ?? ""}`
+                      : "주소 없음"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditing(true)}
+                  className="shrink-0 rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+                >
+                  정보 수정
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {orderCount === 0 ? (
           <p className="mt-6 text-center text-[14px] text-mute">주문 내역이 없습니다.</p>
