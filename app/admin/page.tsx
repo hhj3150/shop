@@ -35,6 +35,7 @@ import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
 import { loadShippedKeys } from "@/lib/inventory-data";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
+import { loadReturns, type OrderReturn } from "@/lib/returns";
 import { SettlementPanel } from "@/components/SettlementPanel";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
@@ -192,6 +193,9 @@ export default function AdminPage() {
   const [items, setItems] = useState<ItemRow[]>([]);
   const [slots, setSlots] = useState<SlotRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  // 순매출 차감용 환불·교환 원장. ReturnsPanel 도 자체 로딩하나, 통계의 순매출
+  //   계산엔 페이지 레벨에서 한 번 더 필요하다(설계: 중복 fetch 1회 허용).
+  const [returns, setReturns] = useState<OrderReturn[]>([]);
   // 이미 출고된 (주문|발송일) 키 — 배송 행 [출고 확정] 비활성용(이중차감 방지).
   const [shippedKeys, setShippedKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -223,7 +227,7 @@ export default function AdminPage() {
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
     const sb = getSupabase();
-    const [o, i, s, p, shipped] = await Promise.all([
+    const [o, i, s, p, shipped, r] = await Promise.all([
       // ★ .range() 페이지네이션은 '전순서(total order)'가 있어야 안전하다. 정렬 기준이
       //   없거나 동순위가 있으면 페이지 경계에서 행이 누락·중복되어, 1000행을 넘는 순간
       //   배송 명단에서 몇 건씩 빠진다. 모든 쿼리에 고유키(id) 정렬을 붙여 안정화한다.
@@ -249,12 +253,14 @@ export default function AdminPage() {
           .range(from, to)
       ),
       loadShippedKeys().catch(() => new Set<string>()),
+      loadReturns().catch(() => [] as OrderReturn[]),
     ]);
     setOrders(o);
     setItems(i);
     setSlots(s);
     setProfiles(p);
     setShippedKeys(shipped);
+    setReturns(r);
     setLastRefreshed(new Date());
     setLoading(false);
   }, []);
@@ -1063,7 +1069,7 @@ export default function AdminPage() {
       </div>
 
       {/* 통계 분석 */}
-      <AdminStats orders={orders} items={items} slots={slots} memberCount={profiles.length} />
+      <AdminStats orders={orders} items={items} slots={slots} returns={returns} memberCount={profiles.length} />
 
       {/* 회원 전체 */}
       <div className="mt-12 flex flex-wrap items-center justify-between gap-3">
