@@ -124,6 +124,18 @@ describe("buildRosterForDate", () => {
     expect(r).toHaveLength(0);
   });
 
+  it("미래로 지정한 시작일 전 날짜에는 명단에서 제외된다(구독 시작일 연기)", () => {
+    // started_at 을 2026-06-22 로 미래 지정 → 그 전 월요일(06-15) 명단엔 안 나온다.
+    const o = order({ id: "o1" });
+    const r = build({
+      orders: [o],
+      items: [item({ order_id: "o1" })],
+      slots: new Map([["o1", slot({ started_at: "2026-06-22" })]]),
+      dateISO: "2026-06-15",
+    });
+    expect(r).toHaveLength(0);
+  });
+
   it("미확인(confirmed 아님) 주문은 제외된다", () => {
     const o = order({ id: "o1" });
     const r = build({
