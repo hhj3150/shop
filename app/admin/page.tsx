@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
+import { computeSchedule } from "@/lib/subscription-schedule";
+import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 import {
   DELIVERY_DAYS,
   DELIVERY_DAY_LABEL,
@@ -26,6 +28,7 @@ import { BroadcastPanel } from "@/components/BroadcastPanel";
 import { ProductionPanel } from "@/components/ProductionPanel";
 import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
 import { MemberOrdersModal } from "@/components/MemberOrdersModal";
+import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
@@ -104,12 +107,15 @@ type OrderRow = {
   cash_receipt_type: string | null; // 소득공제 | 지출증빙 | 발행안함
   cash_receipt_id: string | null; // 소득공제: 휴대폰, 지출증빙: 사업자번호
   cash_receipt_issued: boolean | null; // 관리자 수기 발행 완료 여부
+  paid_at: string | null; // 입금/결제 확인 시각 (수동·자동 공통)
+  pay_method: string | null; // 무통장 | 카드 등
   created_at: string;
 };
 
 type ItemRow = {
   id: string;
   order_id: string;
+  product_id: string;
   product_name: string;
   volume: string;
   delivery_day: DeliveryDay;
@@ -205,6 +211,8 @@ export default function AdminPage() {
   const [orderQuery, setOrderQuery] = useState("");
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("전체");
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  // 배송지(주문 스냅샷) 정정 폼이 열린 주문 id. 펼침과 독립적으로 토글한다.
+  const [editingShipOrder, setEditingShipOrder] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   // 마운트 시점 기준 '지금' — 회원 최근주문 경과일(recencyDays) 계산용.
   //   렌더 중 Date.now() 직접 호출(비순수)을 피하려 1회만 고정한다.
@@ -222,15 +230,28 @@ export default function AdminPage() {
     if (!opts?.silent) setLoading(true);
     const sb = getSupabase();
     const [o, i, s, p, shipped] = await Promise.all([
+      // ★ .range() 페이지네이션은 '전순서(total order)'가 있어야 안전하다. 정렬 기준이
+      //   없거나 동순위가 있으면 페이지 경계에서 행이 누락·중복되어, 1000행을 넘는 순간
+      //   배송 명단에서 몇 건씩 빠진다. 모든 쿼리에 고유키(id) 정렬을 붙여 안정화한다.
       fetchAll<OrderRow>((from, to) =>
-        sb.from("orders").select("*").order("created_at", { ascending: false }).range(from, to)
+        sb
+          .from("orders")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to)
       ),
-      fetchAll<ItemRow>((from, to) => sb.from("order_items").select("*").range(from, to)),
-      fetchAll<SlotRow>((from, to) => sb.from("subscription_slots").select("*").range(from, to)),
+      fetchAll<ItemRow>((from, to) =>
+        sb.from("order_items").select("*").order("id", { ascending: true }).range(from, to)
+      ),
+      fetchAll<SlotRow>((from, to) =>
+        sb.from("subscription_slots").select("*").order("id", { ascending: true }).range(from, to)
+      ),
       fetchAll<ProfileRow>((from, to) =>
         sb
           .from("profiles")
           .select("id, name, phone, marketing_consent, postcode, address, address_detail, created_at")
+          .order("id", { ascending: true })
           .range(from, to)
       ),
       loadShippedKeys().catch(() => new Set<string>()),
@@ -281,6 +302,19 @@ export default function AdminPage() {
     }
     return m;
   }, [items]);
+
+  // ── 데이터 점검 — 배포 중 접속 등으로 생길 수 있는 데이터 이상을 한눈에 잡는다.
+  //   (1) 입금확인 이후 상태인데 결제확인 시각(paid_at)이 없는 주문 → 실입금 없이 확인됐을 가능성.
+  //   (2) 담긴 품목이 0건인 주문(취소 제외) → 주문상품이 안 보이는 이상.
+  const anomalies = useMemo(() => {
+    const paymentNoEvidence = orders.filter(
+      (o) => CONFIRMED.includes(o.status as (typeof CONFIRMED)[number]) && !o.paid_at
+    );
+    const emptyItems = orders.filter(
+      (o) => o.status !== "취소" && (itemsByOrder.get(o.id)?.length ?? 0) === 0
+    );
+    return { paymentNoEvidence, emptyItems };
+  }, [orders, itemsByOrder]);
   // 선택한 회원의 주문(최신순) — 회원 주문 이력 모달용.
   const selectedMemberOrders = useMemo(
     () => (selectedMember ? orders.filter((o) => o.user_id === selectedMember) : []),
@@ -715,6 +749,44 @@ export default function AdminPage() {
     await load();
   }
 
+  // 회원 기준 정보(연락처·주소) 정정. 잘못 기재된 회원 프로필을 관리자가 직접 고친다.
+  //   RLS(profiles_update_admin)가 관리자에게만 타 회원 수정을 허용한다. 저장 후 재조회.
+  async function saveMember(userId: string, values: ProfileEditValues) {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from("profiles")
+      .update({
+        name: values.name,
+        phone: values.phone,
+        postcode: values.postcode || null,
+        address: values.address || null,
+        address_detail: values.address_detail || null,
+      })
+      .eq("id", userId);
+    if (error) throw new Error(error.message);
+    await load();
+  }
+
+  // 주문 배송지(스냅샷) 정정. 주문엔 주문 시점의 배송지가 따로 저장되므로(프로필과 별개)
+  //   이미 들어온 주문의 잘못된 주소·연락처는 이 주문 행에서 직접 고쳐야 배송 명단에 반영된다.
+  //   RLS(orders_update_admin)가 관리자에게만 허용한다. 저장 후 재조회.
+  async function saveOrderShipping(order: OrderRow, values: ProfileEditValues) {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from("orders")
+      .update({
+        ship_name: values.name,
+        ship_phone: values.phone,
+        ship_postcode: values.postcode || null,
+        ship_address: values.address,
+        ship_address_detail: values.address_detail || null,
+      })
+      .eq("id", order.id);
+    if (error) throw new Error(error.message);
+    setEditingShipOrder(null);
+    await load();
+  }
+
   // 현금영수증 수기 발행 완료/대기 토글. 홈택스에서 발행한 뒤 표시용으로 기록한다.
   async function toggleReceiptIssued(order: OrderRow) {
     const sb = getSupabase();
@@ -757,18 +829,50 @@ export default function AdminPage() {
   }
 
   // 화면의 배송 명단(선택 날짜 기준, 정기+단품)을 그대로 CSV로 내보낸다.
+  //   정기 건은 '이번이 총 몇 회 중 몇 회차 발송인지'와 '구독 기간(총 회차)'을 회차 형식으로
+  //   적어, 날짜만으로는 알 수 없던 '8회 구독자의 1회차 발송' 같은 정보를 한눈에 보이게 한다.
   function exportDeliveryCsv() {
+    const slotByOrder = new Map<string, SlotRow>();
+    for (const s of slots) if (s.order_id) slotByOrder.set(s.order_id, s);
+
+    // 정기 주문의 (이번 회차 / 총 회차) 계산. d = 발송일(YYYY-MM-DD).
+    //   총 회차 = 원주문 회차(block_weeks) + 연장 누적(extended_weeks).
+    //   이번 회차 = 그 발송일 기준 누적 발송 수(스케줄로 산출, 정지일 반영).
+    const subProgress = (o: OrderRow, d: string): { progress: string; period: string } => {
+      const slot = slotByOrder.get(o.id);
+      const total = Math.max(0, (o.block_weeks ?? 0) + (slot?.extended_weeks ?? 0));
+      const period = total > 0 ? `${total}회(${total}주)` : "";
+      if (!slot?.started_at || total === 0) {
+        return { progress: total > 0 ? `예정 / ${total}회` : "", period };
+      }
+      const sched = computeSchedule(
+        {
+          startedAt: slot.started_at,
+          totalWeeks: total,
+          paused: slot.paused,
+          pausedAt: slot.paused_at,
+          pausedDays: slot.paused_days,
+        },
+        new Date(`${d}T00:00:00`)
+      );
+      const nth = Math.min(Math.max(sched.delivered, 1), total);
+      return { progress: `${nth} / ${total}회차`, period };
+    };
+
     const rows: string[][] = [
-      ["발송일", "요일", "구분", "포장묶음", "주문번호", "이름", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
+      ["발송일", "요일", "구분", "정기회차", "구독기간", "포장묶음", "주문번호", "이름", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
     ];
     for (const day of deliveryByDate) {
       const label = day.weekday ? DELIVERY_DAY_LABEL[day.weekday] : "주말";
       day.groups.forEach((g, gi) => {
         for (const { order: o, items: its } of g.rows) {
+          const sub = g.kind === "정기" ? subProgress(o, day.date) : { progress: "단품(1회)", period: "-" };
           rows.push([
             day.date,
             label,
             g.kind,
+            sub.progress,
+            sub.period,
             String(gi + 1),
             o.order_no,
             o.ship_name,
@@ -911,6 +1015,73 @@ export default function AdminPage() {
         <Stat label="확정 구독 매출" value={formatKRW(revenue)} />
         <Stat label="대기자" value={`${waitlist.length}명`} />
       </section>
+
+      {/* 데이터 점검 — 결제상태/품목 이상 자동 탐지 */}
+      {(anomalies.paymentNoEvidence.length > 0 || anomalies.emptyItems.length > 0) && (
+        <section className="mt-6 rounded-2xl border border-amber-300 bg-amber-50/60 p-5 no-print">
+          <h2 className="font-serif-kr text-lg text-amber-800">⚠ 데이터 점검 필요</h2>
+          <p className="mt-1 text-[13px] text-amber-700">
+            배포·접속 시점 등으로 생길 수 있는 이상 주문입니다. 아래 건을 주문 관리에서 확인해 주세요.
+          </p>
+          {anomalies.paymentNoEvidence.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[14px] font-medium text-ink">
+                입금 근거 없이 입금확인된 주문 ({anomalies.paymentNoEvidence.length}건)
+                <span className="ml-1.5 text-[12px] font-normal text-mute">
+                  — 상태는 입금확인 이후인데 결제확인 시각이 없습니다. 실입금을 확인하고, 아니면 ‘입금대기’로 되돌리세요.
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {anomalies.paymentNoEvidence.map((o) => (
+                  <li key={o.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
+                    <button
+                      onClick={() => {
+                        setOrderQuery(o.order_no);
+                        document.getElementById("order-manage")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
+                    >
+                      {o.order_no}
+                    </button>
+                    <span className="text-ink">{nameByUser.get(o.user_id) ?? o.ship_name ?? "—"}</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">{o.status}</span>
+                    <span className="tabular-nums text-mute">{formatKRW(o.total_amount)}</span>
+                    <span className="text-mute">{new Date(o.created_at).toLocaleDateString("ko-KR")}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {anomalies.emptyItems.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[14px] font-medium text-ink">
+                담긴 품목이 없는 주문 ({anomalies.emptyItems.length}건)
+                <span className="ml-1.5 text-[12px] font-normal text-mute">
+                  — 주문상품·수량이 비어 있습니다. 새로고침해도 남으면 실제 누락이니 확인이 필요합니다.
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {anomalies.emptyItems.map((o) => (
+                  <li key={o.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
+                    <button
+                      onClick={() => {
+                        setOrderQuery(o.order_no);
+                        document.getElementById("order-manage")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
+                    >
+                      {o.order_no}
+                    </button>
+                    <span className="text-ink">{nameByUser.get(o.user_id) ?? o.ship_name ?? "—"}</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">{o.status}</span>
+                    <span className="tabular-nums text-mute">{formatKRW(o.total_amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* 전환 퍼널 — 측정 대시보드 */}
       <div className="mt-6 no-print">
@@ -1317,7 +1488,7 @@ export default function AdminPage() {
       <BroadcastPanel profiles={profiles} slots={slots} />
 
       {/* 주문 관리 — 상태 변경 */}
-      <div className="mt-12 flex flex-wrap items-center justify-between gap-2">
+      <div id="order-manage" className="mt-12 flex flex-wrap items-center justify-between gap-2 scroll-mt-24">
         <h2 className="font-serif-kr text-lg text-ink">주문 관리</h2>
         {pendingOrders.length > 0 && (
           <div className="flex flex-col items-end gap-1 no-print">
@@ -1472,6 +1643,47 @@ export default function AdminPage() {
                           ))}
                         </ul>
                       )}
+                      {/* 배송지(이 주문의 스냅샷) — 잘못 기재된 주소·연락처 정정 */}
+                      <div className="mt-3 border-t border-line/60 pt-3">
+                        {editingShipOrder === o.id ? (
+                          <div className="max-w-md">
+                            <p className="mb-2 text-[13px] font-medium text-ink">배송지 수정</p>
+                            <ProfileEditor
+                              initial={{
+                                name: o.ship_name ?? "",
+                                phone: o.ship_phone ?? "",
+                                postcode: o.ship_postcode ?? "",
+                                address: o.ship_address ?? "",
+                                address_detail: o.ship_address_detail ?? "",
+                              }}
+                              saveLabel="배송지 저장"
+                              onSave={(values) => saveOrderShipping(o, values)}
+                              onCancel={() => setEditingShipOrder(null)}
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-[13px] leading-relaxed text-ink-soft">
+                              <span className="text-mute">배송지 · </span>
+                              {o.ship_name} {o.ship_phone}
+                              <br />
+                              <span className="text-mute">
+                                ({o.ship_postcode}) {o.ship_address} {o.ship_address_detail ?? ""}
+                              </span>
+                            </p>
+                            <button
+                              onClick={() => setEditingShipOrder(o.id)}
+                              className="shrink-0 rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+                            >
+                              배송지 수정
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {/* 현금영수증 과세/면세 분리 — 페이액션 ‘발행하기’에 그대로 입력 */}
+                      {o.cash_receipt_type && o.cash_receipt_type !== "발행안함" && (
+                        <CashReceiptBreakdown order={o} items={orderItems} />
+                      )}
                     </td>
                   </tr>
                 )}
@@ -1506,8 +1718,18 @@ export default function AdminPage() {
               recencyDays: selectedMemberRow.recencyDays,
             }
           }
+          member={
+            selectedMemberRow && {
+              name: selectedMemberRow.name ?? "",
+              phone: selectedMemberRow.phone ?? "",
+              postcode: selectedMemberRow.postcode ?? "",
+              address: selectedMemberRow.address ?? "",
+              address_detail: selectedMemberRow.address_detail ?? "",
+            }
+          }
           orders={selectedMemberOrders}
           itemsByOrder={itemsByOrder}
+          onSaveMember={(values) => saveMember(selectedMember, values)}
           onClose={() => setSelectedMember(null)}
         />
       )}
@@ -1520,6 +1742,42 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-line bg-cream p-4">
       <p className="text-[13px] text-mute">{label}</p>
       <p className="mt-1 font-serif-kr text-xl text-ink tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+// 현금영수증 발행 보조 — 이 주문의 면세금액·공급가액·부가세를 계산해 보여 준다.
+//   우유=면세, 요거트=과세(가격은 부가세 포함가). 관리자는 이 값을 페이액션
+//   현금영수증 '발행하기'(거래구분·식별번호·금액)에 그대로 입력하면 된다.
+function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRow[] }) {
+  const amt = computeCashReceiptAmounts(
+    items.map((it) => ({ productId: it.product_id, unitPrice: it.unit_price, qty: it.qty })),
+    order.total_amount
+  );
+  const purpose = order.cash_receipt_type === "지출증빙" ? "지출증빙용" : "소득공제용";
+  return (
+    <div className="mt-3 rounded-xl border border-line/60 bg-cream/60 px-3 py-2.5">
+      <p className="text-[13px] font-medium text-ink">
+        현금영수증 발행 정보
+        {order.cash_receipt_issued && (
+          <span className="ml-1.5 rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-normal text-gold-deep">
+            발행완료 표시됨
+          </span>
+        )}
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink-soft">
+        <span>거래구분 <span className="font-medium text-ink">{purpose}</span></span>
+        <span>식별번호 <span className="tabular-nums font-medium text-ink">{order.cash_receipt_id ?? "—"}</span></span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] tabular-nums text-ink-soft">
+        <span>면세금액 <span className="font-medium text-ink">{formatKRW(amt.taxFreeAmount)}</span></span>
+        <span>공급가액 <span className="font-medium text-ink">{formatKRW(amt.supplyAmount)}</span></span>
+        <span>부가세 <span className="font-medium text-ink">{formatKRW(amt.vat)}</span></span>
+        <span>합계 <span className="font-medium text-gold-deep">{formatKRW(amt.total)}</span></span>
+      </div>
+      <p className="mt-1.5 text-[12px] text-mute">
+        ※ 실제 발행은 <span className="text-ink-soft">페이액션 ‘현금영수증 → 발행하기’</span>에서 하세요. 우리 시스템은 발행하지 않습니다(중복발행 방지).
+      </p>
     </div>
   );
 }

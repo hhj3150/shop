@@ -60,6 +60,12 @@ drop policy if exists "profiles_select_admin" on public.profiles;
 create policy "profiles_select_admin" on public.profiles
   for select using (public.is_admin());
 
+-- 관리자는 모든 회원 프로필 수정 가능 (잘못 기재된 연락처·주소 정정용).
+--   is_admin 권한 변경은 아래 trg_protect_profile_admin 트리거가 별도로 지킨다.
+drop policy if exists "profiles_update_admin" on public.profiles;
+create policy "profiles_update_admin" on public.profiles
+  for update using (public.is_admin());
+
 -- 권한 상승 차단: 일반 회원이 본인 프로필을 수정/생성할 때 is_admin 을 스스로
 -- 켤 수 없도록 트리거로 고정한다. (RLS with check 는 OLD 값을 참조할 수 없어 트리거 사용)
 -- 관리자(is_admin()=true)만 다른 회원의 is_admin 을 변경할 수 있다.
