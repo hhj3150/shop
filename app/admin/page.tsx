@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { computeSchedule } from "@/lib/subscription-schedule";
+import { buildRosterForDate, type DeliveryEntry as RosterEntry } from "@/lib/delivery-roster";
 import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 import {
   DELIVERY_DAYS,
@@ -170,13 +171,6 @@ function todayISO(): string {
 }
 
 // 구성품(제품·용량·수량)을 정렬해 만든 표준 문자열. 같은 구성이면 같은 값이 나와 포장 묶음을 만든다.
-function compositionSignature(its: ItemRow[]): string {
-  return [...its]
-    .map((it) => `${it.product_name} ${it.volume}×${it.qty}`)
-    .sort((a, b) => a.localeCompare(b, "ko"))
-    .join(" / ");
-}
-
 function downloadCsv(filename: string, rows: string[][]) {
   const csv = rows
     .map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))
@@ -292,6 +286,13 @@ export default function AdminPage() {
     () => new Map(orders.map((o) => [o.id, o])),
     [orders]
   );
+  // 주문 → 구독 슬롯(회차·제외 판정용). 연장은 원주문을 가리키므로 order_id 로 매핑.
+  //   배송 명단에서 해지·회차소진 구독을 제외하기 위해 dispatchScheduleForSlot 에 넘긴다.
+  const slotByOrder = useMemo(() => {
+    const m = new Map<string, SlotRow>();
+    for (const s of slots) if (s.order_id) m.set(s.order_id, s);
+    return m;
+  }, [slots]);
   // 주문별 품목 묶음 — 주문 드릴다운(주문 관리 표 펼치기)·회원 주문 모달에서 공용으로 쓴다.
   const itemsByOrder = useMemo(() => {
     const m = new Map<string, ItemRow[]>();
@@ -446,62 +447,23 @@ export default function AdminPage() {
   );
 
   // ── 선택 기간 배송 명단 (당일 ~ 기간) ─────────────────────
-  // 한 배송 건(정기 1회분 또는 단품 주문). kind 로 정기/단품을 구분.
-  type DeliveryEntry = {
-    order: OrderRow;
-    items: ItemRow[];
-    sig: string;
-    kind: "정기" | "단품";
-  };
+  // 한 배송 건(정기 1회분 또는 단품 주문). 산출 로직은 lib/delivery-roster 의 SSOT 를 쓴다.
+  type DeliveryEntry = RosterEntry<OrderRow, ItemRow>;
 
   // 임의 날짜(d)의 배송 명단. 정기는 그 요일분, 단품은 ship_date 일치분.
-  //   정렬: 정기 먼저, 같은 구성품끼리(포장 편의).
+  //   해지·회차소진·정지 구독 제외는 buildRosterForDate 가 배송 탭과 동일하게 처리한다.
   const rosterForDate = useCallback(
-    (d: string): DeliveryEntry[] => {
-      const entries: DeliveryEntry[] = [];
-      const wd = weekdayOf(d);
-
-      if (wd) {
-        const byOrder = new Map<string, ItemRow[]>();
-        for (const it of items) {
-          if (it.delivery_day !== wd) continue;
-          if (!confirmedOrderIds.has(it.order_id)) continue;
-          if (pausedOrderIds.has(it.order_id)) continue;
-          const arr = byOrder.get(it.order_id) ?? [];
-          arr.push(it);
-          byOrder.set(it.order_id, arr);
-        }
-        for (const [orderId, its] of byOrder) {
-          const order = orderById.get(orderId);
-          if (!order || order.order_type === "단품") continue;
-          entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
-        }
-      }
-
-      const onceByOrder = new Map<string, ItemRow[]>();
-      for (const it of items) {
-        const order = orderById.get(it.order_id);
-        if (!order || order.order_type !== "단품") continue;
-        if (order.ship_date !== d) continue;
-        if (!confirmedOrderIds.has(order.id)) continue;
-        const arr = onceByOrder.get(order.id) ?? [];
-        arr.push(it);
-        onceByOrder.set(order.id, arr);
-      }
-      for (const [orderId, its] of onceByOrder) {
-        const order = orderById.get(orderId)!;
-        entries.push({ order, items: its, sig: compositionSignature(its), kind: "단품" });
-      }
-
-      const rank = (k: DeliveryEntry["kind"]) => (k === "정기" ? 0 : 1);
-      return entries.sort(
-        (a, b) =>
-          rank(a.kind) - rank(b.kind) ||
-          a.sig.localeCompare(b.sig, "ko") ||
-          a.order.ship_name.localeCompare(b.order.ship_name, "ko")
-      );
-    },
-    [items, confirmedOrderIds, pausedOrderIds, orderById]
+    (d: string): DeliveryEntry[] =>
+      buildRosterForDate({
+        dateISO: d,
+        weekday: weekdayOf(d),
+        items,
+        orderById,
+        slotByOrder,
+        confirmedOrderIds,
+        pausedOrderIds,
+      }),
+    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder]
   );
 
   // 선택 기간(date ~ dateTo) 날짜 목록. 최대 62일 가드. dateTo<date 면 당일로.
@@ -732,13 +694,18 @@ export default function AdminPage() {
         .select("id, delivery_day")
         .eq("order_id", order.id)
         .eq("status", "신청");
+      const slotErrors: string[] = [];
       for (const s of (pending ?? []) as { id: number; delivery_day: DeliveryDay }[]) {
         const start = toISODate(firstSubscriptionDelivery(s.delivery_day));
         const { error: slotErr } = await sb
           .from("subscription_slots")
           .update({ status: "활성", started_at: start })
           .eq("id", s.id);
-        if (slotErr) alert(`구독 슬롯 활성화 실패: ${slotErr.message}`);
+        if (slotErr) slotErrors.push(slotErr.message);
+      }
+      // 여러 슬롯 실패 시 알림을 한 번만 띄운다(슬롯마다 alert 가 쏟아지지 않게).
+      if (slotErrors.length > 0) {
+        alert(`구독 슬롯 활성화 실패 ${slotErrors.length}건: ${[...new Set(slotErrors)].join(", ")}`);
       }
       void notify({ kind: "payment_confirmed", orderId: order.id });
     }
@@ -832,9 +799,6 @@ export default function AdminPage() {
   //   정기 건은 '이번이 총 몇 회 중 몇 회차 발송인지'와 '구독 기간(총 회차)'을 회차 형식으로
   //   적어, 날짜만으로는 알 수 없던 '8회 구독자의 1회차 발송' 같은 정보를 한눈에 보이게 한다.
   function exportDeliveryCsv() {
-    const slotByOrder = new Map<string, SlotRow>();
-    for (const s of slots) if (s.order_id) slotByOrder.set(s.order_id, s);
-
     // 정기 주문의 (이번 회차 / 총 회차) 계산. d = 발송일(YYYY-MM-DD).
     //   총 회차 = 원주문 회차(block_weeks) + 연장 누적(extended_weeks).
     //   이번 회차 = 그 발송일 기준 누적 발송 수(스케줄로 산출, 정지일 반영).
