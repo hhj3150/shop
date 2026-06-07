@@ -36,6 +36,7 @@ import { DispatchPanel } from "@/components/DispatchPanel";
 import { loadShippedKeys } from "@/lib/inventory-data";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
 import { loadReturns, type OrderReturn } from "@/lib/returns";
+import { splitDemandByKind } from "@/lib/production-demand";
 import { SettlementPanel } from "@/components/SettlementPanel";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
@@ -288,6 +289,17 @@ export default function AdminPage() {
       ),
     [slots]
   );
+  // 해지된 구독의 주문 — 다시 배송되지 않으므로 주간 필요수량(생산 템플릿)에서 제외한다.
+  //   주문 상태는 '입금확인'으로 남아 confirmedOrderIds 에 들어오기 때문에 별도 제외가 필요하다.
+  const canceledOrderIds = useMemo(
+    () =>
+      new Set(
+        slots
+          .filter((s) => s.status === "해지" && s.order_id)
+          .map((s) => s.order_id as string)
+      ),
+    [slots]
+  );
   const orderById = useMemo(
     () => new Map(orders.map((o) => [o.id, o])),
     [orders]
@@ -421,36 +433,12 @@ export default function AdminPage() {
     for (const it of items) {
       if (!confirmedOrderIds.has(it.order_id)) continue;
       if (pausedOrderIds.has(it.order_id)) continue;
+      if (canceledOrderIds.has(it.order_id)) continue;
       const key = `${it.product_name} ${it.volume}`;
       if (m[key]) m[key][it.delivery_day] += it.qty;
     }
     return m;
-  }, [items, productKeys, confirmedOrderIds, pausedOrderIds]);
-
-  // 임의 날짜의 온라인 수요(정기 요일분 + 단품 발송분)를 제품키→개수로. 생산 패널에 전달.
-  const onlineDemandForDate = useCallback(
-    (d: string): Record<string, number> => {
-      const result: Record<string, number> = {};
-      const [y, mo, da] = d.split("-").map(Number);
-      const wd = y ? JS_DAY_TO_KEY[new Date(y, mo - 1, da).getDay()] : null;
-      if (wd) {
-        for (const key of productKeys) {
-          const q = matrix[key]?.[wd] ?? 0;
-          if (q) result[key] = (result[key] ?? 0) + q;
-        }
-      }
-      for (const it of items) {
-        const order = orderById.get(it.order_id);
-        if (!order || order.order_type !== "단품") continue;
-        if (order.ship_date !== d) continue;
-        if (!confirmedOrderIds.has(order.id)) continue;
-        const key = `${it.product_name} ${it.volume}`;
-        result[key] = (result[key] ?? 0) + it.qty;
-      }
-      return result;
-    },
-    [matrix, productKeys, items, orderById, confirmedOrderIds]
-  );
+  }, [items, productKeys, confirmedOrderIds, pausedOrderIds, canceledOrderIds]);
 
   // ── 선택 기간 배송 명단 (당일 ~ 기간) ─────────────────────
   // 한 배송 건(정기 1회분 또는 단품 주문). 산출 로직은 lib/delivery-roster 의 SSOT 를 쓴다.
@@ -470,6 +458,25 @@ export default function AdminPage() {
         pausedOrderIds,
       }),
     [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder]
+  );
+
+  // 임의 날짜의 생산 수요를 정기/단품으로 분리. roster(해지·회차소진·정지 제외)에서
+  //   집계하므로 실제 배송 명단과 정합한다 — 생산 계획표가 과배송을 막는다.
+  const rosterDemandForDate = useCallback(
+    (d: string) => splitDemandByKind(rosterForDate(d)),
+    [rosterForDate]
+  );
+
+  // 생산 패널용 통합 수요(정기 + 단품). 위 분리 수요를 합쳐 파생 — 동일 SSOT 라
+  //   정기/단품 표 합계와 항상 일치한다.
+  const onlineDemandForDate = useCallback(
+    (d: string): Record<string, number> => {
+      const { 정기, 단품 } = rosterDemandForDate(d);
+      const merged: Record<string, number> = { ...정기 };
+      for (const [k, v] of Object.entries(단품)) merged[k] = (merged[k] ?? 0) + v;
+      return merged;
+    },
+    [rosterDemandForDate]
   );
 
   // 선택 기간(date ~ dateTo) 날짜 목록. 최대 62일 가드. dateTo<date 면 당일로.
@@ -1242,7 +1249,7 @@ export default function AdminPage() {
       </div>
 
       {/* 이번 주(월~금) 통합 생산·배송 계획 */}
-      <WeeklyPlanTable productKeys={productKeys} onlineDemandForDate={onlineDemandForDate} />
+      <WeeklyPlanTable productKeys={productKeys} demandForDate={rosterDemandForDate} />
 
       {/* 기간별 배송 명단 — 당일 또는 기간(from~to) 선택 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">기간별 배송 명단</h2>
