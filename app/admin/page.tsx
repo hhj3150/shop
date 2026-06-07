@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { computeSchedule } from "@/lib/subscription-schedule";
+import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 import {
   DELIVERY_DAYS,
   DELIVERY_DAY_LABEL,
@@ -106,12 +107,15 @@ type OrderRow = {
   cash_receipt_type: string | null; // 소득공제 | 지출증빙 | 발행안함
   cash_receipt_id: string | null; // 소득공제: 휴대폰, 지출증빙: 사업자번호
   cash_receipt_issued: boolean | null; // 관리자 수기 발행 완료 여부
+  paid_at: string | null; // 입금/결제 확인 시각 (수동·자동 공통)
+  pay_method: string | null; // 무통장 | 카드 등
   created_at: string;
 };
 
 type ItemRow = {
   id: string;
   order_id: string;
+  product_id: string;
   product_name: string;
   volume: string;
   delivery_day: DeliveryDay;
@@ -298,6 +302,19 @@ export default function AdminPage() {
     }
     return m;
   }, [items]);
+
+  // ── 데이터 점검 — 배포 중 접속 등으로 생길 수 있는 데이터 이상을 한눈에 잡는다.
+  //   (1) 입금확인 이후 상태인데 결제확인 시각(paid_at)이 없는 주문 → 실입금 없이 확인됐을 가능성.
+  //   (2) 담긴 품목이 0건인 주문(취소 제외) → 주문상품이 안 보이는 이상.
+  const anomalies = useMemo(() => {
+    const paymentNoEvidence = orders.filter(
+      (o) => CONFIRMED.includes(o.status as (typeof CONFIRMED)[number]) && !o.paid_at
+    );
+    const emptyItems = orders.filter(
+      (o) => o.status !== "취소" && (itemsByOrder.get(o.id)?.length ?? 0) === 0
+    );
+    return { paymentNoEvidence, emptyItems };
+  }, [orders, itemsByOrder]);
   // 선택한 회원의 주문(최신순) — 회원 주문 이력 모달용.
   const selectedMemberOrders = useMemo(
     () => (selectedMember ? orders.filter((o) => o.user_id === selectedMember) : []),
@@ -999,6 +1016,73 @@ export default function AdminPage() {
         <Stat label="대기자" value={`${waitlist.length}명`} />
       </section>
 
+      {/* 데이터 점검 — 결제상태/품목 이상 자동 탐지 */}
+      {(anomalies.paymentNoEvidence.length > 0 || anomalies.emptyItems.length > 0) && (
+        <section className="mt-6 rounded-2xl border border-amber-300 bg-amber-50/60 p-5 no-print">
+          <h2 className="font-serif-kr text-lg text-amber-800">⚠ 데이터 점검 필요</h2>
+          <p className="mt-1 text-[13px] text-amber-700">
+            배포·접속 시점 등으로 생길 수 있는 이상 주문입니다. 아래 건을 주문 관리에서 확인해 주세요.
+          </p>
+          {anomalies.paymentNoEvidence.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[14px] font-medium text-ink">
+                입금 근거 없이 입금확인된 주문 ({anomalies.paymentNoEvidence.length}건)
+                <span className="ml-1.5 text-[12px] font-normal text-mute">
+                  — 상태는 입금확인 이후인데 결제확인 시각이 없습니다. 실입금을 확인하고, 아니면 ‘입금대기’로 되돌리세요.
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {anomalies.paymentNoEvidence.map((o) => (
+                  <li key={o.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
+                    <button
+                      onClick={() => {
+                        setOrderQuery(o.order_no);
+                        document.getElementById("order-manage")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
+                    >
+                      {o.order_no}
+                    </button>
+                    <span className="text-ink">{nameByUser.get(o.user_id) ?? o.ship_name ?? "—"}</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">{o.status}</span>
+                    <span className="tabular-nums text-mute">{formatKRW(o.total_amount)}</span>
+                    <span className="text-mute">{new Date(o.created_at).toLocaleDateString("ko-KR")}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {anomalies.emptyItems.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[14px] font-medium text-ink">
+                담긴 품목이 없는 주문 ({anomalies.emptyItems.length}건)
+                <span className="ml-1.5 text-[12px] font-normal text-mute">
+                  — 주문상품·수량이 비어 있습니다. 새로고침해도 남으면 실제 누락이니 확인이 필요합니다.
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {anomalies.emptyItems.map((o) => (
+                  <li key={o.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
+                    <button
+                      onClick={() => {
+                        setOrderQuery(o.order_no);
+                        document.getElementById("order-manage")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
+                    >
+                      {o.order_no}
+                    </button>
+                    <span className="text-ink">{nameByUser.get(o.user_id) ?? o.ship_name ?? "—"}</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">{o.status}</span>
+                    <span className="tabular-nums text-mute">{formatKRW(o.total_amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* 전환 퍼널 — 측정 대시보드 */}
       <div className="mt-6 no-print">
         <FunnelDashboard />
@@ -1404,7 +1488,7 @@ export default function AdminPage() {
       <BroadcastPanel profiles={profiles} slots={slots} />
 
       {/* 주문 관리 — 상태 변경 */}
-      <div className="mt-12 flex flex-wrap items-center justify-between gap-2">
+      <div id="order-manage" className="mt-12 flex flex-wrap items-center justify-between gap-2 scroll-mt-24">
         <h2 className="font-serif-kr text-lg text-ink">주문 관리</h2>
         {pendingOrders.length > 0 && (
           <div className="flex flex-col items-end gap-1 no-print">
@@ -1596,6 +1680,10 @@ export default function AdminPage() {
                           </div>
                         )}
                       </div>
+                      {/* 현금영수증 과세/면세 분리 — 페이액션 ‘발행하기’에 그대로 입력 */}
+                      {o.cash_receipt_type && o.cash_receipt_type !== "발행안함" && (
+                        <CashReceiptBreakdown order={o} items={orderItems} />
+                      )}
                     </td>
                   </tr>
                 )}
@@ -1654,6 +1742,42 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-line bg-cream p-4">
       <p className="text-[13px] text-mute">{label}</p>
       <p className="mt-1 font-serif-kr text-xl text-ink tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+// 현금영수증 발행 보조 — 이 주문의 면세금액·공급가액·부가세를 계산해 보여 준다.
+//   우유=면세, 요거트=과세(가격은 부가세 포함가). 관리자는 이 값을 페이액션
+//   현금영수증 '발행하기'(거래구분·식별번호·금액)에 그대로 입력하면 된다.
+function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRow[] }) {
+  const amt = computeCashReceiptAmounts(
+    items.map((it) => ({ productId: it.product_id, unitPrice: it.unit_price, qty: it.qty })),
+    order.total_amount
+  );
+  const purpose = order.cash_receipt_type === "지출증빙" ? "지출증빙용" : "소득공제용";
+  return (
+    <div className="mt-3 rounded-xl border border-line/60 bg-cream/60 px-3 py-2.5">
+      <p className="text-[13px] font-medium text-ink">
+        현금영수증 발행 정보
+        {order.cash_receipt_issued && (
+          <span className="ml-1.5 rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-normal text-gold-deep">
+            발행완료 표시됨
+          </span>
+        )}
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink-soft">
+        <span>거래구분 <span className="font-medium text-ink">{purpose}</span></span>
+        <span>식별번호 <span className="tabular-nums font-medium text-ink">{order.cash_receipt_id ?? "—"}</span></span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] tabular-nums text-ink-soft">
+        <span>면세금액 <span className="font-medium text-ink">{formatKRW(amt.taxFreeAmount)}</span></span>
+        <span>공급가액 <span className="font-medium text-ink">{formatKRW(amt.supplyAmount)}</span></span>
+        <span>부가세 <span className="font-medium text-ink">{formatKRW(amt.vat)}</span></span>
+        <span>합계 <span className="font-medium text-gold-deep">{formatKRW(amt.total)}</span></span>
+      </div>
+      <p className="mt-1.5 text-[12px] text-mute">
+        ※ 실제 발행은 <span className="text-ink-soft">페이액션 ‘현금영수증 → 발행하기’</span>에서 하세요. 우리 시스템은 발행하지 않습니다(중복발행 방지).
+      </p>
     </div>
   );
 }
