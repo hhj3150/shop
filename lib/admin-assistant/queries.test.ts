@@ -10,6 +10,7 @@ import {
   recruitmentStatus,
   confirmedIds,
   pausedOrderIds,
+  canceledOrderIds,
   type OrderLite,
   type ItemLite,
   type SlotLite,
@@ -89,6 +90,19 @@ describe("rosterForDate", () => {
     const rows = rosterForDate("2026-06-13", orders, items, confirmedIds(orders), pausedOrderIds([]));
     expect(rows.map((r) => r.name)).not.toContain("홍길동");
   });
+
+  it("해지 구독은 제외(admin 로스터와 동일)", () => {
+    const slots: SlotLite[] = [{ order_id: "A", delivery_day: "wed", status: "해지", paused: false }];
+    const rows = rosterForDate(
+      "2026-06-10",
+      orders,
+      items,
+      confirmedIds(orders),
+      pausedOrderIds(slots),
+      canceledOrderIds(slots)
+    );
+    expect(rows.map((r) => r.name)).not.toContain("홍길동");
+  });
 });
 
 describe("deliveryRoster", () => {
@@ -109,6 +123,14 @@ describe("productionDemand", () => {
     // 6/10(수)~6/17(수) = 수요일 2회
     const r = productionDemand(orders, items, [], "2026-06-10", "2026-06-17");
     expect(r.total["헤이밀크 750mL"]).toBe(8);
+  });
+
+  it("해지 구독은 생산수요에서 제외", () => {
+    const orders = [order({ id: "A", order_type: "구독" })];
+    const items = [item({ order_id: "A", delivery_day: "wed", qty: 4 })];
+    const slots: SlotLite[] = [{ order_id: "A", delivery_day: "wed", status: "해지", paused: false }];
+    const r = productionDemand(orders, items, slots, "2026-06-10", "2026-06-17");
+    expect(r.total["헤이밀크 750mL"]).toBeUndefined();
   });
 });
 

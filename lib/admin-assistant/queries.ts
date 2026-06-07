@@ -94,6 +94,14 @@ export function pausedOrderIds(slots: SlotLite[]): Set<string> {
   return new Set(slots.filter((s) => s.paused && s.order_id).map((s) => s.order_id as string));
 }
 
+// 해지된 구독의 주문 id — 배송 명단·생산수요에서 제외(admin 로스터와 동일 규칙).
+//   주문 상태는 '입금확인'으로 남아 confirmed 에 들어오므로 별도 제외가 필요하다.
+export function canceledOrderIds(slots: SlotLite[]): Set<string> {
+  return new Set(
+    slots.filter((s) => s.status === "해지" && s.order_id).map((s) => s.order_id as string)
+  );
+}
+
 export type RosterRow = {
   kind: "정기" | "단품";
   name: string;
@@ -109,7 +117,8 @@ export function rosterForDate(
   orders: OrderLite[],
   items: ItemLite[],
   confirmed: Set<string>,
-  paused: Set<string>
+  paused: Set<string>,
+  canceled: Set<string> = new Set()
 ): RosterRow[] {
   const byId = new Map(orders.map((o) => [o.id, o]));
   const grouped = new Map<string, ItemLite[]>();
@@ -123,6 +132,7 @@ export function rosterForDate(
     if (isSub) {
       if (!wd || it.delivery_day !== wd) continue;
       if (paused.has(o.id)) continue;
+      if (canceled.has(o.id)) continue;
     } else {
       if (o.ship_date !== d) continue;
     }
@@ -157,8 +167,13 @@ export function deliveryRoster(
 ): { date: string; weekday: DeliveryDay | null; rows: RosterRow[] }[] {
   const confirmed = confirmedIds(orders);
   const paused = pausedOrderIds(slots);
+  const canceled = canceledOrderIds(slots);
   return enumerateDates(fromISO, toISO)
-    .map((d) => ({ date: d, weekday: weekdayOf(d), rows: rosterForDate(d, orders, items, confirmed, paused) }))
+    .map((d) => ({
+      date: d,
+      weekday: weekdayOf(d),
+      rows: rosterForDate(d, orders, items, confirmed, paused, canceled),
+    }))
     .filter((day) => day.rows.length > 0);
 }
 
@@ -172,6 +187,7 @@ export function productionDemand(
 ): { dates: string[]; total: Record<string, number>; byDate: { date: string; total: Record<string, number> }[] } {
   const confirmed = confirmedIds(orders);
   const paused = pausedOrderIds(slots);
+  const canceled = canceledOrderIds(slots);
   const byId = new Map(orders.map((o) => [o.id, o]));
   const dates = enumerateDates(fromISO, toISO);
   const total: Record<string, number> = {};
@@ -183,7 +199,7 @@ export function productionDemand(
       if (!o || !confirmed.has(o.id)) continue;
       const isSub = o.order_type !== "단품";
       if (isSub) {
-        if (!wd || it.delivery_day !== wd || paused.has(o.id)) continue;
+        if (!wd || it.delivery_day !== wd || paused.has(o.id) || canceled.has(o.id)) continue;
       } else if (o.ship_date !== d) {
         continue;
       }

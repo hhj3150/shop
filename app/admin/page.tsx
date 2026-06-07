@@ -434,11 +434,14 @@ export default function AdminPage() {
       if (!confirmedOrderIds.has(it.order_id)) continue;
       if (pausedOrderIds.has(it.order_id)) continue;
       if (canceledOrderIds.has(it.order_id)) continue;
+      // 단품은 요일 발송이 아니다(ship_date 기반) → 주간 요일 템플릿에서 제외.
+      //   단품 품목에 delivery_day 가 잘못 들어와도 이중계상되지 않게 방어한다.
+      if (orderById.get(it.order_id)?.order_type === "단품") continue;
       const key = `${it.product_name} ${it.volume}`;
       if (m[key]) m[key][it.delivery_day] += it.qty;
     }
     return m;
-  }, [items, productKeys, confirmedOrderIds, pausedOrderIds, canceledOrderIds]);
+  }, [items, productKeys, confirmedOrderIds, pausedOrderIds, canceledOrderIds, orderById]);
 
   // ── 선택 기간 배송 명단 (당일 ~ 기간) ─────────────────────
   // 한 배송 건(정기 1회분 또는 단품 주문). 산출 로직은 lib/delivery-roster 의 SSOT 를 쓴다.
