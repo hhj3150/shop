@@ -3,6 +3,12 @@
 import { useMemo } from "react";
 import { formatKRW } from "@/lib/products";
 import { DELIVERY_DAYS, DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
+import {
+  cancellationRefundTotal,
+  completedReturnRefundTotal,
+  netRevenue,
+} from "@/lib/revenue";
+import type { OrderReturn } from "@/lib/returns";
 
 const CONFIRMED = ["입금확인", "배송준비", "배송중", "배송완료"];
 
@@ -21,7 +27,11 @@ type Item = {
   unit_price: number;
   delivery_day?: DeliveryDay | null;
 };
-type Slot = { delivery_day: DeliveryDay; status: string };
+type Slot = {
+  delivery_day: DeliveryDay;
+  status: string;
+  refund_amount?: number | null;
+};
 
 const isConfirmed = (status: string) => CONFIRMED.includes(status);
 
@@ -29,11 +39,13 @@ export function AdminStats({
   orders,
   items,
   slots,
+  returns,
   memberCount,
 }: {
   orders: Order[];
   items: Item[];
   slots: Slot[];
+  returns: OrderReturn[];
   memberCount: number;
 }) {
   const confirmedIds = useMemo(
@@ -45,6 +57,9 @@ export function AdminStats({
   const kpi = useMemo(() => {
     const confirmed = orders.filter((o) => isConfirmed(o.status));
     const revenue = confirmed.reduce((s, o) => s + o.total_amount, 0);
+    const cancelRefunds = cancellationRefundTotal(slots);
+    const returnRefunds = completedReturnRefundTotal(returns);
+    const net = netRevenue(revenue, cancelRefunds, returnRefunds);
     const aov = confirmed.length ? Math.round(revenue / confirmed.length) : 0;
     const conversion = orders.length
       ? Math.round((confirmed.length / orders.length) * 100)
@@ -53,8 +68,8 @@ export function AdminStats({
     const canceled = slots.filter((s) => s.status === "해지").length;
     const retention =
       active + canceled ? Math.round((active / (active + canceled)) * 100) : null;
-    return { revenue, aov, conversion, active, canceled, retention };
-  }, [orders, slots]);
+    return { revenue, net, aov, conversion, active, canceled, retention };
+  }, [orders, slots, returns]);
 
   // ── 재구매율 (확정 주문 2건 이상 회원 비중) ──────────────
   const repeatRate = useMemo(() => {
@@ -148,11 +163,13 @@ export function AdminStats({
     <section id="stats" className="mt-12">
       <h2 className="font-serif-kr text-lg text-ink">통계 분석</h2>
       <p className="mt-1 text-[13px] text-mute">
-        확정 구독(입금확인 이후) 기준입니다. 매출은 1회분 입금액 합계이며, 환불·해지 차감 전 총액입니다.
+        확정 구독(입금확인 이후) 기준입니다. 차트의 매출은 1회분 입금액 합계(환불·해지 차감 전 총액)이며,
+        순매출은 구독해지 환불과 완료된 제품환불을 차감한 금액입니다.
       </p>
 
       {/* KPI */}
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <Kpi label="순매출" value={formatKRW(kpi.net)} />
         <Kpi label="회원 수" value={`${memberCount}명`} />
         <Kpi label="활성 구독자" value={`${kpi.active}명`} />
         <Kpi label="평균 주문액" value={formatKRW(kpi.aov)} />
