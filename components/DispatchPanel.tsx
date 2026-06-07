@@ -179,7 +179,6 @@ export function DispatchPanel({
   //   제외 대상(해지·일시정지·회차소진 구독, 연장 결제 유령주문)은 큐에서 빼
   //   과배송·오배송을 막는다. 합계도 제외 후 기준이라 시트가 정확해진다.
   const allRows = useMemo<DispatchRow[]>(() => {
-    const today = new Date();
     const rows: DispatchRow[] = [];
     for (const o of orders) {
       if (!SHIPPABLE.includes(o.status)) continue;
@@ -207,7 +206,7 @@ export function DispatchPanel({
       let total: number;
       let remaining: number;
       if (!isOnce && slot) {
-        const sch = dispatchScheduleForSlot(slot, o.block_weeks ?? 0, shipISO, today);
+        const sch = dispatchScheduleForSlot(slot, o.block_weeks ?? 0, shipISO);
         if (sch.excluded) continue; // 해지·일시정지·회차소진 → 큐에서 제외
         round = sch.round;
         total = sch.total;

@@ -20,14 +20,14 @@ export type DispatchScheduleResult = {
   remaining: number; // 남은 회차
 };
 
-// shipISO 발송일 기준 회차와, 오늘(today) 기준 제외 여부를 함께 돌려준다.
-//   - 제외: 슬롯 해지 / 일시정지 / 이미 총 회차를 다 배송(done) 한 경우.
+// shipISO 발송일 기준 회차·제외 여부를 돌려준다(발송일만으로 결정 — 외부 시계 비의존).
+//   - 제외: 슬롯 해지 / 일시정지 / 발송일이 마지막 배송일을 '지난' 경우(회차소진).
+//     ★ 마지막 배송일 '당일'은 그날 실제로 발송하므로 제외하지 않는다(과소배송 방지).
 //   - round: shipISO 까지 배송 완료 수(정지 반영). 시작 전이면 최소 1.
 export function dispatchScheduleForSlot(
   slot: DispatchSlotInfo,
   blockWeeks: number,
-  shipISO: string,
-  today: Date = new Date()
+  shipISO: string
 ): DispatchScheduleResult {
   const total = Math.max(0, blockWeeks + (slot.extended_weeks ?? 0));
   const input = {
@@ -38,12 +38,14 @@ export function dispatchScheduleForSlot(
     pausedDays: slot.paused_days,
   };
 
-  const nowSchedule = computeSchedule(input, today);
-  const excluded = slot.status === "해지" || slot.paused || nowSchedule.done;
-
   const atShip = computeSchedule(input, new Date(`${shipISO}T00:00:00`));
   const round = Math.max(1, atShip.delivered);
   const remaining = Math.max(0, total - round);
+
+  // 회차소진: 발송일이 마지막 배송 예정일(endDate)을 지났는가. 당일(==)은 발송 대상.
+  //   ISO(YYYY-MM-DD) 문자열 비교는 날짜 대소와 일치한다.
+  const pastEnd = atShip.endDate != null && shipISO > atShip.endDate;
+  const excluded = slot.status === "해지" || slot.paused || pastEnd;
 
   return { excluded, round, total, remaining };
 }

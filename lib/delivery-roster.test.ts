@@ -38,10 +38,9 @@ function slot(over: Partial<DispatchSlotInfo> = {}): DispatchSlotInfo {
   };
 }
 
-// 4주 구독(2026-06-01 시작) 발송일: 06-01, 06-08, 06-15, 06-22.
-const WITHIN = new Date(2026, 5, 10); // 6/10 — 2회차 발송됨, 미완료
-const AFTER_END = new Date(2026, 6, 1); // 7/1 — 4회 모두 경과(회차소진)
-const DATE = "2026-06-15"; // 명단 발송일(월요일분 가정)
+// 4주 구독(2026-06-01 시작) 발송일: 06-01, 06-08, 06-15, 06-22(마지막).
+const DATE = "2026-06-15"; // 명단 발송일(월요일분, 3회차 — 마지막 아님)
+const AFTER_END_DATE = "2026-06-29"; // 마지막 발송일(06-22) 이후의 월요일 → 회차소진
 const WD = "mon" as const;
 
 function build(opts: {
@@ -50,7 +49,6 @@ function build(opts: {
   slots?: Map<string, DispatchSlotInfo>;
   confirmed?: Set<string>;
   paused?: Set<string>;
-  today?: Date;
   dateISO?: string;
   weekday?: typeof WD | null;
 }) {
@@ -62,7 +60,6 @@ function build(opts: {
     slotByOrder: opts.slots ?? new Map(),
     confirmedOrderIds: opts.confirmed ?? new Set(opts.orders.map((o) => o.id)),
     pausedOrderIds: opts.paused ?? new Set(),
-    today: opts.today ?? WITHIN,
   });
 }
 
@@ -91,15 +88,29 @@ describe("buildRosterForDate", () => {
     expect(r).toHaveLength(0);
   });
 
-  it("회차 소진 구독은 명단에서 제외된다 (회귀: 모든 회차 발송 완료)", () => {
+  it("회차 소진(마지막 발송일 지난 날짜)은 명단에서 제외된다", () => {
+    // 마지막 발송일 06-22 이후인 06-29 명단 → 회차소진으로 제외.
     const o = order({ id: "o1" });
     const r = build({
       orders: [o],
       items: [item({ order_id: "o1" })],
       slots: new Map([["o1", slot()]]),
-      today: AFTER_END, // 4회 모두 경과 → done
+      dateISO: AFTER_END_DATE,
     });
     expect(r).toHaveLength(0);
+  });
+
+  it("마지막 회차 발송일 당일은 명단에 포함된다 (회귀: 마지막 회차 누락 방지)", () => {
+    // 마지막 발송일 06-22 당일 — 그날 실제 발송하므로 빠지면 안 된다.
+    const o = order({ id: "o1" });
+    const r = build({
+      orders: [o],
+      items: [item({ order_id: "o1" })],
+      slots: new Map([["o1", slot()]]),
+      dateISO: "2026-06-22",
+    });
+    expect(r).toHaveLength(1);
+    expect(r[0].order.id).toBe("o1");
   });
 
   it("일시정지 구독(pausedOrderIds)은 제외된다", () => {

@@ -44,7 +44,7 @@ export function compositionSignature(
 
 // 임의 날짜(dateISO)의 배송 명단. 정기는 그 요일분, 단품은 ship_date 일치분.
 //   정렬: 정기 먼저, 같은 구성품끼리, 그 다음 이름순.
-//   excluded 판정(해지·회차소진·정지)은 해당 발송일(dateISO) 기준으로 평가한다.
+//   excluded 판정(해지·회차소진·정지)은 해당 발송일(dateISO)만으로 평가한다 — 외부 시계 비의존.
 export function buildRosterForDate<
   O extends RosterOrderFields,
   I extends RosterItemFields,
@@ -56,7 +56,6 @@ export function buildRosterForDate<
   slotByOrder: ReadonlyMap<string, DispatchSlotInfo>;
   confirmedOrderIds: ReadonlySet<string>;
   pausedOrderIds: ReadonlySet<string>;
-  today?: Date; // 완료 판정 기준 시각(기본: 해당 발송일 자정). 테스트 주입용.
 }): DeliveryEntry<O, I>[] {
   const {
     dateISO,
@@ -67,7 +66,6 @@ export function buildRosterForDate<
     confirmedOrderIds,
     pausedOrderIds,
   } = params;
-  const evalDate = params.today ?? new Date(`${dateISO}T00:00:00`);
   const entries: DeliveryEntry<O, I>[] = [];
 
   // ── 정기: 선택 날짜의 요일분 ──
@@ -89,7 +87,7 @@ export function buildRosterForDate<
       const slot = slotByOrder.get(orderId);
       if (
         slot &&
-        dispatchScheduleForSlot(slot, order.block_weeks ?? 0, dateISO, evalDate).excluded
+        dispatchScheduleForSlot(slot, order.block_weeks ?? 0, dateISO).excluded
       ) {
         continue;
       }
