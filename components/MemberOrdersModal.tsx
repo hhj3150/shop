@@ -11,6 +11,7 @@ type OrderLike = {
   order_no: string;
   status: string;
   order_type: string;
+  block_weeks: number | null; // 구독 주문이면 신청 회차(=주수). 단품이면 의미 없음.
   ship_date: string | null;
   total_amount: number;
   created_at: string;
@@ -64,6 +65,21 @@ export function MemberOrdersModal({
   }, [onClose]);
 
   const orderCount = orders.length;
+  // 이 회원이 신청한 정기구독 기간(주수)을 요약한다 — 같은 주수는 합쳐 "8주×2" 처럼 보인다.
+  //   회원 정보를 펼치지 않아도 '몇 주 구독 신청자'인지 한눈에 보이게 한다.
+  const subWeeksLabel = (() => {
+    const counts = new Map<number, number>();
+    for (const o of orders) {
+      if (o.order_type === "구독" && o.block_weeks) {
+        counts.set(o.block_weeks, (counts.get(o.block_weeks) ?? 0) + 1);
+      }
+    }
+    if (counts.size === 0) return "";
+    return [...counts.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([w, n]) => (n > 1 ? `${w}주×${n}` : `${w}주`))
+      .join(", ");
+  })();
 
   return (
     <div
@@ -78,7 +94,12 @@ export function MemberOrdersModal({
           <div>
             <p className="eyebrow text-gold-deep">Member</p>
             <h3 className="mt-1 font-serif-kr text-xl text-ink">{memberName}님 주문 이력</h3>
-            <p className="mt-0.5 text-[13px] text-mute">총 {orderCount}건</p>
+            <p className="mt-0.5 text-[13px] text-mute">
+              총 {orderCount}건
+              {subWeeksLabel && (
+                <span className="ml-1.5 text-gold-deep">· 정기구독 {subWeeksLabel}</span>
+              )}
+            </p>
             {summary && (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <span className="rounded-full bg-ink/5 px-2.5 py-1 text-[12px] text-ink-soft">
@@ -161,6 +182,11 @@ export function MemberOrdersModal({
                         <span className="ml-2 rounded-full bg-ink/5 px-2 py-0.5 text-[12px] text-ink-soft">
                           {o.order_type}
                         </span>
+                        {o.order_type === "구독" && o.block_weeks ? (
+                          <span className="ml-1.5 rounded-full bg-gold/15 px-2 py-0.5 text-[12px] font-medium text-gold-deep">
+                            {o.block_weeks}주 구독
+                          </span>
+                        ) : null}
                       </p>
                       <p className="mt-0.5 text-[12.5px] text-mute">
                         {new Date(o.created_at).toLocaleDateString("ko-KR")}

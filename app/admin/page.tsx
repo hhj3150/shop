@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
+import { computeSchedule } from "@/lib/subscription-schedule";
 import {
   DELIVERY_DAYS,
   DELIVERY_DAY_LABEL,
@@ -225,15 +226,28 @@ export default function AdminPage() {
     if (!opts?.silent) setLoading(true);
     const sb = getSupabase();
     const [o, i, s, p, shipped] = await Promise.all([
+      // ★ .range() 페이지네이션은 '전순서(total order)'가 있어야 안전하다. 정렬 기준이
+      //   없거나 동순위가 있으면 페이지 경계에서 행이 누락·중복되어, 1000행을 넘는 순간
+      //   배송 명단에서 몇 건씩 빠진다. 모든 쿼리에 고유키(id) 정렬을 붙여 안정화한다.
       fetchAll<OrderRow>((from, to) =>
-        sb.from("orders").select("*").order("created_at", { ascending: false }).range(from, to)
+        sb
+          .from("orders")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to)
       ),
-      fetchAll<ItemRow>((from, to) => sb.from("order_items").select("*").range(from, to)),
-      fetchAll<SlotRow>((from, to) => sb.from("subscription_slots").select("*").range(from, to)),
+      fetchAll<ItemRow>((from, to) =>
+        sb.from("order_items").select("*").order("id", { ascending: true }).range(from, to)
+      ),
+      fetchAll<SlotRow>((from, to) =>
+        sb.from("subscription_slots").select("*").order("id", { ascending: true }).range(from, to)
+      ),
       fetchAll<ProfileRow>((from, to) =>
         sb
           .from("profiles")
           .select("id, name, phone, marketing_consent, postcode, address, address_detail, created_at")
+          .order("id", { ascending: true })
           .range(from, to)
       ),
       loadShippedKeys().catch(() => new Set<string>()),
@@ -798,18 +812,50 @@ export default function AdminPage() {
   }
 
   // 화면의 배송 명단(선택 날짜 기준, 정기+단품)을 그대로 CSV로 내보낸다.
+  //   정기 건은 '이번이 총 몇 회 중 몇 회차 발송인지'와 '구독 기간(총 회차)'을 회차 형식으로
+  //   적어, 날짜만으로는 알 수 없던 '8회 구독자의 1회차 발송' 같은 정보를 한눈에 보이게 한다.
   function exportDeliveryCsv() {
+    const slotByOrder = new Map<string, SlotRow>();
+    for (const s of slots) if (s.order_id) slotByOrder.set(s.order_id, s);
+
+    // 정기 주문의 (이번 회차 / 총 회차) 계산. d = 발송일(YYYY-MM-DD).
+    //   총 회차 = 원주문 회차(block_weeks) + 연장 누적(extended_weeks).
+    //   이번 회차 = 그 발송일 기준 누적 발송 수(스케줄로 산출, 정지일 반영).
+    const subProgress = (o: OrderRow, d: string): { progress: string; period: string } => {
+      const slot = slotByOrder.get(o.id);
+      const total = Math.max(0, (o.block_weeks ?? 0) + (slot?.extended_weeks ?? 0));
+      const period = total > 0 ? `${total}회(${total}주)` : "";
+      if (!slot?.started_at || total === 0) {
+        return { progress: total > 0 ? `예정 / ${total}회` : "", period };
+      }
+      const sched = computeSchedule(
+        {
+          startedAt: slot.started_at,
+          totalWeeks: total,
+          paused: slot.paused,
+          pausedAt: slot.paused_at,
+          pausedDays: slot.paused_days,
+        },
+        new Date(`${d}T00:00:00`)
+      );
+      const nth = Math.min(Math.max(sched.delivered, 1), total);
+      return { progress: `${nth} / ${total}회차`, period };
+    };
+
     const rows: string[][] = [
-      ["발송일", "요일", "구분", "포장묶음", "주문번호", "이름", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
+      ["발송일", "요일", "구분", "정기회차", "구독기간", "포장묶음", "주문번호", "이름", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
     ];
     for (const day of deliveryByDate) {
       const label = day.weekday ? DELIVERY_DAY_LABEL[day.weekday] : "주말";
       day.groups.forEach((g, gi) => {
         for (const { order: o, items: its } of g.rows) {
+          const sub = g.kind === "정기" ? subProgress(o, day.date) : { progress: "단품(1회)", period: "-" };
           rows.push([
             day.date,
             label,
             g.kind,
+            sub.progress,
+            sub.period,
             String(gi + 1),
             o.order_no,
             o.ship_name,

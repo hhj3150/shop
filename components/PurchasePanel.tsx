@@ -30,6 +30,9 @@ export function PurchasePanel({ product }: { product: Product }) {
   const [qty, setQty] = useState(1);
   const [extras, setExtras] = useState<Record<string, number>>({});
   const [counts, setCounts] = useState<DayCounts | null>(null);
+  // 배송 요일을 고르면 "그 요일에 배송(=다음 날 수령)"임을 팝업으로 명확히 안내하고
+  //   확인을 받는다. 바탕 글씨로는 놓치는 분들이 있어 모달로 한 번 짚어 준다.
+  const [showShipNotice, setShowShipNotice] = useState(false);
 
   useEffect(() => {
     getDayCounts().then(setCounts);
@@ -156,7 +159,10 @@ export function PurchasePanel({ product }: { product: Product }) {
           return (
             <button
               key={d}
-              onClick={() => setDeliveryDay(d)}
+              onClick={() => {
+                setDeliveryDay(d);
+                setShowShipNotice(true);
+              }}
               aria-pressed={deliveryDay === d}
               className={`flex min-h-11 flex-col items-center justify-center rounded-xl border py-2.5 text-[14px] transition-all ${
                 deliveryDay === d
@@ -176,12 +182,13 @@ export function PurchasePanel({ product }: { product: Product }) {
           );
         })}
       </div>
-      <p className="mt-2 rounded-xl bg-paper-2 px-3 py-2 text-[12.5px] leading-relaxed text-ink-soft">
-        지금 신청하시면 첫 배송은{" "}
-        <span className="font-medium text-gold-deep">{formatDispatch(firstDelivery)}</span>
-        부터예요. 전날 자정까지 입금 확인되면 다음 {DELIVERY_DAY_LABEL[deliveryDay]}부터,
-        그 뒤로는 매주 {DELIVERY_DAY_LABEL[deliveryDay]}에 받으십니다.
-      </p>
+      {showShipNotice && (
+        <ShipNoticeModal
+          day={DELIVERY_DAY_LABEL[deliveryDay]}
+          firstDelivery={formatDispatch(firstDelivery)}
+          onConfirm={() => setShowShipNotice(false)}
+        />
+      )}
       {selected && (
         <p className="mt-2 text-[13px] text-ink-soft">
           {selectedFull ? (
@@ -225,7 +232,7 @@ export function PurchasePanel({ product }: { product: Product }) {
       <div className="mt-7 border-t border-line pt-6">
         <StepLabel n={4} title="함께 담기" hint="같은 요일 배송" />
         <p className="mt-2 text-[11.5px] leading-relaxed text-ink-soft">
-          다른 제품도 같은 요일에 함께 받으실 수 있습니다.
+          다른 제품도 같은 요일에 함께 배송됩니다.
         </p>
         <ul className="mt-4 space-y-3">
           {addons.map((p) => {
@@ -338,6 +345,61 @@ export function PurchasePanel({ product }: { product: Product }) {
           매주 {DELIVERY_DAY_LABEL[deliveryDay]} 배송 · {PERIOD_LABEL[period]}분({weeks}회)
           한 번에 무통장입금 확인 후 발송
         </p>
+      </div>
+    </div>
+  );
+}
+
+// 배송 요일 안내 팝업 — 선택한 요일이 '받는 날'이 아니라 '배송(발송) 날'임을 짚어 주고
+//   확인을 받는다. 택배 특성상 보통 다음 날 수령임을 함께 안내해 오해를 줄인다.
+function ShipNoticeModal({
+  day,
+  firstDelivery,
+  onConfirm,
+}: {
+  day: string;
+  firstDelivery: string;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === "Enter") onConfirm();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onConfirm]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-5"
+      onClick={onConfirm}
+      role="dialog"
+      aria-modal="true"
+      aria-label="배송 안내"
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-cream p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="eyebrow text-gold-deep">배송 안내</p>
+        <h3 className="mt-2 font-serif-kr text-xl text-ink">
+          매주 <span className="text-gold-deep">{day}</span>에 배송됩니다
+        </h3>
+        <p className="mt-3 text-[14px] leading-relaxed text-ink-soft">
+          선택하신 <span className="font-medium text-ink">{day}</span>은 <span className="font-medium text-ink">발송(배송 출발)</span>하는 날이에요.
+          택배 특성상 보통 <span className="font-medium text-ink">다음 날 받으십니다.</span>
+        </p>
+        <p className="mt-2 rounded-xl bg-paper-2 px-3 py-2.5 text-[13px] leading-relaxed text-ink-soft">
+          첫 배송은 <span className="font-medium text-gold-deep">{firstDelivery}</span>부터예요.
+          전날 자정까지 입금이 확인되면 가장 가까운 {day}부터 시작됩니다.
+        </p>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="mt-5 w-full rounded-full bg-ink py-3 text-[14px] font-medium text-cream transition-colors hover:bg-gold-deep"
+        >
+          확인했어요
+        </button>
       </div>
     </div>
   );

@@ -105,10 +105,14 @@ export async function POST(req: Request) {
   }
 
   // 관리자 권한(RLS)으로 데이터 조회.
+  // ★ .range() 페이지네이션은 전순서(total order)가 있어야 안전하다 — 정렬이 없으면
+  //   1000행을 넘는 순간 페이지 경계에서 행이 누락·중복된다. 고유키(id) 정렬로 안정화.
   const [orders, items, slots] = await Promise.all([
-    fetchAll<OrderLite>((f, t) => sb.from("orders").select("*").order("created_at", { ascending: false }).range(f, t)),
-    fetchAll<ItemLite>((f, t) => sb.from("order_items").select("*").range(f, t)),
-    fetchAll<SlotLite>((f, t) => sb.from("subscription_slots").select("*").range(f, t)),
+    fetchAll<OrderLite>((f, t) =>
+      sb.from("orders").select("*").order("created_at", { ascending: false }).order("id", { ascending: true }).range(f, t)
+    ),
+    fetchAll<ItemLite>((f, t) => sb.from("order_items").select("*").order("id", { ascending: true }).range(f, t)),
+    fetchAll<SlotLite>((f, t) => sb.from("subscription_slots").select("*").order("id", { ascending: true }).range(f, t)),
   ]);
   const data: AdminData = { orders, items, slots };
 
