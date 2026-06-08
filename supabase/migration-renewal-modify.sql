@@ -258,7 +258,6 @@ set search_path = public
 as $$
 declare
   v_uid          uuid := auth.uid();
-  v_slot         record;
   v_started      date;
   v_paused       boolean;
   v_paused_at    date;
