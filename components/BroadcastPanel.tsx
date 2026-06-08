@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { DELIVERY_DAYS, DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
+import { SMS_PRESETS, fillPreset } from "@/lib/admin-sms";
 
 type ProfileLite = { id: string; name: string; phone: string; marketing_consent?: boolean };
 type SlotLite = { user_id: string; delivery_day: DeliveryDay; status: string };
@@ -35,6 +36,10 @@ export function BroadcastPanel({
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set());
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [manual, setManual] = useState("");
+  // 개별 회원 검색·선택(이름/번호로 1:1 발송). picked = 선택된 회원 id, presetName = 프리셋 {이름} 치환용.
+  const [memberQuery, setMemberQuery] = useState("");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [presetName, setPresetName] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [isAd, setIsAd] = useState(true);
@@ -86,16 +91,36 @@ export function BroadcastPanel({
     [manual]
   );
 
-  // 최종 수신번호(중복 제거).
+  // 개별 회원 검색: 이름 또는 번호로 매칭(번호 있는 회원, 최대 8명).
+  const memberMatches = useMemo(() => {
+    const q = memberQuery.trim().toLowerCase();
+    if (!q) return [] as ProfileLite[];
+    const qDigits = q.replace(/[^0-9]/g, "");
+    return profiles
+      .filter((p) => p.phone)
+      .filter(
+        (p) =>
+          (p.name ?? "").toLowerCase().includes(q) ||
+          (qDigits.length >= 2 && normalizePhone(p.phone).includes(qDigits))
+      )
+      .slice(0, 8);
+  }, [memberQuery, profiles]);
+
+  const pickedProfiles = useMemo(
+    () => profiles.filter((p) => picked.has(p.id)),
+    [profiles, picked]
+  );
+
+  // 최종 수신번호(중복 제거): 필터 명단 + 개별 선택 회원 + 직접 입력.
   const finalPhones = useMemo(() => {
     const set = new Set<string>();
-    for (const p of selectedProfiles) {
+    for (const p of [...selectedProfiles, ...pickedProfiles]) {
       const n = normalizePhone(p.phone);
       if (n.length >= 9 && n.length <= 11) set.add(n);
     }
     for (const n of manualNumbers) set.add(n);
     return Array.from(set);
-  }, [selectedProfiles, manualNumbers]);
+  }, [selectedProfiles, pickedProfiles, manualNumbers]);
 
   // 발송될 최종 본문(광고면 (광고) + 수신거부 안내 포함) 미리보기 — 글자수 판정용.
   const preview = useMemo(() => {
@@ -127,6 +152,17 @@ export function BroadcastPanel({
       else next.add(id);
       return next;
     });
+  }
+
+  // 개별 회원 선택 토글. 선택 시 프리셋 {이름} 치환용 이름도 갱신.
+  function togglePick(p: ProfileLite) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(p.id)) next.delete(p.id);
+      else next.add(p.id);
+      return next;
+    });
+    setPresetName(p.name ?? "");
   }
 
   async function send() {
@@ -260,6 +296,52 @@ export function BroadcastPanel({
         />
       </div>
 
+      {/* 3-1. 개별 회원 검색(이름·번호로 1:1 발송) */}
+      <div className="mt-3">
+        <label className="text-[13px] text-mute">개별 회원 검색 (이름·번호로 콕 집어 보내기)</label>
+        <input
+          type="search"
+          value={memberQuery}
+          onChange={(e) => setMemberQuery(e.target.value)}
+          placeholder="예: 우혜원 또는 5678"
+          className="mt-1 w-full rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
+        />
+        {memberMatches.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {memberMatches.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => togglePick(p)}
+                className={`rounded-full border px-3 py-1 text-[13px] transition-colors ${
+                  picked.has(p.id)
+                    ? "border-gold bg-gold/15 text-gold-deep"
+                    : "border-line text-ink-soft hover:border-gold"
+                }`}
+              >
+                {p.name} <span className="tabular-nums text-mute">{p.phone}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {pickedProfiles.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[13px]">
+            <span className="text-mute">선택됨:</span>
+            {pickedProfiles.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => togglePick(p)}
+                title="클릭하면 제외"
+                className="rounded-full bg-gold/15 px-3 py-1 text-gold-deep"
+              >
+                {p.name} ✕
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* 4. 메시지 작성 */}
       <div className="mt-4 space-y-3">
         <label className="flex items-center gap-2 text-[14px] text-ink-soft">
@@ -287,11 +369,23 @@ export function BroadcastPanel({
           placeholder="제목 (LMS일 때만 사용, 선택)"
           className="w-full rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
         />
+        <div className="flex flex-wrap gap-1.5">
+          {SMS_PRESETS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => setBody(fillPreset(p.key, presetName))}
+              className="rounded-full border border-line px-3 py-1 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={5}
-          placeholder="문자 내용을 입력하세요."
+          placeholder="문자 내용을 입력하세요. (위 프리셋을 누르면 자동으로 채워집니다)"
           className="w-full rounded-xl border border-line bg-cream px-3 py-2 text-[14px] text-ink"
         />
       </div>
