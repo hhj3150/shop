@@ -72,26 +72,26 @@ import { normalizeBlocks, type RawBlock } from "./subscription-timeline";
 const chicken = { productName: "닭가슴살", volume: "200g", qty: 2, unitPrice: 10800 };
 const beef    = { productName: "소고기",   volume: "150g", qty: 1, unitPrice: 30600 };
 
+// 최종 API: normalizeBlocks(blocks: RawBlock[]). 요일은 각 RawBlock.deliveryDay 에 들어온다.
 function raw(over: Partial<RawBlock>): RawBlock {
-  return { orderId: "o0", weeks: 4, shippingPerWeek: 4000, items: [chicken], ...over };
+  return { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, items: [chicken], ...over };
 }
 
 describe("normalizeBlocks", () => {
   it("회차 구간을 누적으로 매긴다", () => {
-    const r = normalizeBlocks(
-      [raw({ orderId: "o0", weeks: 4 }), raw({ orderId: "o1", weeks: 8, items: [beef] })],
-      "tue"
-    );
+    const r = normalizeBlocks([
+      raw({ orderId: "o0", weeks: 4 }),
+      raw({ orderId: "o1", weeks: 8, deliveryDay: "wed", items: [beef] }),
+    ]);
     expect(r.map((b) => [b.fromRound, b.toRound])).toEqual([[1, 5], [5, 13]]);
-    expect(r[1].deliveryDay).toBe("tue"); // o1 자기 요일은 인자로 받은 day 매핑(아래 설명)
+    expect(r[1].deliveryDay).toBe("wed");
   });
 
   it("items 빈 블록은 직전 블록의 품목·요일·배송비를 상속한다", () => {
-    const r = normalizeBlocks(
-      [raw({ orderId: "o0", weeks: 4, items: [chicken] }),
-       raw({ orderId: "o1", weeks: 4, items: [] })], // 레거시 연장
-      "tue"
-    );
+    const r = normalizeBlocks([
+      raw({ orderId: "o0", weeks: 4, deliveryDay: "tue", items: [chicken] }),
+      raw({ orderId: "o1", weeks: 4, deliveryDay: null, items: [] }), // 레거시 연장
+    ]);
     expect(r[1].items).toEqual([chicken]);
     expect(r[1].deliveryDay).toBe("tue");
     expect(r[1].orderId).toBe("o0"); // 상속이면 발송 attribution 은 원본(품목 보유) 블록
@@ -99,14 +99,14 @@ describe("normalizeBlocks", () => {
 });
 ```
 
-> 설명: `RawBlock` 자체엔 요일이 없다(요일은 호출부가 order_items.delivery_day에서 뽑아 블록별로 넣음). 단순화를 위해 `normalizeBlocks(blocks, fallbackDay)`는 블록별 요일을 별도 인자로 받지 않고, 호출부가 `RawBlock`에 `deliveryDay`를 미리 채워 넣는 형태로 바꾼다 — 아래 Step 3에서 `RawBlock`에 `deliveryDay: DeliveryDay | null` 필드를 추가하고, fallbackDay 인자는 제거한다. (테스트도 그에 맞춰 수정한다.)
+> `RawBlock` 은 자기 요일을 `deliveryDay: DeliveryDay | null` 로 가진다(호출부가 order_items.delivery_day에서 채움; 레거시 빈 블록은 `null`). `normalizeBlocks` 는 단일 인자. (Step 3 구현과 동일 형태 — RED 테스트가 최종 API로 작성됨.)
 
 - [ ] **Step 2: 테스트 실패 확인**
 
 Run: `npm test -- subscription-timeline`
 Expected: FAIL (`normalizeBlocks` not exported)
 
-- [ ] **Step 3: 최소 구현 + RawBlock에 deliveryDay 추가**
+- [ ] **Step 3: 최소 구현**
 
 ```typescript
 export type RawBlock = {
@@ -138,8 +138,6 @@ export function normalizeBlocks(blocks: RawBlock[]): ResolvedBlock[] {
   return out;
 }
 ```
-
-> 위 Step 1 테스트의 `normalizeBlocks(..., "tue")` 2번째 인자와 `deliveryDay` 미지정 부분을 `RawBlock.deliveryDay`로 옮겨 수정한다. (`raw()` 헬퍼에 `deliveryDay: "tue"` 기본값 추가, 레거시 블록은 `deliveryDay: null, items: []`.)
 
 - [ ] **Step 4: 테스트 통과 확인** — Run: `npm test -- subscription-timeline` → PASS
 
@@ -209,11 +207,11 @@ export function activeBlockForRound(blocks: ResolvedBlock[], round: number): Res
   return blocks.find((b) => round >= b.fromRound && round < b.toRound) ?? null;
 }
 
-export type TimelineInput = SubInput extends infer _ ? {
+export type TimelineInput = {
   startedAt: string | null;
   paused: boolean; pausedAt: string | null; pausedDays: number;
   blocks: RawBlock[];
-} : never;
+};
 
 export function totalWeeks(blocks: RawBlock[]): number {
   return blocks.reduce((s, b) => s + Math.max(0, b.weeks), 0);
@@ -537,6 +535,8 @@ end; $$;
 grant execute on function public.confirm_renewal_payment(uuid) to authenticated;
 ```
 
+> **유니크 인덱스 주의(검토 반영):** `slot.delivery_day` UPDATE 는 부분 유니크 인덱스 `subscription_slots_user_day_uniq (user_id, delivery_day) where status <> '해지'` 와 충돌할 수 있다. 사전 가드(본인 비해지 슬롯 존재 검사)로 막지만, advisory lock 밖 레이스 시 23505 가 날 수 있으므로 사용자 메시지로 변환되도록 `exception when unique_violation then raise exception '대상 요일에 이미 구독이 있어 좌석을 이동할 수 없습니다.';` 를 둘러싼다.
+
 - [ ] **Step 2: schema.sql 동기** (기존 confirm_renewal_payment 교체)
 - [ ] **Step 3: 커밋** — `git commit -am "feat(sql): confirm_renewal_payment 좌석 이동(advisory lock 권위 검사)"`
 
@@ -544,17 +544,43 @@ grant execute on function public.confirm_renewal_payment(uuid) to authenticated;
 
 **Files:** Modify `supabase/migration-renewal-modify.sql`, `supabase/schema.sql`
 
-- [ ] **Step 1:** 기존 `cancel_subscription` 의 환불 산식 부분만 외과적으로 교체. 평균식(`round(total/weeks)*remaining`) 대신, 슬롯의 **블록 체인(원주문 + 입금확인 연장주문 order_items)** 으로 남은 회차를 회차별 단가 합산. plpgsql에서:
-  - 원주문 + `renews_slot_id = slot` AND status in ('입금확인','배송준비','배송중','배송완료') 인 주문들을 `id` 순으로 모아 각 블록의 `(회당상품합 from order_items, shipping_fee/block_weeks, block_weeks)` 산출.
-  - order_items 없는 블록은 직전 블록 단가 상속.
-  - `computeSchedule` 동일 규칙으로 delivered 계산(기존 cancel_subscription의 `v_delivered` 로직 재사용 — `least(total, elapsed/7+1)`), `total = Σ block_weeks`.
-  - 남은 회차(delivered+1..total) 각각 소속 블록 단가 합 → `v_refund`.
+> **검토 반영 — 회차 정의 모순 해소:** 기존 `cancel_subscription` 은 `delivered` 를 인라인 `least(total, elapsed/7+1)` 로 계산하지만, 이는 정지일·경계에서 `computeSchedule`(=`dispatch-schedule.ts` SSOT)와 어긋날 수 있다. **신 본문은 `computeSchedule` 와 동일한 배송일 규칙**(k회차 예정일 = `started_at + (k-1)*7 + paused_days`, 발송일 `<= today` 인 회차까지 delivered)을 plpgsql로 그대로 재현해 TS 미리보기와 경계 일치를 보장한다. `total = Σ block_weeks`(= block_weeks + extended_weeks).
+
+> **확정 블록 상태(권위 정의):** `CONFIRMED = ('입금확인','배송준비','배송중','배송완료')` — admin `CONFIRMED` 상수와 동일. 환불 대상 블록 = 원주문 + `renews_slot_id = slot AND status in CONFIRMED` 연장주문.
+
+- [ ] **Step 1: plpgsql 본문 작성** — 기존 `cancel_subscription` 의 환불 산식만 외과적으로 교체(사유·계좌·상태전이 등 나머지 100% 보존). 블록 워크:
+
+```sql
+-- ── 블록별 환불 산식 (평균식 대체) ──
+-- 1) 슬롯 시작일·정지일 로드 (기존 변수 재사용: v_started_at, v_paused_days, v_paused, v_paused_at)
+-- 2) 블록 배열 구성: 원주문 + 입금확인류 연장주문을 id 순으로.
+--    각 블록: (block_weeks, 회당상품합 = Σ(oi.unit_price*oi.qty), 회당배송비 = shipping_fee/block_weeks)
+--    order_items 0건(레거시 연장)이면 직전 블록의 회당상품합·회당배송비 상속.
+-- 3) total := Σ block_weeks.
+-- 4) delivered := computeSchedule 규칙 재현:
+--      v_today := (now() at time zone 'Asia/Seoul')::date;
+--      v_pdays := v_paused_days + case when v_paused and v_paused_at is not null
+--                                  then greatest(0, v_today - v_paused_at) else 0 end;
+--      delivered := 0;
+--      for k in 1..total loop
+--        exit when (v_started_at + ((k-1)*7 + v_pdays)) > v_today;  -- 예정일이 미래면 중단
+--        delivered := k;
+--      end loop;
+--      (v_started_at is null → delivered := 0)
+-- 5) v_refund := 0;
+--    for k in (delivered+1)..total loop
+--      v_refund := v_refund + (그 회차 k 가 속한 블록의 회당상품합 + 회당배송비);
+--    end loop;
+--    -- k 가 속한 블록 = 누적 회차 경계로 결정(블록 i 의 [fromRound,toRound)).
+```
+
+> 구현 노트: 블록을 `record[]`(또는 임시 배열 변수들)로 모으고, 각 블록의 `fromRound/toRound` 를 누적합으로 계산한 뒤 회차 루프에서 소속 블록을 찾는다. TS `normalizeBlocks`/`refundByBlocks` 와 동일 알고리즘 — **포팅이 1:1 되도록** TS 구현을 먼저 완료(Chunk 1)하고 그 로직을 옮긴다.
 
 - [ ] **Step 2: 회귀 핀 주석** — "단일 블록 AND extended_weeks=0 → 기존 결과와 동일; 연장 이력 있으면 상향 정정(의도)" 명시.
 - [ ] **Step 3: schema.sql 동기**
-- [ ] **Step 4: 커밋** — `git commit -am "fix(sql): cancel_subscription 블록별 환불(연장 과소환불 정정)"`
+- [ ] **Step 4: 커밋** — `git commit -am "fix(sql): cancel_subscription 블록별 환불(computeSchedule 회차 일치)"`
 
-> 검증(사장님 적용 후): 연장 이력 없는 구독 해지 → 기존과 동일 환불액. 연장(요일/구성 변경) 구독 해지 → 남은 회차 블록 단가 정밀 합산 확인.
+> 검증(사장님 적용 후): 연장 이력 없는 구독 해지 → 기존과 동일 환불액. 연장(요일/구성 변경) 구독 해지 → 남은 회차 블록 단가 정밀 합산 확인. **TS↔SQL 회차 동치**: 같은 시작일·정지로 `refundByBlocks`(TS)와 RPC 결과가 일치하는지 1건 대조.
 
 ---
 
@@ -564,31 +590,41 @@ grant execute on function public.confirm_renewal_payment(uuid) to authenticated;
 
 ### Task 3.1: roster용 슬롯-블록 빌더 (순수)
 
-**Files:** Modify `lib/subscription-timeline.ts` (or new `lib/slot-blocks.ts`), test
+**Files:** Create `lib/slot-blocks.ts`, `lib/slot-blocks.test.ts`
 
-- [ ] **Step 1: 실패 테스트** — `buildRawBlocks(originalOrder, renewalOrders, itemsByOrder)` 가 `RawBlock[]` 를 `id` 순으로, items 있는 주문은 자기 요일/품목, 없으면 `deliveryDay:null/items:[]` 로 만들고 `shippingPerWeek = shipping_fee/block_weeks` 로 채우는지.
+- [ ] **Step 1: 실패 테스트** (`npm test -- slot-blocks` → FAIL) — `buildRawBlocks(originalOrder, renewalOrders, itemsByOrder)`:
+  - 입력: 원주문 `{id, block_weeks, shipping_fee}`, 연장주문 배열(같은 필드, `id` 순), `itemsByOrder: Map<orderId, {delivery_day, qty, unit_price, product_name, volume}[]>`.
+  - 출력: `RawBlock[]` — 원주문 먼저, 연장주문 `id` 순. items 있는 주문은 `deliveryDay`(items의 동일 요일)·`items`·`shippingPerWeek = round(shipping_fee/block_weeks)`. items 없는 주문(레거시)은 `deliveryDay:null, items:[]`(정규화에서 상속).
 - [ ] **Step 2: 실패 확인** → FAIL
-- [ ] **Step 3: 구현** — 순수 함수. 입력은 최소 필드 제네릭(roster 패턴과 동일).
-- [ ] **Step 4: 통과** → PASS
-- [ ] **Step 5: 커밋**
+- [ ] **Step 3: 구현** — 순수 함수, 최소 필드 제네릭(roster 패턴과 동일).
+- [ ] **Step 4: 통과** — `npm test -- slot-blocks` → PASS
+- [ ] **Step 5: 커밋** — `git commit -am "feat: buildRawBlocks (슬롯 주문 체인 → RawBlock[])"`
 
 ### Task 3.2: `delivery-roster.ts` 활성 블록 게이팅
 
-**Files:** Modify `lib/delivery-roster.ts`, `lib/delivery-roster.test.ts`(있으면), `app/admin/page.tsx`(slotByOrder 재키잉)
+**Files:** Modify `lib/delivery-roster.ts`, `lib/delivery-roster.test.ts`, `app/admin/page.tsx`
 
-- [ ] **Step 1: 실패 테스트(회귀+신규)** — (a) 레거시 슬롯(연장 items 없음): 기존 명단과 동일. (b) 다블록 슬롯: 블록1 구간 날짜엔 블록1 items만, 블록0 items는 미발송(이중발송 0).
-- [ ] **Step 2: 실패 확인** → FAIL
-- [ ] **Step 3: 구현**
-  - `app/admin/page.tsx` 의 `slotByOrder` 빌드를 **연장주문 order_id 도 같은 슬롯**으로 매핑하도록 확장(현재 `s.order_id` 만 → `renews_slot_id` 연장주문 id 포함).
-  - `buildRosterForDate` 에서 슬롯별 `activeBlockForDate(dateISO)` 의 `orderId` 와 일치하는 order_items 만 발송. (활성 블록 없음 → 그 슬롯 해당일 미발송.)
-- [ ] **Step 4: 통과** → PASS
+> 검토 반영: 이건 단순 재키잉이 아니라 **`buildRosterForDate` 시그니처 변경 + 데이터 스레딩**이다. 현재 `slotByOrder` 는 `s.order_id`(원주문)만 키로 갖고, 빌더엔 "블록" 개념이 없다. 아래 단계로 데이터를 명시적으로 엮는다.
+
+- [ ] **Step 1: admin 데이터 맵 추가** (`app/admin/page.tsx`, ~311-315 근처):
+  - `slotById: Map<number, SlotRow>` — `slots` 를 `s.id` 로.
+  - `renewalOrdersBySlot: Map<number, OrderRow[]>` — `orders.filter(o => o.renews_slot_id != null)` 를 `o.renews_slot_id` 로 그룹(각 그룹 `id` 순 정렬).
+  - `blocksBySlot: Map<number, RawBlock[]>` — 각 슬롯에 대해 `buildRawBlocks(원주문(=slot.order_id 주문), renewalOrdersBySlot.get(slotId)??[], orderItemsById)`.
+- [ ] **Step 2: 실패 테스트** (`npm test -- delivery-roster` → FAIL) — (a) **회귀**: 연장 items 없는 레거시 슬롯 → 기존 명단과 동일. (b) **신규**: 다블록 슬롯에서 블록1 구간 날짜엔 블록1 items만, 블록0 items 미발송(이중발송 0). (c) 활성 블록 없음(소진/시작전) → 그 슬롯 해당일 미발송.
+- [ ] **Step 3: `buildRosterForDate` 시그니처 확장** — params 객체에 `blocksBySlot: ReadonlyMap<number, RawBlock[]>` 와 `slotIdByOrder: ReadonlyMap<string, number>`(order_id→slot.id; 원주문+연장주문 모두) 추가. 정기 루프에서:
+  - 각 order_id 의 슬롯 id 를 `slotIdByOrder` 로 찾고, 그 슬롯의 `activeBlockForDate(input, dateISO)` 를 계산.
+  - **활성 블록의 `orderId` 와 현재 그룹 order_id 가 일치할 때만** 발송(그 외 블록은 미발송). 활성 블록 없으면 미발송.
+  - `blocksBySlot` 가 없는 슬롯(데이터 누락)은 기존 `dispatchScheduleForSlot` 폴백 유지(보수적 포함).
+- [ ] **Step 4: 통과** — `npm test -- delivery-roster` → PASS (회귀 포함)
 - [ ] **Step 5: 커밋** — `git commit -am "fix: 배송 명단 활성 블록만 발송(이중발송 방지)"`
 
 ### Task 3.3: 생산수요 매트릭스 활성 블록 게이팅
 
-**Files:** Modify `app/admin/page.tsx`(matrix 집계, ~430-446)
+**Files:** Modify `app/admin/page.tsx`(matrix 집계, ~430-446); 가능하면 순수 함수로 추출해 `lib/production-demand.ts`(+test)
 
-- [ ] **Step 1:** matrix 집계가 모든 order_items 전수합 → 슬롯별 "그 주 활성 블록"만 계상하도록 게이팅(roster와 동일 SSOT). 단품(`#10`) 제외 가드는 유지.
+- [ ] **Step 1: 실패 테스트** (`npm test -- production-demand` → FAIL) — 다블록 슬롯 생산수요 이중계상 0(그 주 활성 블록만 1회 계상), 레거시 슬롯은 기존과 동일.
+- [ ] **Step 2: 구현** — matrix 집계를 `blocksBySlot`+`activeBlockForDate` 로 게이팅(roster와 동일 SSOT). 단품(`#10`) 제외 가드 유지. 순수 함수 추출 권장.
+- [ ] **Step 3: 통과** — `npm test -- production-demand` → PASS
 - [ ] **Step 2:** 가능한 한 순수 함수로 추출해 단위 테스트(이중계상 0, 레거시 동일).
 - [ ] **Step 3: 커밋** — `git commit -am "fix: 생산수요 매트릭스 활성 블록만 계상(이중계상 방지)"`
 
@@ -600,27 +636,46 @@ grant execute on function public.confirm_renewal_payment(uuid) to authenticated;
 
 **Files:** Modify `lib/subscriptions.ts`, `lib/subscriptions.test.ts`
 
-- [ ] **Step 1: 실패 테스트** — `requestRenewal` 이 zod 검증된 `{ items, period, deliveryDay }` 로 RPC를 호출(인자 매핑). `refundAmount` 미리보기가 `refundByBlocks` 와 동일 결과(블록 입력).
-- [ ] **Step 2: 실패 확인** → FAIL
-- [ ] **Step 3: 구현**
+> **의존성 주의(검토 반영):** `zod` 는 이 프로젝트의 런타임 `dependencies` 가 아니다(전이 devDep로만 존재). 런타임 모듈에 도입하지 않고 **순수 TS로 손수 검증**한다(SQL `request_renewal` 가 권위 재검증하므로 클라 검증은 UX용). 기존 코드 스타일과 정합.
+
+- [ ] **Step 1: 실패 테스트** — `requestRenewal` 이 검증된 `{ items, period, deliveryDay }` 로 RPC 호출(인자 매핑: `p_items/p_period/p_delivery_day`). 잘못된 입력(빈 items, period∉{1,2,3}, 잘못된 요일, qty≤0)은 호출 전 throw. `refundAmount` 미리보기가 `refundByBlocks` 와 동일 결과(블록 입력).
 
 ```typescript
-import { z } from "zod";
-import type { SubPeriod } from "./products";
-
-const RenewalArgs = z.object({
-  items: z.array(z.object({ product_id: z.string().min(1), qty: z.number().int().positive() })).min(1),
-  period: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-  deliveryDay: z.enum(["mon","tue","wed","thu","fri"]),
+// lib/subscriptions.test.ts 추가
+import { requestRenewal } from "./subscriptions";
+it("잘못된 기간이면 RPC 전에 throw", async () => {
+  await expect(requestRenewal(1, { items: [{ product_id: "p", qty: 1 }], period: 5 as never, deliveryDay: "mon" }))
+    .rejects.toThrow();
 });
+it("빈 품목이면 throw", async () => {
+  await expect(requestRenewal(1, { items: [], period: 1, deliveryDay: "mon" })).rejects.toThrow();
+});
+```
+
+- [ ] **Step 2: 실패 확인** → FAIL
+- [ ] **Step 3: 구현 (zod 없이 손수 검증)**
+
+```typescript
+import { SUB_PERIODS, type SubPeriod } from "./products";
+
+function validateRenewalArgs(args: {
+  items: { product_id: string; qty: number }[]; period: SubPeriod; deliveryDay: DeliveryDay;
+}): void {
+  if (!Array.isArray(args.items) || args.items.length === 0) throw new Error("연장할 품목이 없습니다.");
+  for (const it of args.items) {
+    if (!it.product_id || !Number.isInteger(it.qty) || it.qty <= 0) throw new Error("품목/수량이 올바르지 않습니다.");
+  }
+  if (!SUB_PERIODS.includes(args.period)) throw new Error("구독 기간이 올바르지 않습니다.");
+  if (!DELIVERY_DAYS.includes(args.deliveryDay)) throw new Error("배송 요일이 올바르지 않습니다.");
+}
 
 export async function requestRenewal(
   slotId: number,
   args: { items: { product_id: string; qty: number }[]; period: SubPeriod; deliveryDay: DeliveryDay }
 ): Promise<RenewalResult> {
-  const v = RenewalArgs.parse(args);
+  validateRenewalArgs(args);
   const { data, error } = await getSupabase().rpc("request_renewal", {
-    p_slot_id: slotId, p_items: v.items, p_period: v.period, p_delivery_day: v.deliveryDay,
+    p_slot_id: slotId, p_items: args.items, p_period: args.period, p_delivery_day: args.deliveryDay,
   });
   if (error) throw new Error(error.message);
   const r = (data ?? {}) as { order_id?: string; order_no?: string; total?: number };
@@ -628,16 +683,35 @@ export async function requestRenewal(
 }
 ```
 
-- [ ] **Step 4: refundAmount 통일** — `refundAmount` 가 `refundByBlocks`(블록 입력)로 위임하도록 교체. `getMySubscriptions`/`toMySubscriptions` 가 환불 미리보기에 필요한 블록 데이터(원주문+연장주문 order_items)를 함께 로드. 단일 블록이면 기존과 동일(테스트로 고정).
+- [ ] **Step 4: refundAmount 통일 (블록 데이터 로딩 명시)** — 아래 Task 4.1b 로 분리.
 - [ ] **Step 5: 통과** → PASS
-- [ ] **Step 6: 커밋** — `git commit -am "feat: requestRenewal(items/period/day) + 환불 미리보기 블록 통일"`
+- [ ] **Step 6: 커밋** — `git commit -am "feat: requestRenewal(items/period/day) 손수 검증(zod 미도입)"`
+
+### Task 4.1b: 환불 미리보기 블록 통일 (`MySubscription.blocks` 로딩)
+
+**Files:** Modify `lib/subscriptions.ts`(`MySubscription`, `getMySubscriptions`, `toMySubscriptions`, `refundAmount`), `lib/subscriptions.test.ts`
+
+> 검토 반영: 현재 `getMySubscriptions` 는 `order_items` 를 로드하지 않고 `refundAmount` 는 평균식이다. 블록 환불로 통일하려면 실제 데이터 로딩·타입 변경이 필요(이전엔 한 줄로 hand-wave 됨).
+
+- [ ] **Step 1: 실패 테스트** — `toMySubscriptions` 가 원주문+연장주문의 order_items 로 `blocks: RawBlock[]` 를 조립. `refundAmount(sub, asOf)` 가 `refundByBlocks(sub.blocks 기반 입력, asOf)` 와 동일. **기존 단일블록 테스트(`refundAmount(subs[0],6)===60000`)는 그대로 green** 유지.
+- [ ] **Step 2: 실패 확인** → FAIL
+- [ ] **Step 3: 구현**
+  - `MySubscription` 에 `blocks: RawBlock[]` 추가(슬롯 시작일·정지 정보는 기존 필드 유지).
+  - `getMySubscriptions`: 슬롯 원주문 + `renews_slot_id` 연장주문(입금확인) 각각의 `order_items(product_name,volume,delivery_day,qty,unit_price)` 와 `block_weeks,shipping_fee` 를 추가 로드(주문 id 묶음 쿼리 1회). 단가 `unit_price`, 회당배송비 `shipping_fee/block_weeks`.
+  - `toMySubscriptions`: 주문들을 `id` 순으로 `RawBlock[]` 조립(items 없는 연장주문은 `deliveryDay:null,items:[]` → 상속).
+  - `refundAmount(sub, remainingDeliveries)` 시그니처는 화면 호환 위해 유지하되 내부를 `refundByBlocks` 로 위임(또는 새 `refundPreview(sub, asOfISO)` 추가 + 호출부 교체). 단일 블록+extended0 동일 결과를 테스트로 고정.
+- [ ] **Step 4: 통과** → PASS. 기존 subscriptions.test.ts 케이스 유지 확인.
+- [ ] **Step 5: 커밋** — `git commit -am "feat: 환불 미리보기 블록 통일(MySubscription.blocks 로딩)"`
 
 ### Task 4.2: 연장 신청 폼 UI
 
 **Files:** Modify `app/account/page.tsx`
 
+> **카탈로그 와이어링(검토 반영):** 현재 `app/account/page.tsx` 는 상품 카탈로그를 import하지 않는다. 품목 편집기를 위해 `lib/storefront.ts` 의 `useStorefrontCatalog`(cart.tsx 에서 쓰는 것과 동일)를 account 페이지에 연결하는 단계를 먼저 둔다. 단가는 카탈로그 정가에 `subscribePrice(price, discountForPeriod(period))` 적용(서버가 권위 재계산).
+
+- [ ] **Step 0: 카탈로그 연결** — `useStorefrontCatalog` 를 account 페이지에 추가(목록·정가·active 필터).
 - [ ] **Step 1:** "구독 연장 (재입금)" 버튼 클릭 시 인라인 폼 펼침(기존 입금 안내 박스 흐름 유지). 구성요소:
-  - 품목 편집: 현재 슬롯 활성 블록 구성 프리필, `product_catalog` 에서 추가/수량/제거.
+  - 품목 편집: 현재 슬롯 활성 블록 구성 프리필, 카탈로그(`useStorefrontCatalog`)에서 추가/수량/제거.
   - 회차수: `SUB_PERIODS`/`PERIOD_LABEL`/`PERIOD_BADGE` 재사용(신규 구독 폼과 동일 UI).
   - 요일: 현재 요일 프리필 + `getDayCounts()` 로 요일별 잔여석 표시, 만석 요일 비활성. 본인이 이미 가진 요일도 비활성.
   - 실시간 견적: `renewalQuote` 로 회당·할인·배송비·총액, `belowMin` 이면 제출 비활성 + 25,000 안내.
