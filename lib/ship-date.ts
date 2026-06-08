@@ -1,10 +1,20 @@
 // 단품 발송일 계산.
-// 정책: 발송은 월–금만 가능. 신청일 자정까지 접수분 기준.
+// 정책: 발송은 평일(월–금)만 가능, 공휴일 제외. 신청일 자정까지 접수분 기준.
 //   - 평일(월~목) 신청 → 다음 날 발송
 //   - 금요일 신청 → 다음 날(토)은 발송X → 월요일 발송
 //   - 토·일 신청 → 주말엔 입금확인·포장 불가 → 월요일 접수분으로 보고 화요일 발송
+//   - 위로 정해진 발송일이 공휴일이면 다음 영업일로 미룬다(신선식품 — 공휴일 출고 시 상함).
+
+import { isHolidayISO } from "./holidays";
 
 const WEEKDAY_KR = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+/** 토·일·공휴일이면 다음 영업일(평일·비공휴일)까지 전진시킨다(d 를 직접 수정). */
+function advanceToBusinessDay(d: Date): void {
+  while (d.getDay() === 0 || d.getDay() === 6 || isHolidayISO(toISODate(d))) {
+    d.setDate(d.getDate() + 1);
+  }
+}
 
 /** now(기본: 현재) 기준 발송 예정일을 Date(자정)로 반환. */
 export function nextDispatchDate(now: Date = new Date()): Date {
@@ -13,13 +23,14 @@ export function nextDispatchDate(now: Date = new Date()): Date {
   const orderDay = d.getDay(); // 0=일 … 6=토
 
   if (orderDay === 6) {
-    d.setDate(d.getDate() + 3); // 토 → 화
+    d.setDate(d.getDate() + 3); // 토 → 화(최소)
   } else if (orderDay === 0) {
-    d.setDate(d.getDate() + 2); // 일 → 화
+    d.setDate(d.getDate() + 2); // 일 → 화(최소)
   } else {
-    d.setDate(d.getDate() + 1); // 평일 → 다음 날
-    if (d.getDay() === 6) d.setDate(d.getDate() + 2); // 금 신청분: 토 → 월
+    d.setDate(d.getDate() + 1); // 평일 → 다음 날(최소)
   }
+  // 정해진 발송일이 주말·공휴일이면 다음 영업일로 미룬다.
+  advanceToBusinessDay(d);
   return d;
 }
 
