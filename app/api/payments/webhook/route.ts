@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PortOneClient, Webhook } from "@portone/server-sdk";
 import { sendInfo, isSolapiConfigured, type AlimtalkSpec } from "@/lib/solapi";
+import { sendOrphanDepositAlert } from "@/lib/orphan-alert";
 
 // PortOne(포트원) v2 결제 웹훅 수신.
 //
@@ -114,9 +115,22 @@ export async function POST(req: Request) {
     order_no: string;
     status: string;
     changed: boolean;
+    orphan?: boolean;
     ship_name: string | null;
     ship_phone: string | null;
   };
+
+  // 고아입금: 이미 취소된 주문에 결제가 들어옴 → 관리자에게 즉시 SMS 알림(발송/환불 누락 방지).
+  if (r.orphan) {
+    console.warn("[payments/webhook] 고아입금 감지 order_no:", r.order_no);
+    await sendOrphanDepositAlert({
+      orderNo: r.order_no,
+      shipName: r.ship_name,
+      shipPhone: r.ship_phone,
+      paidAmount: paidAmount,
+      payMethod: payMethod,
+    });
+  }
 
   // 4) 이번 호출로 처음 '입금확인'된 경우에만 입금확인 문자를 보낸다(멱등: 재전송 시 중복발송 없음).
   if (r.changed && r.status === "입금확인" && r.ship_phone && isSolapiConfigured()) {
