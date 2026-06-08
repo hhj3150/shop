@@ -12,6 +12,7 @@ import {
   type ProductionLog,
 } from "@/lib/production";
 import { B2bDemandSection } from "@/components/B2bDemandSection";
+import { productionShortages } from "@/lib/production-shortage";
 
 // 선택 날짜 → 배송 요일(월~금). 주말은 null. (라벨 표시용)
 const JS_DAY_TO_KEY: Record<number, DeliveryDay | null> = {
@@ -165,6 +166,30 @@ export function ProductionPanel({
   );
 
   async function handleSave() {
+    // 실수 방지: 실제생산을 입력한 상태에서 필요량보다 부족한 제품이 있으면
+    //   결품을 못 보고 저장하지 않도록 부족 내역을 확인받는다.
+    //   (생산 전 계획만 저장하는 경우 — 실제생산 합계 0 — 는 묻지 않는다.)
+    const totalProduced = PRODUCTION_KEYS.reduce(
+      (s, k) => s + (producedQty[k] ?? 0),
+      0
+    );
+    const shortages = productionShortages(
+      PRODUCTION_KEYS,
+      requiredQty,
+      producedQty
+    );
+    if (totalProduced > 0 && shortages.length > 0) {
+      const lines = shortages
+        .map((r) => `· ${r.key}: 생산 ${r.produced} / 필요 ${r.required} (부족 ${r.short})`)
+        .join("\n");
+      if (
+        !window.confirm(
+          `실제생산이 필요량보다 부족한 제품이 있습니다.\n\n${lines}\n\n그대로 저장할까요?`
+        )
+      ) {
+        return;
+      }
+    }
     setSaving(true);
     setErr(null);
     setMsg(null);
