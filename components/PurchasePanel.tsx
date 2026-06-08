@@ -232,7 +232,7 @@ export function PurchasePanel({ product }: { product: Product }) {
       <div className="mt-7 border-t border-line pt-6">
         <StepLabel n={4} title="함께 담기" hint="같은 요일 배송" />
         <p className="mt-2 text-[11.5px] leading-relaxed text-ink-soft">
-          다른 제품도 같은 요일에 함께 배송됩니다.
+          다른 제품도 같은 요일에 함께 발송됩니다.
         </p>
         <ul className="mt-4 space-y-3">
           {addons.map((p) => {
@@ -383,7 +383,7 @@ function ShipNoticeModal({
       >
         <p className="eyebrow text-gold-deep">배송 안내</p>
         <h3 className="mt-2 font-serif-kr text-xl text-ink">
-          매주 <span className="text-gold-deep">{day}</span>에 배송됩니다
+          매주 <span className="text-gold-deep">{day}</span>에 발송됩니다
         </h3>
         <p className="mt-3 text-[14px] leading-relaxed text-ink-soft">
           선택하신 <span className="font-medium text-ink">{day}</span>은 <span className="font-medium text-ink">발송(배송 출발)</span>하는 날이에요.

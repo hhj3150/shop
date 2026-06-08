@@ -277,7 +277,7 @@ export function CartDrawer() {
               </div>
             ) : (
               <p className="mt-2 text-[13px] leading-relaxed text-gold-deep">
-                매주 같은 요일에 배송되며, 선택하신 {PERIOD_LABEL[period]}분({weeks}회)을
+                매주 같은 요일에 발송되며, 선택하신 {PERIOD_LABEL[period]}분({weeks}회)을
                 한 번에 입금 확인 후 발송됩니다.
               </p>
             )}
