@@ -504,8 +504,9 @@ export default function AdminPage() {
   }, [items]);
 
   // 이번 주(월~금) 각 요일의 실제 날짜 — 활성 블록 판정 기준(roster 와 동일 SSOT).
+  //   렌더 순수성을 위해 새 new Date() 대신 고정된 now(Date.now() 스냅샷)에서 파생한다.
   const thisWeekDates = useMemo<Record<DeliveryDay, string>>(() => {
-    const base = new Date();
+    const base = new Date(now);
     base.setHours(0, 0, 0, 0);
     const dow = (base.getDay() + 6) % 7; // 월=0
     base.setDate(base.getDate() - dow);
@@ -516,7 +517,7 @@ export default function AdminPage() {
       out[d] = toISODate(dt);
     });
     return out;
-  }, []);
+  }, [now]);
 
   // 요일별·제품별 주간 필요수량 — 슬롯의 활성 블록 1개만 그 요일에 계상(연장 이중계상 방지).
   //   단품은 슬롯이 없어 blocksBySlot 에 들어오지 않으므로 자연히 제외된다(단품 제외 가드 유지).
