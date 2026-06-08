@@ -10,6 +10,7 @@ export type OrderRow = {
   id: string;
   block_weeks: number;
   shipping_fee: number;
+  created_at: string; // orders.id 는 random uuid → 정렬은 created_at 기준
 };
 
 export type OrderItemRow = {
@@ -21,6 +22,15 @@ export type OrderItemRow = {
 };
 
 // ─── 순수 함수 ─────────────────────────────────────────────────────────────────
+
+// created_at 오름차순, 동일하면 id 로 결정적 타이브레이크.
+function compareByCreatedAtThenId(a: OrderRow, b: OrderRow): number {
+  if (a.created_at < b.created_at) return -1;
+  if (a.created_at > b.created_at) return 1;
+  if (a.id < b.id) return -1;
+  if (a.id > b.id) return 1;
+  return 0;
+}
 
 function computeShippingPerWeek(shippingFee: number, blockWeeks: number): number {
   if (blockWeeks <= 0) return 0;
@@ -66,8 +76,9 @@ function buildBlock(
 /**
  * 슬롯의 원주문과 연장주문 배열을 RawBlock[] 으로 변환.
  *
- * - 원주문이 항상 첫 번째.
- * - 연장주문은 id 오름차순으로 정렬(입력 순서에 무관; 방어적 복사).
+ * - 원주문이 항상 첫 번째(block0).
+ * - 연장주문은 created_at 오름차순(동일 시각이면 id 타이브레이크)으로 정렬.
+ *   orders.id 는 random uuid 라 비단조 → id 정렬은 시간순이 아니다(입력 순서에 무관; 방어적 복사).
  * - items 있는 주문: deliveryDay = 첫 번째 item의 delivery_day, items 매핑.
  * - items 없는 주문(레거시): deliveryDay null, items [] — normalizeBlocks에서 상속.
  */
@@ -76,9 +87,7 @@ export function buildRawBlocks(
   renewalOrders: readonly OrderRow[],
   itemsByOrder: ReadonlyMap<string, OrderItemRow[]>
 ): RawBlock[] {
-  const sortedRenewals = [...renewalOrders].sort((a, b) =>
-    a.id < b.id ? -1 : a.id > b.id ? 1 : 0
-  );
+  const sortedRenewals = [...renewalOrders].sort(compareByCreatedAtThenId);
 
   const originalBlock = buildBlock(originalOrder, itemsByOrder);
   const renewalBlocks = sortedRenewals.map((order) => buildBlock(order, itemsByOrder));
