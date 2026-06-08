@@ -9,8 +9,13 @@ import { SITE_URL } from "@/lib/site";
 import { formatKRW } from "@/lib/products";
 import { shareOrCopy } from "@/lib/share";
 import { REFERRAL_REWARD_KRW, referralLink } from "@/lib/referral";
+import { usableBalance } from "@/lib/referral-credit";
 
-type Reward = { amount_krw: number; status: "earned" | "applied" | "void" };
+type Reward = {
+  amount_krw: number;
+  status: "earned" | "applied" | "void";
+  expires_at: string | null;
+};
 
 export function ReferralCard() {
   const { ready, user } = useAuth();
@@ -28,7 +33,7 @@ export function ReferralCard() {
         sb.rpc("get_or_create_my_referral_code"),
         sb
           .from("referral_rewards")
-          .select("amount_krw,status")
+          .select("amount_krw,status,expires_at")
           .eq("user_id", user.id),
       ]);
       if (typeof c === "string") setCode(c);
@@ -47,12 +52,19 @@ export function ReferralCard() {
   if (!ready || !user) return null;
 
   const link = code ? referralLink(code, SITE_URL) : null;
-  const earned = rewards
-    .filter((r) => r.status === "earned")
-    .reduce((s, r) => s + r.amount_krw, 0);
+  // 사용 가능 적립금 = 유효(earned·미만료) 잔액. 만료된 earned 는 제외.
+  const balance = usableBalance(rewards, new Date().toISOString());
   const applied = rewards
     .filter((r) => r.status === "applied")
     .reduce((s, r) => s + r.amount_krw, 0);
+  // 만료 임박: 30일 이내 만료되는 earned 가 있으면 안내 문구.
+  const soon = rewards.some(
+    (r) =>
+      r.status === "earned" &&
+      r.expires_at !== null &&
+      new Date(r.expires_at).getTime() - Date.now() < 30 * 86_400_000 &&
+      new Date(r.expires_at).getTime() > Date.now()
+  );
 
   async function onShare() {
     if (!link) return;
@@ -117,14 +129,21 @@ export function ReferralCard() {
 
       <dl className="mt-4 flex gap-6 text-[13px]">
         <div>
-          <dt className="text-mute">받은 보상(지급 예정)</dt>
-          <dd className="mt-0.5 font-semibold text-ink">{formatKRW(earned)}</dd>
+          <dt className="text-mute">사용 가능 적립금</dt>
+          <dd className="mt-0.5 font-semibold text-ink">{formatKRW(balance.krw)}</dd>
         </div>
         <div>
           <dt className="text-mute">적용 완료</dt>
           <dd className="mt-0.5 font-semibold text-ink">{formatKRW(applied)}</dd>
         </div>
       </dl>
+
+      {balance.krw > 0 && (
+        <p className="mt-2 text-[13px] text-mute">다음 주문 때 자동으로 차감돼요.</p>
+      )}
+      {soon && (
+        <p className="mt-1 text-[13px] font-medium text-hey-green">곧 만료되는 적립금이 있어요.</p>
+      )}
 
       {toast && (
         <p role="status" className="mt-3 text-[13px] text-hey-green">
