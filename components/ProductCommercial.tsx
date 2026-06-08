@@ -10,12 +10,19 @@ export function ProductHeroPrice({ product, maxRate }: { product: Product; maxRa
   const { map } = useStorefrontCatalog();
   const live = mergeProduct(product, map.get(product.id));
   return (
-    <p className="mt-6 text-[14px] text-ink-soft">
-      회당{" "}
-      <span className="font-medium tabular-nums text-ink">{formatKRW(live.price)}</span>
-      <span className="mx-2 text-line">·</span>
-      <span className="text-gold-deep">창립 500인 회원 특권 −{maxRate}%</span>
-      {live.soldOut && <span className="ml-2 text-mute">· 품절</span>}
-    </p>
+    <div className="mt-7">
+      {/* 가격 — 핵심 정보라 또렷하고 크게 */}
+      <p className="text-[clamp(1.55rem,6vw,2.1rem)] font-semibold leading-none text-ink lining-nums tabular-nums">
+        {formatKRW(live.price)}
+        <span className="ml-1.5 align-baseline text-[15px] font-normal text-mute">/ 회</span>
+      </p>
+      {/* 회원 특권 — 브랜드 그린으로 적당히 강조 */}
+      <p className="mt-3 flex flex-wrap items-center justify-center gap-2">
+        <span className="inline-flex items-center rounded-full bg-hey-green/12 px-3 py-1 text-[13.5px] font-semibold text-hey-green lining-nums">
+          창립 500인 회원 특권 −{maxRate}%
+        </span>
+        {live.soldOut && <span className="text-[13px] text-mute">· 품절</span>}
+      </p>
+    </div>
   );
 }

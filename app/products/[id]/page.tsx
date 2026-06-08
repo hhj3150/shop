@@ -62,7 +62,7 @@ export default async function ProductPage({
       <Track event="view_product" />
       {/* 브레드크럼 */}
       <div className="mx-auto max-w-7xl px-5 pt-24 sm:px-8">
-        <nav className="py-5 text-[13px] tracking-wide text-mute">
+        <nav className="py-5 text-[13.5px] tracking-wide text-mute">
           <Link href="/" className="hover:text-gold">홈</Link>
           <span className="mx-2">/</span>
           <Link href="/#products" className="hover:text-gold">제품</Link>
@@ -74,16 +74,16 @@ export default async function ProductPage({
       {/* 애플식 풀블리드 히어로 — 큰 타이포 + 큰 이미지 + 가격 + 구성 앵커 */}
       <section className="overflow-hidden pb-4 pt-6 text-center sm:pt-10">
         <div className="mx-auto max-w-3xl px-5 sm:px-8">
-          {/* 영문 카테고리(작게) — 중복 방지 위해 용량·badge 는 빼고 카테고리만 */}
-          <p className="font-display text-[12.5px] uppercase tracking-[0.28em] text-gold">
+          {/* 영문 카테고리 — 작게(키워서 가독성), 브랜드 골드 */}
+          <p className="text-[13px] font-medium uppercase tracking-[0.3em] text-gold-deep">
             {product.nameEn}
           </p>
           {/* 제품명(제목) — 무엇을 사는지 또렷하게 */}
           <h1 className="mt-3 font-serif-kr text-[clamp(1.9rem,6vw,2.9rem)] font-semibold leading-[1.14] tracking-[-0.01em] text-ink">
             {product.name}
           </h1>
-          {/* 용량 — 얼마나 사는지 강조 */}
-          <p className="mt-2 font-display text-[clamp(1.3rem,5vw,1.8rem)] font-bold tracking-tight text-gold-deep">
+          {/* 용량 — 얼마나 사는지 강조. lining-nums 로 숫자 또렷하게(옛날체 ı8o 방지) */}
+          <p className="mt-2 text-[clamp(1.35rem,5vw,1.85rem)] font-bold tracking-tight text-gold-deep lining-nums tabular-nums">
             {product.volume}
           </p>
           {/* 브랜드 한 줄(보조, 미니멀) */}
