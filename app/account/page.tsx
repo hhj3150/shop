@@ -220,13 +220,20 @@ export default function AccountPage() {
     }
   }
 
-  async function onRenew(slotId: number) {
-    setBusy(slotId);
+  async function onRenew(s: MySubscription) {
+    setBusy(s.slotId);
     try {
-      const res = await requestRenewal(slotId);
+      // STOPGAP(Task 4.2 에서 교체): 연장 신청 폼(품목·요일·회차 편집)이 아직 없다.
+      // requestRenewal 의 신 시그니처에 맞춰 현재 슬롯의 요일·기간을 그대로 넘긴다.
+      // items 는 폼에서 채워질 예정(현재는 검증 단계에서 안내 메시지로 막힌다).
+      const res = await requestRenewal(s.slotId, {
+        items: [],
+        period: s.periodMonths as SubPeriod,
+        deliveryDay: s.deliveryDay,
+      });
       // 갱신 주문을 PayAction 에 등록 → 회원이 안내된 금액을 입금하면 자동으로 입금확인(반자동 갱신).
       await registerPayActionDeposit(res.orderNo, profile?.phone ?? "");
-      setRenewal({ slotId, orderNo: res.orderNo, total: res.total });
+      setRenewal({ slotId: s.slotId, orderNo: res.orderNo, total: res.total });
       void notify({ kind: "renewal_guide", orderId: res.orderId });
       reloadOrders();
     } catch (e) {
@@ -513,7 +520,7 @@ export default function AccountPage() {
                             </div>
                           )}
                           <button
-                            onClick={() => onRenew(s.slotId)}
+                            onClick={() => onRenew(s)}
                             disabled={busy === s.slotId}
                             className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
                           >

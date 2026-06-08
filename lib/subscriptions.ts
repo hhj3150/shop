@@ -1,5 +1,5 @@
 import { getSupabase } from "./supabase";
-import { SUB_DAY_CAP } from "./products";
+import { SUB_DAY_CAP, SUB_PERIODS, type SubPeriod } from "./products";
 import { DELIVERY_DAYS, type DeliveryDay } from "./cart";
 
 export type DayCount = {
@@ -206,11 +206,45 @@ export type RenewalResult = {
   total: number;
 };
 
-// 활성 구독을 1개월(4회) 연장 신청. 서버가 원 주문 품목으로 10% 재계산해
-// 입금대기 연장 주문을 만들고, 주문번호·금액을 돌려준다(입금 안내용).
-export async function requestRenewal(slotId: number): Promise<RenewalResult> {
+export type RenewalItem = { product_id: string; qty: number };
+export type RenewalArgs = {
+  items: RenewalItem[];
+  period: SubPeriod;
+  deliveryDay: DeliveryDay;
+};
+
+// 연장 신청 입력 검증(UX 용). 권위 재검증은 SQL request_renewal 이 수행하므로,
+// 여기서는 잘못된 입력으로 인한 무의미한 네트워크 호출을 막는 것이 목적이다.
+// zod 는 이 프로젝트의 런타임 의존성이 아니므로 손수 검증한다.
+export function validateRenewalArgs(args: RenewalArgs): void {
+  if (!Array.isArray(args.items) || args.items.length === 0) {
+    throw new Error("연장할 품목이 없습니다.");
+  }
+  for (const it of args.items) {
+    if (!it.product_id || !Number.isInteger(it.qty) || it.qty <= 0) {
+      throw new Error("품목/수량이 올바르지 않습니다.");
+    }
+  }
+  if (!SUB_PERIODS.includes(args.period)) {
+    throw new Error("구독 기간이 올바르지 않습니다.");
+  }
+  if (!DELIVERY_DAYS.includes(args.deliveryDay)) {
+    throw new Error("배송 요일이 올바르지 않습니다.");
+  }
+}
+
+// 활성 구독을 연장 신청(구성·요일·회차 변경 가능). 서버가 입력 품목으로 할인 재계산해
+// 입금대기 연장 주문 + 자기 order_items 를 만들고, 주문번호·금액을 돌려준다(입금 안내용).
+export async function requestRenewal(
+  slotId: number,
+  args: RenewalArgs
+): Promise<RenewalResult> {
+  validateRenewalArgs(args);
   const { data, error } = await getSupabase().rpc("request_renewal", {
     p_slot_id: slotId,
+    p_items: args.items,
+    p_period: args.period,
+    p_delivery_day: args.deliveryDay,
   });
   if (error) throw new Error(error.message);
   const r = (data ?? {}) as { order_id?: string; order_no?: string; total?: number };

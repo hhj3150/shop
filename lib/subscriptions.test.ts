@@ -3,6 +3,7 @@ import {
   totalRemainingSeats,
   toMySubscriptions,
   refundAmount,
+  requestRenewal,
   type DayCounts,
 } from "./subscriptions";
 import { DELIVERY_DAYS, type DeliveryDay } from "./cart";
@@ -85,5 +86,53 @@ describe("toMySubscriptions — 연장분 합산", () => {
       [{ renews_slot_id: 99, total_amount: 40000 }] // 다른 슬롯
     );
     expect(subs[0].totalAmount).toBe(40000); // 연장 합산 없음
+  });
+});
+
+// 클라 검증은 UX 용 — SQL request_renewal 가 권위 재검증한다.
+// 검증 실패는 RPC(네트워크) 호출 전에 throw 되므로 mock 없이 검증 경로만 테스트한다.
+describe("requestRenewal — 손수 검증(zod 미도입)", () => {
+  const ok = { product_id: "milk-750", qty: 1 };
+
+  it("잘못된 기간이면 RPC 전에 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, { items: [ok], period: 5 as never, deliveryDay: "mon" })
+    ).rejects.toThrow("구독 기간이 올바르지 않습니다.");
+  });
+
+  it("빈 품목이면 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, { items: [], period: 1, deliveryDay: "mon" })
+    ).rejects.toThrow("연장할 품목이 없습니다.");
+  });
+
+  it("수량이 0 이하면 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, {
+        items: [{ product_id: "milk-750", qty: 0 }],
+        period: 1,
+        deliveryDay: "mon",
+      })
+    ).rejects.toThrow("품목/수량이 올바르지 않습니다.");
+  });
+
+  it("수량이 정수가 아니면 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, {
+        items: [{ product_id: "milk-750", qty: 1.5 }],
+        period: 1,
+        deliveryDay: "mon",
+      })
+    ).rejects.toThrow("품목/수량이 올바르지 않습니다.");
+  });
+
+  it("잘못된 배송 요일이면 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, {
+        items: [ok],
+        period: 1,
+        deliveryDay: "sat" as never,
+      })
+    ).rejects.toThrow("배송 요일이 올바르지 않습니다.");
   });
 });
