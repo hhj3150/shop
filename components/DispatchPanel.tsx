@@ -12,6 +12,7 @@ import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart"
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
 import { decideShipOut } from "@/lib/dispatch-shipout";
+import { isCarriedOver, overdueDays } from "@/lib/dispatch-overdue";
 import {
   BUCKET_ML,
   BUCKET_LABEL,
@@ -247,7 +248,8 @@ export function DispatchPanel({
       const o = r.o;
       if (useDateFilter) {
         if (o.order_type === "단품") {
-          if (o.ship_date !== date) return false;
+          // 당일분(ship_date == 선택일) + 지난 미출고분(이월)도 함께 — 그날 못 보내면 사라지는 걸 막는다.
+          if (o.ship_date !== date && !isCarriedOver(o, date)) return false;
         } else if (!(dayOfDate !== null && r.dayKey === dayOfDate)) {
           return false;
         }
@@ -784,6 +786,11 @@ export function DispatchPanel({
                       </span>
                       {o.order_type !== "단품" && r.total > 0 && (
                         <span className="ml-1 text-[11px] text-mute">남은 {r.remaining}</span>
+                      )}
+                      {isCarriedOver(o, date) && (
+                        <span className="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold text-red-700">
+                          지연 {overdueDays(o.ship_date, date)}일
+                        </span>
                       )}
                     </td>
                     <td className="py-3 pr-3 text-[13px] text-ink-soft">{r.dayLabel || "—"}</td>
