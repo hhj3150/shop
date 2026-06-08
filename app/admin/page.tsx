@@ -37,7 +37,7 @@ import { DispatchPanel } from "@/components/DispatchPanel";
 import { loadShippedKeys } from "@/lib/inventory-data";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
 import { loadReturns, type OrderReturn } from "@/lib/returns";
-import { splitDemandByKind } from "@/lib/production-demand";
+import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
 import { SettlementPanel } from "@/components/SettlementPanel";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
@@ -294,17 +294,6 @@ export default function AdminPage() {
       ),
     [slots]
   );
-  // 해지된 구독의 주문 — 다시 배송되지 않으므로 주간 필요수량(생산 템플릿)에서 제외한다.
-  //   주문 상태는 '입금확인'으로 남아 confirmedOrderIds 에 들어오기 때문에 별도 제외가 필요하다.
-  const canceledOrderIds = useMemo(
-    () =>
-      new Set(
-        slots
-          .filter((s) => s.status === "해지" && s.order_id)
-          .map((s) => s.order_id as string)
-      ),
-    [slots]
-  );
   const orderById = useMemo(
     () => new Map(orders.map((o) => [o.id, o])),
     [orders]
@@ -514,23 +503,37 @@ export default function AdminPage() {
     return Array.from(set.keys()).sort();
   }, [items]);
 
+  // 이번 주(월~금) 각 요일의 실제 날짜 — 활성 블록 판정 기준(roster 와 동일 SSOT).
+  const thisWeekDates = useMemo<Record<DeliveryDay, string>>(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    const dow = (base.getDay() + 6) % 7; // 월=0
+    base.setDate(base.getDate() - dow);
+    const out = {} as Record<DeliveryDay, string>;
+    DELIVERY_DAYS.forEach((d, i) => {
+      const dt = new Date(base);
+      dt.setDate(base.getDate() + i);
+      out[d] = toISODate(dt);
+    });
+    return out;
+  }, []);
+
+  // 요일별·제품별 주간 필요수량 — 슬롯의 활성 블록 1개만 그 요일에 계상(연장 이중계상 방지).
+  //   단품은 슬롯이 없어 blocksBySlot 에 들어오지 않으므로 자연히 제외된다(단품 제외 가드 유지).
   const matrix = useMemo(() => {
-    const m: Record<string, Record<DeliveryDay, number>> = {};
-    for (const key of productKeys) {
-      m[key] = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0 };
-    }
-    for (const it of items) {
-      if (!confirmedOrderIds.has(it.order_id)) continue;
-      if (pausedOrderIds.has(it.order_id)) continue;
-      if (canceledOrderIds.has(it.order_id)) continue;
-      // 단품은 요일 발송이 아니다(ship_date 기반) → 주간 요일 템플릿에서 제외.
-      //   단품 품목에 delivery_day 가 잘못 들어와도 이중계상되지 않게 방어한다.
-      if (orderById.get(it.order_id)?.order_type === "단품") continue;
-      const key = `${it.product_name} ${it.volume}`;
-      if (m[key]) m[key][it.delivery_day] += it.qty;
-    }
-    return m;
-  }, [items, productKeys, confirmedOrderIds, pausedOrderIds, canceledOrderIds, orderById]);
+    const slotInputs = slots
+      .map((s) => ({ slot: s, blocks: blocksBySlot.get(s.id) }))
+      .filter((x): x is { slot: SlotRow; blocks: RawBlock[] } => x.blocks != null && x.blocks.length > 0)
+      .map(({ slot: s, blocks }) => ({
+        startedAt: s.started_at,
+        status: s.status,
+        paused: s.paused,
+        pausedAt: s.paused_at,
+        pausedDays: s.paused_days,
+        blocks,
+      }));
+    return buildWeeklyMatrix(slotInputs, productKeys, thisWeekDates);
+  }, [slots, blocksBySlot, productKeys, thisWeekDates]);
 
   // ── 선택 기간 배송 명단 (당일 ~ 기간) ─────────────────────
   // 한 배송 건(정기 1회분 또는 단품 주문). 산출 로직은 lib/delivery-roster 의 SSOT 를 쓴다.
