@@ -220,6 +220,8 @@ export default function AdminPage() {
   const [startDeferOrder, setStartDeferOrder] = useState<string | null>(null);
   const [startDeferDate, setStartDeferDate] = useState<string>("");
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
+  // 기간별 배송 명단은 길어서 기본 접힘 — 포장/명단 확인이 필요할 때만 펼친다.
+  const [showRoster, setShowRoster] = useState(false);
   // 마운트 시점 기준 '지금' — 회원 최근주문 경과일(recencyDays) 계산용.
   //   렌더 중 Date.now() 직접 호출(비순수)을 피하려 1회만 고정한다.
   const [now] = useState(() => Date.now());
@@ -1482,8 +1484,19 @@ export default function AdminPage() {
       {/* 기간별 배송 명단 — 배송 탭에서 작업 화면(DispatchPanel) 아래에 노출 */}
       {tab === "배송" && (
         <>
-      {/* 기간별 배송 명단 — 당일 또는 기간(from~to) 선택 */}
-      <h2 className="mt-12 font-serif-kr text-lg text-ink">기간별 배송 명단</h2>
+      {/* 기간별 배송 명단 — 당일 또는 기간(from~to) 선택. 기본 접힘. */}
+      <button
+        type="button"
+        onClick={() => setShowRoster((v) => !v)}
+        aria-expanded={showRoster}
+        className="mt-12 flex items-center gap-2 font-serif-kr text-lg text-ink"
+      >
+        <span className="text-mute">{showRoster ? "▾" : "▸"}</span>
+        기간별 배송 명단
+        <span className="font-sans text-[13px] text-mute">{showRoster ? "접기" : "펼치기"}</span>
+      </button>
+      {showRoster && (
+        <>
       <div className="mt-3 flex flex-wrap items-center gap-2 no-print">
         <input
           type="date"
@@ -1609,6 +1622,8 @@ export default function AdminPage() {
             ))
         )}
       </div>
+        </>
+      )}
         </>
       )}
 
