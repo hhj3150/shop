@@ -817,6 +817,16 @@ export default function AdminPage() {
     ) {
       return;
     }
+    // 실수 방지: '배송완료'로 바꾸면 고객에게 배송 완료 안내 문자가 즉시 발송된다.
+    //   실제 수령 전에 잘못 누르면 오안내가 되므로 확인받는다.
+    if (
+      status === "배송완료" &&
+      !window.confirm(
+        `${order.order_no}: '배송완료'로 변경하면 고객에게 배송 완료 안내 문자가 발송됩니다. 계속할까요?`
+      )
+    ) {
+      return;
+    }
     const sb = getSupabase();
     // 연장 주문 입금확인 → 전용 RPC로 슬롯 회차(+4) 연장과 상태 변경을 원자적으로 처리.
     if (status === "입금확인" && order.renews_slot_id) {
