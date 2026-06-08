@@ -64,6 +64,22 @@ export function buildRenewalItems(
     .map((it) => ({ product_id: it.productId, qty: it.qty }));
 }
 
+// qtyById 에서 "선택 가능한(active) 상품"에 없는 id 를 제거한 새 맵을 돌려준다.
+//   프리필은 정적 PRODUCTS 전체에서 매칭되므로, 카탈로그 로드 후 판매종료(active=false)된
+//   상품의 유령 수량이 남을 수 있다 — 화면에 행이 없는데 견적·제출엔 끼는 정합 깨짐을 막는다.
+//   변경이 없으면(제거 대상 없음) 입력 객체를 그대로 반환해 무한 렌더 루프를 방지한다.
+export function pruneToActive(
+  qtyById: Record<string, number>,
+  activeIds: readonly string[]
+): Record<string, number> {
+  const active = new Set(activeIds);
+  const staleIds = Object.keys(qtyById).filter((id) => !active.has(id));
+  if (staleIds.length === 0) return qtyById;
+  return Object.fromEntries(
+    Object.entries(qtyById).filter(([id]) => active.has(id))
+  );
+}
+
 // 회원이 "다른" 활성 슬롯에서 이미 점유 중인 요일 집합.
 //   연장 폼에서 이 요일들은(현재 슬롯의 요일은 제외) 비활성 처리한다 —
 //   한 회원이 한 요일에 둘 이상의 활성 구독을 갖지 못하게 막는 UX 가드.

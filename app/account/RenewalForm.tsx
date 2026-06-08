@@ -35,6 +35,7 @@ import { renewalQuote } from "@/lib/subscription-timeline";
 import {
   prefillFormItems,
   buildRenewalItems,
+  pruneToActive,
   usedDeliveryDays,
   type FormItem,
 } from "@/lib/renewal-form";
@@ -81,6 +82,28 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
     [map]
   );
 
+  // 카탈로그 로드 후 "선택 가능한(active) 상품"으로만 수량을 좁힌 유효 수량.
+  //   프리필은 정적 PRODUCTS 전체에서 매칭되므로 판매종료(active=false) 상품의 유령 수량이
+  //   남을 수 있다 — 견적·제출·렌더 모두 이 effectiveQty 를 쓰게 해 행이 없는 항목이
+  //   견적·제출에만 끼는 정합 깨짐을 막는다. 로드 전엔 raw 그대로(정적 폴백).
+  //   파생값(렌더 중 계산)이므로 effect/setState 불필요 — 무한 렌더 루프도 없다.
+  const effectiveQty = useMemo(() => {
+    if (catalogLoading) return qtyById;
+    return pruneToActive(qtyById, products.map((p) => p.id));
+  }, [qtyById, products, catalogLoading]);
+
+  // 프리필되었으나 판매종료되어 목록에서 빠진 상품 이름(안내용).
+  const droppedNames = useMemo(() => {
+    if (catalogLoading) return [];
+    const activeSet = new Set(products.map((p) => p.id));
+    return Object.keys(qtyById)
+      .filter((id) => !activeSet.has(id) && (qtyById[id] ?? 0) > 0)
+      .map((id) => {
+        const p = PRODUCTS.find((x) => x.id === id);
+        return p ? `${p.name} ${p.volume}` : id;
+      });
+  }, [qtyById, products, catalogLoading]);
+
   const rate = discountForPeriod(period);
 
   // 회원이 다른 활성 슬롯에서 쓰는 요일(현재 슬롯 제외) — 비활성 처리.
@@ -91,8 +114,8 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
 
   const formItems: FormItem[] = useMemo(
     () =>
-      Object.entries(qtyById).map(([productId, qty]) => ({ productId, qty })),
-    [qtyById]
+      Object.entries(effectiveQty).map(([productId, qty]) => ({ productId, qty })),
+    [effectiveQty]
   );
 
   // 견적 — 카탈로그 정가에 기간 할인 적용(서버가 권위 재계산, C2).
@@ -211,6 +234,12 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
       {/* 품목 편집 */}
       <div className="mt-5">
         <p className="text-[13px] font-medium text-ink">품목</p>
+        {droppedNames.length > 0 && (
+          <p className="mt-2 rounded-xl bg-ink/5 px-3 py-2.5 text-[12px] leading-relaxed text-ink-soft">
+            {droppedNames.join(", ")} — 판매 종료되어 목록에서 제외됐어요. 다른 품목으로
+            연장해 주세요.
+          </p>
+        )}
         <ul className="mt-2 space-y-3">
           {products.map((p) => {
             const ep = subscribePrice(p.price, rate);

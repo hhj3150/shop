@@ -4,6 +4,7 @@ import {
   activeBlockItems,
   prefillFormItems,
   buildRenewalItems,
+  pruneToActive,
   usedDeliveryDays,
 } from "./renewal-form";
 import type { MySubscription } from "./subscriptions";
@@ -135,6 +136,27 @@ describe("buildRenewalItems", () => {
 
   it("전부 0 이면 빈 배열", () => {
     expect(buildRenewalItems([{ productId: "milk-180", qty: 0 }])).toEqual([]);
+  });
+});
+
+describe("pruneToActive", () => {
+  it("active 목록에 없는 id(판매종료) 제거", () => {
+    const result = pruneToActive(
+      { "milk-180": 2, "milk-750": 1 },
+      ["milk-180"]
+    );
+    expect(result).toEqual({ "milk-180": 2 });
+  });
+
+  it("모두 active 면 동일 참조 그대로 반환(무한 렌더 방지)", () => {
+    const input = { "milk-180": 2, "milk-750": 1 };
+    const result = pruneToActive(input, ["milk-180", "milk-750", "yogurt-180"]);
+    expect(result).toBe(input);
+  });
+
+  it("빈 맵은 그대로", () => {
+    const input = {};
+    expect(pruneToActive(input, ["milk-180"])).toBe(input);
   });
 });
 
