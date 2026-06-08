@@ -677,6 +677,15 @@ export default function AdminPage() {
 
   // ── 액션 ─────────────────────────────────────────────────
   async function updateStatus(order: OrderRow, status: string) {
+    // 실수 방지: '취소'는 되돌리기 어렵고 연결된 구독·환불이 자동 처리되지 않으므로 확인받는다.
+    if (
+      status === "취소" &&
+      !window.confirm(
+        `${order.order_no} 주문을 '취소'로 변경할까요?\n되돌릴 수 없습니다. 정기구독 해지·환불은 별도로 처리해야 합니다.`
+      )
+    ) {
+      return;
+    }
     const sb = getSupabase();
     // 연장 주문 입금확인 → 전용 RPC로 슬롯 회차(+4) 연장과 상태 변경을 원자적으로 처리.
     if (status === "입금확인" && order.renews_slot_id) {

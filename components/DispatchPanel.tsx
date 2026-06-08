@@ -428,6 +428,10 @@ export function DispatchPanel({
       setError("송장번호가 입력된 선택 주문이 없습니다.");
       return;
     }
+    // 실수 방지: 일괄 발송은 고객에게 문자가 나가므로 건수를 확인받는다.
+    if (!window.confirm(`${targets.length}건을 '배송중'으로 처리하고 발송 문자를 보냅니다. 계속할까요?`)) {
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -469,6 +473,10 @@ export function DispatchPanel({
     const targets = queue.filter((r) => selected.has(r.o.id)).map((r) => r.o);
     if (targets.length === 0) {
       setError("선택된 주문이 없습니다.");
+      return;
+    }
+    // 실수 방지: 일괄 상태 변경 건수를 확인받는다.
+    if (!window.confirm(`선택 ${targets.length}건을 '${status}'(으)로 변경할까요?`)) {
       return;
     }
     setBusy(true);
