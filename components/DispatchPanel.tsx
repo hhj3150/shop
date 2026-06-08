@@ -353,8 +353,10 @@ export function DispatchPanel({
       trackingNo: trackingOf(o),
       shipISO: r.shipISO,
     });
-    // 송장이 없으면 발송으로 보지 않으므로, 재고만 빠진다는 점을 확인받는다.
-    if (!decision.patch && !window.confirm("송장번호가 비어 있습니다. 송장 없이 재고만 출고할까요?")) {
+    // 송장 없이 출고하면 발송 문자·배송추적이 누락되고 주문이 '입금확인'에 묶인다(되돌리기 번거로움).
+    //   → 송장번호를 필수로 막는다. (출고 후 뒤늦게 넣을 땐 '출고됨' 행의 송장 저장 버튼 사용.)
+    if (!decision.patch) {
+      setError(`${o.ship_name}: 송장번호를 입력해야 출고·발송됩니다.`);
       return;
     }
     const k = shipKey(r);
@@ -372,6 +374,37 @@ export function DispatchPanel({
       await onReload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "출고 처리 실패");
+    } finally {
+      setShippingId(null);
+    }
+  }
+
+  // 이미 출고된(재고 차감 완료) 행에 송장을 뒤늦게 저장 — 재고는 다시 빼지 않고 주문만 갱신한다.
+  //   '출고는 됐는데 송장이 비어 입금확인에 묶인' 건을 그 자리에서 배송중으로 전환 + 발송 문자.
+  async function saveTrackingShipped(r: DispatchRow) {
+    const o = r.o;
+    const decision = decideShipOut({
+      status: o.status,
+      shipped_at: o.shipped_at,
+      courier,
+      trackingNo: trackingOf(o),
+      shipISO: r.shipISO,
+    });
+    if (!decision.patch) {
+      setError(`${o.ship_name}: 송장번호를 입력해 주세요.`);
+      return;
+    }
+    const k = shipKey(r);
+    setShippingId(k);
+    setError(null);
+    try {
+      const sb = getSupabase();
+      const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
+      if (error) throw error;
+      if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
+      await onReload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "송장 저장 실패");
     } finally {
       setShippingId(null);
     }
@@ -778,9 +811,22 @@ export function DispatchPanel({
                     </td>
                     <td className="py-3">
                       {isShipped(r) ? (
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
-                          출고됨
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
+                            출고됨
+                          </span>
+                          {o.status !== "배송중" && (
+                            // 출고는 됐으나 송장 없어 입금확인에 묶인 건 — 여기서 송장 넣고 배송중 전환·문자.
+                            <button
+                              type="button"
+                              onClick={() => saveTrackingShipped(r)}
+                              disabled={shippingId === shipKey(r)}
+                              className="rounded-full border border-gold/50 bg-gold/10 px-2.5 py-1 text-[12px] font-semibold text-gold-deep transition-colors enabled:hover:bg-gold/20 disabled:opacity-40"
+                            >
+                              {shippingId === shipKey(r) ? "처리 중…" : "송장 저장"}
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <button
                           type="button"
