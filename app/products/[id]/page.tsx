@@ -74,13 +74,23 @@ export default async function ProductPage({
       {/* 애플식 풀블리드 히어로 — 큰 타이포 + 큰 이미지 + 가격 + 구성 앵커 */}
       <section className="overflow-hidden pb-4 pt-6 text-center sm:pt-10">
         <div className="mx-auto max-w-3xl px-5 sm:px-8">
-          <p className="text-[12px] uppercase tracking-[0.24em] text-gold">
-            {product.nameEn} · {product.volume} · {product.badge}
+          {/* 영문 카테고리(작게) — 중복 방지 위해 용량·badge 는 빼고 카테고리만 */}
+          <p className="font-display text-[12.5px] uppercase tracking-[0.28em] text-gold">
+            {product.nameEn}
           </p>
-          <h1 className="mt-4 font-serif-kr text-[clamp(2rem,5vw,3.25rem)] font-medium leading-[1.1] text-ink">
+          {/* 제품명(제목) — 무엇을 사는지 또렷하게 */}
+          <h1 className="mt-3 font-serif-kr text-[clamp(1.9rem,6vw,2.9rem)] font-semibold leading-[1.14] tracking-[-0.01em] text-ink">
+            {product.name}
+          </h1>
+          {/* 용량 — 얼마나 사는지 강조 */}
+          <p className="mt-2 font-display text-[clamp(1.3rem,5vw,1.8rem)] font-bold tracking-tight text-gold-deep">
+            {product.volume}
+          </p>
+          {/* 브랜드 한 줄(보조, 미니멀) */}
+          <p className="mx-auto mt-4 max-w-md font-serif-kr text-[15px] leading-relaxed text-ink-soft">
             {product.tagline}{" "}
             <span className="font-display italic text-gold">{product.taglineEm}</span>
-          </h1>
+          </p>
           <ProductHeroPrice product={product} maxRate={maxRate} />
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <a
