@@ -52,10 +52,11 @@ export type TimelineInput = {
 export function normalizeBlocks(blocks: RawBlock[]): ResolvedBlock[] {
   const out: ResolvedBlock[] = [];
   let cursor = 1;
-  let inherited: Pick<ResolvedBlock, "orderId" | "deliveryDay" | "items" | "shippingPerWeek"> | null = null;
+  type BlockSrc = Pick<ResolvedBlock, "orderId" | "deliveryDay" | "items" | "shippingPerWeek">;
+  let inherited: BlockSrc | null = null;
   for (const b of blocks) {
     const hasOwn = b.items.length > 0 && b.deliveryDay != null;
-    const src = hasOwn
+    const src: BlockSrc | null = hasOwn
       ? { orderId: b.orderId, deliveryDay: b.deliveryDay as DeliveryDay, items: b.items, shippingPerWeek: b.shippingPerWeek }
       : inherited;
     if (!src) {
