@@ -72,27 +72,26 @@ export default async function ProductPage({
       </div>
 
       {/* 애플식 풀블리드 히어로 — 큰 타이포 + 큰 이미지 + 가격 + 구성 앵커 */}
-      <section className="overflow-hidden pb-4 pt-6 text-center sm:pt-10">
-        <div className="mx-auto max-w-3xl px-5 sm:px-8">
-          {/* 영문 카테고리 — 작게(키워서 가독성), 브랜드 골드 */}
-          <p className="text-[13px] font-medium uppercase tracking-[0.3em] text-gold-deep">
+      <section className="overflow-hidden pb-1 pt-2 text-center">
+        <div className="mx-auto max-w-xl px-5 sm:px-8">
+          {/* 영문 카테고리 */}
+          <p className="text-[12px] font-medium uppercase tracking-[0.28em] text-gold-deep">
             {product.nameEn}
           </p>
-          {/* 제품명(제목) — 무엇을 사는지 또렷하게 */}
-          <h1 className="mt-3 font-serif-kr text-[clamp(1.9rem,6vw,2.9rem)] font-semibold leading-[1.14] tracking-[-0.01em] text-ink">
+          {/* 제품명 — 핵심. 콤팩트하고 우아하게. */}
+          <h1 className="mt-1.5 font-serif-kr text-[clamp(1.5rem,3.6vw,2rem)] font-medium leading-[1.18] tracking-[-0.01em] text-ink">
             {product.name}
+            <span className="ml-2 align-baseline text-[0.62em] font-semibold tracking-tight text-gold-deep lining-nums tabular-nums">
+              {product.volume}
+            </span>
           </h1>
-          {/* 용량 — 얼마나 사는지 강조. lining-nums 로 숫자 또렷하게(옛날체 ı8o 방지) */}
-          <p className="mt-2 text-[clamp(1.35rem,5vw,1.85rem)] font-bold tracking-tight text-gold-deep lining-nums tabular-nums">
-            {product.volume}
-          </p>
-          {/* 브랜드 한 줄(보조, 미니멀) */}
-          <p className="mx-auto mt-4 max-w-md font-serif-kr text-[15px] leading-relaxed text-ink-soft">
+          {/* 브랜드 한 줄(보조) */}
+          <p className="mx-auto mt-2 max-w-md font-serif-kr text-[13.5px] leading-relaxed text-ink-soft">
             {product.tagline}{" "}
             <span className="font-display italic text-gold">{product.taglineEm}</span>
           </p>
           <ProductHeroPrice product={product} maxRate={maxRate} />
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
             <a
               href="#configure"
               className="inline-flex items-center gap-1.5 rounded-full bg-ink px-6 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
