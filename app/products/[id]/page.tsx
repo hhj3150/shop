@@ -106,20 +106,6 @@ export default async function ProductPage({
             정기구독은 선착순 500분 한정. 단품으로 먼저 차이를 느껴보고 신청하셔도 좋습니다.
           </p>
         </div>
-        <div className="relative mx-auto mt-6 aspect-[16/10] w-full max-w-4xl sm:mt-10">
-          <span
-            className="absolute left-1/2 top-3 z-10 h-1.5 w-12 -translate-x-1/2 rounded-full"
-            style={{ background: product.accent }}
-          />
-          <Image
-            src={product.image}
-            alt={`${product.name} ${product.volume}`}
-            fill
-            priority
-            sizes="(max-width:1024px) 100vw, 56rem"
-            className="object-contain p-6 sm:p-10"
-          />
-        </div>
       </section>
 
       {/* 구성 — 좌측 고정 이미지·스토리 / 우측 가이드형 옵션 패널 */}
@@ -133,6 +119,7 @@ export default async function ProductPage({
                 alt={`${product.name} ${product.volume}`}
                 width={1200}
                 height={1200}
+                priority
                 sizes="(max-width:1024px) 92vw, 46vw"
                 className="h-full w-full object-contain p-8 sm:p-10"
               />
