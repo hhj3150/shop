@@ -7,7 +7,6 @@ import {
   getProduct,
   SUB_PERIODS,
   discountForPeriod,
-  PRODUCT_HIGHLIGHTS,
 } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { Track } from "@/components/Track";
@@ -56,9 +55,6 @@ export default async function ProductPage({
   const maxRate = Math.round(
     discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]) * 100
   );
-
-  // 라인(우유/요거트)별 핵심 특징 불릿.
-  const highlights = PRODUCT_HIGHLIGHTS[product.line];
 
   return (
     <SwipeNav prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`}>
@@ -149,50 +145,6 @@ export default async function ProductPage({
           </div>
         </div>
       </div>
-
-      {/* 핵심 특징 — 에디토리얼 톤(eyebrow·원형 배지·구분선·풀쿼트) */}
-      <section className="mx-auto max-w-xl px-5 pb-20 pt-4 text-center sm:px-8">
-        <p className="eyebrow text-gold-deep">The Essence</p>
-        <div className="mx-auto mt-7 max-w-md text-left">
-          <ul className="divide-y divide-line/70 border-y border-line/70">
-            {highlights.bullets.map((b, i) => {
-              const ci = b.text.indexOf(" : ");
-              const label = ci > -1 ? b.text.slice(0, ci) : null;
-              const desc = ci > -1 ? b.text.slice(ci + 3) : b.text;
-              return (
-                <li key={i} className="flex items-start gap-3.5 py-3.5">
-                  <span
-                    aria-hidden
-                    className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gold/10 text-[15px]"
-                  >
-                    {b.icon}
-                  </span>
-                  <p className="text-[15px] leading-relaxed">
-                    {label ? (
-                      <>
-                        <span className="font-medium text-ink">{label}</span>{" "}
-                        <span className="text-ink-soft">{desc}</span>
-                      </>
-                    ) : (
-                      <span className="text-ink">{desc}</span>
-                    )}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-        {highlights.quote && (
-          <p className="mx-auto mt-9 max-w-md font-serif-kr text-[clamp(1.15rem,3.2vw,1.5rem)] italic leading-relaxed text-ink">
-            “{highlights.quote}”
-          </p>
-        )}
-        {highlights.closing && (
-          <p className="mt-4 text-[12px] uppercase tracking-[0.28em] text-gold-deep">
-            {highlights.closing}
-          </p>
-        )}
-      </section>
 
       {/* 구매평 — 별점 후기 */}
       <ProductReviews productId={product.id} />
