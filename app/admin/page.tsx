@@ -171,6 +171,9 @@ function todayISO(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// 재고 '발송부족' 경고 창(window) — 오늘부터 며칠치 발송 수요를 현재고와 비교할지.
+const UPCOMING_SHIP_DAYS = 7;
+
 // 구성품(제품·용량·수량)을 정렬해 만든 표준 문자열. 같은 구성이면 같은 값이 나와 포장 묶음을 만든다.
 function downloadCsv(filename: string, rows: string[][]) {
   const csv = rows
@@ -483,6 +486,20 @@ export default function AdminPage() {
     },
     [rosterDemandForDate]
   );
+
+  // 재고 '발송부족' 경고용 — 오늘부터 UPCOMING_SHIP_DAYS 일간 발송 수요 합계(제품키→개수).
+  //   현재고가 이 수요보다 적으면 재고 탭에서 '발송부족'으로 표시한다(roster 기반 SSOT라 명단과 정합).
+  const upcomingShipDemand = useMemo<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
+    const base = new Date();
+    for (let i = 0; i < UPCOMING_SHIP_DAYS; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      const dm = onlineDemandForDate(toISODate(d));
+      for (const [k, v] of Object.entries(dm)) out[k] = (out[k] ?? 0) + v;
+    }
+    return out;
+  }, [onlineDemandForDate]);
 
   // 선택 기간(date ~ dateTo) 날짜 목록. 최대 62일 가드. dateTo<date 면 당일로.
   const rangeDates = useMemo<string[]>(() => {
@@ -1008,7 +1025,10 @@ export default function AdminPage() {
       {tab === "상품·재고" && (
         <>
           <ProductAdminPanel />
-          <InventoryPanel />
+          <InventoryPanel
+            upcomingDemand={upcomingShipDemand}
+            upcomingDays={UPCOMING_SHIP_DAYS}
+          />
         </>
       )}
 
