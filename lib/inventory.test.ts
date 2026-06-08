@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { isLowStock, nextStock, MOVEMENT_KINDS, daysUntil, expiryAlert } from "./inventory";
+import {
+  isLowStock,
+  nextStock,
+  MOVEMENT_KINDS,
+  daysUntil,
+  expiryAlert,
+  shipmentShortfall,
+} from "./inventory";
 
 describe("isLowStock", () => {
   it("현재고 ≤ 안전재고 → 부족", () => {
@@ -16,6 +23,24 @@ describe("isLowStock", () => {
   it("현재고 NULL(무제한) → 항상 정상", () => {
     expect(isLowStock(null, 5)).toBe(false);
     expect(isLowStock(null, null)).toBe(false);
+  });
+});
+
+describe("shipmentShortfall", () => {
+  it("향후 발송 수요 > 현재고 → 부족분(양수)", () => {
+    expect(shipmentShortfall(10, 14)).toBe(4);
+    expect(shipmentShortfall(0, 3)).toBe(3);
+  });
+  it("현재고 ≥ 수요 → 0", () => {
+    expect(shipmentShortfall(10, 10)).toBe(0);
+    expect(shipmentShortfall(20, 5)).toBe(0);
+  });
+  it("수요 0 또는 음수 → 0", () => {
+    expect(shipmentShortfall(5, 0)).toBe(0);
+    expect(shipmentShortfall(5, -3)).toBe(0);
+  });
+  it("현재고 NULL(무제한) → 부족 없음(0)", () => {
+    expect(shipmentShortfall(null, 100)).toBe(0);
   });
 });
 

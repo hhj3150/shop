@@ -16,6 +16,18 @@ export function isLowStock(
   return stock <= safetyStock;
 }
 
+// 향후 발송 수요 대비 부족분. 현재고가 다가오는 발송 수요보다 적으면 그 차이(양수),
+//   아니면 0. 현재고 NULL(무제한)이면 부족 없음. 안전재고와 별개로, 예정 발송을
+//   실제로 못 채우는 경우를 잡는 경고용(차감은 출고 확정에서만 일어남).
+export function shipmentShortfall(
+  stock: number | null,
+  upcomingDemand: number
+): number {
+  if (stock === null) return 0;
+  const demand = Math.max(0, upcomingDemand);
+  return Math.max(0, demand - stock);
+}
+
 // 변동 후 현재고. current=null(무제한)이면 변동을 무시하고 null(차감 스킵)을 반환.
 //   결과가 0 미만이면 차단(스펙: 0 미만 금지). delta 는 +입고/조정, −출고/폐기.
 export function nextStock(current: number | null, delta: number): number | null {

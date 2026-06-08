@@ -4,8 +4,14 @@
 //   현재고 권위값은 product_catalog.stock, 변동은 stock_movements(원장)에 기록된다.
 //   입고/조정/폐기는 stock_adjust RPC(음수 차단·무제한 차단)로만 일어난다.
 //   배송 출고 차감은 배송 탭의 [출고 확정]에서 stock_ship_out 으로 처리한다(여기 아님).
-import { useEffect, useMemo, useState } from "react";
-import { isLowStock, expiryAlert, MOVEMENT_KINDS, type MovementKind } from "@/lib/inventory";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  isLowStock,
+  expiryAlert,
+  shipmentShortfall,
+  MOVEMENT_KINDS,
+  type MovementKind,
+} from "@/lib/inventory";
 import {
   loadInventory,
   loadMovements,
@@ -38,7 +44,15 @@ function signedDelta(kind: MovementKind, qty: number, dir: "+" | "-"): number {
   return dir === "+" ? qty : -qty; // 조정
 }
 
-export function InventoryPanel() {
+// upcomingDemand: 다가오는 발송 수요(제품키 `name volume` → 개수). 현재고가 이보다
+//   적은 품목을 '발송부족'으로 경고한다(안전재고 경보와 별개 — 예정 발송을 실제로 못 채우는 경우).
+export function InventoryPanel({
+  upcomingDemand,
+  upcomingDays = 7,
+}: {
+  upcomingDemand?: Record<string, number>;
+  upcomingDays?: number;
+} = {}) {
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [expiries, setExpiries] = useState<Map<string, string[]>>(new Map());
@@ -88,6 +102,18 @@ export function InventoryPanel() {
   const lowCount = useMemo(
     () => rows.filter((r) => isLowStock(r.stock, r.safety_stock)).length,
     [rows]
+  );
+
+  // 다가오는 발송 수요 대비 현재고 부족분(제품키 매칭). 0이면 충분.
+  const shortfallOf = useCallback(
+    (r: InventoryRow): number =>
+      shipmentShortfall(r.stock, upcomingDemand?.[`${r.name} ${r.volume}`] ?? 0),
+    [upcomingDemand]
+  );
+
+  const shortCount = useMemo(
+    () => rows.filter((r) => shortfallOf(r) > 0).length,
+    [rows, shortfallOf]
   );
 
   // 임박·만료 제품 수(배치 수 아님). stock>0 관리 품목만 — lowCount 와 같은 패턴.
@@ -214,6 +240,11 @@ export function InventoryPanel() {
               🔴 부족 {lowCount}
             </span>
           )}
+          {shortCount > 0 && (
+            <span className="rounded-full bg-rose-100 px-2.5 py-1 text-rose-700">
+              🚚 발송부족 {shortCount}
+            </span>
+          )}
           {expiryCounts.expired > 0 && (
             <span className="rounded-full bg-rose-100 px-2.5 py-1 text-rose-700">
               🔴 만료 {expiryCounts.expired}
@@ -229,6 +260,9 @@ export function InventoryPanel() {
       <p className="mt-1 text-[13px] text-mute">
         현재고는 입고·조정·폐기와 배송 출고로 자동 갱신됩니다. 안전재고를 비우면 경보하지
         않습니다. 출고 차감은 ‘배송’ 탭의 출고 확정에서 처리됩니다.
+        {upcomingDemand && (
+          <> 다가오는 {upcomingDays}일 발송 수요보다 현재고가 적으면 ‘발송부족’으로 표시됩니다.</>
+        )}
       </p>
 
       {error && (
@@ -295,6 +329,11 @@ export function InventoryPanel() {
                               );
                             return null;
                           })()}
+                        {shortfallOf(p) > 0 && (
+                          <span className="ml-1.5 rounded bg-rose-100 px-1.5 py-0.5 text-[11px] font-semibold text-rose-700">
+                            🚚 발송 {shortfallOf(p)} 부족
+                          </span>
+                        )}
                       </span>
                     ) : (
                       <span className="text-[12.5px] text-mute">무제한</span>
