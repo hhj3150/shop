@@ -42,7 +42,7 @@ import { duplicateIds, normalizePhone } from "@/lib/duplicates";
 import { SettlementPanel } from "@/components/SettlementPanel";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
-const TABS = ["종합 관리", "주문·입금", "생산·재고", "상품·재고", "배송", "환불·교환", "정산·세금"] as const;
+const TABS = ["종합 관리", "주문·입금", "회원·구독", "생산·재고", "상품·재고", "배송", "환불·교환", "정산·세금"] as const;
 type AdminTab = (typeof TABS)[number];
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
@@ -1258,7 +1258,11 @@ export default function AdminPage() {
 
       {/* 통계 분석 */}
       <AdminStats orders={orders} items={items} slots={slots} returns={returns} memberCount={profiles.length} />
+        </>
+      )}
 
+      {tab === "회원·구독" && (
+        <>
       {/* 회원 전체 */}
       <div className="mt-12 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-serif-kr text-lg text-ink">회원 전체 ({memberRows.length}명)</h2>
@@ -1402,7 +1406,11 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+        </>
+      )}
 
+      {tab === "생산·재고" && (
+        <>
       {/* 요일별·제품별 주간 필요 수량 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별·제품별 주간 필요 수량</h2>
       <p className="mt-1 text-[13px] text-mute">확정 구독(입금 확인) 기준, 1회(매주) 발송 수량입니다. 일시정지 중인 구독은 제외됩니다.</p>
@@ -1577,7 +1585,7 @@ export default function AdminPage() {
         </>
       )}
 
-      {tab === "종합 관리" && (
+      {tab === "회원·구독" && (
         <>
       {/* 대기자 명단 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">대기자 명단</h2>
@@ -1607,7 +1615,11 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+        </>
+      )}
 
+      {tab === "환불·교환" && (
+        <>
       {/* 해지·환불 처리 명단 */}
       <div className="mt-12 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-serif-kr text-lg text-ink">해지·환불 처리</h2>
@@ -1660,7 +1672,11 @@ export default function AdminPage() {
           </tbody>
         </table>
       </div>
+        </>
+      )}
 
+      {tab === "회원·구독" && (
+        <>
       {/* 단체문자 발송 */}
       <BroadcastPanel profiles={profiles} slots={slots} />
         </>
