@@ -63,10 +63,47 @@ describe("toMySubscriptions — 연장분 합산", () => {
     },
   };
 
+  // 회당 10,000원(상품 6,000 + 배송 4,000)인 원주문 + 연장주문 각 4회.
+  // block_weeks=4, shipping_fee=16000 → shippingPerWeek = 4,000.
+  // 회당 상품합 6,000 → perDelivery 10,000 (평균식과 동일하게 맞춘다).
+  const items = [
+    {
+      delivery_day: "mon" as DeliveryDay,
+      qty: 1,
+      unit_price: 6000,
+      product_name: "우유",
+      volume: "750ml",
+    },
+  ];
+  const blockSource = [
+    {
+      slotId: 7,
+      originalOrder: {
+        id: "ord-0",
+        block_weeks: 4,
+        shipping_fee: 16000,
+        created_at: "2026-06-01T00:00:00Z",
+      },
+      renewalOrders: [
+        {
+          id: "ord-1",
+          block_weeks: 4,
+          shipping_fee: 16000,
+          created_at: "2026-07-01T00:00:00Z",
+        },
+      ],
+      itemsByOrder: new Map([
+        ["ord-0", items],
+        ["ord-1", items],
+      ]),
+    },
+  ];
+
   it("총회차=원+연장, 총납입액=원+입금확인 연장주문", () => {
     const subs = toMySubscriptions(
       [slotRow],
-      [{ renews_slot_id: 7, total_amount: 40000 }] // 연장주문 4만원
+      [{ renews_slot_id: 7, total_amount: 40000 }], // 연장주문 4만원
+      blockSource
     );
     expect(subs[0].totalWeeks).toBe(8);
     expect(subs[0].totalAmount).toBe(80000);
@@ -75,15 +112,30 @@ describe("toMySubscriptions — 연장분 합산", () => {
   it("환불 미리보기 = 서버와 동일: 8회/8만, 남은 6회 → 60,000원", () => {
     const subs = toMySubscriptions(
       [slotRow],
-      [{ renews_slot_id: 7, total_amount: 40000 }]
+      [{ renews_slot_id: 7, total_amount: 40000 }],
+      blockSource
     );
     expect(refundAmount(subs[0], 6)).toBe(60000);
+  });
+
+  it("blocks 를 buildRawBlocks 로 조립한다(원주문 먼저, 연장 다음)", () => {
+    const subs = toMySubscriptions(
+      [slotRow],
+      [{ renews_slot_id: 7, total_amount: 40000 }],
+      blockSource
+    );
+    expect(subs[0].blocks).toHaveLength(2);
+    expect(subs[0].blocks[0].orderId).toBe("ord-0");
+    expect(subs[0].blocks[1].orderId).toBe("ord-1");
+    expect(subs[0].blocks[0].weeks).toBe(4);
+    expect(subs[0].blocks[0].shippingPerWeek).toBe(4000);
   });
 
   it("다른 슬롯의 연장주문은 섞이지 않는다", () => {
     const subs = toMySubscriptions(
       [slotRow],
-      [{ renews_slot_id: 99, total_amount: 40000 }] // 다른 슬롯
+      [{ renews_slot_id: 99, total_amount: 40000 }], // 다른 슬롯
+      blockSource
     );
     expect(subs[0].totalAmount).toBe(40000); // 연장 합산 없음
   });
