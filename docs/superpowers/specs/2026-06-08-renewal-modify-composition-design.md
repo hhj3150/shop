@@ -21,8 +21,8 @@
 |---|---|---|
 | 적용 시점 | **다음 회차(블록)부터만** | 현재 진행 회차 불변 → 차액·환불 불필요 |
 | 요일 변경 | **포함, 단 대상 요일에 정원 있을 때만** | 만석/본인 슬롯 충돌 시 거절 |
-| 회차수 | **4 / 8 / 12회 중 선택** | 한 번에 선결제 |
-| 할인율 | **4회 10% / 8회 12% / 12회 15%** | 장기 선결제 유도 |
+| 회차수 | **4 / 8 / 12회 중 선택** (= `SubPeriod` 1/2/3, 기존 인프라 재사용) | 한 번에 선결제 |
+| 할인율 | **4주 10% / 8주 12% / 12주 15%** (= 라이브 `period_discount`/`PERIOD_DISCOUNT` 그대로) | 신규 주문과 동일 정책 |
 | 차액/환불(신규) | **없음** (다음 회차부터만이라 현재 회차와 금액 분리) | — |
 | 배송지 변경 | **범위 밖** (원주문 승계) | 프로필 편집은 별도 기능 |
 | 요일별 분리배송 | **범위 밖** (연장 블록은 단일 요일) | YAGNI |
@@ -91,10 +91,14 @@ type TimelineInput = {
 | `normalizeBlocks(blocks)` | 상속 적용 → 유효 블록 + 누적 회차 경계 `[fromRound, toRound)` (1-base) |
 | `activeBlockForRound(blocks, round)` | n회차에 발송할 블록(품목·요일·orderId) |
 | `activeBlockForDate(input, dateISO)` | 발송일 → 회차 산출 → 활성 블록. 정지/시작전/소진이면 null |
-| `renewalUnitPrice(listPrice, weeks)` | `round(listPrice × (1 − weeksDiscount(weeks))/10)×10` — 회당 단가 SSOT |
-| `renewalQuote(items, weeks, shippingPerWeek)` | 회당합·리스트합·배송비·총액 + 최소 25,000 검증 |
+| `renewalQuote(items, period, shippingPerWeek)` | 회당합·리스트합·배송비·총액 + 최소 25,000 검증. 단가는 기존 `subscribePrice(price, discountForPeriod(period))` 재사용 |
 | `refundByBlocks(input, asOfDateISO)` | 남은(미배송) 회차를 **회차별 소속 블록 단가**로 합산 |
-| `weeksDiscount(weeks)` | 4→0.10, 8→0.12, 12→0.15, 그 외 null (SQL `renewal_weeks_discount` 미러) |
+
+**기존 인프라 재사용(신규 함수 없음):** 할인율은 `lib/products.ts` 의
+`PERIOD_DISCOUNT`/`discountForPeriod(SubPeriod)` (4주 10%/8주 12%/12주 15%), 회당 단가는
+`subscribePrice(price, rate)` (= `Math.round(price×(1−rate)/10)×10`, SQL 반올림과 동일),
+회차수↔주 변환은 `periodWeeks(SubPeriod)`. 신규 SQL 할인 함수를 만들지 않고 라이브
+`period_discount(p_period)` (1/2/3 → 10/12/15%, `migration-period-weeks-tiers.sql` 적용본)을 쓴다.
 
 ### 4.3 기존 로직 재사용 (정확한 시그니처)
 
@@ -113,20 +117,12 @@ type TimelineInput = {
 - 불변식: `Σ block.weeks == block_weeks + extended_weeks`
 - 환불: 블록0 단가 ≠ 블록1 단가일 때 회차별 정밀 합산 (Red-Green)
 
-## 5. 할인 함수 (SQL)
+## 5. 할인 — 기존 함수 재사용 (신규 함수 없음)
 
-```sql
--- 신규: 연장 회차수별 할인율 (원주문용 period_discount 1개월=10% 는 그대로 유지)
-create or replace function public.renewal_weeks_discount(p_weeks int)
-returns numeric language sql immutable as $$
-  select case p_weeks
-    when 4  then 0.10
-    when 8  then 0.12
-    when 12 then 0.15
-    else null
-  end;
-$$;
-```
+라이브 `period_discount(p_months)` 는 이미 `migration-period-weeks-tiers.sql` 로
+**1→0.10, 2→0.12, 3→0.15** 다(= 4/8/12주). 연장은 신규 주문(`create_subscription_order`)과
+**같은 `period_discount(p_period)` 를 호출**한다. TS 미러는 `lib/products.ts` 의
+`PERIOD_DISCOUNT`/`discountForPeriod`. → 새 SQL/TS 할인 함수 불필요(중복 제거, DRY).
 
 ## 6. RPC 변경
 
@@ -136,23 +132,23 @@ $$;
 request_renewal(
   p_slot_id      bigint,
   p_items        jsonb,   -- [{product_id, qty}, ...] (요일은 블록 단위 단일)
-  p_weeks        int,     -- 4 | 8 | 12
+  p_period       int,     -- 1 | 2 | 3 (= 4/8/12주, create_subscription_order 와 동일 의미)
   p_delivery_day text     -- 'mon'..'fri'
 )
 ```
 
-로직:
+로직 (`create_subscription_order` 와 정합):
 1. 인증 → 슬롯 `for update` 잠금(본인·활성), 입금대기 연장 중복 거절
-2. `renewal_weeks_discount(p_weeks)` → 율 (null 이면 거절)
+2. `v_rate := period_discount(p_period)` → null 이면 거절(허용 기간 외). `v_weeks := p_period*4`
 3. `p_delivery_day in ('mon'..'fri')`, items 비어있음/수량>0/판매중(`product_catalog.active`) 검증
-4. 회당합·리스트합 계산 → **회당 < 25,000 거절** (신규 floor — §6.5 주의)
+4. 회당합·리스트합 계산 → **회당 < 25,000 거절** (신규 주문과 동일 floor — §6.5)
 5. **요일 변경 시(p_delivery_day ≠ slot.delivery_day) 사전 검사(권고)**:
    대상 요일에 본인 비해지 슬롯 존재 시 거절(유니크 충돌),
    대상 요일 `count(*) filter (where status in ('신청','활성'))` ≥ 100 이면 거절("정원 있을 때만")
 6. **배송비(특수배송지역 보존)**:
-   `(case when public.is_special_delivery_postcode(v_src.ship_postcode) then 5000 else 4000 end) * p_weeks`.
-   총액 = 회당합 × p_weeks + 배송비. (배송지=원주문 승계)
-7. orders INSERT (`renews_slot_id`=슬롯, `block_weeks`=p_weeks, `period_months`=p_weeks/4,
+   `(case when public.is_special_delivery_postcode(v_src.ship_postcode) then 5000 else 4000 end) * v_weeks`.
+   총액 = 회당합 × v_weeks + 배송비. (배송지=원주문 승계)
+7. orders INSERT (`renews_slot_id`=슬롯, `block_weeks`=v_weeks, `period_months`=p_period,
    배송지=원주문 승계, depositor 등 승계)
 8. **order_items INSERT** (각 품목 delivery_day=p_delivery_day, unit_price=할인단가) ← 신규 핵심
 9. 반환 `{order_id, order_no, total}`
@@ -245,11 +241,11 @@ request_renewal(
 
 ## 8. 클라이언트 & UI
 
-- **`lib/subscriptions.ts`**: `requestRenewal(slotId)` → `requestRenewal(slotId, { items, weeks, deliveryDay })`.
-  zod 입력 검증. 미리보기 견적은 타임라인 모듈 재사용(서버 권위, 클라 표시용 — C2).
+- **`lib/subscriptions.ts`**: `requestRenewal(slotId)` → `requestRenewal(slotId, { items, period, deliveryDay })`
+  (`period: SubPeriod`). zod 입력 검증. 견적은 `renewalQuote`(=`subscribePrice`+`discountForPeriod`) 재사용.
 - **`app/account/page.tsx`**: "구독 연장 (재입금)" 버튼 → 연장 신청 폼:
   - 품목 편집(현재 구성 프리필, 카탈로그 추가/수량/제거)
-  - 회차수 선택(4/8/12, 할인율·총액 실시간)
+  - 회차수 선택(`SUB_PERIODS`/`PERIOD_LABEL`/`PERIOD_BADGE` 재사용 — 신규 구독 폼과 동일 UI, 할인율·총액 실시간)
   - 요일 선택(현재 요일 프리필, 요일별 잔여석 표시 — `getDayCounts` 재사용, 만석 비활성)
   - 실시간 견적(회당·할인·배송비·총액) + 최소 25,000 안내
   - 제출 → 기존 입금 안내 박스 재사용
@@ -261,7 +257,8 @@ request_renewal(
 ## 9. 마이그레이션 & 적용 절차
 
 - **SQL 파일만 작성**(자동 적용 안 함): `supabase/migration-renewal-modify.sql`
-  - `renewal_weeks_discount`
+  - 할인 함수 신규 없음 — 라이브 `period_discount`(1/2/3→10/12/15%) 재사용
+    (선행 확인: `select period_discount(1),period_discount(2),period_discount(3);` = 0.10/0.12/0.15)
   - 신 `request_renewal(bigint, jsonb, int, text)` — 구 `request_renewal(bigint)` 는 `drop function`
     (시그니처 변경). **특수배송지역 분기(§6.1-6) 반드시 보존** —
     선행 의존 `is_special_delivery_postcode` 존재 확인 주석 포함.
