@@ -113,31 +113,6 @@ export default async function ProductPage({
         </div>
       </section>
 
-      {/* 핵심 특징 — 한눈에 스캔되는 불릿(무엇인지 즉시 인지) */}
-      <section className="mx-auto max-w-md px-5 pb-10 sm:px-8">
-        <ul className="space-y-2.5">
-          {highlights.bullets.map((b, i) => (
-            <li
-              key={i}
-              className="flex items-start gap-2.5 text-[15px] leading-relaxed text-ink-soft"
-            >
-              <span aria-hidden className="shrink-0 text-[16px] leading-snug">
-                {b.icon}
-              </span>
-              <span>{b.text}</span>
-            </li>
-          ))}
-        </ul>
-        {highlights.quote && (
-          <p className="mt-5 font-serif-kr text-[15px] italic leading-relaxed text-ink">
-            “{highlights.quote}”
-          </p>
-        )}
-        {highlights.closing && (
-          <p className="mt-2 text-[14px] tracking-wide text-gold-deep">{highlights.closing}</p>
-        )}
-      </section>
-
       {/* 구성 — 좌측 고정 이미지·스토리 / 우측 가이드형 옵션 패널 */}
       <div id="configure" className="mx-auto max-w-7xl scroll-mt-24 px-5 pb-8 pt-14 sm:px-8">
         <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
@@ -174,6 +149,31 @@ export default async function ProductPage({
           </div>
         </div>
       </div>
+
+      {/* 핵심 특징 — 구매 영역 아래, 한눈에 스캔되는 불릿 */}
+      <section className="mx-auto max-w-md px-5 pb-12 pt-2 sm:px-8">
+        <ul className="space-y-2.5">
+          {highlights.bullets.map((b, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-2.5 text-[15px] leading-relaxed text-ink-soft"
+            >
+              <span aria-hidden className="shrink-0 text-[16px] leading-snug">
+                {b.icon}
+              </span>
+              <span>{b.text}</span>
+            </li>
+          ))}
+        </ul>
+        {highlights.quote && (
+          <p className="mt-5 font-serif-kr text-[15px] italic leading-relaxed text-ink">
+            “{highlights.quote}”
+          </p>
+        )}
+        {highlights.closing && (
+          <p className="mt-2 text-[14px] tracking-wide text-gold-deep">{highlights.closing}</p>
+        )}
+      </section>
 
       {/* 구매평 — 별점 후기 */}
       <ProductReviews productId={product.id} />
