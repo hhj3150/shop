@@ -7,6 +7,7 @@ import {
   getProduct,
   SUB_PERIODS,
   discountForPeriod,
+  PRODUCT_HIGHLIGHTS,
 } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { Track } from "@/components/Track";
@@ -55,6 +56,9 @@ export default async function ProductPage({
   const maxRate = Math.round(
     discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]) * 100
   );
+
+  // 라인(우유/요거트)별 핵심 특징 불릿.
+  const highlights = PRODUCT_HIGHLIGHTS[product.line];
 
   return (
     <SwipeNav prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`}>
@@ -109,6 +113,31 @@ export default async function ProductPage({
         </div>
       </section>
 
+      {/* 핵심 특징 — 한눈에 스캔되는 불릿(무엇인지 즉시 인지) */}
+      <section className="mx-auto max-w-md px-5 pb-10 sm:px-8">
+        <ul className="space-y-2.5">
+          {highlights.bullets.map((b, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-2.5 text-[15px] leading-relaxed text-ink-soft"
+            >
+              <span aria-hidden className="shrink-0 text-[16px] leading-snug">
+                {b.icon}
+              </span>
+              <span>{b.text}</span>
+            </li>
+          ))}
+        </ul>
+        {highlights.quote && (
+          <p className="mt-5 font-serif-kr text-[15px] italic leading-relaxed text-ink">
+            “{highlights.quote}”
+          </p>
+        )}
+        {highlights.closing && (
+          <p className="mt-2 text-[14px] tracking-wide text-gold-deep">{highlights.closing}</p>
+        )}
+      </section>
+
       {/* 구성 — 좌측 고정 이미지·스토리 / 우측 가이드형 옵션 패널 */}
       <div id="configure" className="mx-auto max-w-7xl scroll-mt-24 px-5 pb-8 pt-14 sm:px-8">
         <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
@@ -145,14 +174,6 @@ export default async function ProductPage({
           </div>
         </div>
       </div>
-
-      {/* 제품 설명 — 구매 영역 아래로 배치(쇼핑 우선, 설명은 그 다음) */}
-      <section className="mx-auto max-w-2xl px-5 pb-6 pt-2 text-center sm:px-8">
-        <p className="text-[15.5px] leading-loose text-ink-soft">{product.shortDesc}</p>
-        <p className="mt-4 font-serif-kr text-[15.5px] leading-relaxed text-gold-deep">
-          대한민국 0.01%, 프리미엄 우유의 품격을 직접 느껴보세요.
-        </p>
-      </section>
 
       {/* 구매평 — 별점 후기 */}
       <ProductReviews productId={product.id} />

@@ -10,6 +10,13 @@ export type ProductSpec = {
   value: string;
 };
 
+// 상품 페이지 상단 '핵심 특징' — 이모지 + 한 줄로 한눈에 스캔. 선택적 인용구·맺음말.
+export type ProductHighlights = {
+  bullets: { icon: string; text: string }[];
+  quote?: string; // 큰따옴표로 감싸 보여줄 한 줄
+  closing?: string; // 맺음말(예: From Soil to Soul 🌱🥛✨)
+};
+
 // 식품 표시기준에 따른 법정 제품표시사항.
 export type ProductLabel = {
   type: string; // 식품유형
@@ -115,6 +122,30 @@ export const SUB_TOTAL_CAP = 500;
 
 // 회원 기본 할인(4주 기준 10%). 상품카드 병당 회원가 표기의 기본값.
 export const BASE_DISCOUNT = PERIOD_DISCOUNT[1];
+
+// 라인(우유/요거트)별 핵심 특징 — 상품 페이지 상단에 한눈에 스캔되는 불릿으로 노출.
+export const PRODUCT_HIGHLIGHTS: Record<ProductLine, ProductHighlights> = {
+  milk: {
+    bullets: [
+      { icon: "🌾", text: "A2 × Jersey × Hay Milk × Cream on Top" },
+      { icon: "🐄", text: "A2 : A2 단백질만 함유한 우유" },
+      { icon: "🥛", text: "Jersey : 일반 우유보다 풍부한 유지방과 단백질" },
+      { icon: "🌾", text: "Hay Milk : 건초 중심 사양으로 완성한 깊은 풍미" },
+      { icon: "✨", text: "Cream on Top : 최소 가공으로 남겨진 자연스러운 크림층" },
+    ],
+    quote: "우유를 인위적으로 바꾸지 않았습니다. 자연이 만든 가치만 남겼습니다.",
+    closing: "From Soil to Soul 🌱🥛✨",
+  },
+  yogurt: {
+    bullets: [
+      { icon: "🌿", text: "A2 Jersey Hay Milk" },
+      { icon: "🐄", text: "100% 국내산 저지 원유" },
+      { icon: "🇩🇰", text: "덴마크 프리미엄 스타터" },
+      { icon: "🚫", text: "무설탕 · 무첨가물" },
+      { icon: "⏳", text: "자연 발효의 깊은 풍미" },
+    ],
+  },
+};
 
 export const PRODUCTS: Product[] = [
   {
