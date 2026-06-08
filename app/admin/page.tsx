@@ -29,7 +29,8 @@ import { AdminStats } from "@/components/AdminStats";
 import { BroadcastPanel } from "@/components/BroadcastPanel";
 import { ProductionPanel } from "@/components/ProductionPanel";
 import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
-import { MemberOrdersModal } from "@/components/MemberOrdersModal";
+import { Customer360Drawer } from "@/components/Customer360Drawer";
+import { buildCustomer360 } from "@/lib/customer-360";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
@@ -413,11 +414,6 @@ export default function AdminPage() {
     );
     return { paymentNoEvidence, emptyItems };
   }, [orders, itemsByOrder]);
-  // 선택한 회원의 주문(최신순) — 회원 주문 이력 모달용.
-  const selectedMemberOrders = useMemo(
-    () => (selectedMember ? orders.filter((o) => o.user_id === selectedMember) : []),
-    [selectedMember, orders]
-  );
   const nameByUser = useMemo(
     () => new Map(profiles.map((p) => [p.id, p.name])),
     [profiles]
@@ -729,6 +725,37 @@ export default function AdminPage() {
     () => memberRows.find((m) => m.id === selectedMember) ?? null,
     [memberRows, selectedMember]
   );
+
+  const customer360 = useMemo(() => {
+    if (!selectedMember) return null;
+    return buildCustomer360({
+      userId: selectedMember,
+      name: nameByUser.get(selectedMember) ?? "회원",
+      orders,
+      items,
+      slots,
+      returns,
+      profile: selectedMemberRow
+        ? {
+            name: selectedMemberRow.name ?? "",
+            phone: selectedMemberRow.phone ?? "",
+            postcode: selectedMemberRow.postcode ?? null,
+            address: selectedMemberRow.address ?? null,
+            address_detail: selectedMemberRow.address_detail ?? null,
+          }
+        : null,
+      summary: selectedMemberRow
+        ? {
+            ltv: selectedMemberRow.ltv,
+            confirmedCount: selectedMemberRow.confirmedCount,
+            aov: selectedMemberRow.aov,
+            segment: selectedMemberRow.segment,
+            recencyDays: selectedMemberRow.recencyDays,
+          }
+        : null,
+      todayISO: todayISO(),
+    });
+  }, [selectedMember, selectedMemberRow, orders, items, slots, returns, nameByUser]);
 
   const filteredMembers = useMemo(() => {
     const q = memberQuery.trim().toLowerCase();
@@ -1783,7 +1810,15 @@ export default function AdminPage() {
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 text-ink-soft">{o.depositor_name ?? o.ship_name}</td>
+                  <td className="py-2.5 text-ink-soft">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMember(o.user_id)}
+                      className="text-ink underline decoration-line underline-offset-2 transition-colors hover:text-gold-deep hover:decoration-gold"
+                    >
+                      {o.depositor_name ?? o.ship_name}
+                    </button>
+                  </td>
                   <td className="py-2.5 text-right tabular-nums text-ink-soft">{formatKRW(o.total_amount)}</td>
                   <td className="py-2.5 text-mute">{new Date(o.created_at).toLocaleDateString("ko-KR")}</td>
                   <td className="py-2.5">
@@ -1972,30 +2007,13 @@ export default function AdminPage() {
         </>
       )}
 
-      {selectedMember && (
-        <MemberOrdersModal
-          memberName={nameByUser.get(selectedMember) ?? "회원"}
-          summary={
-            selectedMemberRow && {
-              ltv: selectedMemberRow.ltv,
-              confirmedCount: selectedMemberRow.confirmedCount,
-              aov: selectedMemberRow.aov,
-              segment: selectedMemberRow.segment,
-              recencyDays: selectedMemberRow.recencyDays,
-            }
+      {customer360 && (
+        <Customer360Drawer
+          key={selectedMember}
+          data={customer360}
+          onSaveMember={
+            selectedMemberRow ? (values) => saveMember(selectedMember!, values) : undefined
           }
-          member={
-            selectedMemberRow && {
-              name: selectedMemberRow.name ?? "",
-              phone: selectedMemberRow.phone ?? "",
-              postcode: selectedMemberRow.postcode ?? "",
-              address: selectedMemberRow.address ?? "",
-              address_detail: selectedMemberRow.address_detail ?? "",
-            }
-          }
-          orders={selectedMemberOrders}
-          itemsByOrder={itemsByOrder}
-          onSaveMember={(values) => saveMember(selectedMember, values)}
           onClose={() => setSelectedMember(null)}
         />
       )}
