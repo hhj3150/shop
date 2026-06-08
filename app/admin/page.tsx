@@ -38,6 +38,7 @@ import { loadShippedKeys } from "@/lib/inventory-data";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
 import { loadReturns, type OrderReturn } from "@/lib/returns";
 import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
+import { duplicateIds, normalizePhone } from "@/lib/duplicates";
 import { SettlementPanel } from "@/components/SettlementPanel";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
@@ -173,9 +174,6 @@ function todayISO(): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
-
-// 재고 '발송부족' 경고 창(window) — 오늘부터 며칠치 발송 수요를 현재고와 비교할지.
-const UPCOMING_SHIP_DAYS = 7;
 
 // 구성품(제품·용량·수량)을 정렬해 만든 표준 문자열. 같은 구성이면 같은 값이 나와 포장 묶음을 만든다.
 function downloadCsv(filename: string, rows: string[][]) {
@@ -581,20 +579,6 @@ export default function AdminPage() {
     [rosterDemandForDate]
   );
 
-  // 재고 '발송부족' 경고용 — 오늘부터 UPCOMING_SHIP_DAYS 일간 발송 수요 합계(제품키→개수).
-  //   현재고가 이 수요보다 적으면 재고 탭에서 '발송부족'으로 표시한다(roster 기반 SSOT라 명단과 정합).
-  const upcomingShipDemand = useMemo<Record<string, number>>(() => {
-    const out: Record<string, number> = {};
-    const base = new Date();
-    for (let i = 0; i < UPCOMING_SHIP_DAYS; i++) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      const dm = onlineDemandForDate(toISODate(d));
-      for (const [k, v] of Object.entries(dm)) out[k] = (out[k] ?? 0) + v;
-    }
-    return out;
-  }, [onlineDemandForDate]);
-
   // 선택 기간(date ~ dateTo) 날짜 목록. 최대 62일 가드. dateTo<date 면 당일로.
   const rangeDates = useMemo<string[]>(() => {
     const to = dateTo && dateTo >= date ? dateTo : date;
@@ -756,6 +740,27 @@ export default function AdminPage() {
         (m.address ?? "").toLowerCase().includes(q)
     );
   }, [memberRows, memberQuery]);
+
+  // 실수 방지: 같은 전화번호로 가입한 회원(중복 가입 의심)을 표시. 가족 공유일 수도 있어
+  //   경고(물음표)로만 노출하고 자동 병합은 하지 않는다. 전체 회원 기준으로 판정.
+  const dupPhoneIds = useMemo(
+    () => duplicateIds(profiles, (p) => p.id, (p) => normalizePhone(p.phone)),
+    [profiles]
+  );
+
+  // 실수 방지: 같은 회원의 '신규' 정기구독 주문이 아직 발송 전 상태로 2건 이상이면
+  //   중복 주문 의심으로 표시(연장 주문 제외 — 정상적으로 같은 회원에 여러 건이 생긴다).
+  //   이중 입금확인·이중 발송을 막기 위한 사전 경고.
+  const dupOrderIds = useMemo(() => {
+    const PRE_SHIP = ["입금대기", "입금확인", "배송준비"];
+    const candidates = orders.filter(
+      (o) =>
+        o.order_type === "구독" &&
+        o.renews_slot_id === null &&
+        PRE_SHIP.includes(o.status)
+    );
+    return duplicateIds(candidates, (o) => o.id, (o) => o.user_id);
+  }, [orders]);
 
   function exportMembersCsv() {
     const rows: string[][] = [
@@ -1119,10 +1124,7 @@ export default function AdminPage() {
       {tab === "상품·재고" && (
         <>
           <ProductAdminPanel />
-          <InventoryPanel
-            upcomingDemand={upcomingShipDemand}
-            upcomingDays={UPCOMING_SHIP_DAYS}
-          />
+          <InventoryPanel />
         </>
       )}
 
@@ -1308,7 +1310,17 @@ export default function AdminPage() {
                       {m.segment}
                     </span>
                   </td>
-                  <td className="py-2.5 tabular-nums text-ink-soft">{m.phone || "—"}</td>
+                  <td className="py-2.5 tabular-nums text-ink-soft">
+                    {m.phone || "—"}
+                    {dupPhoneIds.has(m.id) && (
+                      <span
+                        title="같은 전화번호로 가입한 회원이 또 있습니다. 중복 가입인지 확인하세요."
+                        className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700"
+                      >
+                        중복 전화?
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2.5 text-ink-soft">
                     {m.address
                       ? `${m.postcode ? `(${m.postcode}) ` : ""}${m.address} ${m.address_detail ?? ""}`
@@ -1706,6 +1718,14 @@ export default function AdminPage() {
                     {o.renews_slot_id && (
                       <span className="ml-1.5 rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-medium text-gold-deep">
                         연장
+                      </span>
+                    )}
+                    {dupOrderIds.has(o.id) && (
+                      <span
+                        title="같은 회원의 발송 전 정기구독 주문이 2건 이상입니다. 중복 주문인지 확인하세요."
+                        className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+                      >
+                        중복 의심
                       </span>
                     )}
                   </td>
