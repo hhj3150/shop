@@ -37,6 +37,10 @@
 
 html {
   scroll-behavior: smooth;
+  /* 모바일 가로 폭 넘침 방지(전역 가드). 어떤 요소가 뷰포트보다 넓어도 가로 스크롤이
+     생기지 않게 한다. clip 은 hidden 과 달리 스크롤 컨테이너를 만들지 않아
+     position: sticky(상품 상세 이미지 등)를 깨지 않는다. */
+  overflow-x: clip;
 }
 
 body {
