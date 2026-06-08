@@ -108,9 +108,6 @@ export function ProductShowcase() {
                     className="h-full w-full object-contain p-3 transition-transform duration-700 group-hover:scale-[1.04] sm:p-4"
                   />
                 </div>
-                <p className="mt-8 max-w-xs text-[14px] leading-relaxed text-ink-soft">
-                  {p.shortDesc}
-                </p>
               </Link>
 
               <p className="mt-7 text-[clamp(1.35rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums">
