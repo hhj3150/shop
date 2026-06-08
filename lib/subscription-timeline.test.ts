@@ -37,6 +37,16 @@ describe("normalizeBlocks", () => {
     expect(r[1].deliveryDay).toBe("tue");
     expect(r[1].orderId).toBe("o0"); // 상속이면 발송 attribution 은 원본(품목 보유) 블록
   });
+
+  it("선행 빈 블록은 회차만 전진(빈 구간)하고 다음 블록은 cursor 5부터 시작한다", () => {
+    const r = normalizeBlocks([
+      raw({ weeks: 4, items: [], deliveryDay: null }), // 상속할 직전 블록이 없는 선행 빈 블록 → 스킵
+      raw({ orderId: "o1", weeks: 4 }),                 // 첫 4회차는 의도적 갭, 두 번째 블록은 cursor 5부터
+    ]);
+    expect(r).toHaveLength(1);
+    expect([r[0].fromRound, r[0].toRound]).toEqual([5, 9]);
+    expect(r[0].orderId).toBe("o1");
+  });
 });
 
 describe("activeBlockForRound", () => {
@@ -95,6 +105,14 @@ describe("activeBlockForDate", () => {
   it("소진 후(총 8회 지난) 날짜는 null", () => {
     expect(activeBlockForDate(input, "2026-04-01")).toBeNull();
   });
+  it("정지 중이면(paused:true) null", () => {
+    const paused = { ...input, paused: true, pausedAt: "2026-01-10" };
+    // 정지 중에는 활성 블록이 없다(발송 중단) — 날짜 무관 null.
+    expect(activeBlockForDate(paused, "2026-02-03")).toBeNull();
+  });
+  it("시작일 이전 날짜면 null", () => {
+    expect(activeBlockForDate(input, "2026-01-05")).toBeNull();
+  });
 });
 
 describe("refundByBlocks", () => {
@@ -117,6 +135,15 @@ describe("refundByBlocks", () => {
     const single = { ...input, blocks: [input.blocks[0]] };
     // 1회 배송 후 남은 3회 @ 25600 = 76,800
     expect(refundByBlocks(single, "2026-01-06")).toBe(76800);
+  });
+  it("정지 중에는 delivered가 동결되어 남은 회차가 일정하다", () => {
+    // 2026-01-20 정지, 2026-01-27 평가 → 정지일 7일이 모든 예정일을 같이 밀어
+    // delivered=3 으로 동결(3·4·5회차 예정일 01-13/01-20/01-27 <= asof).
+    // 남은 4·5·6·7·8 = 블록0 1회(25600) + 블록1 4회(34600*4=138400) = 164,000
+    const paused = { ...input, paused: true, pausedAt: "2026-01-20", pausedDays: 0 };
+    expect(refundByBlocks(paused, "2026-01-27")).toBe(164000);
+    // 더 늦은 날짜로 평가해도 정지 동결로 동일 환불 — delivered가 안 늘어남을 확인.
+    expect(refundByBlocks(paused, "2026-02-10")).toBe(164000);
   });
 });
 
