@@ -5,6 +5,7 @@ import {
   activeBlockForDate,
   renewalQuote,
   refundByBlocks,
+  totalWeeks,
   type RawBlock,
 } from "./subscription-timeline";
 import { discountForPeriod } from "./products";
@@ -93,5 +94,42 @@ describe("activeBlockForDate", () => {
   });
   it("소진 후(총 8회 지난) 날짜는 null", () => {
     expect(activeBlockForDate(input, "2026-04-01")).toBeNull();
+  });
+});
+
+describe("refundByBlocks", () => {
+  // 시작 2026-01-06(화), 블록0 4회(회당상품 21600+배송4000), 블록1 4회(회당상품 30600+배송4000)
+  const input = {
+    startedAt: "2026-01-06", paused: false, pausedAt: null, pausedDays: 0,
+    blocks: [
+      { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000,
+        items: [{ productName: "닭", volume: "200g", qty: 2, unitPrice: 10800 }] },
+      { orderId: "o1", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000,
+        items: [{ productName: "소", volume: "150g", qty: 1, unitPrice: 30600 }] },
+    ],
+  };
+  it("2회 배송 시점 환불 = 남은 회차의 소속 블록 단가 합", () => {
+    // 2회 배송 완료(블록0 2회 남음 @ 21600+4000=25600, 블록1 4회 @ 30600+4000=34600)
+    // 남은 = 25600*2 + 34600*4 = 51,200 + 138,400 = 189,600
+    expect(refundByBlocks(input, "2026-01-13")).toBe(189600);
+  });
+  it("단일 블록·extended0이면 기존 평균식과 동일", () => {
+    const single = { ...input, blocks: [input.blocks[0]] };
+    // 1회 배송 후 남은 3회 @ 25600 = 76,800
+    expect(refundByBlocks(single, "2026-01-06")).toBe(76800);
+  });
+});
+
+describe("totalWeeks invariant", () => {
+  it("totalWeeks = 원주문 weeks + 연장 weeks 합", () => {
+    const blocks: RawBlock[] = [
+      { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, items: [chicken] },
+      { orderId: "o1", weeks: 8, deliveryDay: "wed", shippingPerWeek: 4000, items: [beef] },
+      { orderId: "o2", weeks: 4, deliveryDay: null, shippingPerWeek: 4000, items: [] },
+    ];
+    expect(totalWeeks(blocks)).toBe(16); // 4 + 8 + 4
+  });
+  it("빈 배열은 0", () => {
+    expect(totalWeeks([])).toBe(0);
   });
 });
