@@ -323,9 +323,13 @@ grant execute on function public.pause_subscription(bigint) to authenticated;
 grant execute on function public.resume_subscription(bigint) to authenticated;
 
 -- 회원 본인의 구독을 해지(환불 동반). 환불액은 클라이언트가 아닌 서버에서 재계산한다(C2).
---   환불액 = round(총입금액 / 총회차) × 남은(미배송) 회차.
---   남은 회차 산출은 lib/subscription-schedule.ts 의 규칙과 동일(정지 일수 반영).
+--   환불액 = 남은(미배송) 회차의 소속 블록 단가(회당 상품 합계 + 회당 배송비) 합.
+--   블록 = 원주문 + 입금확인류 연장주문(renews_slot_id) 을 id 순으로 체인. order_items 없는
+--   레거시 연장은 직전 블록 상속(lib/subscription-timeline.ts normalizeBlocks 와 동일).
+--   남은 회차 산출은 lib/subscription-schedule.ts computeSchedule 규칙을 그대로 재현(정지 일수 반영).
+--   ★ 회귀 핀: 단일 블록 AND extended_weeks=0 → 기존 평균식과 동일; 연장 이력 → 상향 정정(의도).
 -- 해지하면 unique index(status<>'해지')에서 빠져 해당 요일 슬롯이 다시 열린다.
+-- 본문 출처: migration-renewal-modify.sql(권위).
 drop function if exists public.cancel_subscription(bigint, text, text, integer);
 
 create or replace function public.cancel_subscription(
@@ -339,51 +343,105 @@ security definer
 set search_path = public
 as $$
 declare
-  v_total_weeks  int;
-  v_total_amount int;
+  v_uid          uuid := auth.uid();
   v_started      date;
   v_paused       boolean;
   v_paused_at    date;
   v_paused_days  int;
   v_today        date := (now() at time zone 'Asia/Seoul')::date;
-  v_elapsed      int;
-  v_delivered    int;
-  v_remaining    int;
-  v_refund       int;
+  v_pdays        int;
+  v_order_id     uuid;
+  v_weeks_arr    int[]  := array[]::int[];
+  v_prod_arr     int[]  := array[]::int[];
+  v_ship_arr     int[]  := array[]::int[];
+  v_from_arr     int[]  := array[]::int[];
+  v_to_arr       int[]  := array[]::int[];
+  v_blk          record;
+  v_bw           int;
+  v_prod         int;
+  v_ship         int;
+  v_last_prod    int := 0;
+  v_last_ship    int := 0;
+  v_cursor       int := 1;
+  v_total        int := 0;
+  v_delivered    int := 0;
+  v_refund       int := 0;
+  v_k            int;
+  v_i            int;
 begin
-  select s.started_at, s.paused, s.paused_at, s.paused_days,
-         coalesce(o.block_weeks, 0), coalesce(o.total_amount, 0)
-    into v_started, v_paused, v_paused_at, v_paused_days, v_total_weeks, v_total_amount
+  select s.started_at, s.paused, s.paused_at, s.paused_days, s.order_id
+    into v_started, v_paused, v_paused_at, v_paused_days, v_order_id
     from public.subscription_slots s
-    left join public.orders o on o.id = s.order_id
    where s.id = p_slot_id
-     and s.user_id = auth.uid()
+     and s.user_id = v_uid
      and s.status in ('활성','대기')
    for update of s;
   if not found then
     raise exception '해지할 수 있는 구독이 아닙니다.';
   end if;
 
-  if v_started is null then
-    v_remaining := v_total_weeks;
-  else
-    v_elapsed := (v_today - v_started)
-      - (v_paused_days
-         + case when v_paused and v_paused_at is not null
-                then greatest(0, v_today - v_paused_at) else 0 end);
-    if v_elapsed < 0 then
-      v_delivered := 0;
+  -- 블록 배열 구성: 원주문 + 입금확인류 연장주문을 id 순으로.
+  for v_blk in
+    select o.id,
+           coalesce(o.block_weeks, 0) as block_weeks,
+           coalesce(o.shipping_fee, 0) as shipping_fee
+      from public.orders o
+     where o.id = v_order_id
+        or (o.renews_slot_id = p_slot_id
+            and o.status in ('입금확인','배송준비','배송중','배송완료'))
+     order by o.id
+  loop
+    v_bw := greatest(0, v_blk.block_weeks);
+
+    select coalesce(sum(oi.unit_price * oi.qty), 0)
+      into v_prod
+      from public.order_items oi
+     where oi.order_id = v_blk.id;
+
+    if exists (select 1 from public.order_items oi where oi.order_id = v_blk.id) then
+      -- 자기 items 보유 블록 (v_prod 는 위 select 에서 채워짐)
+      v_ship := case when v_bw > 0 then round(v_blk.shipping_fee::numeric / v_bw)::int else 0 end;
+      v_last_prod := v_prod;
+      v_last_ship := v_ship;
     else
-      v_delivered := least(v_total_weeks, (v_elapsed / 7) + 1);
+      -- 레거시(빈 블록) → 직전 블록 상속
+      v_prod := v_last_prod;
+      v_ship := v_last_ship;
     end if;
-    v_remaining := greatest(0, v_total_weeks - v_delivered);
+
+    v_weeks_arr := v_weeks_arr || v_bw;
+    v_prod_arr  := v_prod_arr  || v_prod;
+    v_ship_arr  := v_ship_arr  || v_ship;
+    v_from_arr  := v_from_arr  || v_cursor;
+    v_to_arr    := v_to_arr    || (v_cursor + v_bw);
+    v_cursor    := v_cursor + v_bw;
+  end loop;
+
+  v_total := v_cursor - 1;  -- Σ block_weeks
+
+  -- delivered := computeSchedule 규칙 재현 (k회차 예정일 <= today 인 회차까지).
+  if v_started is null then
+    v_delivered := 0;
+  else
+    v_pdays := v_paused_days
+             + case when v_paused and v_paused_at is not null
+                    then greatest(0, v_today - v_paused_at) else 0 end;
+    v_delivered := 0;
+    for v_k in 1..v_total loop
+      exit when (v_started + ((v_k - 1) * 7 + v_pdays)) > v_today;
+      v_delivered := v_k;
+    end loop;
   end if;
 
-  if v_total_weeks > 0 then
-    v_refund := (round(v_total_amount::numeric / v_total_weeks) * v_remaining)::int;
-  else
-    v_refund := 0;
-  end if;
+  -- 환불 := 남은 회차(delivered+1 .. total) 의 소속 블록 단가 합.
+  for v_k in (v_delivered + 1)..v_total loop
+    for v_i in 1..array_length(v_weeks_arr, 1) loop
+      if v_k >= v_from_arr[v_i] and v_k < v_to_arr[v_i] then
+        v_refund := v_refund + v_prod_arr[v_i] + v_ship_arr[v_i];
+        exit;
+      end if;
+    end loop;
+  end loop;
 
   update public.subscription_slots
      set status         = '해지',
@@ -444,7 +502,17 @@ grant execute on function public.cancel_unpaid_order(uuid) to authenticated;
 --   request_renewal: 활성 슬롯의 원 주문 품목으로 10% 재계산해 연장 주문(입금대기) 생성.
 --   confirm_renewal_payment: 관리자가 연장 입금 확인 시 슬롯 extended_weeks += 4 (원자적).
 -- ───────────────────────────────────────────────────────────
-create or replace function public.request_renewal(p_slot_id bigint)
+-- 연장 시 구성·요일·회차(4/8/12주=SubPeriod 1/2/3) 변경. 연장주문이 자기 order_items 를 갖는다
+-- ("다음 블록부터만" 적용). 구 시그니처 request_renewal(bigint) 는 drop 후 교체.
+-- 본문 출처: migration-renewal-modify.sql(권위) — 특수배송 분기·25,000 floor·할인 period_discount 재사용.
+drop function if exists public.request_renewal(bigint);
+
+create or replace function public.request_renewal(
+  p_slot_id      bigint,
+  p_items        jsonb,   -- [{product_id, qty}, ...]
+  p_period       int,     -- 1 | 2 | 3 (= 4/8/12주)
+  p_delivery_day text     -- 'mon'..'fri'
+)
 returns jsonb
 language plpgsql
 security definer
@@ -455,12 +523,17 @@ declare
   v_slot         record;
   v_src          record;
   v_rate         numeric;
-  v_weeks        int := 4;       -- 1개월 = 4회
-  v_item         record;
+  v_weeks        int;
+  v_item         jsonb;
+  v_pid          text;
+  v_qty          int;
   v_price        int;
+  v_name         text;
+  v_volume       text;
   v_unit         int;
   v_per_delivery int := 0;
   v_per_list     int := 0;
+  v_taken        int;
   v_shipping     int;
   v_total        int;
   v_order_id     uuid;
@@ -479,23 +552,54 @@ begin
     raise exception '이미 연장 입금 대기 중인 주문이 있습니다. 입금 후 다시 시도해 주세요.';
   end if;
 
+  v_rate := public.period_discount(p_period);
+  if v_rate is null then raise exception '구독 기간이 올바르지 않습니다.'; end if;
+  v_weeks := p_period * 4;
+
+  if p_delivery_day not in ('mon','tue','wed','thu','fri') then
+    raise exception '배송 요일이 올바르지 않습니다.';
+  end if;
+  if p_items is null or jsonb_array_length(p_items) = 0 then
+    raise exception '연장할 품목이 없습니다.';
+  end if;
+
   select * into v_src from public.orders where id = v_slot.order_id;
   if not found then raise exception '원 구독 주문을 찾을 수 없습니다.'; end if;
 
-  v_rate := public.period_discount(1);
-
-  for v_item in
-    select oi.product_id, oi.qty from public.order_items oi where oi.order_id = v_src.id
-  loop
-    select price into v_price from public.product_catalog where id = v_item.product_id and active;
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    v_pid := v_item->>'product_id';
+    v_qty := coalesce((v_item->>'qty')::int, 0);
+    if v_qty <= 0 then raise exception '수량이 올바르지 않습니다.'; end if;
+    select price, name, volume into v_price, v_name, v_volume
+      from public.product_catalog where id = v_pid and active;
     if not found then raise exception '판매 종료된 제품이 있어 연장할 수 없습니다.'; end if;
     v_unit := (round((v_price * (1 - v_rate)) / 10.0) * 10)::int;
-    v_per_delivery := v_per_delivery + v_unit * v_item.qty;
-    v_per_list     := v_per_list + v_price * v_item.qty;
+    v_per_delivery := v_per_delivery + v_unit * v_qty;
+    v_per_list     := v_per_list + v_price * v_qty;
   end loop;
 
-  if v_per_delivery <= 0 then raise exception '연장할 품목이 없습니다.'; end if;
-  v_shipping := 4000 * v_weeks;  -- 배송비는 주문 금액과 무관하게 항상 자부담
+  if v_per_delivery < 25000 then
+    raise exception '회당 최소 상품 금액은 25,000원입니다.';
+  end if;
+
+  -- 요일 변경 사전 검사(권고; 권위 검사는 confirm_renewal_payment 에서 advisory lock 아래 재검사)
+  if p_delivery_day <> v_slot.delivery_day then
+    if exists (select 1 from public.subscription_slots
+                where user_id = v_uid and delivery_day = p_delivery_day and status <> '해지') then
+      raise exception '이미 그 요일에 구독이 있어 요일을 변경할 수 없습니다.';
+    end if;
+    select count(*) filter (where status in ('신청','활성')) into v_taken
+      from public.subscription_slots where delivery_day = p_delivery_day;
+    if v_taken >= 100 then
+      raise exception '선택한 요일이 마감되어 변경할 수 없습니다.';
+    end if;
+  end if;
+
+  -- 배송비(특수배송지역 보존). 연장은 원 주문 배송지를 승계하므로 원 주문 우편번호로 판별.
+  v_shipping := (case
+    when public.is_special_delivery_postcode(v_src.ship_postcode) then 5000
+    else 4000
+  end) * v_weeks;
   v_total    := v_per_delivery * v_weeks + v_shipping;
   v_order_no := public.gen_order_no();
 
@@ -506,18 +610,30 @@ begin
     is_gift, renews_slot_id
   ) values (
     v_uid, v_order_no, v_total, v_shipping, true,
-    v_weeks, 1, '구독', v_src.depositor_name,
+    v_weeks, p_period, '구독', v_src.depositor_name,
     v_src.ship_name, v_src.ship_phone, v_src.ship_postcode,
     v_src.ship_address, v_src.ship_address_detail, v_src.memo,
     false, p_slot_id
   ) returning id into v_order_id;
 
+  -- ★ 신규: 연장주문 자기 order_items (새 구성·요일·할인단가)
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    v_pid := v_item->>'product_id';
+    v_qty := (v_item->>'qty')::int;
+    select price, name, volume into v_price, v_name, v_volume
+      from public.product_catalog where id = v_pid;
+    v_unit := (round((v_price * (1 - v_rate)) / 10.0) * 10)::int;
+    insert into public.order_items (order_id, product_id, product_name, volume, delivery_day, qty, unit_price)
+      values (v_order_id, v_pid, v_name, v_volume, p_delivery_day, v_qty, v_unit);
+  end loop;
+
   return jsonb_build_object('order_id', v_order_id, 'order_no', v_order_no, 'total', v_total);
 end;
 $$;
 
-grant execute on function public.request_renewal(bigint) to authenticated;
+grant execute on function public.request_renewal(bigint, jsonb, int, text) to authenticated;
 
+-- 연장 입금 확인 시 좌석 이동(요일 변경분) + extended_weeks 누적. 본문 출처: migration-renewal-modify.sql.
 create or replace function public.confirm_renewal_payment(p_order_id uuid)
 returns void
 language plpgsql
@@ -525,13 +641,52 @@ security definer
 set search_path = public
 as $$
 declare
-  v_slot  bigint;
-  v_weeks int;
+  v_slot    bigint;
+  v_weeks   int;
+  v_day     text;
+  v_cur_day text;
+  v_uid     uuid;
+  v_taken   int;
 begin
   if not public.is_admin() then raise exception '관리자만 가능합니다.'; end if;
+
   select renews_slot_id, block_weeks into v_slot, v_weeks
     from public.orders where id = p_order_id for update;
   if v_slot is null then raise exception '연장 주문이 아닙니다.'; end if;
+
+  -- 연장주문의 발송요일(자기 order_items; 블록 단위 단일 요일)
+  select delivery_day into v_day from public.order_items where order_id = p_order_id limit 1;
+
+  -- 슬롯 잠금 + 현재 요일·소유자
+  select delivery_day, user_id into v_cur_day, v_uid
+    from public.subscription_slots where id = v_slot for update;
+
+  -- 요일 변경분이면 좌석 이동(권위 재검사). 입금확인 마킹 전에 검사.
+  if v_day is not null and v_day <> v_cur_day then
+    -- create_subscription_order 와 동일 lock 네임스페이스(반드시 hashtext)
+    perform pg_advisory_xact_lock(hashtext('slot_day:' || v_day));
+
+    if exists (select 1 from public.subscription_slots s
+                where s.user_id = v_uid
+                  and s.delivery_day = v_day
+                  and s.status <> '해지'
+                  and s.id <> v_slot) then
+      raise exception '대상 요일에 이미 구독이 있어 좌석을 이동할 수 없습니다.';
+    end if;
+
+    select count(*) filter (where status in ('신청','활성')) into v_taken
+      from public.subscription_slots where delivery_day = v_day;
+    if v_taken >= 100 then
+      raise exception '대상 요일이 마감되어 좌석을 이동할 수 없습니다.';
+    end if;
+
+    -- 부분 유니크 인덱스 subscription_slots_user_day_uniq 와의 레이스(23505)를 사용자 메시지로 변환.
+    begin
+      update public.subscription_slots set delivery_day = v_day where id = v_slot;
+    exception when unique_violation then
+      raise exception '대상 요일에 이미 구독이 있어 좌석을 이동할 수 없습니다.';
+    end;
+  end if;
 
   update public.orders set status = '입금확인' where id = p_order_id;
   update public.subscription_slots
