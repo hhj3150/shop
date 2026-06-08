@@ -553,7 +553,7 @@ grant execute on function public.confirm_renewal_payment(uuid) to authenticated;
 ```sql
 -- ── 블록별 환불 산식 (평균식 대체) ──
 -- 1) 슬롯 시작일·정지일 로드 (기존 변수 재사용: v_started_at, v_paused_days, v_paused, v_paused_at)
--- 2) 블록 배열 구성: 원주문 + 입금확인류 연장주문을 id 순으로.
+-- 2) 블록 배열 구성: 원주문 + 입금확인류 연장주문을 created_at, id 순으로(id 는 비단조 uuid).
 --    각 블록: (block_weeks, 회당상품합 = Σ(oi.unit_price*oi.qty), 회당배송비 = shipping_fee/block_weeks)
 --    order_items 0건(레거시 연장)이면 직전 블록의 회당상품합·회당배송비 상속.
 -- 3) total := Σ block_weeks.
@@ -593,8 +593,8 @@ grant execute on function public.confirm_renewal_payment(uuid) to authenticated;
 **Files:** Create `lib/slot-blocks.ts`, `lib/slot-blocks.test.ts`
 
 - [ ] **Step 1: 실패 테스트** (`npm test -- slot-blocks` → FAIL) — `buildRawBlocks(originalOrder, renewalOrders, itemsByOrder)`:
-  - 입력: 원주문 `{id, block_weeks, shipping_fee}`, 연장주문 배열(같은 필드, `id` 순), `itemsByOrder: Map<orderId, {delivery_day, qty, unit_price, product_name, volume}[]>`.
-  - 출력: `RawBlock[]` — 원주문 먼저, 연장주문 `id` 순. items 있는 주문은 `deliveryDay`(items의 동일 요일)·`items`·`shippingPerWeek = round(shipping_fee/block_weeks)`. items 없는 주문(레거시)은 `deliveryDay:null, items:[]`(정규화에서 상속).
+  - 입력: 원주문 `{id, created_at, block_weeks, shipping_fee}`, 연장주문 배열(같은 필드), `itemsByOrder: Map<orderId, {delivery_day, qty, unit_price, product_name, volume}[]>`.
+  - 출력: `RawBlock[]` — 원주문 먼저, 연장주문 **`created_at, id` 순**(⚠ `orders.id` 는 random uuid 라 비단조 → 반드시 created_at 기준 정렬). items 있는 주문은 `deliveryDay`(items의 동일 요일)·`items`·`shippingPerWeek = round(shipping_fee/block_weeks)`. items 없는 주문(레거시)은 `deliveryDay:null, items:[]`(정규화에서 상속).
 - [ ] **Step 2: 실패 확인** → FAIL
 - [ ] **Step 3: 구현** — 순수 함수, 최소 필드 제네릭(roster 패턴과 동일).
 - [ ] **Step 4: 통과** — `npm test -- slot-blocks` → PASS
@@ -608,7 +608,7 @@ grant execute on function public.confirm_renewal_payment(uuid) to authenticated;
 
 - [ ] **Step 1: admin 데이터 맵 추가** (`app/admin/page.tsx`, ~311-315 근처):
   - `slotById: Map<number, SlotRow>` — `slots` 를 `s.id` 로.
-  - `renewalOrdersBySlot: Map<number, OrderRow[]>` — `orders.filter(o => o.renews_slot_id != null)` 를 `o.renews_slot_id` 로 그룹(각 그룹 `id` 순 정렬).
+  - `renewalOrdersBySlot: Map<number, OrderRow[]>` — `orders.filter(o => o.renews_slot_id != null)` 를 `o.renews_slot_id` 로 그룹(각 그룹 **`created_at, id` 순 정렬** — id 는 비단조 uuid). 입금확인류 상태만 블록으로(취소·입금대기 제외).
   - `blocksBySlot: Map<number, RawBlock[]>` — 각 슬롯에 대해 `buildRawBlocks(원주문(=slot.order_id 주문), renewalOrdersBySlot.get(slotId)??[], orderItemsById)`.
 - [ ] **Step 2: 실패 테스트** (`npm test -- delivery-roster` → FAIL) — (a) **회귀**: 연장 items 없는 레거시 슬롯 → 기존 명단과 동일. (b) **신규**: 다블록 슬롯에서 블록1 구간 날짜엔 블록1 items만, 블록0 items 미발송(이중발송 0). (c) 활성 블록 없음(소진/시작전) → 그 슬롯 해당일 미발송.
 - [ ] **Step 3: `buildRosterForDate` 시그니처 확장** — params 객체에 `blocksBySlot: ReadonlyMap<number, RawBlock[]>` 와 `slotIdByOrder: ReadonlyMap<string, number>`(order_id→slot.id; 원주문+연장주문 모두) 추가. 정기 루프에서:
@@ -697,7 +697,7 @@ export async function requestRenewal(
 - [ ] **Step 3: 구현**
   - `MySubscription` 에 `blocks: RawBlock[]` 추가(슬롯 시작일·정지 정보는 기존 필드 유지).
   - `getMySubscriptions`: 슬롯 원주문 + `renews_slot_id` 연장주문(입금확인) 각각의 `order_items(product_name,volume,delivery_day,qty,unit_price)` 와 `block_weeks,shipping_fee` 를 추가 로드(주문 id 묶음 쿼리 1회). 단가 `unit_price`, 회당배송비 `shipping_fee/block_weeks`.
-  - `toMySubscriptions`: 주문들을 `id` 순으로 `RawBlock[]` 조립(items 없는 연장주문은 `deliveryDay:null,items:[]` → 상속).
+  - `toMySubscriptions`: 주문들을 **`created_at, id` 순**으로 `RawBlock[]` 조립(`buildRawBlocks` 재사용; items 없는 연장주문은 `deliveryDay:null,items:[]` → 상속).
   - `refundAmount(sub, remainingDeliveries)` 시그니처는 화면 호환 위해 유지하되 내부를 `refundByBlocks` 로 위임(또는 새 `refundPreview(sub, asOfISO)` 추가 + 호출부 교체). 단일 블록+extended0 동일 결과를 테스트로 고정.
 - [ ] **Step 4: 통과** → PASS. 기존 subscriptions.test.ts 케이스 유지 확인.
 - [ ] **Step 5: 커밋** — `git commit -am "feat: 환불 미리보기 블록 통일(MySubscription.blocks 로딩)"`

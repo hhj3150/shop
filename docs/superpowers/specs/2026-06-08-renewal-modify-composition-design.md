@@ -33,8 +33,9 @@
 
 - **블록0** = 슬롯의 원주문 (`subscription_slots.order_id`)
 - **블록 k** = **입금확인된** 연장주문 (`orders.renews_slot_id = slot.id`)
-- 큐 순서 = 확정 블록들의 `id` 오름차순 (= 시간순). "입금대기 연장 1건만 허용" 제약은
-  동시 입금대기 충돌만 막는 것이고, **순서 권위는 확정 블록의 `id` 순서**다.
+- 큐 순서 = 확정 블록들의 `created_at` 오름차순 (= 시간순; `id` 는 random uuid 라 비단조 →
+  `created_at, id` 로 정렬). "입금대기 연장 1건만 허용" 제약이 동시 입금대기 충돌을 막아
+  created_at 이 곧 진짜 블록 순서가 된다.
 - 각 블록이 갖는 것: `block_weeks`(회차), 자기 `order_items`(품목·요일·단가)
 - 슬롯 총회차 = Σ 블록.block_weeks
 
@@ -54,7 +55,7 @@
 1. **새 테이블/새 컬럼 없음.** 연장주문이 이제 자기 `order_items` 를 갖는다
    (현재 라이브 `request_renewal` 은 `orders` 만 INSERT, `order_items` 미생성 — 확인됨).
 2. `extended_weeks` 유지(§3.2).
-3. 블록 순서는 `id` 순서로 도출(추가 컬럼 불필요).
+3. 블록 순서는 `created_at, id` 순서로 도출(추가 컬럼 불필요; `orders.created_at` 기존 컬럼 사용).
 
 ### 3.4 하위호환 규칙 (결정적)
 
