@@ -114,7 +114,7 @@ export function NewsBand() {
   if (!rows || rows.length === 0) return null;
 
   return (
-    <section id="news" className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-24">
+    <section id="news" className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-28">
       <Reveal>
         <p className="eyebrow text-gold-deep">Farm Journal</p>
         <h2 className="mt-3 font-serif-kr text-[clamp(1.8rem,4vw,2.8rem)] font-medium leading-tight text-ink">

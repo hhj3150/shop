@@ -10,7 +10,7 @@ const KTG_PRINCIPLES =
 export function RegenerativeBand() {
   return (
     <section className="w-full bg-paper">
-      <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-24">
+      <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-28">
         <p className="font-display text-[13px] uppercase tracking-[0.32em] text-gold-deep sm:text-[14px]">
           Regenerative · From Soil to Soul
         </p>
