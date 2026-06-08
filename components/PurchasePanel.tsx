@@ -149,7 +149,7 @@ export function PurchasePanel({ product }: { product: Product }) {
 
       {/* 배송 요일 (매주 1회 고정) */}
       <div className="mt-7">
-        <StepLabel n={2} title="배송 요일" hint="매주 · 요일별 100명 한정" />
+        <StepLabel n={2} title="택배 발송 요일" hint="도착일 아님 · 보통 다음 날 수령" />
       </div>
       <div className="mt-3 grid grid-cols-5 gap-1.5">
         {DELIVERY_DAYS.map((d) => {

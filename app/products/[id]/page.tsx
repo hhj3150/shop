@@ -146,14 +146,6 @@ export default async function ProductPage({
         </div>
       </div>
 
-      {/* 제품 설명 — 구매 영역 아래로 배치(쇼핑 우선, 설명은 그 다음) */}
-      <section className="mx-auto max-w-2xl px-5 pb-6 pt-2 text-center sm:px-8">
-        <p className="text-[15.5px] leading-loose text-ink-soft">{product.shortDesc}</p>
-        <p className="mt-4 font-serif-kr text-[15.5px] leading-relaxed text-gold-deep">
-          대한민국 0.01%, 프리미엄 우유의 품격을 직접 느껴보세요.
-        </p>
-      </section>
-
       {/* 구매평 — 별점 후기 */}
       <ProductReviews productId={product.id} />
 
