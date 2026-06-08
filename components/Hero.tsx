@@ -17,19 +17,14 @@ export function Hero() {
             className="mb-4 w-[104px] max-w-full sm:w-[112px]"
           />
 
-          {/* 워드마크 — 로고 아래 브랜드명(국문 + 골드포일 영문) */}
-          <p className="mb-7 font-display text-[15px] font-medium leading-tight tracking-[0.01em] text-ink sm:text-base">
+          {/* 워드마크 — 로고 아래 브랜드명(국문 + 골드포일 영문). 가독성 위해 크게. */}
+          <p className="mb-7 font-display text-[clamp(1.2rem,5vw,1.7rem)] font-semibold leading-snug tracking-[0.01em] text-ink">
             송영신목장{" "}
             <span className="gold-foil">A2 Jersey Hay Milk</span>
           </p>
 
-          {/* Eyebrow — 한정·회원제 후크 */}
-          <p className="font-display text-[11px] uppercase tracking-[0.34em] text-gold-deep">
-            Limited Subscription · Members Only
-          </p>
-
           {/* 센터 슬로건 — 페이지 위계의 중심 */}
-          <h1 className="mt-6 max-w-xl text-balance font-serif-kr text-[clamp(1.75rem,4vw,2.9rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
+          <h1 className="max-w-xl text-balance font-serif-kr text-[clamp(1.75rem,4vw,2.9rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
             소중한 분들에게 최상의 우유를.
             <br />
             그리고 지속가능한 지구를.
@@ -59,11 +54,6 @@ export function Hero() {
               우리의 철학 보기 →
             </a>
           </div>
-
-          {/* 하단 라인 — Save Our Soil */}
-          <p className="mt-10 text-[12.5px] tracking-wide text-mute">
-            Save Our Soil. Save Us. — 흙을 지키는 일이 우리를 지키는 일입니다.
-          </p>
         </div>
 
         {/* Product visual — 흰배경 정렬샷(1448×1086) */}
