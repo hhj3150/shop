@@ -136,9 +136,9 @@ export default async function ProductPage({
             {/* Specs — quick reference */}
             <dl className="mt-10 divide-y divide-line border-y border-line">
               {product.specs.map((s) => (
-                <div key={s.label} className="flex items-center justify-between py-4">
-                  <dt className="text-[13px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
-                  <dd className="text-[14px] text-ink">{s.value}</dd>
+                <div key={s.label} className="flex items-baseline justify-between gap-4 py-4">
+                  <dt className="shrink-0 text-[13px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
+                  <dd className="min-w-0 break-keep text-right text-[14px] text-ink">{s.value}</dd>
                 </div>
               ))}
             </dl>
