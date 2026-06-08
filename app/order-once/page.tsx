@@ -229,7 +229,7 @@ function OrderOnce() {
         cashReceiptType,
         cashReceiptId,
       };
-      const { orderId, orderNo, shipDate, totalAmount } = user
+      const { orderId, orderNo, shipDate, totalAmount, referralCreditKrw } = user
         ? await createOnceOrder(items, shipInfo)
         : await createGuestOnceOrder(items, shipInfo);
 
@@ -242,6 +242,7 @@ function OrderOnce() {
         ship: shipLabel,
         amount: String(totalAmount),
       });
+      if (referralCreditKrw > 0) params.set("credit", String(referralCreditKrw));
       // 비회원 주문은 '내 주문 보기'(로그인 필요)를 숨기도록 완료 페이지에 표시.
       if (!user) params.set("guest", "1");
 

@@ -69,18 +69,24 @@ export type SlotResult = {
 
 // 결제창에 넘길 서버 권위 결제금액을 주문 생성 직후 DB에서 재조회한다.
 // 브라우저가 계산한 금액은 신뢰하지 않는다 → PortOne totalAmount 는 이 값만 사용한다(C1·C3).
-async function fetchOrderTotal(orderId: string): Promise<number> {
+// total_amount 는 추천 적립금 차감 후 값이며, referral_credit_krw 는 차감액(표시용).
+async function fetchOrderAmounts(
+  orderId: string
+): Promise<{ totalAmount: number; referralCreditKrw: number }> {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("orders")
-    .select("total_amount")
+    .select("total_amount,referral_credit_krw")
     .eq("id", orderId)
     .single();
 
   if (error || !data) {
     throw new Error(error?.message ?? "결제금액 조회에 실패했습니다.");
   }
-  return data.total_amount as number;
+  return {
+    totalAmount: data.total_amount as number,
+    referralCreditKrw: (data.referral_credit_krw as number) ?? 0,
+  };
 }
 
 // 배송지 정보를 RPC(p_ship) 페이로드로 변환.
@@ -107,7 +113,13 @@ export async function createOrder(
   items: CartItem[],
   period: SubPeriod,
   ship: ShippingInfo
-): Promise<{ orderId: string; orderNo: string; slots: SlotResult[]; totalAmount: number }> {
+): Promise<{
+  orderId: string;
+  orderNo: string;
+  slots: SlotResult[];
+  totalAmount: number;
+  referralCreditKrw: number;
+}> {
   if (items.length === 0) throw new Error("장바구니가 비어 있습니다.");
 
   const supabase = getSupabase();
@@ -133,11 +145,13 @@ export async function createOrder(
 
   const orderId = data.order_id as string;
   await saveCashReceipt(orderId, ship);
+  const amounts = await fetchOrderAmounts(orderId);
   return {
     orderId,
     orderNo: data.order_no as string,
     slots,
-    totalAmount: await fetchOrderTotal(orderId),
+    totalAmount: amounts.totalAmount,
+    referralCreditKrw: amounts.referralCreditKrw,
   };
 }
 
@@ -153,7 +167,13 @@ export type OnceItem = {
 export async function createOnceOrder(
   items: OnceItem[],
   ship: ShippingInfo
-): Promise<{ orderId: string; orderNo: string; shipDate: string; totalAmount: number }> {
+): Promise<{
+  orderId: string;
+  orderNo: string;
+  shipDate: string;
+  totalAmount: number;
+  referralCreditKrw: number;
+}> {
   const filtered = items.filter((i) => i.qty > 0);
   if (filtered.length === 0) throw new Error("담은 제품이 없습니다.");
 
@@ -169,11 +189,13 @@ export async function createOnceOrder(
 
   const orderId = data.order_id as string;
   await saveCashReceipt(orderId, ship);
+  const amounts = await fetchOrderAmounts(orderId);
   return {
     orderId,
     orderNo: data.order_no as string,
     shipDate: data.ship_date as string,
-    totalAmount: await fetchOrderTotal(orderId),
+    totalAmount: amounts.totalAmount,
+    referralCreditKrw: amounts.referralCreditKrw,
   };
 }
 
@@ -183,7 +205,13 @@ export async function createOnceOrder(
 export async function createGuestOnceOrder(
   items: OnceItem[],
   ship: ShippingInfo
-): Promise<{ orderId: string; orderNo: string; shipDate: string; totalAmount: number }> {
+): Promise<{
+  orderId: string;
+  orderNo: string;
+  shipDate: string;
+  totalAmount: number;
+  referralCreditKrw: number;
+}> {
   const filtered = items.filter((i) => i.qty > 0);
   if (filtered.length === 0) throw new Error("담은 제품이 없습니다.");
 
@@ -206,5 +234,6 @@ export async function createGuestOnceOrder(
     orderNo: data.order_no as string,
     shipDate: data.ship_date as string,
     totalAmount: data.total_amount as number,
+    referralCreditKrw: 0, // 게스트는 계정이 없어 적립금 차감 대상 아님.
   };
 }
