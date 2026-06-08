@@ -13,6 +13,7 @@ import {
   type ReturnStatus,
   type ReturnType,
 } from "@/lib/returns";
+import { refundWarnings, REFUND_WARNING_LABEL } from "@/lib/refund-validate";
 
 // 접수 대상 주문(드롭다운)용 최소 필드.
 type ReturnableOrder = {
@@ -86,6 +87,13 @@ export function ReturnsPanel({ orders }: { orders: ReturnableOrder[] }) {
     if (!orderId) {
       setError("주문을 선택해 주세요.");
       return;
+    }
+    // 실수 방지: 오타로 인한 과다 환불(주문금액 초과)·환불 금액 누락(0원)을 사전에 확인한다.
+    const orderTotal = orderById.get(orderId)?.total_amount ?? 0;
+    const warnings = refundWarnings({ type, amount: Number(amount) || 0, orderTotal });
+    if (warnings.length > 0) {
+      const lines = warnings.map((w) => `· ${REFUND_WARNING_LABEL[w]}`).join("\n");
+      if (!window.confirm(`${lines}\n\n그대로 접수할까요?`)) return;
     }
     setSubmitting(true);
     setError(null);
