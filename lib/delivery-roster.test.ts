@@ -55,6 +55,7 @@ function build(opts: {
   weekday?: DeliveryDay | null;
   blocksBySlot?: Map<number, RawBlock[]>;
   slotIdByOrder?: Map<string, number>;
+  slotById?: Map<number, DispatchSlotInfo>;
 }) {
   return buildRosterForDate({
     dateISO: opts.dateISO ?? DATE,
@@ -66,6 +67,7 @@ function build(opts: {
     pausedOrderIds: opts.paused ?? new Set(),
     blocksBySlot: opts.blocksBySlot ?? new Map(),
     slotIdByOrder: opts.slotIdByOrder ?? new Map(),
+    slotById: opts.slotById ?? new Map(),
   });
 }
 
@@ -216,6 +218,11 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
     ["o0", 10],
     ["o1", 10],
   ]);
+  // ★ 프로덕션 와이어링 재현: slotByOrder 는 원주문(o0)만 키로 가진다(admin 의 실제 동작).
+  //   연장주문 o1 은 slotByOrder 에 없고, slotIdByOrder→slotById 로만 슬롯에 닿는다.
+  //   슬롯 상태/회차 정보는 slotById(슬롯 id=10)로 제공한다.
+  const slotByOrderProd = new Map<string, DispatchSlotInfo>([["o0", blkSlot()]]);
+  const slotByIdProd = new Map<number, DispatchSlotInfo>([[10, blkSlot()]]);
   const orders = [
     order({ id: "o0" }),
     order({ id: "o1", ship_name: "홍길동" }),
@@ -229,7 +236,8 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
     const r = build({
       orders,
       items,
-      slots: new Map([["o0", blkSlot()], ["o1", blkSlot()]]),
+      slots: slotByOrderProd,
+      slotById: slotByIdProd,
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-15",
@@ -240,11 +248,30 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
     expect(r[0].items.map((i) => i.product_name)).toEqual(["우유"]);
   });
 
+  // ★ 핵심 회귀(프로덕션 경로): 연장주문 o1 은 slotByOrder 에 없다.
+  //   게이팅이 slotByOrder 에만 의존하면 o1 그룹이 폴백·게이팅 둘 다 건너뛰고
+  //   무조건 push 되어 블록0 구간(06-15 화 분이 없으니, 블록0 요일이 아닌 화요일 분)에도
+  //   요거트가 새어 나온다. 활성 블록은 블록0 이므로 화요일엔 아무것도 발송되면 안 된다.
+  it("블록0 구간 화요일엔 연장(블록1) items 가 새지 않는다 (프로덕션 경로 회귀)", () => {
+    const r = build({
+      orders,
+      items,
+      slots: slotByOrderProd, // o1 없음
+      slotById: slotByIdProd,
+      blocksBySlot,
+      slotIdByOrder,
+      dateISO: "2026-06-16", // 블록0 구간(2회차) 화요일 — 활성 블록은 블록0(월)
+      weekday: "tue",
+    });
+    expect(r).toHaveLength(0); // 블록1(화·요거트) 미활성 → 발송 없음
+  });
+
   it("블록1 구간 날짜(06-30 화)엔 블록1 items만 발송, 블록0 미발송(이중발송 0)", () => {
     const r = build({
       orders,
       items,
-      slots: new Map([["o0", blkSlot()], ["o1", blkSlot()]]),
+      slots: slotByOrderProd,
+      slotById: slotByIdProd,
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-30",
@@ -260,7 +287,8 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
     const r = build({
       orders,
       items,
-      slots: new Map([["o0", blkSlot()], ["o1", blkSlot()]]),
+      slots: slotByOrderProd,
+      slotById: slotByIdProd,
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-29",
@@ -279,7 +307,8 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
         item({ order_id: "o0", product_name: "우유", volume: "180ml", delivery_day: "mon", qty: 1 }),
         item({ order_id: "o1", product_name: "요거트", volume: "85g", delivery_day: "mon", qty: 2 }),
       ],
-      slots: new Map([["o0", blkSlot()], ["o1", blkSlot()]]),
+      slots: slotByOrderProd,
+      slotById: slotByIdProd,
       blocksBySlot: new Map<number, RawBlock[]>([[10, [b0Mon, b1Mon]]]),
       slotIdByOrder,
       dateISO: "2026-07-06", // 회차6(블록1 구간) 월요일
@@ -295,7 +324,8 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
     const r = build({
       orders,
       items,
-      slots: new Map([["o0", blkSlot()], ["o1", blkSlot()]]),
+      slots: slotByOrderProd,
+      slotById: slotByIdProd,
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-07-28",
@@ -308,11 +338,26 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
     const r = build({
       orders,
       items,
-      slots: new Map([["o0", blkSlot({ started_at: "2026-07-01" })], ["o1", blkSlot({ started_at: "2026-07-01" })]]),
+      slots: new Map([["o0", blkSlot({ started_at: "2026-07-01" })]]),
+      slotById: new Map([[10, blkSlot({ started_at: "2026-07-01" })]]),
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-15",
       weekday: "mon",
+    });
+    expect(r).toHaveLength(0);
+  });
+
+  it("해지 슬롯은 연장(블록1) items 도 발송 안 함 (프로덕션 경로)", () => {
+    const r = build({
+      orders,
+      items,
+      slots: new Map([["o0", blkSlot({ status: "해지" })]]),
+      slotById: new Map([[10, blkSlot({ status: "해지" })]]),
+      blocksBySlot,
+      slotIdByOrder,
+      dateISO: "2026-06-30", // 블록1 구간 화요일
+      weekday: "tue",
     });
     expect(r).toHaveLength(0);
   });
