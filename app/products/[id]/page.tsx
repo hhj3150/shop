@@ -81,12 +81,6 @@ export default async function ProductPage({
             {product.tagline}{" "}
             <span className="font-display italic text-gold">{product.taglineEm}</span>
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-[15px] leading-loose text-ink-soft">
-            {product.shortDesc}
-          </p>
-          <p className="mx-auto mt-4 max-w-xl font-serif-kr text-[15px] leading-relaxed text-gold-deep">
-            대한민국 0.01%, 프리미엄 우유의 품격을 직접 느껴보세요.
-          </p>
           <ProductHeroPrice product={product} maxRate={maxRate} />
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <a
@@ -102,9 +96,6 @@ export default async function ProductPage({
               단품구매
             </Link>
           </div>
-          <p className="mt-3 text-[12.5px] text-mute">
-            정기구독은 선착순 500분 한정. 단품으로 먼저 차이를 느껴보고 신청하셔도 좋습니다.
-          </p>
         </div>
       </section>
 
@@ -126,14 +117,9 @@ export default async function ProductPage({
             </div>
           </div>
 
-          {/* 옵션 패널 */}
+          {/* 옵션 패널 — 바로 구매로(군더더기 텍스트 제거) */}
           <div className="flex flex-col">
-            <p className="text-[13px] uppercase tracking-[0.2em] text-gold-deep">Configure</p>
-            <h2 className="mt-2 font-serif-kr text-[clamp(1.5rem,3vw,2rem)] font-medium leading-tight text-ink">
-              원하는 대로 맞춰보세요
-            </h2>
-
-            <div className="mt-6">
+            <div>
               <PurchasePanel product={product} />
             </div>
 
@@ -149,6 +135,14 @@ export default async function ProductPage({
           </div>
         </div>
       </div>
+
+      {/* 제품 설명 — 구매 영역 아래로 배치(쇼핑 우선, 설명은 그 다음) */}
+      <section className="mx-auto max-w-2xl px-5 pb-6 pt-2 text-center sm:px-8">
+        <p className="text-[15.5px] leading-loose text-ink-soft">{product.shortDesc}</p>
+        <p className="mt-4 font-serif-kr text-[15.5px] leading-relaxed text-gold-deep">
+          대한민국 0.01%, 프리미엄 우유의 품격을 직접 느껴보세요.
+        </p>
+      </section>
 
       {/* 구매평 — 별점 후기 */}
       <ProductReviews productId={product.id} />
