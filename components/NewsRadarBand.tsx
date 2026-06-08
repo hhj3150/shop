@@ -37,7 +37,7 @@ export function NewsRadarBand() {
   const [lead, ...rest] = items;
 
   return (
-    <section className="mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-20">
+    <section className="mx-auto max-w-5xl px-5 py-20 sm:px-8 sm:py-28">
       <p className="eyebrow text-gold-deep">World Dairy Radar</p>
       <h2 className="mt-3 font-serif-kr text-[clamp(1.6rem,4vw,2.4rem)] font-medium text-ink">
         세계 낙농 소식

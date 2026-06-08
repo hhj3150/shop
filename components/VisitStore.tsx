@@ -13,7 +13,7 @@ export function VisitStore() {
   return (
     <section id="visit" className="relative overflow-hidden border-t border-line bg-paper-2/40">
       <Scatter items={VISIT_CONFETTI} />
-      <div className="relative mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-20">
+      <div className="relative mx-auto max-w-5xl px-5 py-20 sm:px-8 sm:py-28">
         <Reveal>
           <p className="eyebrow text-gold-deep">Visit</p>
           <h2 className="mt-4 font-serif-kr text-[clamp(1.7rem,4vw,2.6rem)] font-medium leading-tight text-ink">
