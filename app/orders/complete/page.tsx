@@ -28,6 +28,8 @@ function Complete() {
   const isOnce = sp.get("type") === "once";
   const ship = sp.get("ship") ?? "";
   const amount = Number(sp.get("amount") ?? "0");
+  // 추천 적립금 차감액(있을 때만). amount 는 이미 차감 후 입금액(서버 권위값).
+  const credit = Number(sp.get("credit") ?? "0");
   const isPortOne = sp.get("pay") === "portone";
   // 비회원 주문: '내 주문 보기'(로그인 필요) 대신 주문번호 보관 안내를 노출한다.
   const isGuest = sp.get("guest") === "1";
@@ -106,6 +108,12 @@ function Complete() {
           <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
             <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">입금 계좌</p>
             <DepositAccount />
+            {credit > 0 && (
+              <div className="mt-4 flex items-baseline justify-between text-[13px] text-hey-green">
+                <span>추천 적립금 적용</span>
+                <span className="tabular-nums">−{formatKRW(credit)}</span>
+              </div>
+            )}
             {amount > 0 && (
               <div className="mt-4 flex items-baseline justify-between border-t border-dashed border-gold/40 pt-4">
                 <span className="text-[14px] text-mute">입금 금액</span>
@@ -197,6 +205,12 @@ function Complete() {
             무통장입금 계좌
           </p>
           <DepositAccount />
+          {credit > 0 && (
+            <div className="mt-4 flex items-baseline justify-between text-[13px] text-hey-green">
+              <span>추천 적립금 적용</span>
+              <span className="tabular-nums">−{formatKRW(credit)}</span>
+            </div>
+          )}
           {amount > 0 && (
             <div className="mt-4 flex items-baseline justify-between border-t border-dashed border-gold/40 pt-4">
               <span className="text-[14px] text-mute">입금 금액 (기간분 일괄)</span>

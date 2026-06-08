@@ -150,6 +150,14 @@ export function ReferralCard() {
           {toast}
         </p>
       )}
+
+      <p className="mt-5 border-t border-hey-green/20 pt-4 text-[11px] leading-relaxed text-mute">
+        적립 조건: 신규 회원이 내 추천코드로 가입해 첫 정기구독 입금이 확인되면 추천한 분과 친구
+        모두에게 {formatKRW(REFERRAL_REWARD_KRW)} 적립금을 드립니다. 적립금은 다음 주문 때{" "}
+        {formatKRW(REFERRAL_REWARD_KRW)} 단위로 자동 차감되며, 한 번에 입금액 한도까지만 쓰이고 남은
+        적립금은 다음 주문으로 이월됩니다. 적립일로부터 1년이 지나면 만료됩니다. 적립의 계기가 된
+        주문이 취소·환불되면 아직 쓰지 않은 적립금은 회수됩니다. 적립금은 현금으로 환급되지 않습니다.
+      </p>
     </div>
   );
 }
