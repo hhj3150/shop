@@ -299,9 +299,9 @@ begin
   -- ── 블록 배열 구성: 원주문 + 입금확인류 연장주문을 시간순으로 ──
   --   각 블록: block_weeks, 회당상품합 = Σ(oi.unit_price*oi.qty), 회당배송비 = round(shipping_fee/block_weeks)
   --   order_items 0건(레거시 연장)이면 직전 블록의 회당상품합·회당배송비를 상속(normalizeBlocks 와 동일).
-  --   ⚠ orders.id 는 random uuid(비단조) 라 시간순이 아니다 → created_at 으로 정렬(id 는 결정적 tiebreaker).
+  --   ⚠ TS SSOT(buildRawBlocks)는 원주문을 항상 block0 으로 고정하고 연장만 정렬한다 → 동일하게 맞춘다.
+  --     orders.id 는 random uuid(비단조) 라 시간순이 아니므로 연장은 created_at 으로 정렬(id 는 결정적 tiebreaker).
   --     입금대기 연장은 동시 1건만 허용되므로 created_at 이 진짜 블록 시간순을 반영한다.
-  --     원주문은 자기 created_at 으로 block0 위치에 자연 정렬된다.
   for v_blk in
     select o.id,
            coalesce(o.block_weeks, 0) as block_weeks,
@@ -310,7 +310,7 @@ begin
      where o.id = v_order_id
         or (o.renews_slot_id = p_slot_id
             and o.status in ('입금확인','배송준비','배송중','배송완료'))
-     order by o.created_at, o.id
+     order by case when o.id = v_order_id then 0 else 1 end, o.created_at, o.id
   loop
     v_bw := greatest(0, v_blk.block_weeks);
 

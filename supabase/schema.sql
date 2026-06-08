@@ -380,9 +380,9 @@ begin
     raise exception '해지할 수 있는 구독이 아닙니다.';
   end if;
 
-  -- 블록 배열 구성: 원주문 + 입금확인류 연장주문을 시간순으로.
-  --   ⚠ orders.id 는 random uuid(비단조) → created_at 으로 정렬(id 는 결정적 tiebreaker).
-  --     입금대기 연장은 동시 1건만 허용되므로 created_at 이 진짜 블록 시간순을 반영한다.
+  -- 블록 배열 구성: 원주문(=block0 고정) + 입금확인류 연장주문(created_at 순).
+  --   ⚠ TS SSOT(buildRawBlocks)와 동일: 원주문 항상 먼저, 연장만 정렬.
+  --     orders.id 는 random uuid(비단조) → 연장은 created_at 으로 정렬(id 는 결정적 tiebreaker).
   for v_blk in
     select o.id,
            coalesce(o.block_weeks, 0) as block_weeks,
@@ -391,7 +391,7 @@ begin
      where o.id = v_order_id
         or (o.renews_slot_id = p_slot_id
             and o.status in ('입금확인','배송준비','배송중','배송완료'))
-     order by o.created_at, o.id
+     order by case when o.id = v_order_id then 0 else 1 end, o.created_at, o.id
   loop
     v_bw := greatest(0, v_blk.block_weeks);
 
