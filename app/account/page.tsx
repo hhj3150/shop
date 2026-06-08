@@ -24,7 +24,6 @@ import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
 import { DEPOSIT } from "@/lib/site";
 import { RecipientBook } from "@/components/RecipientBook";
-import { ShareButton } from "@/components/ShareButton";
 import { ReferralCard } from "@/components/ReferralCard";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { RenewalForm } from "./RenewalForm";
@@ -374,8 +373,6 @@ export default function AccountPage() {
       )}
 
       <ReferralCard />
-
-      <ShareButton />
 
       {subs.length > 0 && (
         <>
