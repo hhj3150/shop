@@ -23,8 +23,8 @@ export function Hero() {
             <span className="gold-foil">A2 Jersey Hay Milk</span>
           </p>
 
-          {/* 센터 슬로건 — 페이지 위계의 중심 */}
-          <h1 className="max-w-xl text-balance font-serif-kr text-[clamp(1.75rem,4vw,2.9rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
+          {/* 센터 슬로건 — 페이지 위계의 중심. 더 크고 강하게(애플식 히어로 헤드라인). */}
+          <h1 className="max-w-2xl text-balance font-serif-kr text-[clamp(1.95rem,5vw,3.4rem)] font-semibold leading-[1.25] tracking-[-0.02em] text-ink">
             소중한 분들에게 최상의 우유를.
             <br />
             그리고 지속가능한 지구를.
