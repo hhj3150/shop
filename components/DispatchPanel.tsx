@@ -11,6 +11,7 @@ import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
+import { decideShipOut } from "@/lib/dispatch-shipout";
 import {
   BUCKET_ML,
   BUCKET_LABEL,
@@ -340,14 +341,33 @@ export function DispatchPanel({
     return shippedKeys.has(k) || justShipped.has(k);
   }
 
-  // 출고 확정 → stock_ship_out 으로 그 발송일분 재고 자동 차감. 주차당 1회만(서버 보장).
-  //   성공·이미출고 모두 행을 비활성으로 두고 재고를 재조회한다.
+  // 출고·발송 → 그 발송일분 재고 차감(stock_ship_out, 주차당 1회·서버 보장) +
+  //   송장·택배사·발송일 기록 + '배송중' 전환 + 발송 문자(새 전환 건만).
+  //   재고 차감이 먼저라 주문 갱신이 실패해도 재시도 시 이중차감 없이 송장만 다시 반영된다.
   async function shipOut(r: DispatchRow) {
+    const o = r.o;
+    const decision = decideShipOut({
+      status: o.status,
+      shipped_at: o.shipped_at,
+      courier,
+      trackingNo: trackingOf(o),
+      shipISO: r.shipISO,
+    });
+    // 송장이 없으면 발송으로 보지 않으므로, 재고만 빠진다는 점을 확인받는다.
+    if (!decision.patch && !window.confirm("송장번호가 비어 있습니다. 송장 없이 재고만 출고할까요?")) {
+      return;
+    }
     const k = shipKey(r);
     setShippingId(k);
     setError(null);
     try {
-      await stockShipOut(r.o.id, r.shipISO);
+      await stockShipOut(o.id, r.shipISO);
+      if (decision.patch) {
+        const sb = getSupabase();
+        const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
+        if (error) throw error;
+        if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
+      }
       setJustShipped((prev) => new Set(prev).add(k));
       await onReload();
     } catch (e) {
@@ -436,24 +456,27 @@ export function DispatchPanel({
     setError(null);
     try {
       const sb = getSupabase();
+      // 행 출고와 동일한 결정 로직 공유 — 송장·상태·문자 처리를 일관되게 유지.
       const results = await Promise.all(
-        targets.map((o) =>
-          sb
+        targets.map((o) => {
+          const decision = decideShipOut({
+            status: o.status,
+            shipped_at: o.shipped_at,
+            courier,
+            trackingNo: trackingOf(o),
+            shipISO: date,
+          });
+          return sb
             .from("orders")
-            .update({
-              courier,
-              tracking_no: trackingOf(o).trim(),
-              shipped_at: o.shipped_at ?? date,
-              status: "배송중",
-            })
+            .update(decision.patch ?? {})
             .eq("id", o.id)
-            .then(({ error }) => ({ o, error }))
-        )
+            .then(({ error }) => ({ o, decision, error }));
+        })
       );
       // 업데이트 성공 + 새로 '배송중'으로 전환된 건에만 발송 문자를 보낸다.
       //   (조용한 실패 시 오발송 방지 / 이미 배송중인 건 중복 발송 방지)
-      for (const { o, error } of results) {
-        if (!error && o.status !== "배송중") void notify({ kind: "shipped", orderId: o.id });
+      for (const { o, decision, error } of results) {
+        if (!error && decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
       }
       setSelected(new Set());
       const failed = results.filter((r) => r.error);
@@ -765,7 +788,7 @@ export function DispatchPanel({
                           disabled={shippingId === shipKey(r)}
                           className="rounded-full border border-gold/50 bg-gold/10 px-3 py-1.5 text-[12.5px] font-semibold text-gold-deep transition-colors enabled:hover:bg-gold/20 disabled:opacity-40"
                         >
-                          {shippingId === shipKey(r) ? "처리 중…" : "출고 확정"}
+                          {shippingId === shipKey(r) ? "처리 중…" : "출고·발송"}
                         </button>
                       )}
                     </td>
