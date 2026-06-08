@@ -42,7 +42,7 @@ import { duplicateIds, normalizePhone } from "@/lib/duplicates";
 import { SettlementPanel } from "@/components/SettlementPanel";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
-const TABS = ["종합 관리", "생산·재고", "상품·재고", "배송", "환불·교환", "정산·세금"] as const;
+const TABS = ["종합 관리", "주문·입금", "생산·재고", "상품·재고", "배송", "환불·교환", "정산·세금"] as const;
 type AdminTab = (typeof TABS)[number];
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
@@ -1441,7 +1441,12 @@ export default function AdminPage() {
 
       {/* 이번 주(월~금) 통합 생산·배송 계획 */}
       <WeeklyPlanTable productKeys={productKeys} demandForDate={rosterDemandForDate} />
+        </>
+      )}
 
+      {/* 기간별 배송 명단 — 배송 탭에서 작업 화면(DispatchPanel) 아래에 노출 */}
+      {tab === "배송" && (
+        <>
       {/* 기간별 배송 명단 — 당일 또는 기간(from~to) 선택 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">기간별 배송 명단</h2>
       <div className="mt-3 flex flex-wrap items-center gap-2 no-print">
@@ -1569,7 +1574,11 @@ export default function AdminPage() {
             ))
         )}
       </div>
+        </>
+      )}
 
+      {tab === "종합 관리" && (
+        <>
       {/* 대기자 명단 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">대기자 명단</h2>
       <div className="mt-4 overflow-x-auto">
@@ -1654,7 +1663,11 @@ export default function AdminPage() {
 
       {/* 단체문자 발송 */}
       <BroadcastPanel profiles={profiles} slots={slots} />
+        </>
+      )}
 
+      {tab === "주문·입금" && (
+        <>
       {/* 주문 관리 — 상태 변경 */}
       <div id="order-manage" className="mt-12 flex flex-wrap items-center justify-between gap-2 scroll-mt-24">
         <h2 className="font-serif-kr text-lg text-ink">주문 관리</h2>
