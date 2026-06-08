@@ -635,8 +635,11 @@ $$;
 
 grant execute on function public.request_renewal(bigint, jsonb, int, text) to authenticated;
 
--- 연장 입금 확인 시 좌석 이동(요일 변경분) + extended_weeks 누적. 본문 출처: migration-renewal-modify.sql.
-create or replace function public.confirm_renewal_payment(p_order_id uuid)
+-- 연장 입금확인의 "슬롯 측" 공유 헬퍼 — 좌석 이동(요일 변경분) + extended_weeks 누적만 수행.
+--   주문 status 는 호출자 소관. 관리자 수동(confirm_renewal_payment)과 자동확인(confirm_payment,
+--   PayAction/PortOne) 두 경로가 이 헬퍼를 공유해 좌석 이동 누락으로 갈리지 않게 한다(이중예약 방지).
+-- 본문 출처: migration-renewal-modify.sql.
+create or replace function public.apply_renewal_slot_change(p_order_id uuid)
 returns void
 language plpgsql
 security definer
@@ -650,10 +653,8 @@ declare
   v_uid     uuid;
   v_taken   int;
 begin
-  if not public.is_admin() then raise exception '관리자만 가능합니다.'; end if;
-
   select renews_slot_id, block_weeks into v_slot, v_weeks
-    from public.orders where id = p_order_id for update;
+    from public.orders where id = p_order_id;
   if v_slot is null then raise exception '연장 주문이 아닙니다.'; end if;
 
   -- 연장주문의 발송요일(자기 order_items; 블록 단위 단일 요일)
@@ -663,7 +664,7 @@ begin
   select delivery_day, user_id into v_cur_day, v_uid
     from public.subscription_slots where id = v_slot for update;
 
-  -- 요일 변경분이면 좌석 이동(권위 재검사). 입금확인 마킹 전에 검사.
+  -- 요일 변경분이면 좌석 이동(권위 재검사).
   if v_day is not null and v_day <> v_cur_day then
     -- create_subscription_order 와 동일 lock 네임스페이스(반드시 hashtext)
     perform pg_advisory_xact_lock(hashtext('slot_day:' || v_day));
@@ -682,7 +683,8 @@ begin
       raise exception '대상 요일이 마감되어 좌석을 이동할 수 없습니다.';
     end if;
 
-    -- 부분 유니크 인덱스 subscription_slots_user_day_uniq 와의 레이스(23505)를 사용자 메시지로 변환.
+    -- 부분 유니크 인덱스 subscription_slots_user_day_uniq (user_id, delivery_day) where status<>'해지'
+    -- 와의 레이스(23505)를 사용자 메시지로 변환.
     begin
       update public.subscription_slots set delivery_day = v_day where id = v_slot;
     exception when unique_violation then
@@ -690,10 +692,34 @@ begin
     end;
   end if;
 
-  update public.orders set status = '입금확인' where id = p_order_id;
   update public.subscription_slots
      set extended_weeks = extended_weeks + v_weeks
    where id = v_slot;
+end;
+$$;
+
+grant execute on function public.apply_renewal_slot_change(uuid) to authenticated;
+
+-- 관리자 수동 연장 입금확인. 주문 status='입금확인' 후 슬롯 측은 공유 헬퍼에 위임.
+create or replace function public.confirm_renewal_payment(p_order_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception '관리자만 가능합니다.'; end if;
+
+  if not exists (
+    select 1 from public.orders
+     where id = p_order_id and renews_slot_id is not null
+     for update
+  ) then
+    raise exception '연장 주문이 아닙니다.';
+  end if;
+
+  update public.orders set status = '입금확인' where id = p_order_id;
+  perform public.apply_renewal_slot_change(p_order_id);
 end;
 $$;
 

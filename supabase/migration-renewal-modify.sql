@@ -22,6 +22,12 @@
 --      없으면 migration-special-delivery-region.sql 을 먼저 적용할 것.
 --
 -- 적용: Supabase SQL Editor 에서 이 파일을 위에서 아래로 한 번 실행. 멱등(create or replace / drop if exists).
+--
+-- ★ 적용 순서 의존(중요):
+--   이 파일은 public.apply_renewal_slot_change(uuid) 를 정의한다(좌석 이동 + extended_weeks 공유 헬퍼).
+--   migration-portone-payment.sql 의 confirm_payment 가 이 헬퍼를 호출하도록 갱신되었으므로,
+--   ⇒ 이 파일(migration-renewal-modify.sql)을 먼저 적용한 뒤 갱신된 migration-portone-payment.sql 을 적용할 것.
+--   (둘 다 create or replace 라 멱등 — 순서만 지키면 재적용 안전.)
 -- ─────────────────────────────────────────────────────────────
 
 
@@ -164,10 +170,12 @@ grant execute on function public.request_renewal(bigint, jsonb, int, text) to au
 
 
 -- ═════════════════════════════════════════════════════════════
--- B) confirm_renewal_payment — 좌석 이동(요일 변경 시) + extended_weeks 누적
---    시그니처 (p_order_id uuid) 불변. 관리자 클라이언트 무수정.
+-- B-0) apply_renewal_slot_change — 연장 입금확인의 "슬롯 측" 공유 헬퍼
+--    ★ 좌석 이동(요일 변경분) + extended_weeks 누적만 수행한다. 주문 status 는 호출자 소관.
+--    두 확인 경로(관리자 수동 confirm_renewal_payment / PayAction·PortOne 자동 confirm_payment)가
+--    이 단일 헬퍼를 호출해 좌석 이동 누락으로 더는 갈리지 않도록 한다(이중예약 방지).
 -- ═════════════════════════════════════════════════════════════
-create or replace function public.confirm_renewal_payment(p_order_id uuid)
+create or replace function public.apply_renewal_slot_change(p_order_id uuid)
 returns void
 language plpgsql
 security definer
@@ -181,10 +189,8 @@ declare
   v_uid     uuid;
   v_taken   int;
 begin
-  if not public.is_admin() then raise exception '관리자만 가능합니다.'; end if;
-
   select renews_slot_id, block_weeks into v_slot, v_weeks
-    from public.orders where id = p_order_id for update;
+    from public.orders where id = p_order_id;
   if v_slot is null then raise exception '연장 주문이 아닙니다.'; end if;
 
   -- 연장주문의 발송요일(자기 order_items; 블록 단위 단일 요일)
@@ -194,7 +200,7 @@ begin
   select delivery_day, user_id into v_cur_day, v_uid
     from public.subscription_slots where id = v_slot for update;
 
-  -- 요일 변경분이면 좌석 이동(권위 재검사). 입금확인 마킹 전에 검사.
+  -- 요일 변경분이면 좌석 이동(권위 재검사).
   if v_day is not null and v_day <> v_cur_day then
     -- create_subscription_order 와 동일 lock 네임스페이스(반드시 hashtext)
     perform pg_advisory_xact_lock(hashtext('slot_day:' || v_day));
@@ -222,10 +228,41 @@ begin
     end;
   end if;
 
-  update public.orders set status = '입금확인' where id = p_order_id;
   update public.subscription_slots
      set extended_weeks = extended_weeks + v_weeks
    where id = v_slot;
+end;
+$$;
+
+-- 내부 definer 호출(confirm_*)엔 별도 grant 불필요하나, 관리자 경로 호환 위해 유지.
+grant execute on function public.apply_renewal_slot_change(uuid) to authenticated;
+
+
+-- ═════════════════════════════════════════════════════════════
+-- B) confirm_renewal_payment — 관리자 수동 연장 입금확인.
+--    시그니처 (p_order_id uuid) 불변. 관리자 클라이언트 무수정.
+--    주문 status='입금확인' 후 슬롯 측은 공유 헬퍼(apply_renewal_slot_change)에 위임.
+-- ═════════════════════════════════════════════════════════════
+create or replace function public.confirm_renewal_payment(p_order_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception '관리자만 가능합니다.'; end if;
+
+  -- 연장 주문 검증 + 주문 잠금
+  if not exists (
+    select 1 from public.orders
+     where id = p_order_id and renews_slot_id is not null
+     for update
+  ) then
+    raise exception '연장 주문이 아닙니다.';
+  end if;
+
+  update public.orders set status = '입금확인' where id = p_order_id;
+  perform public.apply_renewal_slot_change(p_order_id);
 end;
 $$;
 
