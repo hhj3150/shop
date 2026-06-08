@@ -3,6 +3,7 @@ import {
   totalRemainingSeats,
   toMySubscriptions,
   refundAmount,
+  requestRenewal,
   type DayCounts,
 } from "./subscriptions";
 import { DELIVERY_DAYS, type DeliveryDay } from "./cart";
@@ -62,10 +63,47 @@ describe("toMySubscriptions — 연장분 합산", () => {
     },
   };
 
+  // 회당 10,000원(상품 6,000 + 배송 4,000)인 원주문 + 연장주문 각 4회.
+  // block_weeks=4, shipping_fee=16000 → shippingPerWeek = 4,000.
+  // 회당 상품합 6,000 → perDelivery 10,000 (평균식과 동일하게 맞춘다).
+  const items = [
+    {
+      delivery_day: "mon" as DeliveryDay,
+      qty: 1,
+      unit_price: 6000,
+      product_name: "우유",
+      volume: "750ml",
+    },
+  ];
+  const blockSource = [
+    {
+      slotId: 7,
+      originalOrder: {
+        id: "ord-0",
+        block_weeks: 4,
+        shipping_fee: 16000,
+        created_at: "2026-06-01T00:00:00Z",
+      },
+      renewalOrders: [
+        {
+          id: "ord-1",
+          block_weeks: 4,
+          shipping_fee: 16000,
+          created_at: "2026-07-01T00:00:00Z",
+        },
+      ],
+      itemsByOrder: new Map([
+        ["ord-0", items],
+        ["ord-1", items],
+      ]),
+    },
+  ];
+
   it("총회차=원+연장, 총납입액=원+입금확인 연장주문", () => {
     const subs = toMySubscriptions(
       [slotRow],
-      [{ renews_slot_id: 7, total_amount: 40000 }] // 연장주문 4만원
+      [{ renews_slot_id: 7, total_amount: 40000 }], // 연장주문 4만원
+      blockSource
     );
     expect(subs[0].totalWeeks).toBe(8);
     expect(subs[0].totalAmount).toBe(80000);
@@ -74,16 +112,79 @@ describe("toMySubscriptions — 연장분 합산", () => {
   it("환불 미리보기 = 서버와 동일: 8회/8만, 남은 6회 → 60,000원", () => {
     const subs = toMySubscriptions(
       [slotRow],
-      [{ renews_slot_id: 7, total_amount: 40000 }]
+      [{ renews_slot_id: 7, total_amount: 40000 }],
+      blockSource
     );
     expect(refundAmount(subs[0], 6)).toBe(60000);
+  });
+
+  it("blocks 를 buildRawBlocks 로 조립한다(원주문 먼저, 연장 다음)", () => {
+    const subs = toMySubscriptions(
+      [slotRow],
+      [{ renews_slot_id: 7, total_amount: 40000 }],
+      blockSource
+    );
+    expect(subs[0].blocks).toHaveLength(2);
+    expect(subs[0].blocks[0].orderId).toBe("ord-0");
+    expect(subs[0].blocks[1].orderId).toBe("ord-1");
+    expect(subs[0].blocks[0].weeks).toBe(4);
+    expect(subs[0].blocks[0].shippingPerWeek).toBe(4000);
   });
 
   it("다른 슬롯의 연장주문은 섞이지 않는다", () => {
     const subs = toMySubscriptions(
       [slotRow],
-      [{ renews_slot_id: 99, total_amount: 40000 }] // 다른 슬롯
+      [{ renews_slot_id: 99, total_amount: 40000 }], // 다른 슬롯
+      blockSource
     );
     expect(subs[0].totalAmount).toBe(40000); // 연장 합산 없음
+  });
+});
+
+// 클라 검증은 UX 용 — SQL request_renewal 가 권위 재검증한다.
+// 검증 실패는 RPC(네트워크) 호출 전에 throw 되므로 mock 없이 검증 경로만 테스트한다.
+describe("requestRenewal — 손수 검증(zod 미도입)", () => {
+  const ok = { product_id: "milk-750", qty: 1 };
+
+  it("잘못된 기간이면 RPC 전에 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, { items: [ok], period: 5 as never, deliveryDay: "mon" })
+    ).rejects.toThrow("구독 기간이 올바르지 않습니다.");
+  });
+
+  it("빈 품목이면 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, { items: [], period: 1, deliveryDay: "mon" })
+    ).rejects.toThrow("연장할 품목이 없습니다.");
+  });
+
+  it("수량이 0 이하면 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, {
+        items: [{ product_id: "milk-750", qty: 0 }],
+        period: 1,
+        deliveryDay: "mon",
+      })
+    ).rejects.toThrow("품목/수량이 올바르지 않습니다.");
+  });
+
+  it("수량이 정수가 아니면 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, {
+        items: [{ product_id: "milk-750", qty: 1.5 }],
+        period: 1,
+        deliveryDay: "mon",
+      })
+    ).rejects.toThrow("품목/수량이 올바르지 않습니다.");
+  });
+
+  it("잘못된 배송 요일이면 검증 에러로 throw", async () => {
+    await expect(
+      requestRenewal(1, {
+        items: [ok],
+        period: 1,
+        deliveryDay: "sat" as never,
+      })
+    ).rejects.toThrow("배송 요일이 올바르지 않습니다.");
   });
 });

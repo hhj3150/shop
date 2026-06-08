@@ -8,6 +8,8 @@ import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { computeSchedule } from "@/lib/subscription-schedule";
 import { buildRosterForDate, type DeliveryEntry as RosterEntry } from "@/lib/delivery-roster";
+import { buildRawBlocks, type OrderRow as BlockOrderRow, type OrderItemRow as BlockItemRow } from "@/lib/slot-blocks";
+import type { RawBlock } from "@/lib/subscription-timeline";
 import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 import {
   DELIVERY_DAYS,
@@ -35,7 +37,7 @@ import { DispatchPanel } from "@/components/DispatchPanel";
 import { loadShippedKeys } from "@/lib/inventory-data";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
 import { loadReturns, type OrderReturn } from "@/lib/returns";
-import { splitDemandByKind } from "@/lib/production-demand";
+import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
 import { duplicateIds, normalizePhone } from "@/lib/duplicates";
 import { SettlementPanel } from "@/components/SettlementPanel";
 
@@ -94,6 +96,7 @@ type OrderRow = {
   status: string;
   order_type: string; // '구독' | '단품'
   block_weeks: number | null; // 구독 1회 결제분 회차(연장 전 원 회차)
+  shipping_fee: number | null; // 주문 총 배송비(회당 = shipping_fee / block_weeks)
   ship_date: string | null; // 단품 발송 예정일 (YYYY-MM-DD)
   total_amount: number;
   depositor_name: string | null;
@@ -292,17 +295,6 @@ export default function AdminPage() {
       ),
     [slots]
   );
-  // 해지된 구독의 주문 — 다시 배송되지 않으므로 주간 필요수량(생산 템플릿)에서 제외한다.
-  //   주문 상태는 '입금확인'으로 남아 confirmedOrderIds 에 들어오기 때문에 별도 제외가 필요하다.
-  const canceledOrderIds = useMemo(
-    () =>
-      new Set(
-        slots
-          .filter((s) => s.status === "해지" && s.order_id)
-          .map((s) => s.order_id as string)
-      ),
-    [slots]
-  );
   const orderById = useMemo(
     () => new Map(orders.map((o) => [o.id, o])),
     [orders]
@@ -324,6 +316,90 @@ export default function AdminPage() {
     }
     return m;
   }, [items]);
+
+  // ── 블록(연장 체인) 인지 데이터 ─────────────────────────────
+  //   슬롯 한 건이 원주문(block0) + 연장주문(block k) 체인을 갖는다. 연장주문은 자기
+  //   order_items 를 가질 수 있어, 한 슬롯의 여러 블록이 같은 날 동시에 발송되면 이중발송이
+  //   된다. 발송일별 '활성 블록' 1개만 발송/집계하기 위해 아래 맵들을 조립한다.
+  const slotById = useMemo(() => {
+    const m = new Map<number, SlotRow>();
+    for (const s of slots) m.set(s.id, s);
+    return m;
+  }, [slots]);
+
+  // 연장주문(renews_slot_id != null) 중 확정류(CONFIRMED) 상태만 슬롯별로 묶고 created_at,id 순 정렬.
+  //   취소·입금대기 연장주문은 블록으로 치지 않는다(확정된 회차만 발송 대상).
+  const renewalOrdersBySlot = useMemo(() => {
+    const m = new Map<number, OrderRow[]>();
+    for (const o of orders) {
+      if (o.renews_slot_id == null) continue;
+      if (!CONFIRMED.includes(o.status as (typeof CONFIRMED)[number])) continue;
+      const arr = m.get(o.renews_slot_id) ?? [];
+      arr.push(o);
+      m.set(o.renews_slot_id, arr);
+    }
+    for (const [k, arr] of m) {
+      m.set(
+        k,
+        [...arr].sort(
+          (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+        )
+      );
+    }
+    return m;
+  }, [orders]);
+
+  // OrderRow → buildRawBlocks 입력으로 변환(필요 필드만, 안전한 기본값).
+  const toBlockOrder = useCallback(
+    (o: OrderRow): BlockOrderRow => ({
+      id: o.id,
+      block_weeks: o.block_weeks ?? 0,
+      shipping_fee: o.shipping_fee ?? 0,
+      created_at: o.created_at,
+    }),
+    []
+  );
+
+  // 주문 id → order_items(블록 빌더용 최소 필드). 원주문·연장주문 모두 포함.
+  const blockItemsByOrder = useMemo(() => {
+    const m = new Map<string, BlockItemRow[]>();
+    for (const [oid, rows] of itemsByOrder) {
+      m.set(
+        oid,
+        rows.map((it) => ({
+          delivery_day: it.delivery_day,
+          qty: it.qty,
+          unit_price: it.unit_price,
+          product_name: it.product_name,
+          volume: it.volume,
+        }))
+      );
+    }
+    return m;
+  }, [itemsByOrder]);
+
+  // 슬롯 id → 블록 체인(RawBlock[]). 원주문은 slot.order_id 주문, 연장은 renewalOrdersBySlot.
+  const blocksBySlot = useMemo(() => {
+    const m = new Map<number, RawBlock[]>();
+    for (const s of slots) {
+      if (!s.order_id) continue;
+      const original = orderById.get(s.order_id);
+      if (!original) continue;
+      const renewals = (renewalOrdersBySlot.get(s.id) ?? []).map(toBlockOrder);
+      m.set(s.id, buildRawBlocks(toBlockOrder(original), renewals, blockItemsByOrder));
+    }
+    return m;
+  }, [slots, orderById, renewalOrdersBySlot, blockItemsByOrder, toBlockOrder]);
+
+  // 주문 id(원주문 + 연장주문 모두) → 슬롯 id. 활성 블록 조회 키.
+  const slotIdByOrder = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of slots) if (s.order_id) m.set(s.order_id, s.id);
+    for (const [slotId, arr] of renewalOrdersBySlot) {
+      for (const o of arr) m.set(o.id, slotId);
+    }
+    return m;
+  }, [slots, renewalOrdersBySlot]);
 
   // ── 데이터 점검 — 배포 중 접속 등으로 생길 수 있는 데이터 이상을 한눈에 잡는다.
   //   (1) 입금확인 이후 상태인데 결제확인 시각(paid_at)이 없는 주문 → 실입금 없이 확인됐을 가능성.
@@ -428,23 +504,38 @@ export default function AdminPage() {
     return Array.from(set.keys()).sort();
   }, [items]);
 
+  // 이번 주(월~금) 각 요일의 실제 날짜 — 활성 블록 판정 기준(roster 와 동일 SSOT).
+  //   렌더 순수성을 위해 새 new Date() 대신 고정된 now(Date.now() 스냅샷)에서 파생한다.
+  const thisWeekDates = useMemo<Record<DeliveryDay, string>>(() => {
+    const base = new Date(now);
+    base.setHours(0, 0, 0, 0);
+    const dow = (base.getDay() + 6) % 7; // 월=0
+    base.setDate(base.getDate() - dow);
+    const out = {} as Record<DeliveryDay, string>;
+    DELIVERY_DAYS.forEach((d, i) => {
+      const dt = new Date(base);
+      dt.setDate(base.getDate() + i);
+      out[d] = toISODate(dt);
+    });
+    return out;
+  }, [now]);
+
+  // 요일별·제품별 주간 필요수량 — 슬롯의 활성 블록 1개만 그 요일에 계상(연장 이중계상 방지).
+  //   단품은 슬롯이 없어 blocksBySlot 에 들어오지 않으므로 자연히 제외된다(단품 제외 가드 유지).
   const matrix = useMemo(() => {
-    const m: Record<string, Record<DeliveryDay, number>> = {};
-    for (const key of productKeys) {
-      m[key] = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0 };
-    }
-    for (const it of items) {
-      if (!confirmedOrderIds.has(it.order_id)) continue;
-      if (pausedOrderIds.has(it.order_id)) continue;
-      if (canceledOrderIds.has(it.order_id)) continue;
-      // 단품은 요일 발송이 아니다(ship_date 기반) → 주간 요일 템플릿에서 제외.
-      //   단품 품목에 delivery_day 가 잘못 들어와도 이중계상되지 않게 방어한다.
-      if (orderById.get(it.order_id)?.order_type === "단품") continue;
-      const key = `${it.product_name} ${it.volume}`;
-      if (m[key]) m[key][it.delivery_day] += it.qty;
-    }
-    return m;
-  }, [items, productKeys, confirmedOrderIds, pausedOrderIds, canceledOrderIds, orderById]);
+    const slotInputs = slots
+      .map((s) => ({ slot: s, blocks: blocksBySlot.get(s.id) }))
+      .filter((x): x is { slot: SlotRow; blocks: RawBlock[] } => x.blocks != null && x.blocks.length > 0)
+      .map(({ slot: s, blocks }) => ({
+        startedAt: s.started_at,
+        status: s.status,
+        paused: s.paused,
+        pausedAt: s.paused_at,
+        pausedDays: s.paused_days,
+        blocks,
+      }));
+    return buildWeeklyMatrix(slotInputs, productKeys, thisWeekDates);
+  }, [slots, blocksBySlot, productKeys, thisWeekDates]);
 
   // ── 선택 기간 배송 명단 (당일 ~ 기간) ─────────────────────
   // 한 배송 건(정기 1회분 또는 단품 주문). 산출 로직은 lib/delivery-roster 의 SSOT 를 쓴다.
@@ -462,8 +553,11 @@ export default function AdminPage() {
         slotByOrder,
         confirmedOrderIds,
         pausedOrderIds,
+        blocksBySlot,
+        slotIdByOrder,
+        slotById,
       }),
-    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder]
+    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById]
   );
 
   // 임의 날짜의 생산 수요를 정기/단품으로 분리. roster(해지·회차소진·정지 제외)에서

@@ -80,14 +80,14 @@ begin
     );
   end if;
 
-  -- 5) 연장 주문: 슬롯 회차 +block_weeks (confirm_renewal_payment 와 동일 효과)
+  -- 5) 연장 주문: 주문 결제기록 + 슬롯 측(좌석 이동 + extended_weeks 누적)은 공유 헬퍼에 위임.
+  --    ★ apply_renewal_slot_change 가 요일 변경분 좌석 이동까지 수행한다(자동확인 경로 이중예약 방지).
+  --      ⚠ 선행: migration-renewal-modify.sql(apply_renewal_slot_change 정의)을 먼저 적용할 것.
   if v_order.renews_slot_id is not null then
     update public.orders
        set status = '입금확인', paid_at = now(), pay_method = p_pay_method, pg_tx_id = p_pg_tx_id
      where id = v_order.id;
-    update public.subscription_slots
-       set extended_weeks = extended_weeks + v_order.block_weeks
-     where id = v_order.renews_slot_id;
+    perform public.apply_renewal_slot_change(v_order.id);
     return jsonb_build_object(
       'order_id', v_order.id, 'order_no', v_order.order_no,
       'status', '입금확인', 'changed', true,

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
-import { formatKRW, PERIOD_LABEL, type SubPeriod } from "@/lib/products";
+import { formatKRW, PERIOD_LABEL, periodWeeks, type SubPeriod } from "@/lib/products";
 import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
 import { registerPayActionDeposit } from "@/lib/orders";
 import {
@@ -27,8 +27,14 @@ import { RecipientBook } from "@/components/RecipientBook";
 import { ShareButton } from "@/components/ShareButton";
 import { ReferralCard } from "@/components/ReferralCard";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
+import { RenewalForm } from "./RenewalForm";
 
-type RenewalInfo = { slotId: number; orderNo: string; total: number };
+type RenewalInfo = {
+  slotId: number;
+  orderNo: string;
+  total: number;
+  period: SubPeriod;
+};
 
 type OrderRow = {
   id: string;
@@ -119,6 +125,8 @@ export default function AccountPage() {
   const [reason, setReason] = useState("");
   const [refundAcct, setRefundAcct] = useState("");
   const [renewal, setRenewal] = useState<RenewalInfo | null>(null);
+  // 연장 신청 폼이 펼쳐진 슬롯(없으면 null). 입금 안내(renewal)와는 별개 단계.
+  const [renewSlot, setRenewSlot] = useState<number | null>(null);
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/account");
@@ -220,13 +228,28 @@ export default function AccountPage() {
     }
   }
 
-  async function onRenew(slotId: number) {
+  // 연장 신청 — 폼이 채운 품목·회차수·요일로 request_renewal 을 호출한다.
+  //   서버가 할인·금액·좌석을 권위 재계산하며, 성공 시 입금 안내(renewal) 단계로 넘어간다.
+  async function onRenew(
+    slotId: number,
+    args: {
+      items: { product_id: string; qty: number }[];
+      period: SubPeriod;
+      deliveryDay: DeliveryDay;
+    }
+  ) {
     setBusy(slotId);
     try {
-      const res = await requestRenewal(slotId);
+      const res = await requestRenewal(slotId, args);
       // 갱신 주문을 PayAction 에 등록 → 회원이 안내된 금액을 입금하면 자동으로 입금확인(반자동 갱신).
       await registerPayActionDeposit(res.orderNo, profile?.phone ?? "");
-      setRenewal({ slotId, orderNo: res.orderNo, total: res.total });
+      setRenewSlot(null);
+      setRenewal({
+        slotId,
+        orderNo: res.orderNo,
+        total: res.total,
+        period: args.period,
+      });
       void notify({ kind: "renewal_guide", orderId: res.orderId });
       reloadOrders();
     } catch (e) {
@@ -463,7 +486,8 @@ export default function AccountPage() {
                           </p>
                           <div className="mt-3 flex items-center justify-between rounded-xl bg-cream px-4 py-3">
                             <span className="text-[13px] text-ink-soft">
-                              연장 금액 (1개월 · 4회)
+                              연장 금액 ({PERIOD_LABEL[renewal.period]} ·{" "}
+                              {periodWeeks(renewal.period)}회)
                             </span>
                             <span className="font-serif-kr text-lg tabular-nums text-gold-deep">
                               {formatKRW(renewal.total)}
@@ -471,8 +495,8 @@ export default function AccountPage() {
                           </div>
                           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
                             아래 계좌로 <span className="tabular-nums">{renewal.orderNo}</span>{" "}
-                            주문의 금액을 입금해 주세요. 입금이 확인되면 같은 요일로 4회분이
-                            이어집니다.
+                            주문의 금액을 입금해 주세요. 입금이 확인되면 선택하신 요일로{" "}
+                            {periodWeeks(renewal.period)}회분이 이어집니다.
                           </p>
                           <p className="mt-2 rounded-xl bg-cream px-4 py-3 text-[13px] text-ink">
                             {DEPOSIT.bank} {DEPOSIT.account} (예금주 {DEPOSIT.holder})
@@ -512,17 +536,30 @@ export default function AccountPage() {
                               </button>
                             </div>
                           )}
-                          <button
-                            onClick={() => onRenew(s.slotId)}
-                            disabled={busy === s.slotId}
-                            className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
-                          >
-                            {busy === s.slotId ? "처리 중…" : "구독 연장 (재입금)"}
-                          </button>
-                          <p className="mt-2 text-[12px] leading-relaxed text-mute">
-                            한 달치(4회)를 더 받으시려면 연장하세요. 입금 확인 시 같은
-                            요일로 이어지며, 선착순 자리는 그대로 유지됩니다.
-                          </p>
+                          {renewSlot === s.slotId ? (
+                            <RenewalForm
+                              sub={s}
+                              subs={subs}
+                              busy={busy === s.slotId}
+                              onSubmit={(args) => onRenew(s.slotId, args)}
+                              onCancel={() => setRenewSlot(null)}
+                            />
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setRenewSlot(s.slotId)}
+                                disabled={busy === s.slotId}
+                                className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
+                              >
+                                {busy === s.slotId ? "처리 중…" : "구독 연장 (재입금)"}
+                              </button>
+                              <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                                품목·요일·회차수를 바꿔 연장하실 수 있어요. 입금 확인 시
+                                선택한 요일·구성으로 이어지며, 선착순 자리는 그대로
+                                유지됩니다.
+                              </p>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
