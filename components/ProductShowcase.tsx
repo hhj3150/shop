@@ -113,10 +113,11 @@ export function ProductShowcase() {
                 </p>
               </Link>
 
-              <p className="mt-6 text-[17px] font-medium text-ink tabular-nums">
-                회원가 {formatKRW(subscribePrice(p.price))}
+              <p className="mt-7 text-[clamp(1.35rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums">
+                {formatKRW(subscribePrice(p.price))}
+                <span className="ml-1.5 align-baseline text-[13px] font-normal text-mute">회원가</span>
               </p>
-              <p className="text-[12.5px] text-mute tabular-nums">
+              <p className="mt-1.5 text-[12.5px] text-mute tabular-nums lining-nums">
                 정가 {formatKRW(p.price)} · {p.taxFree ? "면세품" : "부가세 포함"}
               </p>
 
