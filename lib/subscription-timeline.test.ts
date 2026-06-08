@@ -3,8 +3,11 @@ import {
   normalizeBlocks,
   activeBlockForRound,
   activeBlockForDate,
+  renewalQuote,
+  refundByBlocks,
   type RawBlock,
 } from "./subscription-timeline";
+import { discountForPeriod } from "./products";
 
 const chicken = { productName: "닭가슴살", volume: "200g", qty: 2, unitPrice: 10800 };
 const beef    = { productName: "소고기",   volume: "150g", qty: 1, unitPrice: 30600 };
@@ -51,6 +54,25 @@ describe("activeBlockForRound", () => {
   it("범위 밖 회차는 null", () => {
     expect(activeBlockForRound(blocks, 9)).toBeNull();
     expect(activeBlockForRound(blocks, 0)).toBeNull();
+  });
+});
+
+describe("renewalQuote", () => {
+  // milk-750 정가 12,000 × 3, 8주(period 2 → 12%): 병당 10,560 → 회당 31,680
+  const items = [{ listPrice: 12000, qty: 3 }];
+  it("8주(period2) 견적", () => {
+    const q = renewalQuote(items, 2, 4000);
+    expect(q.unitTotalPerDelivery).toBe(31680);   // 10560*3
+    expect(q.weeks).toBe(8);
+    expect(q.shipping).toBe(32000);                // 4000*8
+    expect(q.total).toBe(31680 * 8 + 32000);       // 285,440
+    expect(q.belowMin).toBe(false);
+  });
+  it("회당 25,000 미만이면 belowMin true", () => {
+    expect(renewalQuote([{ listPrice: 12000, qty: 1 }], 1, 4000).belowMin).toBe(true);
+  });
+  it("허용 안 된 기간은 throw", () => {
+    expect(() => renewalQuote(items, 5 as never, 4000)).toThrow();
   });
 });
 
