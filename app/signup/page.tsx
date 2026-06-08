@@ -5,14 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { notify } from "@/lib/notify";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { MembershipAssurance } from "@/components/MembershipAssurance";
 import { SocialProof } from "@/components/SocialProof";
 import { formatPhoneKR } from "@/lib/signup-format";
 import { validateSignup } from "@/lib/signup-validation";
-import { REFERRAL_STORAGE_KEY } from "@/components/ReferralCapture";
+import { WELCOME_PENDING_KEY } from "@/lib/post-signup";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -64,50 +63,53 @@ export default function SignupPage() {
     const address = form.address.trim();
 
     setBusy(true);
+    // 환영 문자/추천 등록은 최초 로그인(SIGNED_IN) 시 1회 실행된다(lib/auth → runPostSignupTasks).
+    // 이메일 확인 ON 이면 가입 시 session 이 없으므로, 플래그를 signUp 직전에 남겨
+    // 인증 후 첫 로그인에서 처리되도록 한다(추천코드는 ReferralCapture 가 이미 저장).
+    try {
+      window.localStorage.setItem(WELCOME_PENDING_KEY, "1");
+    } catch {
+      // localStorage 불가 환경: 환영 문자만 생략될 뿐 가입은 정상 진행.
+    }
     try {
       const supabase = getSupabase();
+      // 프로필(name/phone/주소/마케팅동의)은 auth.users 메타데이터로 전달한다.
+      // DB 트리거 handle_new_user 가 이를 읽어 profiles 행을 생성하므로,
+      // 이메일 확인 ON/OFF 와 무관하게 가입 데이터가 유실되지 않는다.
       const { data, error: signErr } = await supabase.auth.signUp({
         email: form.email.trim(),
         password: form.password,
+        options: {
+          data: {
+            name: form.name.trim(),
+            phone,
+            postcode,
+            address,
+            address_detail: form.addressDetail.trim() || null,
+            marketing_consent: marketingAgree,
+            marketing_consent_at: marketingAgree ? new Date().toISOString() : null,
+          },
+        },
       });
       if (signErr) throw signErr;
-
-      const userId = data.user?.id;
-      if (!userId) throw new Error("가입 처리에 실패했습니다. 다시 시도해 주세요.");
+      if (!data.user?.id) throw new Error("가입 처리에 실패했습니다. 다시 시도해 주세요.");
 
       if (data.session) {
-        // 이메일 확인이 꺼져 있어 즉시 로그인됨 → 프로필 저장
-        const { error: profErr } = await supabase.from("profiles").insert({
-          id: userId,
-          name: form.name.trim(),
-          phone,
-          postcode,
-          address,
-          address_detail: form.addressDetail.trim() || null,
-          marketing_consent: marketingAgree,
-          marketing_consent_at: marketingAgree ? new Date().toISOString() : null,
-        });
-        if (profErr) throw profErr;
-        // 추천코드(추천 링크로 유입 시 저장됨) 등록. best-effort — 실패해도 가입 흐름을 막지 않는다.
-        try {
-          const ref = window.localStorage.getItem(REFERRAL_STORAGE_KEY);
-          if (ref) {
-            await supabase.rpc("claim_referral", { p_code: ref });
-            window.localStorage.removeItem(REFERRAL_STORAGE_KEY);
-          }
-        } catch {
-          // 추천 등록 실패는 무시(가입 보호)
-        }
-        // 가입 환영 문자(정보성). best-effort — 실패해도 가입 흐름을 막지 않는다.
-        void notify({ kind: "welcome" });
+        // 이메일 확인이 꺼져 있어 즉시 로그인됨. 후속 작업은 AuthProvider 의 SIGNED_IN 가 처리.
         router.push("/account");
       } else {
-        // 이메일 확인 필요 → 확인 후 최초 로그인 시 프로필 작성 안내
+        // 이메일 확인 필요 → 확인 후 최초 로그인 시 프로필 생성·후속 작업이 자동 처리된다.
         setInfo(
           "가입 확인 메일을 보냈습니다. 메일의 링크로 인증한 뒤 로그인해 주세요."
         );
       }
     } catch (err) {
+      // 가입 실패 시 환영 플래그를 되돌린다(다음 시도에 잘못 발송 방지).
+      try {
+        window.localStorage.removeItem(WELCOME_PENDING_KEY);
+      } catch {
+        // 무시
+      }
       const message =
         err instanceof Error ? err.message : "가입 중 오류가 발생했습니다.";
       setError(message);
