@@ -118,28 +118,22 @@ export function ProductShowcase() {
                 정가 {formatKRW(p.price)} · {p.taxFree ? "면세품" : "부가세 포함"}
               </p>
 
-              <div className="mt-7 flex w-full max-w-xs flex-col items-center gap-3">
+              <div className="mt-7 w-full max-w-xs">
                 {p.soldOut ? (
                   <span
                     aria-disabled="true"
-                    className="w-full cursor-not-allowed rounded-full bg-ink/30 px-6 py-3 text-center text-[15px] font-medium text-cream/80"
+                    className="block w-full cursor-not-allowed rounded-full bg-ink/30 px-6 py-3 text-center text-[15px] font-medium text-cream/80"
                   >
                     품절
                   </span>
                 ) : (
                   <Link
                     href={`/products/${p.id}`}
-                    className="w-full rounded-full bg-ink px-6 py-3 text-[15px] font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98]"
+                    className="block w-full rounded-full bg-ink px-6 py-3 text-center text-[15px] font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98]"
                   >
                     구독 신청
                   </Link>
                 )}
-                <Link
-                  href={`/products/${p.id}`}
-                  className="text-[14px] tracking-wide text-gold-deep underline-offset-4 hover:underline"
-                >
-                  더 알아보기 →
-                </Link>
               </div>
             </article>
           </Reveal>
