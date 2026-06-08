@@ -174,6 +174,9 @@ function todayISO(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// 재고 '발송부족' 경고 창(window) — 오늘부터 며칠치 발송 수요를 현재고와 비교할지.
+const UPCOMING_SHIP_DAYS = 7;
+
 // 구성품(제품·용량·수량)을 정렬해 만든 표준 문자열. 같은 구성이면 같은 값이 나와 포장 묶음을 만든다.
 function downloadCsv(filename: string, rows: string[][]) {
   const csv = rows
@@ -578,6 +581,20 @@ export default function AdminPage() {
     [rosterDemandForDate]
   );
 
+  // 재고 '발송부족' 경고용 — 오늘부터 UPCOMING_SHIP_DAYS 일간 발송 수요 합계(제품키→개수).
+  //   현재고가 이 수요보다 적으면 재고 탭에서 '발송부족'으로 표시한다(roster 기반 SSOT라 명단과 정합).
+  const upcomingShipDemand = useMemo<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
+    const base = new Date();
+    for (let i = 0; i < UPCOMING_SHIP_DAYS; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      const dm = onlineDemandForDate(toISODate(d));
+      for (const [k, v] of Object.entries(dm)) out[k] = (out[k] ?? 0) + v;
+    }
+    return out;
+  }, [onlineDemandForDate]);
+
   // 선택 기간(date ~ dateTo) 날짜 목록. 최대 62일 가드. dateTo<date 면 당일로.
   const rangeDates = useMemo<string[]>(() => {
     const to = dateTo && dateTo >= date ? dateTo : date;
@@ -771,6 +788,15 @@ export default function AdminPage() {
 
   // ── 액션 ─────────────────────────────────────────────────
   async function updateStatus(order: OrderRow, status: string) {
+    // 실수 방지: '취소'는 되돌리기 어렵고 연결된 구독·환불이 자동 처리되지 않으므로 확인받는다.
+    if (
+      status === "취소" &&
+      !window.confirm(
+        `${order.order_no} 주문을 '취소'로 변경할까요?\n되돌릴 수 없습니다. 정기구독 해지·환불은 별도로 처리해야 합니다.`
+      )
+    ) {
+      return;
+    }
     const sb = getSupabase();
     // 연장 주문 입금확인 → 전용 RPC로 슬롯 회차(+4) 연장과 상태 변경을 원자적으로 처리.
     if (status === "입금확인" && order.renews_slot_id) {
@@ -1093,7 +1119,10 @@ export default function AdminPage() {
       {tab === "상품·재고" && (
         <>
           <ProductAdminPanel />
-          <InventoryPanel />
+          <InventoryPanel
+            upcomingDemand={upcomingShipDemand}
+            upcomingDays={UPCOMING_SHIP_DAYS}
+          />
         </>
       )}
 

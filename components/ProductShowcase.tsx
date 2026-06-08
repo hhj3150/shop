@@ -39,15 +39,15 @@ export function ProductShowcase() {
       <Scatter items={PRODUCTS_CONFETTI} />
       <LogoBubbles />
       <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
-      {/* Store greeting */}
+      {/* Store greeting — 우아한 serif·절제된 크기로(상품 히어로와 통일, 덜 투박) */}
       <Reveal>
-        <p className="eyebrow">Collection</p>
-        <h2 className="mt-3 text-[clamp(2.4rem,6vw,4rem)] font-semibold leading-[1.08] tracking-[-0.01em] text-ink">
+        <p className="eyebrow text-gold-deep">Collection</p>
+        <h2 className="mt-3 font-serif-kr text-[clamp(1.9rem,4.5vw,3rem)] font-medium leading-[1.2] tracking-[-0.015em] text-ink">
           단 네 가지.
           <br />
           <span className="text-mute">곁에 둘 가치가 있는 것만.</span>
         </h2>
-        <p className="mt-5 text-[clamp(1rem,2.4vw,1.3rem)] font-medium leading-relaxed text-ink-soft">
+        <p className="mt-4 text-[15px] leading-relaxed text-ink-soft sm:text-[15.5px]">
           아침에 짜서, 다음 날 도착.{" "}
           <span className="text-gold-deep">우유는 신선함이 생명입니다.</span>
         </p>
@@ -82,7 +82,7 @@ export function ProductShowcase() {
               >
                 {p.badge}
               </p>
-              <h3 className="mt-2 text-[clamp(1.3rem,2.4vw,1.6rem)] font-semibold leading-snug tracking-[-0.01em] text-ink">
+              <h3 className="mt-2 font-serif-kr text-[clamp(1.3rem,2.4vw,1.6rem)] font-medium leading-snug tracking-[-0.01em] text-ink">
                 {p.name}
               </h3>
               <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[14px] text-mute">

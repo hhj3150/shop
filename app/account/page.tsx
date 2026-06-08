@@ -472,7 +472,7 @@ export default function AccountPage() {
                       )}
                       <p className="mt-2 text-[12px] leading-relaxed text-mute">
                         일시정지 기간은 배송 횟수에서 제외되며, 종료 예정일이 정지한
-                        기간만큼 미뤄집니다. 총 {sch.total}회는 모두 배송됩니다.
+                        기간만큼 미뤄집니다. 총 {sch.total}회는 모두 발송됩니다.
                       </p>
                     </div>
                   )}

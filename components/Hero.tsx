@@ -17,14 +17,14 @@ export function Hero() {
             className="mb-4 w-[104px] max-w-full sm:w-[112px]"
           />
 
-          {/* 워드마크 — 로고 아래 브랜드명(국문 + 골드포일 영문). 가독성 위해 크게. */}
-          <p className="mb-7 font-display text-[clamp(1.2rem,5vw,1.7rem)] font-semibold leading-snug tracking-[0.01em] text-ink">
+          {/* 워드마크 — 로고 아래 브랜드명(국문 + 골드포일 영문). 가볍게·우아하게. */}
+          <p className="mb-7 font-display text-[clamp(1.2rem,5vw,1.7rem)] font-medium leading-snug tracking-[0.01em] text-ink">
             송영신목장{" "}
             <span className="gold-foil">A2 Jersey Hay Milk</span>
           </p>
 
-          {/* 센터 슬로건 — 페이지 위계의 중심 */}
-          <h1 className="max-w-xl text-balance font-serif-kr text-[clamp(1.75rem,4vw,2.9rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
+          {/* 센터 슬로건 — 페이지 위계의 중심. 가볍고 우아한 serif(애플식, 덜 투박). */}
+          <h1 className="max-w-2xl text-balance font-serif-kr text-[clamp(1.8rem,4.5vw,3.05rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
             소중한 분들에게 최상의 우유를.
             <br />
             그리고 지속가능한 지구를.
