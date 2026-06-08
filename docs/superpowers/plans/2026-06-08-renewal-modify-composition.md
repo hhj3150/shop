@@ -622,11 +622,10 @@ grant execute on function public.confirm_renewal_payment(uuid) to authenticated;
 
 **Files:** Modify `app/admin/page.tsx`(matrix 집계, ~430-446); 가능하면 순수 함수로 추출해 `lib/production-demand.ts`(+test)
 
-- [ ] **Step 1: 실패 테스트** (`npm test -- production-demand` → FAIL) — 다블록 슬롯 생산수요 이중계상 0(그 주 활성 블록만 1회 계상), 레거시 슬롯은 기존과 동일.
-- [ ] **Step 2: 구현** — matrix 집계를 `blocksBySlot`+`activeBlockForDate` 로 게이팅(roster와 동일 SSOT). 단품(`#10`) 제외 가드 유지. 순수 함수 추출 권장.
+- [ ] **Step 1: 실패 테스트** (`npm test -- production-demand` → FAIL) — 순수 함수로 추출해 단위 테스트: 다블록 슬롯 생산수요 이중계상 0(그 주 활성 블록만 1회 계상), 레거시 슬롯은 기존과 동일.
+- [ ] **Step 2: 구현** — matrix 집계를 `blocksBySlot`+`activeBlockForDate` 로 게이팅(roster와 동일 SSOT). 단품(`#10`) 제외 가드 유지.
 - [ ] **Step 3: 통과** — `npm test -- production-demand` → PASS
-- [ ] **Step 2:** 가능한 한 순수 함수로 추출해 단위 테스트(이중계상 0, 레거시 동일).
-- [ ] **Step 3: 커밋** — `git commit -am "fix: 생산수요 매트릭스 활성 블록만 계상(이중계상 방지)"`
+- [ ] **Step 4: 커밋** — `git commit -am "fix: 생산수요 매트릭스 활성 블록만 계상(이중계상 방지)"`
 
 ---
 
