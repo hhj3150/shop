@@ -5,6 +5,7 @@
 //   최소 필드만 쓰고, 반환 entries 는 넘겨받은 원본 객체를 그대로 담는다.
 import type { DeliveryDay } from "./cart";
 import { dispatchScheduleForSlot, type DispatchSlotInfo } from "./dispatch-schedule";
+import { activeBlockForDate, type RawBlock } from "./subscription-timeline";
 
 // 로스터 판정에 필요한 주문 최소 필드.
 export type RosterOrderFields = {
@@ -56,6 +57,10 @@ export function buildRosterForDate<
   slotByOrder: ReadonlyMap<string, DispatchSlotInfo>;
   confirmedOrderIds: ReadonlySet<string>;
   pausedOrderIds: ReadonlySet<string>;
+  // 슬롯별 블록 체인(원주문+연장주문) — 활성 블록만 발송하기 위한 입력. 없으면 폴백.
+  blocksBySlot?: ReadonlyMap<number, RawBlock[]>;
+  // 주문 id(원주문·연장주문 모두) → 슬롯 id. 활성 블록 조회 키.
+  slotIdByOrder?: ReadonlyMap<string, number>;
 }): DeliveryEntry<O, I>[] {
   const {
     dateISO,
@@ -65,6 +70,8 @@ export function buildRosterForDate<
     slotByOrder,
     confirmedOrderIds,
     pausedOrderIds,
+    blocksBySlot,
+    slotIdByOrder,
   } = params;
   const entries: DeliveryEntry<O, I>[] = [];
 
@@ -82,9 +89,34 @@ export function buildRosterForDate<
     for (const [orderId, its] of byOrder) {
       const order = orderById.get(orderId);
       if (!order || order.order_type === "단품") continue;
-      // 해지·회차소진(·정지) 구독은 그 발송일 기준 배송 대상이 아니다 → 명단에서 제외.
-      //   배송 탭(DispatchPanel)과 동일한 SSOT 로 과배송을 막는다. 슬롯이 없으면 보수적으로 포함.
       const slot = slotByOrder.get(orderId);
+
+      // 활성 블록 게이팅: 슬롯의 블록 체인이 있으면 그 발송일의 활성 블록만 발송한다.
+      //   연장주문이 자기 order_items 를 가질 때, 한 슬롯의 여러 블록이 같은 날 동시에 발송되어
+      //   이중발송되는 것을 막는다(활성 블록의 orderId 와 이 그룹 order_id 가 같을 때만 포함).
+      //   블록 데이터가 없으면(레거시·미상) 기존 dispatchScheduleForSlot 폴백으로 보수적 포함.
+      const slotId = slotIdByOrder?.get(orderId);
+      const blocks = slotId != null ? blocksBySlot?.get(slotId) : undefined;
+      if (slot && blocks && blocks.length > 0) {
+        // 해지·정지 슬롯은 발송 대상이 아니다(activeBlockForDate 는 status 미반영).
+        if (slot.status === "해지" || slot.paused) continue;
+        const active = activeBlockForDate(
+          {
+            startedAt: slot.started_at,
+            paused: slot.paused,
+            pausedAt: slot.paused_at,
+            pausedDays: slot.paused_days,
+            blocks,
+          },
+          dateISO
+        );
+        if (!active || active.orderId !== orderId) continue;
+        entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
+        continue;
+      }
+
+      // 폴백: 해지·회차소진(·정지) 구독은 그 발송일 기준 배송 대상이 아니다 → 명단에서 제외.
+      //   배송 탭(DispatchPanel)과 동일한 SSOT 로 과배송을 막는다. 슬롯이 없으면 보수적으로 포함.
       if (
         slot &&
         dispatchScheduleForSlot(slot, order.block_weeks ?? 0, dateISO).excluded

@@ -8,6 +8,8 @@ import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { computeSchedule } from "@/lib/subscription-schedule";
 import { buildRosterForDate, type DeliveryEntry as RosterEntry } from "@/lib/delivery-roster";
+import { buildRawBlocks, type OrderRow as BlockOrderRow, type OrderItemRow as BlockItemRow } from "@/lib/slot-blocks";
+import type { RawBlock } from "@/lib/subscription-timeline";
 import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 import {
   DELIVERY_DAYS,
@@ -93,6 +95,7 @@ type OrderRow = {
   status: string;
   order_type: string; // '구독' | '단품'
   block_weeks: number | null; // 구독 1회 결제분 회차(연장 전 원 회차)
+  shipping_fee: number | null; // 주문 총 배송비(회당 = shipping_fee / block_weeks)
   ship_date: string | null; // 단품 발송 예정일 (YYYY-MM-DD)
   total_amount: number;
   depositor_name: string | null;
@@ -324,6 +327,90 @@ export default function AdminPage() {
     return m;
   }, [items]);
 
+  // ── 블록(연장 체인) 인지 데이터 ─────────────────────────────
+  //   슬롯 한 건이 원주문(block0) + 연장주문(block k) 체인을 갖는다. 연장주문은 자기
+  //   order_items 를 가질 수 있어, 한 슬롯의 여러 블록이 같은 날 동시에 발송되면 이중발송이
+  //   된다. 발송일별 '활성 블록' 1개만 발송/집계하기 위해 아래 맵들을 조립한다.
+  const slotById = useMemo(() => {
+    const m = new Map<number, SlotRow>();
+    for (const s of slots) m.set(s.id, s);
+    return m;
+  }, [slots]);
+
+  // 연장주문(renews_slot_id != null) 중 확정류(CONFIRMED) 상태만 슬롯별로 묶고 created_at,id 순 정렬.
+  //   취소·입금대기 연장주문은 블록으로 치지 않는다(확정된 회차만 발송 대상).
+  const renewalOrdersBySlot = useMemo(() => {
+    const m = new Map<number, OrderRow[]>();
+    for (const o of orders) {
+      if (o.renews_slot_id == null) continue;
+      if (!CONFIRMED.includes(o.status as (typeof CONFIRMED)[number])) continue;
+      const arr = m.get(o.renews_slot_id) ?? [];
+      arr.push(o);
+      m.set(o.renews_slot_id, arr);
+    }
+    for (const [k, arr] of m) {
+      m.set(
+        k,
+        [...arr].sort(
+          (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+        )
+      );
+    }
+    return m;
+  }, [orders]);
+
+  // OrderRow → buildRawBlocks 입력으로 변환(필요 필드만, 안전한 기본값).
+  const toBlockOrder = useCallback(
+    (o: OrderRow): BlockOrderRow => ({
+      id: o.id,
+      block_weeks: o.block_weeks ?? 0,
+      shipping_fee: o.shipping_fee ?? 0,
+      created_at: o.created_at,
+    }),
+    []
+  );
+
+  // 주문 id → order_items(블록 빌더용 최소 필드). 원주문·연장주문 모두 포함.
+  const blockItemsByOrder = useMemo(() => {
+    const m = new Map<string, BlockItemRow[]>();
+    for (const [oid, rows] of itemsByOrder) {
+      m.set(
+        oid,
+        rows.map((it) => ({
+          delivery_day: it.delivery_day,
+          qty: it.qty,
+          unit_price: it.unit_price,
+          product_name: it.product_name,
+          volume: it.volume,
+        }))
+      );
+    }
+    return m;
+  }, [itemsByOrder]);
+
+  // 슬롯 id → 블록 체인(RawBlock[]). 원주문은 slot.order_id 주문, 연장은 renewalOrdersBySlot.
+  const blocksBySlot = useMemo(() => {
+    const m = new Map<number, RawBlock[]>();
+    for (const s of slots) {
+      if (!s.order_id) continue;
+      const original = orderById.get(s.order_id);
+      if (!original) continue;
+      const renewals = (renewalOrdersBySlot.get(s.id) ?? []).map(toBlockOrder);
+      m.set(s.id, buildRawBlocks(toBlockOrder(original), renewals, blockItemsByOrder));
+    }
+    return m;
+  }, [slots, orderById, renewalOrdersBySlot, blockItemsByOrder, toBlockOrder]);
+
+  // 주문 id(원주문 + 연장주문 모두) → 슬롯 id. 활성 블록 조회 키.
+  const slotIdByOrder = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of slots) if (s.order_id) m.set(s.order_id, s.id);
+    for (const [slotId, arr] of renewalOrdersBySlot) {
+      for (const o of arr) m.set(o.id, slotId);
+    }
+    return m;
+  }, [slots, renewalOrdersBySlot]);
+
   // ── 데이터 점검 — 배포 중 접속 등으로 생길 수 있는 데이터 이상을 한눈에 잡는다.
   //   (1) 입금확인 이후 상태인데 결제확인 시각(paid_at)이 없는 주문 → 실입금 없이 확인됐을 가능성.
   //   (2) 담긴 품목이 0건인 주문(취소 제외) → 주문상품이 안 보이는 이상.
@@ -461,8 +548,10 @@ export default function AdminPage() {
         slotByOrder,
         confirmedOrderIds,
         pausedOrderIds,
+        blocksBySlot,
+        slotIdByOrder,
       }),
-    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder]
+    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder]
   );
 
   // 임의 날짜의 생산 수요를 정기/단품으로 분리. roster(해지·회차소진·정지 제외)에서
