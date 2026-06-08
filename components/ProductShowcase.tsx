@@ -82,7 +82,7 @@ export function ProductShowcase() {
               >
                 {p.badge}
               </p>
-              <h3 className="mt-2 text-[clamp(1.3rem,2.4vw,1.6rem)] font-semibold leading-snug tracking-[-0.01em] text-ink">
+              <h3 className="mt-2 font-serif-kr text-[clamp(1.3rem,2.4vw,1.6rem)] font-medium leading-snug tracking-[-0.01em] text-ink">
                 {p.name}
               </h3>
               <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[14px] text-mute">
