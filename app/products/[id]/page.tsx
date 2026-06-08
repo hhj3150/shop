@@ -30,9 +30,27 @@ export async function generateMetadata({
   const { id } = await params;
   const product = getProduct(id);
   if (!product) return { title: "제품을 찾을 수 없습니다" };
+  const title = `${product.name} ${product.volume}`;
+  const url = `/products/${product.id}`;
+  // 제품별 canonical + OG/트위터 이미지. metadataBase(SITE_URL)가 상대경로를 절대화한다.
   return {
-    title: `${product.name} ${product.volume}`,
+    title,
     description: product.shortDesc,
+    alternates: { canonical: url },
+    openGraph: {
+      title,
+      description: product.shortDesc,
+      type: "website",
+      locale: "ko_KR",
+      url,
+      images: [product.image],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: product.shortDesc,
+      images: [product.image],
+    },
   };
 }
 
