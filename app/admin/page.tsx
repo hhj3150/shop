@@ -30,6 +30,7 @@ import { BroadcastPanel } from "@/components/BroadcastPanel";
 import { ProductionPanel } from "@/components/ProductionPanel";
 import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
 import { Customer360Drawer } from "@/components/Customer360Drawer";
+import { AdminGlobalSearch } from "@/components/AdminGlobalSearch";
 import { buildCustomer360, type C360OrderEvent, type C360Sms } from "@/lib/customer-360";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
@@ -283,6 +284,12 @@ export default function AdminPage() {
     setTab("주문·입금");
     setPendingOrderScroll(true);
   }
+
+  // 전역 검색 입력 데이터(회원·주문). 검색 컴포넌트가 쓰는 최소 형태로 투영한다.
+  const searchMembers = useMemo(
+    () => profiles.map((p) => ({ id: p.id, name: p.name, phone: p.phone, address: p.address })),
+    [profiles]
+  );
 
   // silent=true 면 전체 로딩 표시를 띄우지 않는다 — 30초 자동 새로고침이
   //   매번 화면을 '불러오는 중…'으로 깜빡이지 않게 하기 위함.
@@ -1233,6 +1240,16 @@ export default function AdminPage() {
             보고서 출력
           </button>
         </div>
+      </div>
+
+      {/* 전역 검색 — 어느 탭에서든 회원·주문을 한 입력칸으로 찾아 360 직행 */}
+      <div className="mt-5 no-print">
+        <AdminGlobalSearch
+          members={searchMembers}
+          orders={orders}
+          onOpenMember={(userId) => setSelectedMember(userId)}
+          onOpenGuestOrder={(orderNo) => focusOrderInManageTab(orderNo)}
+        />
       </div>
 
       {/* 역할 탭 */}
