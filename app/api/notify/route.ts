@@ -139,7 +139,7 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
   if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
   const { data: o } = await sb
     .from("orders")
-    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no, is_gift, gifter_name, user_id")
+    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no, is_gift, gifter_name, ship_date, user_id")
     .eq("id", orderId)
     .single();
   if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
@@ -177,12 +177,18 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
 
   if (kind === "order_received") {
     // 주문 접수 + 입금 안내 (알림톡 PAYMENT_GUIDE, 미승인 시 LMS 폴백).
+    // 발송 예정일은 ship_date(서버 산출, KST)를 'M월 D일'로 안내. 값 없으면 기존 문구 유지.
+    const [, mo, da] = (o.ship_date as string | null)?.split("-") ?? [];
+    const dispatchLine =
+      mo && da
+        ? `입금이 확인되면 ${Number(mo)}월 ${Number(da)}일에 발송해 드립니다.`
+        : `입금이 확인되면 다시 안내드리겠습니다.`;
     const text =
       `[${SHOP}] ${name}님, 주문이 접수되었습니다.\n` +
       `주문번호 ${o.order_no}\n` +
       `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
       `${account}\n` +
-      `입금이 확인되면 다시 안내드리겠습니다.`;
+      dispatchLine;
     const alimtalk: AlimtalkSpec = {
       templateKey: "PAYMENT_GUIDE",
       variables: {
@@ -202,10 +208,16 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
 
   if (kind === "payment_confirmed") {
     // 입금 확인 (알림톡 PAYMENT_CONFIRMED, 미승인 시 LMS 폴백).
+    // 발송 예정일(ship_date, 서버 산출 KST)을 'M월 D일'로 안내. 값 없으면 기존 문구 유지.
+    const [, mo, da] = (o.ship_date as string | null)?.split("-") ?? [];
+    const dispatchLine =
+      mo && da
+        ? `${Number(mo)}월 ${Number(da)}일에 발송해 드립니다.`
+        : `신선하게 준비하여 순차 발송해 드리겠습니다.`;
     const text =
       `[${SHOP}] ${name}님, 입금이 확인되었습니다.\n` +
       `주문번호 ${o.order_no}\n` +
-      `신선하게 준비하여 순차 발송해 드리겠습니다.`;
+      dispatchLine;
     const alimtalk: AlimtalkSpec = {
       templateKey: "PAYMENT_CONFIRMED",
       variables: {

@@ -26,19 +26,19 @@ describe("firstDeliveryOnOrAfter", () => {
 // Date 는 로컬 자정으로 생성(월은 0-기반)해 TZ 흔들림을 피한다.
 const d = (y: number, m: number, day: number) => new Date(y, m - 1, day);
 
-describe("nextDispatchDate — 주말 스킵(기존 규칙 유지)", () => {
+describe("nextDispatchDate — 금·토·일은 월요일 발송", () => {
   it("평일(월) 신청 → 익일(화)", () => {
     expect(toISODate(nextDispatchDate(d(2026, 8, 3)))).toBe("2026-08-04"); // 월→화
   });
   it("금 신청 → 다음 주 월", () => {
-    // 8/7(금) → 토 스킵 → 8/10(월)
+    // 8/7(금) → 8/10(월)
     expect(toISODate(nextDispatchDate(d(2026, 8, 7)))).toBe("2026-08-10");
   });
-  it("토 신청 → 화", () => {
-    expect(toISODate(nextDispatchDate(d(2026, 8, 1)))).toBe("2026-08-04"); // 토→화
+  it("토 신청 → 월", () => {
+    expect(toISODate(nextDispatchDate(d(2026, 8, 1)))).toBe("2026-08-03"); // 토→월
   });
-  it("일 신청 → 화", () => {
-    expect(toISODate(nextDispatchDate(d(2026, 8, 2)))).toBe("2026-08-04"); // 일→화
+  it("일 신청 → 월", () => {
+    expect(toISODate(nextDispatchDate(d(2026, 8, 2)))).toBe("2026-08-03"); // 일→월
   });
 });
 

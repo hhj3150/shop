@@ -121,6 +121,7 @@ export async function POST(req: Request) {
     orphan_inserted?: boolean;
     ship_name: string | null;
     ship_phone: string | null;
+    ship_date: string | null;
   };
 
   // 고아입금: 이미 취소된 주문에 결제가 들어옴 → 관리자에게 즉시 SMS 알림(발송/환불 누락 방지).
@@ -144,10 +145,16 @@ export async function POST(req: Request) {
   // 4) 이번 호출로 처음 '입금확인'된 경우에만 입금확인 문자를 보낸다(멱등: 재전송 시 중복발송 없음).
   if (r.changed && r.status === "입금확인" && r.ship_phone && isSolapiConfigured()) {
     const name = r.ship_name || "고객";
+    // 발송 예정일(ship_date, 서버 산출 KST)을 'M월 D일'로 안내. 값 없으면 기존 문구 유지.
+    const [, mo, da] = r.ship_date?.split("-") ?? [];
+    const dispatchLine =
+      mo && da
+        ? `${Number(mo)}월 ${Number(da)}일에 발송해 드립니다.`
+        : `신선하게 준비하여 순차 발송해 드리겠습니다.`;
     const text =
       `[${SHOP}] ${name}님, 입금이 확인되었습니다.\n` +
       `주문번호 ${r.order_no}\n` +
-      `신선하게 준비하여 순차 발송해 드리겠습니다.`;
+      dispatchLine;
     const alimtalk: AlimtalkSpec = {
       templateKey: "PAYMENT_CONFIRMED",
       variables: {
