@@ -225,12 +225,30 @@ export default function AdminPage() {
   // 마운트 시점 기준 '지금' — 회원 최근주문 경과일(recencyDays) 계산용.
   //   렌더 중 Date.now() 직접 호출(비순수)을 피하려 1회만 고정한다.
   const [now] = useState(() => Date.now());
+  // 종합 탭의 이상감지 링크 → '주문·입금' 탭으로 전환한 뒤 해당 주문으로 스크롤하기 위한 대기 플래그.
+  //   (#order-manage 앵커는 주문·입금 탭에서만 렌더되므로, 탭 전환·마운트 후에 스크롤해야 한다.)
+  const [pendingOrderScroll, setPendingOrderScroll] = useState(false);
 
   const isAdmin = Boolean(profile?.is_admin);
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/admin");
   }, [ready, user, router]);
+
+  // 탭이 '주문·입금'으로 바뀌고 대기 플래그가 서 있으면, 마운트된 #order-manage 로 스크롤한다.
+  useEffect(() => {
+    if (tab === "주문·입금" && pendingOrderScroll) {
+      document.getElementById("order-manage")?.scrollIntoView({ behavior: "smooth" });
+      setPendingOrderScroll(false);
+    }
+  }, [tab, pendingOrderScroll]);
+
+  // 이상감지 등에서 특정 주문을 '주문·입금' 탭에서 검색·표시한다.
+  function focusOrderInManageTab(orderNo: string) {
+    setOrderQuery(orderNo);
+    setTab("주문·입금");
+    setPendingOrderScroll(true);
+  }
 
   // silent=true 면 전체 로딩 표시를 띄우지 않는다 — 30초 자동 새로고침이
   //   매번 화면을 '불러오는 중…'으로 깜빡이지 않게 하기 위함.
@@ -1227,10 +1245,7 @@ export default function AdminPage() {
                 {anomalies.paymentNoEvidence.map((o) => (
                   <li key={o.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
                     <button
-                      onClick={() => {
-                        setOrderQuery(o.order_no);
-                        document.getElementById("order-manage")?.scrollIntoView({ behavior: "smooth" });
-                      }}
+                      onClick={() => focusOrderInManageTab(o.order_no)}
                       className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
                     >
                       {o.order_no}
@@ -1256,10 +1271,7 @@ export default function AdminPage() {
                 {anomalies.emptyItems.map((o) => (
                   <li key={o.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
                     <button
-                      onClick={() => {
-                        setOrderQuery(o.order_no);
-                        document.getElementById("order-manage")?.scrollIntoView({ behavior: "smooth" });
-                      }}
+                      onClick={() => focusOrderInManageTab(o.order_no)}
                       className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
                     >
                       {o.order_no}
