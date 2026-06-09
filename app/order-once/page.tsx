@@ -315,7 +315,7 @@ function OrderOnce() {
         {formatKRW(ONCE_SHIPPING_KRW)}. 입금이 확인되면{" "}
         <span className="text-ink-soft">{dispatch}</span>에 발송됩니다.{" "}
         <br className="hidden sm:block" />
-        평일(월–목) 자정 전 주문은 다음 날, 금요일은 월요일, 주말은 화요일 발송. (발송 월–금)
+        평일(월–목) 자정 전 주문은 다음 날, 금·토·일 주문은 월요일 발송. (발송 월–금)
       </p>
 
       {/* 비회원도 주문 가능 — 회원이면 배송지 자동입력·주문내역 조회가 편리하다는 안내 */}
