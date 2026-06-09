@@ -7,7 +7,9 @@ import { useAuth } from "@/lib/auth";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL, subShippingFee } from "@/lib/products";
 import { isSpecialDeliveryPostcode } from "@/lib/regions";
-import { createOrder, registerPayActionDeposit } from "@/lib/orders";
+import { createOrder, registerPayActionDeposit, revokeReferralCredit } from "@/lib/orders";
+import { getSupabase } from "@/lib/supabase";
+import { usableBalance, redeemableCoupons, type RewardLite } from "@/lib/referral-credit";
 import { backfillProfileShipping } from "@/lib/profile";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, isCatalogRejection } from "@/lib/storefront-merge";
@@ -59,12 +61,23 @@ export default function CheckoutPage() {
   const [cashReceiptId, setCashReceiptId] = useState("");
   // 특수배송지역(제주·도서산간 등) 신선도 고지 동의.
   const [acceptFresh, setAcceptFresh] = useState(false);
+  // 추천 적립금(쿠폰) 보유분 + 사용 여부. 기본 사용(선차감 정책). 끄면 주문 후 되돌린다.
+  const [rewards, setRewards] = useState<RewardLite[]>([]);
+  const [useReferralCredit, setUseReferralCredit] = useState(true);
 
   // 배송지 우편번호로 배송비를 다시 계산한다. 특수배송지역은 회당 5,000원이며
   //   서버(RPC)가 청구하는 금액과 일치시킨다. cart의 기본값(4,000원)을 덮어쓴다.
   const isSpecialRegion = isSpecialDeliveryPostcode(ship.postcode);
   const shipTotal = subShippingFee(perDelivery, ship.postcode) * weeks;
   const periodTotal = perDelivery * weeks + shipTotal;
+
+  // 추천 적립금 미리보기 — 서버(apply_referral_credit)와 동일 규칙으로 차감액을 계산해 표시한다.
+  //   실제 차감은 서버 권위값. 토글을 끄면 차감 없이 전액 입금으로 보여준다.
+  const creditAvailable = usableBalance(rewards, new Date().toISOString());
+  const redeem = useReferralCredit
+    ? redeemableCoupons({ availableCount: creditAvailable.count, orderTotal: periodTotal })
+    : { useCount: 0, creditKrw: 0, payable: periodTotal };
+  const finalPayable = periodTotal - redeem.creditKrw;
 
   // 카드·간편결제(PortOne)는 PortOne 설정 시에만, 또 선물이 아닐 때만 선택 가능하다.
   //   선물은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 무통장(PayAction) 흐름으로 고정한다.
@@ -89,6 +102,22 @@ export default function CheckoutPage() {
       depositorName: prev.depositorName || profile.name,
     }));
   }, [profile]);
+
+  // 추천 적립금 잔액 조회(표시·미리보기용). 실패해도 결제는 그대로 진행된다.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getSupabase()
+      .from("referral_rewards")
+      .select("amount_krw,status,expires_at")
+      .eq("user_id", user.id)
+      .then(({ data }) => {
+        if (alive) setRewards((data as RewardLite[]) ?? []);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user]);
 
   function update<K extends keyof typeof ship>(key: K, value: string) {
     setShip((prev) => ({ ...prev, [key]: value }));
@@ -173,13 +202,25 @@ export default function CheckoutPage() {
         cashReceiptId,
       });
 
+      // 적립금 사용 안 함(토글 OFF): 서버가 자동 선차감한 적립금을 되돌린다(쿠폰 복구·금액 원복).
+      //   이후 결제·입금 금액은 원복된 전액(finalTotal)을 권위값으로 사용한다.
+      let finalTotal = totalAmount;
+      let finalCredit = referralCreditKrw;
+      if (!useReferralCredit && referralCreditKrw > 0) {
+        const restored = await revokeReferralCredit(orderId);
+        if (restored > 0) {
+          finalTotal = totalAmount + restored;
+          finalCredit = 0;
+        }
+      }
+
       // 본인 주소 주문이면, 프로필의 빈 배송칸(연락처·주소)을 자동 보완 → 다음 주문부터 따라온다.
       if (profile && !isGift) void backfillProfileShipping(profile, ship);
 
       // 완료 페이지로 넘길 슬롯 컨텍스트(선착순 순번 등)를 쿼리에 싣는다.
       const first = slots[0];
-      const params = new URLSearchParams({ no: orderNo, amount: String(totalAmount) });
-      if (referralCreditKrw > 0) params.set("credit", String(referralCreditKrw));
+      const params = new URLSearchParams({ no: orderNo, amount: String(finalTotal) });
+      if (finalCredit > 0) params.set("credit", String(finalCredit));
       if (first) {
         params.set("day", first.deliveryDay);
         params.set("pos", String(first.position));
@@ -194,7 +235,7 @@ export default function CheckoutPage() {
         const result = await startPayment({
           paymentId: orderNo,
           orderName: `${PERIOD_LABEL[period]} 정기구독`,
-          totalAmount,
+          totalAmount: finalTotal,
           payMethod: method as PayMethod,
           customerName: ship.name,
           customerPhone: ship.phone,
@@ -308,10 +349,34 @@ export default function CheckoutPage() {
             {formatKRW(shipTotal)}
           </span>
         </div>
+        {creditAvailable.count > 0 && (
+          <div className="mt-2 border-t border-gold/20 pt-2">
+            <label className="flex cursor-pointer items-center justify-between gap-2">
+              <span className="text-mute">
+                추천 적립금 사용{" "}
+                <span className="text-[12px] text-gold-deep">
+                  ({creditAvailable.count}장 · {formatKRW(creditAvailable.krw)} 보유)
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={useReferralCredit}
+                onChange={(e) => setUseReferralCredit(e.target.checked)}
+                className="h-4 w-4 accent-gold-deep"
+              />
+            </label>
+            {redeem.creditKrw > 0 && (
+              <div className="mt-1.5 flex justify-between text-gold-deep">
+                <span>추천 적립금 ({redeem.useCount}장 적용)</span>
+                <span className="tabular-nums">−{formatKRW(redeem.creditKrw)}</span>
+              </div>
+            )}
+          </div>
+        )}
         <div className="mt-1.5 flex justify-between">
           <span className="text-mute">{PERIOD_LABEL[period]}분({weeks}회) 입금액</span>
           <span className="font-serif-kr text-lg tabular-nums text-ink">
-            {formatKRW(periodTotal)}
+            {formatKRW(finalPayable)}
           </span>
         </div>
       </div>
@@ -321,7 +386,7 @@ export default function CheckoutPage() {
         {canPortOne && <PayMethodSelect value={method} onChange={setMethod} />}
         {usePortOne ? (
           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-            {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(periodTotal)}을 한 번에 결제합니다.
+            {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(finalPayable)}을 한 번에 결제합니다.
             결제가 확인되는 즉시 발송이 시작됩니다.
           </p>
         ) : (
