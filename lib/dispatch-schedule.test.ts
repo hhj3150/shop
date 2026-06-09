@@ -6,6 +6,7 @@ function baseSlot(over: Partial<DispatchSlotInfo> = {}): DispatchSlotInfo {
   return {
     status: "활성",
     started_at: "2026-06-01",
+    first_ship_date: null,
     paused: false,
     paused_at: null,
     paused_days: 0,

@@ -381,6 +381,7 @@ export default function AccountPage() {
             {subs.map((s) => {
               const sch = computeSchedule({
                 startedAt: s.startedAt,
+                firstShipDate: s.firstShipDate,
                 totalWeeks: s.totalWeeks,
                 paused: s.paused,
                 pausedAt: s.pausedAt,

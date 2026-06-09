@@ -32,6 +32,7 @@ function slot(over: Partial<DispatchSlotInfo> = {}): DispatchSlotInfo {
   return {
     status: "활성",
     started_at: "2026-06-01",
+    first_ship_date: null,
     paused: false,
     paused_at: null,
     paused_days: 0,
@@ -163,6 +164,75 @@ describe("buildRosterForDate", () => {
       slots: new Map(), // 슬롯 미상
     });
     expect(r).toHaveLength(1);
+  });
+
+  // ── 첫배송 공휴일 시프트(first_ship_date): 앵커(선택 요일·공휴일) 당일 제외 + 시프트일 포함 ──
+  describe("첫배송 공휴일 시프트(first_ship_date)", () => {
+    const ANCHOR = "2026-06-01"; // 선택 요일(월) 앵커 = 공휴일 가정
+    const SHIFTED = "2026-06-02"; // 다음 영업일(화)로 시프트된 첫배송
+
+    it("앵커(공휴일) 당일은 명단에서 제외 — 그날 발송하지 않는다", () => {
+      const o = order({ id: "o1" });
+      const r = build({
+        orders: [o],
+        items: [item({ order_id: "o1" })], // delivery_day mon
+        slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED })]]),
+        dateISO: ANCHOR,
+        weekday: "mon",
+      });
+      expect(r).toHaveLength(0);
+    });
+
+    it("시프트된 첫배송일에는 포함된다(요일 불일치여도)", () => {
+      const o = order({ id: "o1" });
+      const r = build({
+        orders: [o],
+        items: [item({ order_id: "o1" })],
+        slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED })]]),
+        dateISO: SHIFTED,
+        weekday: "tue", // 화요일분 — mon 구독이지만 시프트로 이날 발송
+      });
+      expect(r).toHaveLength(1);
+      expect(r[0].order.id).toBe("o1");
+      expect(r[0].kind).toBe("정기");
+    });
+
+    it("시프트 첫배송이라도 해지 슬롯은 제외", () => {
+      const o = order({ id: "o1" });
+      const r = build({
+        orders: [o],
+        items: [item({ order_id: "o1" })],
+        slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED, status: "해지" })]]),
+        dateISO: SHIFTED,
+        weekday: "tue",
+      });
+      expect(r).toHaveLength(0);
+    });
+
+    it("시프트 첫배송이라도 일시정지면 제외", () => {
+      const o = order({ id: "o1" });
+      const r = build({
+        orders: [o],
+        items: [item({ order_id: "o1" })],
+        slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED })]]),
+        paused: new Set(["o1"]),
+        dateISO: SHIFTED,
+        weekday: "tue",
+      });
+      expect(r).toHaveLength(0);
+    });
+
+    it("2회차+(다음 월요일)은 시프트 영향 없이 정상 포함", () => {
+      const o = order({ id: "o1" });
+      const r = build({
+        orders: [o],
+        items: [item({ order_id: "o1" })],
+        slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED })]]),
+        dateISO: "2026-06-08", // 2회차(월)
+        weekday: "mon",
+      });
+      expect(r).toHaveLength(1);
+    });
   });
 
   it("단품은 ship_date 가 일치할 때만 포함된다", () => {

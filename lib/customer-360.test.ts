@@ -18,7 +18,7 @@ function order(over: Partial<C360Order> = {}): C360Order {
 function slot(over: Partial<C360Slot> = {}): C360Slot {
   return {
     id: 1, user_id: "u1", order_id: "o1", delivery_day: "mon",
-    status: "활성", started_at: "2026-06-08", paused: false,
+    status: "활성", started_at: "2026-06-08", first_ship_date: null, paused: false,
     paused_at: null, paused_days: 0, extended_weeks: 0,
     refund_amount: null, cancelled_at: null,
     ...over,
