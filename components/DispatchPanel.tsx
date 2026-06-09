@@ -57,6 +57,7 @@ type DispatchItem = {
 type DispatchSlot = {
   order_id: string | null;
   started_at: string | null;
+  first_ship_date: string | null; // 첫배송 공휴일 보정일(없으면 1회차 = started_at)
   status: string;
   paused: boolean;
   paused_at: string | null;

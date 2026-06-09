@@ -23,11 +23,14 @@ function daysBetween(from: Date, to: Date): number {
 }
 
 export type SubInput = {
-  startedAt: string | null; // 활성(입금확인) 시 부여된 첫 배송일. null이면 아직 시작 전.
+  startedAt: string | null; // 선택 요일 앵커(입금확인 시 부여). null이면 아직 시작 전.
   totalWeeks: number; // 총 배송 횟수 (= 주문 block_weeks)
   paused: boolean;
   pausedAt: string | null;
   pausedDays: number;
+  // 첫 배송 공휴일 보정: 앵커(선택 요일)가 공휴일이면 1회차만 다음 영업일로 시프트한 실제 첫
+  //   배송일. null/미지정이면 1회차 = 앵커(보정 불필요). 2회차+ 는 항상 앵커 요일 cadence.
+  firstShipDate?: string | null;
 };
 
 export type SubSchedule = {
@@ -57,7 +60,8 @@ export function computeSchedule(input: SubInput, now: Date = new Date()): SubSch
     };
   }
 
-  const start = parseISO(input.startedAt);
+  const anchor = parseISO(input.startedAt); // 선택 요일 앵커(2회차+ cadence 기준).
+  const firstBase = input.firstShipDate ? parseISO(input.firstShipDate) : anchor;
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   const currentPauseDays =
@@ -66,8 +70,12 @@ export function computeSchedule(input: SubInput, now: Date = new Date()): SubSch
       : 0;
   const totalPausedDays = input.pausedDays + currentPauseDays;
 
-  // k번째(1-base) 배송 예정일 = 시작일 + (k-1)주 + 누적 정지일.
-  const deliveryDate = (k: number) => addDays(start, (k - 1) * 7 + totalPausedDays);
+  // k번째(1-base) 배송 예정일 + 누적 정지일.
+  //   1회차는 공휴일 보정된 firstBase, 2회차+ 는 앵커 요일 cadence(앵커 + (k-1)주).
+  const deliveryDate = (k: number) =>
+    k === 1
+      ? addDays(firstBase, totalPausedDays)
+      : addDays(anchor, (k - 1) * 7 + totalPausedDays);
 
   let delivered = 0;
   for (let k = 1; k <= total; k++) {

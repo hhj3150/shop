@@ -76,6 +76,7 @@ export type MySubscription = {
   deliveryDay: DeliveryDay;
   status: string;
   startedAt: string | null;
+  firstShipDate: string | null; // 첫배송 공휴일 보정일(없으면 1회차 = startedAt)
   paused: boolean;
   pausedAt: string | null;
   pausedDays: number;
@@ -93,6 +94,7 @@ type SlotJoinRow = {
   delivery_day: DeliveryDay;
   status: string;
   started_at: string | null;
+  first_ship_date: string | null;
   paused: boolean;
   paused_at: string | null;
   paused_days: number;
@@ -151,6 +153,7 @@ export function toMySubscriptions(
     deliveryDay: row.delivery_day,
     status: row.status,
     startedAt: row.started_at,
+    firstShipDate: row.first_ship_date,
     paused: row.paused,
     pausedAt: row.paused_at,
     pausedDays: row.paused_days,
@@ -177,7 +180,7 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
   const { data, error } = await sb
     .from("subscription_slots")
     .select(
-      "id, order_id, delivery_day, status, started_at, paused, paused_at, paused_days, extended_weeks, orders(block_weeks, period_months, order_no, total_amount)"
+      "id, order_id, delivery_day, status, started_at, first_ship_date, paused, paused_at, paused_days, extended_weeks, orders(block_weeks, period_months, order_no, total_amount)"
     )
     .eq("user_id", uid)
     .neq("status", "해지")

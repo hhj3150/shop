@@ -35,6 +35,7 @@ function sub(partial: Partial<MySubscription>): MySubscription {
     deliveryDay: "mon",
     status: "활성",
     startedAt: null,
+    firstShipDate: null,
     paused: false,
     pausedAt: null,
     pausedDays: 0,

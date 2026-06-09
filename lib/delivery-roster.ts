@@ -93,6 +93,11 @@ export function buildRosterForDate<
       const order = orderById.get(orderId);
       if (!order || order.order_type === "단품") continue;
 
+      // 첫배송 공휴일 시프트: 앵커(선택 요일·공휴일) 당일은 발송하지 않는다(시프트일에 포함됨).
+      //   first_ship_date 는 원주문 슬롯(slotByOrder) 기준 — 연장주문엔 적용 안 함.
+      const shiftSlot = slotByOrder.get(orderId);
+      if (shiftSlot?.first_ship_date && shiftSlot.started_at === dateISO) continue;
+
       // 활성 블록 게이팅: 슬롯의 블록 체인이 있으면 그 발송일의 활성 블록만 발송한다.
       //   ★ 연장주문 id 는 slotByOrder(원주문만)에 없으므로, 슬롯은 slotIdByOrder→slotById 로
       //   해석한다(원주문·연장주문 모두 동일 슬롯에 닿는다). 활성 블록의 orderId 와 이 그룹
@@ -131,6 +136,30 @@ export function buildRosterForDate<
       }
       entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
     }
+  }
+
+  // ── 첫배송 공휴일 시프트분: 요일과 무관하게 first_ship_date == dateISO 인 구독의 1회차 포함 ──
+  //   앵커 요일과 다른 날(다음 영업일)이라 위 요일 루프에 안 잡히므로 별도로 채운다.
+  //   해지·정지·미확인은 제외. 위에서 이미 포함된 주문(드문 7일 시프트)은 중복 방지.
+  const alreadyIncluded = new Set(entries.map((e) => e.order.id));
+  const shiftByOrder = new Map<string, I[]>();
+  for (const it of items) {
+    const order = orderById.get(it.order_id);
+    if (!order || order.order_type === "단품") continue;
+    if (alreadyIncluded.has(order.id)) continue;
+    if (!confirmedOrderIds.has(it.order_id)) continue;
+    if (pausedOrderIds.has(it.order_id)) continue;
+    // first_ship_date 는 원주문 슬롯(slotByOrder) 기준 — 연장주문은 대상 아님.
+    const s = slotByOrder.get(it.order_id);
+    if (!s || s.first_ship_date !== dateISO) continue;
+    if (s.status === "해지" || s.paused) continue;
+    const arr = shiftByOrder.get(it.order_id) ?? [];
+    arr.push(it);
+    shiftByOrder.set(it.order_id, arr);
+  }
+  for (const [orderId, its] of shiftByOrder) {
+    const order = orderById.get(orderId)!;
+    entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
   }
 
   // ── 단품: ship_date 일치분 ──

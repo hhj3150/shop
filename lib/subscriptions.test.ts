@@ -51,6 +51,7 @@ describe("toMySubscriptions — 연장분 합산", () => {
     delivery_day: "mon" as DeliveryDay,
     status: "활성",
     started_at: "2026-06-01",
+    first_ship_date: null,
     paused: false,
     paused_at: null,
     paused_days: 0,

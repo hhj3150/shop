@@ -7,6 +7,8 @@ import { computeSchedule } from "./subscription-schedule";
 export type DispatchSlotInfo = {
   status: string;
   started_at: string | null;
+  // 첫배송 공휴일 보정일(앵커가 공휴일이면 다음 영업일). 없으면 1회차 = started_at.
+  first_ship_date: string | null;
   paused: boolean;
   paused_at: string | null;
   paused_days: number;
@@ -32,6 +34,7 @@ export function dispatchScheduleForSlot(
   const total = Math.max(0, blockWeeks + (slot.extended_weeks ?? 0));
   const input = {
     startedAt: slot.started_at,
+    firstShipDate: slot.first_ship_date,
     totalWeeks: total,
     paused: slot.paused,
     pausedAt: slot.paused_at,
