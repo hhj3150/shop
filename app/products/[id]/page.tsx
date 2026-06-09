@@ -196,6 +196,45 @@ export default async function ProductPage({
           ※ 본 제품은 식품의 표시기준에 따라 표시되었으며, 부정·불량식품 신고는 국번 없이 1399.
           소비기한·중량 등 상세 표기는 수령하신 제품의 라벨을 따릅니다.
         </p>
+
+        {/* 영양정보 */}
+        <div className="mt-14">
+          <Reveal>
+            <h3 className="font-serif-kr text-lg font-medium text-ink">
+              영양정보{" "}
+              <span className="text-[13px] font-normal text-mute">({product.nutrition.basis})</span>
+            </h3>
+          </Reveal>
+          <table className="mt-6 w-full border-y border-line text-[14px]">
+            <caption className="sr-only">
+              {product.name} {product.volume} 영양정보 ({product.nutrition.basis})
+            </caption>
+            <thead>
+              <tr className="border-b border-line text-[12px] uppercase tracking-[0.12em] text-mute">
+                <th scope="col" className="py-3 text-left font-medium">영양성분</th>
+                <th scope="col" className="py-3 text-right font-medium">함량</th>
+                <th scope="col" className="py-3 text-right font-medium">% 영양성분기준치</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              <tr>
+                <th scope="row" className="py-3 text-left font-medium text-ink">총 열량</th>
+                <td className="py-3 text-right text-ink">{product.nutrition.calories}</td>
+                <td className="py-3 text-right text-mute" aria-hidden>—</td>
+              </tr>
+              {product.nutrition.rows.map((r) => (
+                <tr key={r.label}>
+                  <th scope="row" className="py-3 text-left font-normal text-ink-soft">{r.label}</th>
+                  <td className="py-3 text-right text-ink-soft">{r.amount}</td>
+                  <td className="py-3 text-right text-mute">{r.percent}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-4 text-[11.5px] leading-relaxed text-mute">
+            ※ % 영양성분기준치는 1일 영양성분 기준치에 대한 비율이므로 개인의 필요 열량에 따라 다를 수 있습니다.
+          </p>
+        </div>
       </section>
 
       {/* Related */}

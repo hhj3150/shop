@@ -21,6 +21,20 @@ export type ProductLabel = {
   shelf: string; // 소비기한
 };
 
+// 영양정보 한 줄. percent는 "% 영양성분기준치" 칸(미표시는 "-").
+export type NutritionRow = {
+  label: string; // 영양성분명 (나트륨, 탄수화물 …)
+  amount: string; // 함량 (44 mg, 5.0 g …)
+  percent: string; // % 영양성분기준치 ("2 %", "-")
+};
+
+// 영양정보표. basis는 표시 기준(100mL당 / 총 내용량 180mL당).
+export type Nutrition = {
+  basis: string; // 영양정보 표시 기준
+  calories: string; // 총 열량
+  rows: NutritionRow[];
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -35,6 +49,7 @@ export type Product = {
   story: string[];
   specs: ProductSpec[];
   label: ProductLabel;
+  nutrition: Nutrition;
   price: number;
   taxFree: boolean;
   image: string;
@@ -124,7 +139,7 @@ export const PRODUCTS: Product[] = [
     line: "milk",
     volume: "180mL",
     badge: "Daily",
-    kcal: 137,
+    kcal: 135,
     tagline: "한 손에 담기는",
     taglineEm: "하루의 시작.",
     shortDesc: "가볍게, 그러나 깊게. 하루를 여는 한 병.",
@@ -135,18 +150,32 @@ export const PRODUCTS: Product[] = [
     specs: [
       { label: "원유", value: "A2/A2 저지 원유 100%" },
       { label: "사육", value: "Hay-fed · 무사일리지" },
-      { label: "열량", value: "137 kcal" },
+      { label: "열량", value: "135 kcal" },
       { label: "보관", value: "냉장 0–10℃" },
       { label: "구분", value: "면세품" },
     ],
     label: {
       type: "우유류 (살균유)",
       ingredients: "원유(A2/A2 저지 원유 100%, 국산)",
-      content: "180mL (137 kcal)",
+      content: "180mL (135 kcal)",
       storage: "냉장 0–10℃ 보관",
       packaging: "유리병 / 종이팩",
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관, 가능한 빨리 드십시오)",
+    },
+    nutrition: {
+      basis: "총 내용량 180mL당",
+      calories: "135 kcal",
+      rows: [
+        { label: "나트륨", amount: "80 mg", percent: "4 %" },
+        { label: "탄수화물", amount: "9.0 g", percent: "3 %" },
+        { label: "당류", amount: "5.9 g", percent: "6 %" },
+        { label: "지방", amount: "8.1 g", percent: "15 %" },
+        { label: "트랜스지방", amount: "0 g", percent: "-" },
+        { label: "포화지방", amount: "4.5 g", percent: "30 %" },
+        { label: "콜레스테롤", amount: "25 mg", percent: "8 %" },
+        { label: "단백질", amount: "6.8 g", percent: "12 %" },
+      ],
     },
     price: 3500,
     taxFree: true,
@@ -184,6 +213,20 @@ export const PRODUCTS: Product[] = [
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관, 가능한 빨리 드십시오)",
     },
+    nutrition: {
+      basis: "100mL당",
+      calories: "76 kcal",
+      rows: [
+        { label: "나트륨", amount: "44 mg", percent: "2 %" },
+        { label: "탄수화물", amount: "5.0 g", percent: "2 %" },
+        { label: "당류", amount: "3.3 g", percent: "3 %" },
+        { label: "지방", amount: "4.5 g", percent: "8 %" },
+        { label: "트랜스지방", amount: "0 g", percent: "-" },
+        { label: "포화지방", amount: "2.5 g", percent: "17 %" },
+        { label: "콜레스테롤", amount: "15 mg", percent: "5 %" },
+        { label: "단백질", amount: "3.8 g", percent: "7 %" },
+      ],
+    },
     price: 12000,
     taxFree: true,
     image: "/products/milk-750-pure.webp",
@@ -220,6 +263,20 @@ export const PRODUCTS: Product[] = [
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관)",
     },
+    nutrition: {
+      basis: "총 내용량 180mL당",
+      calories: "140 kcal",
+      rows: [
+        { label: "나트륨", amount: "95 mg", percent: "5 %" },
+        { label: "탄수화물", amount: "8.1 g", percent: "3 %" },
+        { label: "당류", amount: "3.4 g", percent: "3 %" },
+        { label: "지방", amount: "8.8 g", percent: "16 %" },
+        { label: "트랜스지방", amount: "0 g", percent: "-" },
+        { label: "포화지방", amount: "8.6 g", percent: "57 %" },
+        { label: "콜레스테롤", amount: "75 mg", percent: "25 %" },
+        { label: "단백질", amount: "7.6 g", percent: "14 %" },
+      ],
+    },
     price: 4300,
     taxFree: false,
     image: "/products/yogurt-180-pure.webp",
@@ -255,6 +312,20 @@ export const PRODUCTS: Product[] = [
       packaging: "용기·뚜껑(PP/PS 등)",
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관)",
+    },
+    nutrition: {
+      basis: "100mL당",
+      calories: "78 kcal",
+      rows: [
+        { label: "나트륨", amount: "52 mg", percent: "3 %" },
+        { label: "탄수화물", amount: "4.5 g", percent: "1 %" },
+        { label: "당류", amount: "1.9 g", percent: "2 %" },
+        { label: "지방", amount: "4.9 g", percent: "9 %" },
+        { label: "트랜스지방", amount: "0 g", percent: "0 %" },
+        { label: "포화지방", amount: "4.8 g", percent: "32 %" },
+        { label: "콜레스테롤", amount: "42 mg", percent: "14 %" },
+        { label: "단백질", amount: "4.2 g", percent: "8 %" },
+      ],
     },
     price: 10000,
     taxFree: false,
