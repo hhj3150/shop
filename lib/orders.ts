@@ -38,6 +38,25 @@ async function saveCashReceipt(orderId: string, ship: ShippingInfo): Promise<voi
   }
 }
 
+// 추천 적립금 사용 안 함(opt-out): 방금 자동 선차감된 적립금을 되돌린다.
+//   입금대기 본인 주문만 대상이며 멱등. 복구된 금액(원)을 반환(되돌릴 게 없으면 0).
+//   RPC 미적용·실패 시 0 을 반환해 호출 측이 차감 상태 그대로 진행하게 한다(안전).
+export async function revokeReferralCredit(orderId: string): Promise<number> {
+  try {
+    const { data, error } = await getSupabase().rpc("revoke_referral_credit", {
+      p_order_id: orderId,
+    });
+    if (error) {
+      console.error("적립금 사용 취소 실패:", error.message);
+      return 0;
+    }
+    return (data as number) ?? 0;
+  } catch (e) {
+    console.error("적립금 사용 취소 오류:", e);
+    return 0;
+  }
+}
+
 // 무통장입금 주문을 PayAction 에 등록(자동 입금확인 대상으로 감시 시작).
 // 서버 라우트가 PAYACTION_API_KEY 로 등록을 수행한다. 실패는 non-fatal —
 //   주문은 이미 생성되었으므로 등록 실패는 흡수하고 로깅만 한다(관리자 수동 처리 가능).
