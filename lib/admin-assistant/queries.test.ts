@@ -11,10 +11,24 @@ import {
   confirmedIds,
   pausedOrderIds,
   canceledOrderIds,
+  slotInfoByOrder,
   type OrderLite,
   type ItemLite,
   type SlotLite,
 } from "./queries";
+
+// SlotLite 픽스처(권위 게이팅 필드 기본값 포함).
+const subSlot = (over: Partial<SlotLite> & { order_id: string }): SlotLite => ({
+  delivery_day: "wed",
+  status: "활성",
+  paused: false,
+  started_at: null,
+  first_ship_date: null,
+  paused_at: null,
+  paused_days: 0,
+  extended_weeks: 0,
+  ...over,
+});
 
 // 2026-06-10 = 수요일.
 describe("weekdayOf", () => {
@@ -92,16 +106,86 @@ describe("rosterForDate", () => {
   });
 
   it("해지 구독은 제외(admin 로스터와 동일)", () => {
-    const slots: SlotLite[] = [{ order_id: "A", delivery_day: "wed", status: "해지", paused: false }];
+    const slots: SlotLite[] = [subSlot({ order_id: "A", status: "해지" })];
     const rows = rosterForDate(
       "2026-06-10",
       orders,
       items,
       confirmedIds(orders),
       pausedOrderIds(slots),
-      canceledOrderIds(slots)
+      slotInfoByOrder(slots)
     );
     expect(rows.map((r) => r.name)).not.toContain("홍길동");
+  });
+});
+
+// 권위 로스터(buildRosterForDate)와 통일: 시작 전·회차소진·첫배송 공휴일 시프트 반영(과다집계 방지).
+describe("rosterForDate — 권위 게이팅", () => {
+  const subOrder = order({ id: "A", order_type: "구독", status: "입금확인", block_weeks: 4 });
+  const subItem = item({ order_id: "A", delivery_day: "wed", qty: 2 });
+
+  it("시작일(started_at) 이전 날짜는 제외", () => {
+    const slots = [subSlot({ order_id: "A", started_at: "2026-06-17" })]; // 시작 미래
+    const rows = rosterForDate(
+      "2026-06-10",
+      [subOrder],
+      [subItem],
+      confirmedIds([subOrder]),
+      pausedOrderIds(slots),
+      slotInfoByOrder(slots)
+    );
+    expect(rows.map((r) => r.name)).not.toContain("홍길동");
+  });
+
+  it("회차 소진(종료일 지난 날짜)은 제외", () => {
+    const o = order({ id: "A", order_type: "구독", status: "입금확인", block_weeks: 1 });
+    const slots = [subSlot({ order_id: "A", started_at: "2026-06-10" })]; // 1회차 → 종료일 06-10
+    const rows = rosterForDate(
+      "2026-06-17", // 다음 수요일 → 소진
+      [o],
+      [item({ order_id: "A", delivery_day: "wed" })],
+      confirmedIds([o]),
+      pausedOrderIds(slots),
+      slotInfoByOrder(slots)
+    );
+    expect(rows.map((r) => r.name)).not.toContain("홍길동");
+  });
+
+  it("시작·기간 내 정상 날짜는 포함(대조군)", () => {
+    const slots = [subSlot({ order_id: "A", started_at: "2026-06-10" })];
+    const rows = rosterForDate(
+      "2026-06-10",
+      [subOrder],
+      [subItem],
+      confirmedIds([subOrder]),
+      pausedOrderIds(slots),
+      slotInfoByOrder(slots)
+    );
+    expect(rows.map((r) => r.name)).toContain("홍길동");
+  });
+
+  it("첫배송 공휴일 시프트: 앵커(수) 당일 제외, 시프트일(목) 포함", () => {
+    const slots = [subSlot({ order_id: "A", started_at: "2026-06-10", first_ship_date: "2026-06-11" })];
+    const conf = confirmedIds([subOrder]);
+    const sbo = slotInfoByOrder(slots);
+    const pz = pausedOrderIds(slots);
+    expect(
+      rosterForDate("2026-06-10", [subOrder], [subItem], conf, pz, sbo).map((r) => r.name)
+    ).not.toContain("홍길동"); // 앵커(공휴일) 당일 제외
+    expect(
+      rosterForDate("2026-06-11", [subOrder], [subItem], conf, pz, sbo).map((r) => r.name)
+    ).toContain("홍길동"); // 다음 영업일에 포함
+  });
+});
+
+describe("canceledOrderIds", () => {
+  it("해지 슬롯의 order_id 만 모은다", () => {
+    const slots: SlotLite[] = [
+      subSlot({ order_id: "A", status: "해지" }),
+      subSlot({ order_id: "B", status: "활성" }),
+    ];
+    expect(canceledOrderIds(slots).has("A")).toBe(true);
+    expect(canceledOrderIds(slots).has("B")).toBe(false);
   });
 });
 
