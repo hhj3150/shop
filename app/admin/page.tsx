@@ -31,6 +31,7 @@ import { ProductionPanel } from "@/components/ProductionPanel";
 import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
 import { Customer360Drawer } from "@/components/Customer360Drawer";
 import { AdminGlobalSearch } from "@/components/AdminGlobalSearch";
+import { AdminTodayBoard, type TodoCard } from "@/components/AdminTodayBoard";
 import { buildCustomer360, type C360OrderEvent, type C360Sms } from "@/lib/customer-360";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
@@ -703,6 +704,70 @@ export default function AdminPage() {
     [cancellations]
   );
 
+  // ── '오늘 할 일' 대시보드 ─────────────────────────────────
+  // 오늘 날짜(now 스냅샷 기반)와 그날 발송해야 할 건수(배송 탭과 동일 SSOT 로스터).
+  const todayDateISO = useMemo(() => toISODate(new Date(now)), [now]);
+  const todayDispatchCount = useMemo(
+    () => rosterForDate(todayDateISO).length,
+    [rosterForDate, todayDateISO]
+  );
+  const anomalyCount = anomalies.paymentNoEvidence.length + anomalies.emptyItems.length;
+  // 처리 대기 작업 카드. 수치는 전부 기존 파생값, 클릭은 해당 작업 화면으로 점프한다.
+  const todoCards = useMemo<TodoCard[]>(
+    () => [
+      {
+        key: "deposit-wait",
+        label: "입금 대기",
+        count: pendingOrders.length,
+        hint: "PayAction 미등록",
+        urgent: true,
+        onClick: () => setTab("주문·입금"),
+      },
+      {
+        key: "ship-prep",
+        label: "배송준비 대기",
+        count: depositPendingCount,
+        hint: "입금확인 → 발송",
+        onClick: () => setTab("주문·입금"),
+      },
+      {
+        key: "today-dispatch",
+        label: "오늘 발송",
+        count: todayDispatchCount,
+        hint: todayDateISO,
+        onClick: () => setTab("배송"),
+      },
+      {
+        key: "refund-wait",
+        label: "해지·환불",
+        count: cancellations.length,
+        hint: refundTotal > 0 ? formatKRW(refundTotal) : undefined,
+        onClick: () => setTab("환불·교환"),
+      },
+      {
+        key: "anomaly",
+        label: "이상감지",
+        count: anomalyCount,
+        urgent: true,
+        onClick: () => {
+          setTab("종합 관리");
+          document
+            .getElementById("admin-data-check")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        },
+      },
+    ],
+    [
+      pendingOrders.length,
+      depositPendingCount,
+      todayDispatchCount,
+      todayDateISO,
+      cancellations.length,
+      refundTotal,
+      anomalyCount,
+    ]
+  );
+
   // ── 회원 전체 + 소비자 분석(CRM) ─────────────────────────
   // 회원별로 누적구매(LTV)·확정주문수·객단가(AOV)·최근주문·활성구독을 집계하고,
   //   최근성(recency)과 구독여부로 고객 등급(세그먼트)을 부여한다.
@@ -1223,9 +1288,12 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-2 no-print">
           {depositPendingCount > 0 && (
-            <span className="rounded-full bg-gold/15 px-3 py-2 text-[14px] font-medium text-gold-deep">
+            <button
+              onClick={() => setTab("주문·입금")}
+              className="rounded-full bg-gold/15 px-3 py-2 text-[14px] font-medium text-gold-deep hover:bg-gold/25"
+            >
               입금확인 {depositPendingCount}건 · 배송준비 대기
-            </span>
+            </button>
           )}
           <Link href="/admin/news" className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold">
             소식 전하기
@@ -1296,6 +1364,9 @@ export default function AdminPage() {
         <>
       {loading && <p className="mt-8 text-[14px] text-mute">데이터 불러오는 중…</p>}
 
+      {/* 오늘 할 일 — 처리 대기 작업을 한눈에, 클릭 시 해당 화면으로 점프 */}
+      <AdminTodayBoard cards={todoCards} />
+
       {/* 개요 */}
       <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="회원 수" value={`${profiles.length}명`} />
@@ -1306,7 +1377,7 @@ export default function AdminPage() {
 
       {/* 데이터 점검 — 결제상태/품목 이상 자동 탐지 */}
       {(anomalies.paymentNoEvidence.length > 0 || anomalies.emptyItems.length > 0) && (
-        <section className="mt-6 rounded-2xl border border-amber-300 bg-amber-50/60 p-5 no-print">
+        <section id="admin-data-check" className="mt-6 scroll-mt-6 rounded-2xl border border-amber-300 bg-amber-50/60 p-5 no-print">
           <h2 className="font-serif-kr text-lg text-amber-800">⚠ 데이터 점검 필요</h2>
           <p className="mt-1 text-[13px] text-amber-700">
             배포·접속 시점 등으로 생길 수 있는 이상 주문입니다. 아래 건을 주문 관리에서 확인해 주세요.
