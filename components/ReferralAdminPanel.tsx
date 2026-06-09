@@ -42,10 +42,16 @@ export function ReferralAdminPanel() {
   const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data, error } = await getSupabase().rpc("referral_admin_list");
-    if (!error && Array.isArray(data)) setRows(data as Row[]);
+    // 로드 실패를 '추천 내역 없음'으로 오인하지 않게 에러를 따로 표시한다.
+    if (error) setLoadErr(error.message);
+    else {
+      setLoadErr(null);
+      if (Array.isArray(data)) setRows(data as Row[]);
+    }
     setLoaded(true);
   }, []);
 
@@ -99,7 +105,9 @@ export function ReferralAdminPanel() {
         {msg && (
           <p className="mb-2 rounded-lg bg-hey-green/15 px-3 py-2 text-[13px] font-medium text-hey-green">{msg}</p>
         )}
-        {loaded && rows.length === 0 ? (
+        {loadErr ? (
+          <p className="text-[13px] text-red-600">불러오기 실패: {loadErr}</p>
+        ) : loaded && rows.length === 0 ? (
           <p className="text-[13px] text-mute">아직 추천 내역이 없습니다.</p>
         ) : (
           <ul className="divide-y divide-line">

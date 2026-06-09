@@ -37,11 +37,15 @@ export function FunnelDashboard() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await getSupabase().rpc("funnel_summary", { p_from: from, p_to: to });
-    setCounts((data as Record<string, number>) ?? {});
+    setError(null);
+    // RPC 실패를 빈 데이터(0건)로 오인하지 않게 에러를 따로 표시한다.
+    const { data, error: rpcErr } = await getSupabase().rpc("funnel_summary", { p_from: from, p_to: to });
+    if (rpcErr) setError(rpcErr.message);
+    else setCounts((data as Record<string, number>) ?? {});
     setLoading(false);
     setLoaded(true);
   }, [from, to]);
@@ -115,10 +119,14 @@ export function FunnelDashboard() {
         })}
       </div>
 
-      {loaded && !hasData && !loading && (
-        <p className="mt-4 text-[13px] text-mute">
-          아직 측정된 데이터가 없습니다. (마이그레이션 적용 후 방문·주문이 쌓이면 표시됩니다)
-        </p>
+      {error ? (
+        <p className="mt-4 text-[13px] text-red-600">불러오기 실패: {error}</p>
+      ) : (
+        loaded && !hasData && !loading && (
+          <p className="mt-4 text-[13px] text-mute">
+            아직 측정된 데이터가 없습니다. (마이그레이션 적용 후 방문·주문이 쌓이면 표시됩니다)
+          </p>
+        )
       )}
     </div>
   );
