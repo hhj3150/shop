@@ -8,6 +8,7 @@ import { getSupabase } from "@/lib/supabase";
 import { stockShipOut } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
+import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
@@ -142,6 +143,10 @@ export function DispatchPanel({
   const [courier, setCourier] = useState<string>("cj");
   const [tracking, setTracking] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // 송장 일괄 붙여넣기(엑셀에서 주문번호+송장번호).
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteNote, setPasteNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 검색·필터·정렬 상태.
@@ -317,6 +322,42 @@ export function DispatchPanel({
 
   function trackingOf(o: DispatchOrder): string {
     return tracking[o.id] ?? o.tracking_no ?? "";
+  }
+
+  // 붙여넣은 '주문번호+송장번호'를 파싱·매칭해 각 행 송장칸을 자동으로 채운다.
+  //   매칭된 행은 자동 선택까지 해, 운영자가 바로 '선택 발송'으로 넘어갈 수 있다.
+  function applyTrackingPaste() {
+    const parsed = parseTrackingPaste(pasteText);
+    const idByOrderNo = new Map(allRows.map((r) => [r.o.order_no, r.o.id]));
+    const { matched, unmatched } = matchTracking(parsed, new Set(idByOrderNo.keys()));
+    if (matched.length === 0) {
+      setPasteNote(
+        parsed.length === 0
+          ? "인식된 행이 없습니다. '주문번호[탭]송장번호' 형식인지 확인하세요."
+          : `매칭된 주문이 없습니다. 미매칭 ${unmatched.length}건.`
+      );
+      return;
+    }
+    setTracking((prev) => {
+      const next = { ...prev };
+      for (const m of matched) {
+        const id = idByOrderNo.get(m.orderNo);
+        if (id) next[id] = m.tracking;
+      }
+      return next;
+    });
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const m of matched) {
+        const id = idByOrderNo.get(m.orderNo);
+        if (id) next.add(id);
+      }
+      return next;
+    });
+    const tail = unmatched.length
+      ? ` · 미매칭 ${unmatched.length}건: ${unmatched.slice(0, 5).join(", ")}${unmatched.length > 5 ? " 외" : ""}`
+      : "";
+    setPasteNote(`${matched.length}건 채움·선택됨${tail}`);
   }
 
   function toggleSort(key: SortKey) {
@@ -695,7 +736,43 @@ export function DispatchPanel({
         >
           배송완료
         </button>
+        <button
+          onClick={() => setPasteOpen((v) => !v)}
+          className="ml-auto rounded-lg border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+        >
+          송장 일괄 붙여넣기 {pasteOpen ? "▴" : "▾"}
+        </button>
       </div>
+
+      {/* 송장 일괄 붙여넣기 — 엑셀 '주문번호+송장번호'를 붙여 각 행 송장칸을 한 번에 채운다 */}
+      {pasteOpen && (
+        <div className="mt-2 rounded-2xl border border-line bg-paper p-3 no-print">
+          <p className="text-[13px] text-ink-soft">
+            엑셀에서 <strong>주문번호 + 송장번호</strong> 두 열을 복사해 붙여넣고 [송장 채우기]를
+            누르세요. 택배사는 위에서 선택한 값으로 발송됩니다.
+          </p>
+          <textarea
+            value={pasteText}
+            onChange={(e) => {
+              setPasteText(e.target.value);
+              setPasteNote(null);
+            }}
+            rows={4}
+            placeholder={"SY-1001\t123456789012\nSY-1002\t987654321098"}
+            className="mt-2 w-full resize-y rounded-xl border border-line bg-cream px-3 py-2 font-mono text-[13px] text-ink placeholder:text-mute focus:border-gold focus:outline-none"
+          />
+          <div className="mt-1.5 flex items-center gap-3">
+            <button
+              onClick={applyTrackingPaste}
+              disabled={!pasteText.trim()}
+              className="rounded-lg bg-ink px-3 py-1.5 text-[13px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-30"
+            >
+              송장 채우기
+            </button>
+            {pasteNote && <span className="text-[13px] text-ink-soft">{pasteNote}</span>}
+          </div>
+        </div>
+      )}
 
       {/* 현재 목록 제품별 합계 — 빠뜨림 방지용 한눈 요약 */}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl bg-gold/8 px-4 py-2.5 text-[13px]">
