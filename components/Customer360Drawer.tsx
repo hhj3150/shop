@@ -14,6 +14,22 @@ const SUB_TONE: Record<SubState, string> = {
   해지: "bg-rose-100 text-rose-700",
 };
 
+// 복기 타임라인 종류별 색/라벨.
+const TIMELINE_TONE: Record<string, string> = {
+  order: "bg-ink/10 text-mute",
+  payment: "bg-emerald-100 text-emerald-700",
+  shipped: "bg-indigo-100 text-indigo-700",
+  status: "bg-amber-100 text-amber-700",
+  sms: "bg-sky-100 text-sky-700",
+};
+const TIMELINE_LABEL: Record<string, string> = {
+  order: "주문",
+  payment: "입금",
+  shipped: "발송",
+  status: "상태",
+  sms: "문자",
+};
+
 export function Customer360Drawer({
   data,
   onSaveMember,
@@ -35,7 +51,7 @@ export function Customer360Drawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const { header, subscriptions, orders, refunds } = data;
+  const { header, subscriptions, orders, refunds, timeline } = data;
   const { summary, profile } = header;
 
   return (
@@ -253,6 +269,39 @@ export function Customer360Drawer({
                       {r.date && <span className="ml-1.5 text-mute">{new Date(r.date).toLocaleDateString("ko-KR")}</span>}
                     </span>
                     <span className="tabular-nums text-ink">환불 {formatKRW(r.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* 클레임 복기 타임라인: 무슨 일이 언제 있었나(최신순). */}
+          {timeline.length > 0 && (
+            <section className="mt-6">
+              <p className="eyebrow text-gold-deep">복기 타임라인 ({timeline.length})</p>
+              <ul className="mt-2 space-y-1.5">
+                {timeline.map((t, idx) => (
+                  <li
+                    key={`${t.kind}-${t.at}-${idx}`}
+                    className="flex items-start gap-2.5 rounded-xl border border-line bg-paper px-3.5 py-2.5 text-[13px]"
+                  >
+                    <span
+                      className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${TIMELINE_TONE[t.kind]}`}
+                    >
+                      {TIMELINE_LABEL[t.kind]}
+                    </span>
+                    <span className="min-w-0 flex-1 text-ink-soft">
+                      {t.label}
+                      {t.detail && <span className="ml-1.5 text-mute">{t.detail}</span>}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-mute">
+                      {new Date(t.at).toLocaleString("ko-KR", {
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
                   </li>
                 ))}
               </ul>

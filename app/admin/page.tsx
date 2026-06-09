@@ -30,7 +30,7 @@ import { BroadcastPanel } from "@/components/BroadcastPanel";
 import { ProductionPanel } from "@/components/ProductionPanel";
 import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
 import { Customer360Drawer } from "@/components/Customer360Drawer";
-import { buildCustomer360 } from "@/lib/customer-360";
+import { buildCustomer360, type C360OrderEvent, type C360Sms } from "@/lib/customer-360";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
@@ -228,6 +228,9 @@ export default function AdminPage() {
   // 종합 탭의 이상감지 링크 → '주문·입금' 탭으로 전환한 뒤 해당 주문으로 스크롤하기 위한 대기 플래그.
   //   (#order-manage 앵커는 주문·입금 탭에서만 렌더되므로, 탭 전환·마운트 후에 스크롤해야 한다.)
   const [pendingOrderScroll, setPendingOrderScroll] = useState(false);
+  // 클레임 복기 타임라인: 선택 고객의 상태전이·문자발송 이력(온디맨드 조회, best-effort).
+  const [traceEvents, setTraceEvents] = useState<C360OrderEvent[]>([]);
+  const [traceSms, setTraceSms] = useState<C360Sms[]>([]);
 
   const isAdmin = Boolean(profile?.is_admin);
 
@@ -242,6 +245,37 @@ export default function AdminPage() {
       setPendingOrderScroll(false);
     }
   }, [tab, pendingOrderScroll]);
+
+  // 360 드로어가 열린 고객의 복기 타임라인 원자료(상태전이·문자) 온디맨드 조회.
+  //   테이블 미적용(prod)·오류 시 빈 배열로 폴백 — 드로어는 그대로 동작한다.
+  useEffect(() => {
+    if (!selectedMember) {
+      setTraceEvents([]);
+      setTraceSms([]);
+      return;
+    }
+    const ids = orders.filter((o) => o.user_id === selectedMember).map((o) => o.id);
+    let cancelled = false;
+    (async () => {
+      const sb = getSupabase();
+      const ev = ids.length
+        ? await sb
+            .from("order_events")
+            .select("order_id, event, from_status, to_status, reason, created_at")
+            .in("order_id", ids)
+        : { data: [] as C360OrderEvent[] };
+      if (!cancelled) setTraceEvents((ev.data ?? []) as C360OrderEvent[]);
+
+      const smsQuery = sb.from("sms_log").select("user_id, order_id, kind, ok, sent_at");
+      const sms = ids.length
+        ? await smsQuery.or(`user_id.eq.${selectedMember},order_id.in.(${ids.join(",")})`)
+        : await smsQuery.eq("user_id", selectedMember);
+      if (!cancelled) setTraceSms((sms.data ?? []) as C360Sms[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMember, orders]);
 
   // 이상감지 등에서 특정 주문을 '주문·입금' 탭에서 검색·표시한다.
   function focusOrderInManageTab(orderNo: string) {
@@ -755,6 +789,8 @@ export default function AdminPage() {
       items,
       slots,
       returns,
+      orderEvents: traceEvents,
+      smsLog: traceSms,
       profile: selectedMemberRow
         ? {
             name: selectedMemberRow.name ?? "",
@@ -775,7 +811,7 @@ export default function AdminPage() {
         : null,
       todayISO: todayISO(),
     });
-  }, [selectedMember, selectedMemberRow, orders, items, slots, returns, nameByUser]);
+  }, [selectedMember, selectedMemberRow, orders, items, slots, returns, nameByUser, traceEvents, traceSms]);
 
   const filteredMembers = useMemo(() => {
     const q = memberQuery.trim().toLowerCase();

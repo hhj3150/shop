@@ -60,6 +60,23 @@ export type C360Summary = {
   recencyDays: number | null;
 } | null;
 
+// 클레임 복기 타임라인 입력(신규 소스). 둘 다 best-effort 로 채워지며, 비어도 동작한다.
+export type C360OrderEvent = {
+  order_id: string;
+  event: string;
+  from_status: string | null;
+  to_status: string | null;
+  reason: string | null;
+  created_at: string;
+};
+export type C360Sms = {
+  user_id: string | null;
+  order_id: string | null;
+  kind: string;
+  ok: boolean | null;
+  sent_at: string;
+};
+
 export type C360Input = {
   userId: string;
   name: string; // 프로필 결손 시 폴백 이름
@@ -70,6 +87,8 @@ export type C360Input = {
   profile: C360Profile;
   summary: C360Summary;
   todayISO: string;
+  orderEvents?: C360OrderEvent[]; // 상태 전이 이력(누가·언제)
+  smsLog?: C360Sms[]; // 문자 발송 이력
 };
 
 // ── 출력 뷰모델 ───────────────────────────────
@@ -106,11 +125,20 @@ export type RefundLine = {
   amount: number;
 };
 
+// 클레임 복기용 단일 시계열 엔트리(최신순).
+export type TimelineEntry = {
+  at: string;
+  kind: "order" | "payment" | "shipped" | "status" | "sms";
+  label: string;
+  detail?: string;
+};
+
 export type Customer360 = {
   header: { name: string; profile: C360Profile; summary: C360Summary };
   subscriptions: SubLine[];
   orders: OrderCard[];
   refunds: RefundLine[];
+  timeline: TimelineEntry[];
 };
 
 const WEEKDAY_LABEL: Record<string, string> = {
@@ -202,10 +230,61 @@ export function buildCustomer360(input: C360Input): Customer360 {
     (b.date ?? "").localeCompare(a.date ?? "")
   );
 
+  // ── 클레임 복기 타임라인: 주문 생명주기 + 상태전이 + 문자발송을 시계열 병합(최신순) ──
+  const timeline: TimelineEntry[] = [];
+  for (const o of myOrders) {
+    timeline.push({
+      at: o.created_at,
+      kind: "order",
+      label: `주문 ${o.order_no} 접수`,
+      detail: o.order_type,
+    });
+    if (o.paid_at) {
+      timeline.push({
+        at: o.paid_at,
+        kind: "payment",
+        label: `입금확인 (${o.pay_method ?? "—"})`,
+        detail: o.order_no,
+      });
+    }
+    if (o.shipped_at) {
+      timeline.push({
+        at: o.shipped_at,
+        kind: "shipped",
+        label: "발송",
+        detail: [o.courier, o.tracking_no].filter(Boolean).join(" ") || o.order_no,
+      });
+    }
+  }
+  for (const e of input.orderEvents ?? []) {
+    if (!myOrderIds.has(e.order_id)) continue;
+    const arrow =
+      e.from_status || e.to_status
+        ? `${e.from_status ?? "—"} → ${e.to_status ?? "—"}`
+        : e.event;
+    timeline.push({
+      at: e.created_at,
+      kind: "status",
+      label: `상태 ${arrow}`,
+      detail: [orderNoById.get(e.order_id), e.reason].filter(Boolean).join(" · ") || undefined,
+    });
+  }
+  for (const m of input.smsLog ?? []) {
+    if (!(m.user_id === userId || (m.order_id != null && myOrderIds.has(m.order_id)))) continue;
+    timeline.push({
+      at: m.sent_at,
+      kind: "sms",
+      label: `문자 ${m.kind}${m.ok === false ? " (실패)" : ""}`,
+      detail: m.order_id ? orderNoById.get(m.order_id) : undefined,
+    });
+  }
+  timeline.sort((a, b) => b.at.localeCompare(a.at));
+
   return {
     header: { name: profile?.name || name, profile, summary },
     subscriptions,
     orders: orderCards,
     refunds,
+    timeline,
   };
 }

@@ -34,6 +34,50 @@ function input(over: Partial<C360Input> = {}): C360Input {
   };
 }
 
+describe("buildCustomer360 — 복기 타임라인", () => {
+  it("주문 생명주기·상태전이·문자를 최신순으로 병합한다", () => {
+    const c = buildCustomer360(
+      input({
+        orders: [
+          order({
+            id: "o1", order_no: "ORD-1",
+            created_at: "2026-06-01T00:00:00Z",
+            paid_at: "2026-06-02T00:00:00Z", pay_method: "무통장",
+            shipped_at: "2026-06-03", courier: "cj", tracking_no: "123",
+          }),
+        ],
+        orderEvents: [
+          { order_id: "o1", event: "status_change", from_status: "입금대기", to_status: "입금확인", reason: "수기", created_at: "2026-06-02T01:00:00Z" },
+        ],
+        smsLog: [
+          { user_id: "u1", order_id: "o1", kind: "payment_confirmed", ok: true, sent_at: "2026-06-02T02:00:00Z" },
+        ],
+      })
+    );
+    // 5개(접수·입금확인·상태전이·문자·발송) 병합 + 최신순 정렬.
+    expect(c.timeline.map((t) => t.kind)).toEqual([
+      "shipped", // 06-03
+      "sms", // 06-02T02
+      "status", // 06-02T01
+      "payment", // 06-02T00
+      "order", // 06-01
+    ]);
+  });
+
+  it("타 user/타 주문의 문자는 타임라인에서 제외한다", () => {
+    const c = buildCustomer360(
+      input({
+        orders: [order({ id: "o1", order_no: "ORD-1" })],
+        smsLog: [
+          { user_id: "u2", order_id: null, kind: "welcome", ok: true, sent_at: "2026-06-05T00:00:00Z" },
+          { user_id: null, order_id: "oX", kind: "shipped", ok: true, sent_at: "2026-06-06T00:00:00Z" },
+        ],
+      })
+    );
+    expect(c.timeline.filter((t) => t.kind === "sms")).toEqual([]);
+  });
+});
+
 describe("buildCustomer360", () => {
   it("빈 데이터면 빈 배열과 폴백 이름을 돌려준다", () => {
     const c = buildCustomer360(input());
