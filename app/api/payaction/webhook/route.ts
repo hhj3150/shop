@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyWebhookAuth } from "@/lib/payaction";
+import { sendOrphanDepositAlert } from "@/lib/orphan-alert";
 
 // PayAction(페이액션) 매칭완료 웹훅 수신.
 //
@@ -87,7 +88,21 @@ export async function POST(req: Request) {
     error?: string;
     ignored?: string;
     idempotent?: boolean;
+    orphan?: boolean;
+    ship_name?: string | null;
+    ship_phone?: string | null;
   };
+  // 고아입금: 이미 취소된 주문에 입금이 매칭됨 → 관리자에게 즉시 SMS 알림(발송/환불 누락 방지).
+  if (r.orphan) {
+    console.warn("[payaction/webhook] 고아입금 감지 order_no:", orderNo);
+    await sendOrphanDepositAlert({
+      orderNo,
+      shipName: r.ship_name ?? null,
+      shipPhone: r.ship_phone ?? null,
+      paidAmount: null, // PayAction 경로는 권위 금액을 DB에서만 알 수 있어 원장에 적재됨(SMS엔 금액미상)
+      payMethod: "무통장입금",
+    });
+  }
   if (r.error) {
     // 주문없음 등 재시도해도 동일한 사유 → 로깅 후 200 으로 종료(발송중단 방지).
     console.warn("[payaction/webhook] 처리 불가:", r.error, "order_no:", orderNo);
