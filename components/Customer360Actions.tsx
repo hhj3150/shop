@@ -4,7 +4,7 @@
 //   문자는 정보성(거래·CS) 전용 — 광고성은 단체문자 (광고) 경로를 쓰도록 라벨로 안내한다.
 //   저장/발송은 호출 측(page.tsx)의 핸들러에 위임한다.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function Customer360Actions({
   memo,
@@ -17,6 +17,13 @@ export function Customer360Actions({
   onSendSms?: (message: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(memo);
+  // memo 는 호출 측에서 비동기로 도착한다(드로어는 memo="" 로 먼저 마운트됨). 도착·갱신 시
+  //   draft 에 반영하되, 관리자가 이미 입력을 시작했다면 30초 폴링 갱신이 편집분을 덮어쓰지
+  //   않게 보존한다. 드로어가 회원별 key 로 remount 되므로 edited 는 회원 전환 시 초기화된다.
+  const [edited, setEdited] = useState(false);
+  useEffect(() => {
+    if (!edited) setDraft(memo);
+  }, [memo, edited]);
   const [savingMemo, setSavingMemo] = useState(false);
   const [memoNote, setMemoNote] = useState<string | null>(null);
 
@@ -31,6 +38,8 @@ export function Customer360Actions({
     setMemoNote(null);
     try {
       await onSaveMemo(draft);
+      // 저장 성공 후엔 서버값 = draft. 편집 플래그를 풀어 이후 폴링 갱신과 다시 동기화되게 한다.
+      setEdited(false);
       setMemoNote("저장됨");
     } catch (e) {
       setMemoNote(e instanceof Error ? e.message : "저장 실패");
@@ -73,6 +82,7 @@ export function Customer360Actions({
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value);
+            setEdited(true);
             setMemoNote(null);
           }}
           rows={3}
