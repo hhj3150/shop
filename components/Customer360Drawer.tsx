@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatKRW } from "@/lib/products";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
+import { Customer360Actions } from "@/components/Customer360Actions";
 import type { Customer360, SubState } from "@/lib/customer-360";
 
 // 관리자: 고객 한 명의 전체 맥락(구독 회차·주문·입금·송장·영수증·환불)을 오른쪽 드로어에 모아 본다.
@@ -33,11 +34,19 @@ const TIMELINE_LABEL: Record<string, string> = {
 export function Customer360Drawer({
   data,
   onSaveMember,
+  memo,
+  onSaveMemo,
+  onSendSms,
   onClose,
 }: {
   data: Customer360;
   // 회원 기준 정보 저장. 프로필이 없으면(주문만 있는 사용자) 호출 측에서 undefined.
   onSaveMember?: (values: ProfileEditValues) => Promise<void>;
+  // CS 메모(내부) 현재값·저장.
+  memo?: string;
+  onSaveMemo?: (memo: string) => Promise<void>;
+  // 단건 정보성 문자 발송. 연락처가 없으면 호출 측에서 undefined.
+  onSendSms?: (message: string) => Promise<void>;
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -139,6 +148,15 @@ export function Customer360Drawer({
                 </div>
               )}
             </div>
+          )}
+
+          {/* CS 메모(내부) + 단건 문자 발송 */}
+          {onSaveMemo && (
+            <Customer360Actions
+              memo={memo ?? ""}
+              onSaveMemo={onSaveMemo}
+              onSendSms={onSendSms}
+            />
           )}
 
           {/* 구독 현황 */}
