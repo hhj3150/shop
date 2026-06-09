@@ -10,10 +10,10 @@ import { courierLabel, trackingUrl } from "@/lib/couriers";
 // 토큰을 검증하고, DB의 권위 있는 값으로 수신번호·문구를 구성해 발송한다.
 // (문구를 클라이언트가 정하지 못하게 하여 임의 발송/스팸을 차단)
 
-type OrderKind = "order_received" | "payment_confirmed" | "shipped" | "delivered";
+type OrderKind = "order_received" | "payment_confirmed" | "shipped" | "delivered" | "order_cancelled";
 type GiftKind = "gift_subscription" | "gift_once";
 type RenewalKind = "renewal_guide" | "renewal_confirmed";
-const ADMIN_KINDS = new Set(["payment_confirmed", "shipped", "delivered", "renewal_confirmed"]);
+const ADMIN_KINDS = new Set(["payment_confirmed", "shipped", "delivered", "renewal_confirmed", "order_cancelled"]);
 
 type Body = {
   kind: OrderKind | GiftKind | RenewalKind | "subscription_cancelled" | "welcome";
@@ -139,13 +139,41 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
   if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
   const { data: o } = await sb
     .from("orders")
-    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no")
+    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no, is_gift, gifter_name, user_id")
     .eq("id", orderId)
     .single();
   if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
 
   const name = (o.ship_name as string) || "고객";
   const account = `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
+
+  if (kind === "order_cancelled") {
+    // 주문 취소 안내. 선물 주문이면 받는 분이 아니라 보낸 분(주문자)에게 보낸다.
+    let toPhone = o.ship_phone as string;
+    let toName = name;
+    if (o.is_gift) {
+      const { data: prof } = await sb
+        .from("profiles")
+        .select("name, phone")
+        .eq("id", o.user_id as string)
+        .single();
+      if (prof?.phone) {
+        toPhone = prof.phone as string;
+        toName = (o.gifter_name as string) || (prof.name as string) || name;
+      }
+    }
+    const text =
+      `[${SHOP}] ${toName}님, 주문이 취소되었습니다.\n` +
+      `주문번호 ${o.order_no}\n` +
+      `이미 입금하셨다면 입력하신 환불 계좌로 처리해 드립니다. 문의 주시면 빠르게 도와드리겠습니다.`;
+    const r = await sendAndLog(
+      kind,
+      { orderId, userId: (o.user_id as string | null) ?? null },
+      toPhone,
+      { text, subject: `[${SHOP}] 주문 취소` }
+    );
+    return NextResponse.json(r);
+  }
 
   if (kind === "order_received") {
     // 주문 접수 + 입금 안내 (알림톡 PAYMENT_GUIDE, 미승인 시 LMS 폴백).

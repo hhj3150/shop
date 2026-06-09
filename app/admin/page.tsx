@@ -1073,6 +1073,10 @@ export default function AdminPage() {
     if (status === "배송완료") {
       void notify({ kind: "delivered", orderId: order.id });
     }
+    // 취소 → 고객(선물이면 보낸 분)에게 취소 안내 발송.
+    if (status === "취소") {
+      void notify({ kind: "order_cancelled", orderId: order.id });
+    }
     await load();
   }
 
