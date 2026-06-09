@@ -1981,7 +1981,7 @@ export default function AdminPage() {
       </div>
 
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-[14px]">
+        <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[640px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">주문번호</th>
@@ -2003,7 +2003,7 @@ export default function AdminPage() {
                 return (
                 <Fragment key={o.id}>
                 <tr className="border-b border-line/60 align-top">
-                  <td className="py-2.5 tabular-nums text-ink">
+                  <td data-label="주문번호" className="py-2.5 tabular-nums text-ink">
                     <button
                       onClick={() => setExpandedOrder(open ? null : o.id)}
                       className="inline-flex items-center gap-1 transition-colors hover:text-gold-deep"
@@ -2026,7 +2026,7 @@ export default function AdminPage() {
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 text-ink-soft">
+                  <td data-label="입금자" className="py-2.5 text-ink-soft">
                     <button
                       type="button"
                       onClick={() => setSelectedMember(o.user_id)}
@@ -2035,9 +2035,9 @@ export default function AdminPage() {
                       {o.depositor_name ?? o.ship_name}
                     </button>
                   </td>
-                  <td className="py-2.5 text-right tabular-nums text-ink-soft">{formatKRW(o.total_amount)}</td>
-                  <td className="py-2.5 text-mute">{new Date(o.created_at).toLocaleDateString("ko-KR")}</td>
-                  <td className="py-2.5">
+                  <td data-label="금액" className="py-2.5 text-right tabular-nums text-ink-soft">{formatKRW(o.total_amount)}</td>
+                  <td data-label="신청일" className="py-2.5 text-mute">{new Date(o.created_at).toLocaleDateString("ko-KR")}</td>
+                  <td data-label="현금영수증" className="py-2.5">
                     {o.cash_receipt_type && o.cash_receipt_type !== "발행안함" ? (
                       <div className="flex flex-col items-start gap-1">
                         <span className="text-ink-soft">
@@ -2059,7 +2059,7 @@ export default function AdminPage() {
                       <span className="text-mute">{o.cash_receipt_type === "발행안함" ? "발행안함" : "—"}</span>
                     )}
                   </td>
-                  <td className="py-2.5 no-print">
+                  <td data-label="상태" className="py-2.5 no-print">
                     <div className="flex flex-col items-start gap-1.5">
                       <select
                         value={o.status}
@@ -2075,7 +2075,7 @@ export default function AdminPage() {
                       )}
                     </div>
                   </td>
-                  <td className="py-2.5 no-print">
+                  <td data-label="배송 추적" className="py-2.5 no-print">
                     <TrackingCell order={o} onSave={saveTracking} />
                   </td>
                 </tr>

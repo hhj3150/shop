@@ -295,3 +295,48 @@ body {
   .text-xs { font-size: 13px; }
   .text-sm { font-size: 15px; }
 }
+
+/* 모바일 카드뷰: 넓은 관리 표를 좁은 화면에서 가로스크롤 대신 세로 카드로 바꾼다.
+   데스크톱(md+)에선 평범한 표 그대로. 단일 렌더 경로 유지 — td 에 data-label 만 부여한다.
+   (적용: <table class="admin-cards-sm">, 각 셀에 data-label="머리글"). */
+@media (max-width: 767px) {
+  table.admin-cards-sm,
+  table.admin-cards-sm tbody {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  table.admin-cards-sm thead {
+    display: none;
+  }
+  table.admin-cards-sm tr {
+    display: block;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    padding: 0.4rem 0.85rem;
+    margin-bottom: 0.6rem;
+    background: var(--color-cream);
+  }
+  table.admin-cards-sm td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    text-align: right;
+    border: none !important;
+    padding: 0.3rem 0 !important;
+  }
+  /* data-label 이 있는 셀만 머리글을 앞에 보여준다(드릴다운 등 colspan 셀은 제외). */
+  table.admin-cards-sm td[data-label]::before {
+    content: attr(data-label);
+    color: var(--color-mute);
+    font-size: 13px;
+    text-align: left;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  table.admin-cards-sm td:not([data-label]) {
+    display: block;
+    text-align: left;
+  }
+}
