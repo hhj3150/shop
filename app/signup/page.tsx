@@ -15,7 +15,7 @@ import { WELCOME_PENDING_KEY } from "@/lib/post-signup";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { configured } = useAuth();
+  const { configured, ready, user } = useAuth();
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -116,6 +116,38 @@ export default function SignupPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // 이미 로그인한 회원이 구독 CTA 등으로 가입 페이지에 닿으면, 빈 가입폼 대신
+  //   '이미 회원이십니다' 안내를 띄우고 제품 선택(구독 시작)으로 안내한다.
+  //   (구독 결제 화면은 회원 정보를 자동으로 불러오므로 다시 입력할 필요가 없다.)
+  if (ready && user) {
+    return (
+      <div className="mx-auto max-w-md px-5 pb-24 pt-28 sm:px-8">
+        <p className="eyebrow text-gold-deep">Membership</p>
+        <h1 className="mt-3 font-serif-kr text-[clamp(1.7rem,5vw,2.3rem)] font-medium text-ink">
+          이미 회원이십니다
+        </h1>
+        <p className="mt-3 text-[14px] leading-relaxed text-mute">
+          로그인되어 있어 다시 가입하실 필요가 없어요. 제품을 고르면 구독을 시작할 수 있고,
+          <span className="text-ink-soft"> 결제 화면에 회원님의 배송지가 자동으로 채워집니다.</span>
+        </p>
+        <div className="mt-8 flex flex-col gap-3">
+          <Link
+            href="/#products"
+            className="rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
+          >
+            구독할 제품 고르기
+          </Link>
+          <Link
+            href="/account"
+            className="rounded-full border border-line px-9 py-4 text-center text-sm font-medium tracking-wide text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+          >
+            내 계정·구독 관리
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

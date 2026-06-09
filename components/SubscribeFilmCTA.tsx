@@ -3,11 +3,18 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { BRAND_FILM_ID, buildFilmEmbedUrl } from "@/lib/brand-film";
+import { useAuth } from "@/lib/auth";
 
 // 히어로의 "정기구독 신청하기" 버튼. 클릭하면 브랜드 필름이 반복 재생되는
-// 모달을 열고, 모달 안의 CTA로 실제 신청(/signup) 흐름을 이어준다.
+// 모달을 열고, 모달 안의 CTA로 실제 신청 흐름을 이어준다.
+//   - 비회원: 가입(/signup)으로.
+//   - 이미 로그인한 회원: 가입을 건너뛰고 제품 선택(/#products)으로 바로 안내한다.
 export function SubscribeFilmCTA({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
+  const { ready, user } = useAuth();
+  const isMember = ready && !!user;
+  const ctaHref = isMember ? "/#products" : "/signup";
+  const ctaLabel = isMember ? "구독할 제품 고르기 →" : "정기구독 신청하기 →";
 
   // 모달 열림 동안 Esc 닫기 + 바디 스크롤 잠금.
   useEffect(() => {
@@ -63,10 +70,10 @@ export function SubscribeFilmCTA({ className }: { className?: string }) {
 
             <div className="mt-4 flex justify-center">
               <Link
-                href="/signup"
+                href={ctaHref}
                 className="rounded-full bg-cream px-9 py-4 text-center text-sm font-medium tracking-wide text-ink transition-transform duration-300 ease-[var(--ease-soft)] hover:scale-[1.02] active:scale-[0.98]"
               >
-                정기구독 신청하기 →
+                {ctaLabel}
               </Link>
             </div>
           </div>
