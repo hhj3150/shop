@@ -121,6 +121,37 @@ export async function POST(req: Request) {
     finalText = `${head}${message}\n${optout}`;
   }
 
-  const r = await sendBulk(recipients, finalText, subject || `[${SHOP}] 안내`);
-  return NextResponse.json(r);
+  // ── 광고성: 수신동의 서버 검증(클라이언트 필터 신뢰 금지, 정보통신망법) ──
+  //   isAd 면 수신번호를 marketing_consent=true 회원으로 서버에서 교차검증해 동의자만 남긴다.
+  //   (공지·정보성은 동의와 무관하게 발송 가능하므로 필터하지 않는다.)
+  let sendList = recipients;
+  if (isAd) {
+    const { data: consenters, error: consentErr } = await sb
+      .from("profiles")
+      .select("phone")
+      .eq("marketing_consent", true)
+      .in("phone", recipients);
+    if (consentErr) {
+      return NextResponse.json(
+        { ok: false, reason: "수신동의 확인 중 오류가 발생했습니다." },
+        { status: 500 }
+      );
+    }
+    const allowed = new Set(
+      (consenters ?? []).map((p) => String(p.phone).replace(/[^0-9]/g, ""))
+    );
+    sendList = recipients.filter((r) => allowed.has(r));
+    if (sendList.length === 0) {
+      return NextResponse.json(
+        { ok: false, reason: "광고 수신에 동의한 회원이 없습니다." },
+        { status: 400 }
+      );
+    }
+  }
+
+  const skipped = recipients.length - sendList.length;
+  const r = await sendBulk(sendList, finalText, subject || `[${SHOP}] 안내`);
+  // 광고에서 미동의로 제외된 수신자 수를 함께 알려, 클라/서버 동의 필터가 어긋나도 운영자가 인지하게 한다.
+  //   (r.total = 실제 발송 시도 수.)
+  return NextResponse.json({ ...r, requested: recipients.length, skipped });
 }
