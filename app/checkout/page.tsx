@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
@@ -54,6 +54,9 @@ export default function CheckoutPage() {
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 더블서밋 방어용 멱등키: 체크아웃당 1회 생성, 빠른 더블탭·재시도 때 같은 키를 재사용한다.
+  //   주문이 완료(결제 성공·무통장 등록)되면 회전 → 다음 주문은 새 키를 쓴다.
+  const idempotencyKeyRef = useRef<string | null>(null);
   const [isGift, setIsGift] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
   const [method, setMethod] = useState<CheckoutMethod>("BANK");
@@ -193,6 +196,8 @@ export default function CheckoutPage() {
     }
     setBusy(true);
     try {
+      // 키 지연 생성(이벤트 핸들러 안 — 렌더 중 ref 접근 금지). 재시도 시 같은 키를 재사용.
+      const idempotencyKey = (idempotencyKeyRef.current ??= crypto.randomUUID());
       const { orderId, orderNo, slots, totalAmount, referralCreditKrw } = await createOrder(items, period, {
         ...ship,
         isGift,
@@ -200,7 +205,7 @@ export default function CheckoutPage() {
         giftMessage,
         cashReceiptType,
         cashReceiptId,
-      });
+      }, idempotencyKey);
 
       // 적립금 사용 안 함(토글 OFF): 서버가 자동 선차감한 적립금을 되돌린다(쿠폰 복구·금액 원복).
       //   이후 결제·입금 금액은 원복된 전액(finalTotal)을 권위값으로 사용한다.
@@ -242,10 +247,12 @@ export default function CheckoutPage() {
           redirectUrl,
         });
         if (result.ok) {
+          idempotencyKeyRef.current = crypto.randomUUID(); // 결제 완료 → 다음 주문은 새 키.
           clear();
           router.push(`${redirectUrl}&paid=1`);
         } else if (result.code !== "REDIRECTING") {
           // 사용자가 취소했거나 결제 실패. 주문은 입금대기로 남아 재시도 가능.
+          //   키는 회전하지 않는다 → 재제출 시 같은 키로 같은 주문을 재사용(중복 생성 방지).
           setError(result.message);
         }
         return;
@@ -259,6 +266,7 @@ export default function CheckoutPage() {
       await registerPayActionDeposit(orderNo, ordererPhone);
       // 즉시 입금 안내 문자 발송 후 완료 페이지로.
       void notify({ kind: isGift ? "gift_subscription" : "order_received", orderId });
+      idempotencyKeyRef.current = crypto.randomUUID(); // 주문 접수 완료 → 다음 주문은 새 키.
       clear();
       router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {
