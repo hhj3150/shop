@@ -98,6 +98,13 @@ function downloadCsv(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
+// 엑셀이 숫자로 해석해 앞자리 0을 떼거나(우편번호·연락처) 지수표기로 깨뜨리는(송장번호)
+//   값을 텍스트로 고정한다. ="…" 형태는 엑셀이 텍스트 그대로 표시한다. 빈 값은 빈칸 유지.
+function excelText(v: string | null | undefined): string {
+  const s = String(v ?? "");
+  return s === "" ? "" : `="${s}"`;
+}
+
 // 구독 회차 — 시작일 대비 발송일이 몇 주차인지(1-base). 정지·총회차를 모르는
 //   비(非)슬롯 경로(단품 등) 전용 보조 계산. 슬롯이 있으면 dispatchScheduleForSlot 를 쓴다.
 //   단품·시작일 미상은 1회로 본다. (과거 %4 순환은 5회차+를 1회차로 위장시켜 제거함.)
@@ -470,14 +477,15 @@ export function DispatchPanel({
       const courierName = courierLabel(o.courier);
       const isOnce = o.order_type === "단품";
       // 회차/총회차 — 연장(8·12주) 구독도 5회차+ 가 정확히 출력된다.
-      const roundCell = isOnce ? "단품" : r.total > 0 ? `${r.round}/${r.total}` : String(r.round);
+      //   "회"를 붙여 화면 표기와 맞추고, 엑셀이 "2/8"을 날짜로 자동변환하는 것도 막는다.
+      const roundCell = isOnce ? "단품" : r.total > 0 ? `${r.round}/${r.total}회` : `${r.round}회`;
       const remainCell = !isOnce && r.total > 0 ? String(r.remaining) : "";
       rows.push([
         "", // 유입경로 — 현재 미수집(담당자 기입용)
         o.ship_name,
         giftSenderCsv(o.is_gift, o.gifter_name),
-        o.ship_phone,
-        o.ship_postcode ?? "",
+        excelText(o.ship_phone),
+        excelText(o.ship_postcode),
         o.ship_address,
         o.ship_address_detail ?? "",
         o.created_at?.slice(0, 10) ?? "",
@@ -491,7 +499,7 @@ export function DispatchPanel({
         r.q[2] ? String(r.q[2]) : "",
         r.q[3] ? String(r.q[3]) : "",
         courierName,
-        trackingOf(o),
+        excelText(trackingOf(o)),
         receiptStatus(o),
         o.status,
       ]);
