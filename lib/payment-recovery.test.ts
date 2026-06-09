@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { decideAction, buildRecoveryMessage, type RecoveryTarget } from "./payment-recovery";
+import {
+  decideAction,
+  buildRecoveryMessage,
+  buildExpiryCancelMessage,
+  type RecoveryTarget,
+} from "./payment-recovery";
 import { DEPOSIT } from "./site";
 
 const base: RecoveryTarget = {
@@ -70,5 +75,15 @@ describe("buildRecoveryMessage", () => {
       "#{금액}": "39000",
       "#{마감일}": "6월 4일", // 06-01 + 3일 (KST)
     });
+  });
+});
+
+describe("buildExpiryCancelMessage", () => {
+  it("자동취소 안내 — 고객명·주문번호 포함, 미입금 자동취소 문구", () => {
+    const m = buildExpiryCancelMessage(base);
+    expect(m.subject).toContain("송영신목장");
+    expect(m.text).toContain("홍길동");
+    expect(m.text).toContain("20260601-0001");
+    expect(m.text).toContain("자동 취소");
   });
 });
