@@ -885,6 +885,14 @@ export default function AdminPage() {
         return;
       }
       void notify({ kind: "renewal_confirmed", orderId: order.id });
+      // 클레임 복기: 상태 전이 이력(누가·언제). 감사로그라 실패해도 흐름 무영향.
+      void sb.rpc("log_order_event", {
+        p_order_id: order.id,
+        p_event: "status_change",
+        p_from_status: order.status,
+        p_to_status: "입금확인",
+        p_reason: "연장 입금확인(수기)",
+      });
       await load();
       return;
     }
@@ -902,6 +910,14 @@ export default function AdminPage() {
       alert(`주문 상태 변경 실패: ${updErr.message}`);
       return;
     }
+    // 클레임 복기: 상태 전이 이력(누가·언제·무엇→무엇). 감사로그라 실패해도 흐름 무영향.
+    void sb.rpc("log_order_event", {
+      p_order_id: order.id,
+      p_event: "status_change",
+      p_from_status: order.status,
+      p_to_status: status,
+      p_reason: status === "입금확인" ? "무통장 입금확인(수기)" : null,
+    });
     // 입금확인 → 슬롯을 활성화하고, 요일별 첫 배송일을 시작일로 부여.
     if (status === "입금확인") {
       const { data: pending } = await sb
@@ -1030,9 +1046,18 @@ export default function AdminPage() {
       alert(`송장 저장 실패: ${error.message}`);
       return;
     }
+    const shippedTransition = Boolean(tracking) && (order.status === "입금확인" || order.status === "배송준비");
+    // 클레임 복기: 발송/송장 이력(누가·언제·택배사·송장). 감사로그라 실패해도 흐름 무영향.
+    void sb.rpc("log_order_event", {
+      p_order_id: order.id,
+      p_event: shippedTransition ? "shipped" : "tracking_update",
+      p_from_status: order.status,
+      p_to_status: shippedTransition ? "배송중" : null,
+      p_meta: { courier: courier || null, tracking_no: tracking || null },
+    });
     // 새로 '배송중'으로 전환된 건에만 발송 안내 — 이미 배송중인 주문을 재저장할 때
     //   중복 발송 문자를 보내지 않는다(상태 전이일 때만 발송).
-    if (tracking && (order.status === "입금확인" || order.status === "배송준비")) {
+    if (shippedTransition) {
       void notify({ kind: "shipped", orderId: order.id });
     }
     await load();
