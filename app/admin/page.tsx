@@ -34,6 +34,7 @@ import { AdminGlobalSearch } from "@/components/AdminGlobalSearch";
 import { AdminTodayBoard, type TodoCard } from "@/components/AdminTodayBoard";
 import { buildCustomer360, type C360OrderEvent, type C360Sms } from "@/lib/customer-360";
 import { buildMemberSmsPayload } from "@/lib/member-sms";
+import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
@@ -110,6 +111,8 @@ type OrderRow = {
   ship_address: string;
   ship_address_detail: string | null;
   memo: string | null;
+  is_gift: boolean | null; // 선물 주문이면 ship_* 는 받는 분, gifter_name 은 보낸 분
+  gifter_name: string | null; // 보낸 분(주문자) 표시명
   courier: string | null;
   tracking_no: string | null;
   shipped_at: string | null;
@@ -1240,7 +1243,7 @@ export default function AdminPage() {
     };
 
     const rows: string[][] = [
-      ["발송일", "요일", "구분", "정기회차", "구독기간", "포장묶음", "주문번호", "이름", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
+      ["발송일", "요일", "구분", "정기회차", "구독기간", "포장묶음", "주문번호", "이름", "보낸이(선물)", "연락처", "우편번호", "주소", "상세주소", "제품(수량)", "상태"],
     ];
     for (const day of deliveryByDate) {
       const label = day.weekday ? DELIVERY_DAY_LABEL[day.weekday] : "주말";
@@ -1256,6 +1259,7 @@ export default function AdminPage() {
             String(gi + 1),
             o.order_no,
             o.ship_name,
+            giftSenderCsv(o.is_gift, o.gifter_name),
             o.ship_phone,
             o.ship_postcode ?? "",
             o.ship_address,
@@ -1803,7 +1807,14 @@ export default function AdminPage() {
                           </tr>
                           {g.rows.map(({ order, items: its }) => (
                             <tr key={order.id} className="border-b border-line/60 align-top">
-                              <td className="py-2.5 text-ink">{order.ship_name}</td>
+                              <td className="py-2.5 text-ink">
+                                {order.ship_name}
+                                {giftSenderLabel(order.is_gift, order.gifter_name) && (
+                                  <span className="mt-0.5 block text-[12px] text-gold-deep">
+                                    🎁 {giftSenderLabel(order.is_gift, order.gifter_name)}
+                                  </span>
+                                )}
+                              </td>
                               <td className="py-2.5 tabular-nums text-ink-soft">{order.ship_phone}</td>
                               <td className="py-2.5 text-ink-soft">
                                 ({order.ship_postcode}) {order.ship_address} {order.ship_address_detail ?? ""}
@@ -2034,6 +2045,11 @@ export default function AdminPage() {
                     >
                       {o.depositor_name ?? o.ship_name}
                     </button>
+                    {o.is_gift && (
+                      <span className="mt-0.5 block text-[12px] text-gold-deep">
+                        🎁 선물 → 받는분 {o.ship_name}
+                      </span>
+                    )}
                   </td>
                   <td data-label="금액" className="py-2.5 text-right tabular-nums text-ink-soft">{formatKRW(o.total_amount)}</td>
                   <td data-label="신청일" className="py-2.5 text-mute">{new Date(o.created_at).toLocaleDateString("ko-KR")}</td>

@@ -9,6 +9,7 @@ import { stockShipOut } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
+import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
@@ -41,6 +42,8 @@ type DispatchOrder = {
   created_at: string;
   cash_receipt_type: string | null;
   cash_receipt_issued: boolean | null;
+  is_gift: boolean | null; // 선물이면 ship_* 는 받는 분
+  gifter_name: string | null; // 보낸 분
 };
 
 type DispatchItem = {
@@ -456,7 +459,7 @@ export function DispatchPanel({
   // 배송 담당자용 발송 명단 엑셀 — 회차별 발송일 칸 + 제품 수량 + 총개수/총 L량 합계(빠뜨림 방지).
   function exportDispatchCsv() {
     const header = [
-      "유입", "이름", "연락처", "우편번호", "주소", "상세주소", "최근주문",
+      "유입", "이름", "보낸이(선물)", "연락처", "우편번호", "주소", "상세주소", "최근주문",
       "구분", "배송요일", "회차", "남은회차", "발송일",
       ...BUCKET_LABEL, "택배사", "송장번호", "소득공발행", "상태",
     ];
@@ -471,6 +474,7 @@ export function DispatchPanel({
       rows.push([
         "", // 유입경로 — 현재 미수집(담당자 기입용)
         o.ship_name,
+        giftSenderCsv(o.is_gift, o.gifter_name),
         o.ship_phone,
         o.ship_postcode ?? "",
         o.ship_address,
@@ -849,6 +853,11 @@ export function DispatchPanel({
                     </td>
                     <td className="py-3 pr-3">
                       <p className="text-ink">{o.ship_name}</p>
+                      {giftSenderLabel(o.is_gift, o.gifter_name) && (
+                        <p className="text-[12px] font-medium text-gold-deep">
+                          🎁 {giftSenderLabel(o.is_gift, o.gifter_name)}
+                        </p>
+                      )}
                       <p className="text-[12px] tabular-nums text-mute">{o.ship_phone}</p>
                       <p className="text-[11px] tabular-nums text-line">{o.order_no}</p>
                     </td>
