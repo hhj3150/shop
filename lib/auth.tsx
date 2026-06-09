@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
+import { runPostSignupTasks } from "./post-signup";
 
 export type Profile = {
   id: string;
@@ -71,11 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next);
       if (next?.user) {
         setProfileLoaded(false);
         loadProfile(next.user.id);
+        // 최초 로그인 시 가입 후속 작업(추천 등록 + 환영 문자)을 1회 실행한다.
+        // 플래그 기반이라 일반 로그인에서는 no-op. best-effort.
+        if (event === "SIGNED_IN") void runPostSignupTasks();
       } else {
         setProfile(null);
         setProfileLoaded(true);
