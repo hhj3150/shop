@@ -19,6 +19,9 @@ export type C360Order = {
   shipped_at: string | null;
   cash_receipt_type: string | null;
   cash_receipt_issued: boolean | null;
+  is_gift?: boolean | null;
+  gifter_name?: string | null;
+  ship_name?: string | null;
 };
 
 export type C360Item = {
@@ -112,6 +115,9 @@ export type OrderCard = {
   totalAmount: number;
   createdAt: string;
   blockWeeks: number | null;
+  isGift: boolean;
+  gifterName: string | null;
+  shipName: string | null;
   items: { productName: string; volume: string; qty: number }[];
   deposit: { paidAt: string | null; payMethod: string | null } | null;
   tracking: { courier: string | null; trackingNo: string | null; shippedAt: string | null } | null;
@@ -181,6 +187,9 @@ export function buildCustomer360(input: C360Input): Customer360 {
     totalAmount: o.total_amount,
     createdAt: o.created_at,
     blockWeeks: o.block_weeks,
+    isGift: o.is_gift === true,
+    gifterName: o.gifter_name ?? null,
+    shipName: o.ship_name ?? null,
     items: itemsByOrder.get(o.id) ?? [],
     deposit: o.paid_at || o.pay_method ? { paidAt: o.paid_at, payMethod: o.pay_method } : null,
     tracking:

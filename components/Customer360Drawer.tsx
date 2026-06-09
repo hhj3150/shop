@@ -216,6 +216,11 @@ export function Customer360Drawer({
                                 {o.blockWeeks}주 구독
                               </span>
                             ) : null}
+                            {o.isGift && (
+                              <span className="ml-1.5 rounded-full bg-gold/15 px-2 py-0.5 text-[12px] font-medium text-gold-deep">
+                                🎁 선물{o.shipName ? ` → ${o.shipName}` : ""}
+                              </span>
+                            )}
                           </p>
                           <p className="mt-0.5 text-[12.5px] text-mute">
                             {new Date(o.createdAt).toLocaleDateString("ko-KR")}
