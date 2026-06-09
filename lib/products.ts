@@ -46,7 +46,7 @@ export type Product = {
 // 구독 기간은 4·8·12주 중 선택. 1개월 = 4주(= 4회 배송)분을 한 번에 무통장입금(4회분 선납).
 // 회원 할인율 10/12/15%. 다음 달도 받으시려면 매월 연장(재입금)한다.
 export const WEEKS_PER_MONTH = 4;
-export const MIN_ORDER_KRW = 25000; // 1회(매주) 배송 최소 상품 금액 (단품과 동일)
+export const MIN_ORDER_KRW = 24000; // 1회(매주) 배송 최소 상품 금액 (단품과 동일). 750mL 12,000원 × 2병.
 export const SUB_SHIPPING_KRW = 4000; // 회당(매주) 배송비
 
 // 정기구독 회당 배송비. 주문 금액과 무관하게 항상 자부담(무료배송 없음).
@@ -92,9 +92,9 @@ export function discountForPeriod(months: SubPeriod): number {
 }
 
 // ───────── 단품(1회) 구매 정책 ─────────
-// 정기구독과 별개. 상품 합계 25,000원 이상부터 결제 가능, 배송비 4,000원.
+// 정기구독과 별개. 상품 합계 24,000원 이상부터 결제 가능, 배송비 4,000원.
 // 주문 금액과 무관하게 배송비는 항상 자부담(무료배송 없음). 무통장입금 확인 후 발송(신청 다음 날, 월–금).
-export const ONCE_MIN_KRW = 25000; // 단품 최소 상품 합계
+export const ONCE_MIN_KRW = 24000; // 단품 최소 상품 합계 (750mL 12,000원 × 2병)
 export const ONCE_SHIPPING_KRW = 4000; // 단품 기본 배송비
 
 // 단품 상품 합계에 대한 배송비 계산. 금액과 무관하게 항상 자부담.

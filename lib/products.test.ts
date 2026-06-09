@@ -9,8 +9,23 @@ import {
   subscribePrice,
   subShippingFee,
   BASE_DISCOUNT,
+  MIN_ORDER_KRW,
+  ONCE_MIN_KRW,
   type SubPeriod,
 } from "./products";
+
+describe("회당 최소 결제금액 정책", () => {
+  // 750mL 1병 12,000원 × 2병 = 24,000원이 통과되도록 24,000원으로 설정.
+  it("단품·구독 회당 최소금액은 24,000원", () => {
+    expect(MIN_ORDER_KRW).toBe(24000);
+    expect(ONCE_MIN_KRW).toBe(24000);
+  });
+  it("750mL 2병(24,000원)은 충족, 1병(12,000원)은 미달", () => {
+    const bottle = 12000;
+    expect(bottle * 2 >= ONCE_MIN_KRW).toBe(true);
+    expect(bottle * 1 >= ONCE_MIN_KRW).toBe(false);
+  });
+});
 
 describe("정기구독 기간 옵션", () => {
   it("SUB_PERIODS는 1·2·3(4/8/12주) 세 단계", () => {
