@@ -1,4 +1,7 @@
--- 주문 배송비 드리프트 복구: 특수배송(제주·도서산간) 5,000원 + 회원 단품 공휴일.
+-- 주문 가격 드리프트 복구 + 최소금액 조정.
+--   (1) 특수배송(제주·도서산간) 5,000원 복원, (2) 회원 단품 공휴일 발송일,
+--   (3) 회당 최소금액 25,000 → 24,000원 (750mL 12,000원 × 2병 통과).
+--   대상 함수: _create_once_order_core / create_once_order / create_subscription_order / request_renewal.
 --
 -- 문제(라이브 머니 버그, prod 진단으로 확정):
 --   여러 마이그레이션이 같은 주문 함수를 각자 옛 사본 기준으로 재정의하며 서로의 추가분을 덮어써,
@@ -7,7 +10,7 @@
 --   (특수배송 5,000원은 현재 request_renewal 에만 남아 있었음.)
 --
 -- 해결(surgical): 함수 구조는 그대로 두고 각 함수의 배송비 계산만 특수배송 분기로 복원하고,
---   회원 단품의 발송일을 next_dispatch_date(공휴일 반영)로 교체한다.
+--   회원 단품의 발송일을 next_dispatch_date(공휴일 반영)로 교체하며, 회당 최소금액을 24,000원으로 낮춘다.
 --   ※ 회원 단품은 현금영수증을 별도 set_cash_receipt RPC 로 처리하므로(코어와 구조가 다름)
 --     코어 통합 대신 각 함수를 충실히 보존-수정한다(이중처리 회귀 방지).
 --
@@ -74,8 +77,8 @@ begin
     v_subtotal := v_subtotal + v_price * v_qty;
   end loop;
 
-  if v_subtotal < 25000 then
-    raise exception '단품 최소 주문 금액은 25,000원입니다.';
+  if v_subtotal < 24000 then
+    raise exception '단품 최소 주문 금액은 24,000원입니다.';
   end if;
   -- 배송비: 특수배송지역(제주·도서산간) 5,000원, 그 외 4,000원.
   v_shipping := case
@@ -195,8 +198,8 @@ begin
     v_subtotal := v_subtotal + v_price * v_qty;
   end loop;
 
-  if v_subtotal < 25000 then
-    raise exception '단품 최소 주문 금액은 25,000원입니다.';
+  if v_subtotal < 24000 then
+    raise exception '단품 최소 주문 금액은 24,000원입니다.';
   end if;
   -- 배송비: 특수배송지역(제주·도서산간) 5,000원, 그 외 4,000원.
   v_shipping := case
@@ -327,8 +330,8 @@ begin
     v_per_list     := v_per_list + v_price * v_qty;
   end loop;
 
-  if v_per_delivery < 25000 then
-    raise exception '회당 최소 상품 금액은 25,000원입니다.';
+  if v_per_delivery < 24000 then
+    raise exception '회당 최소 상품 금액은 24,000원입니다.';
   end if;
   -- 배송비: 특수배송지역(제주·도서산간) 5,000원, 그 외 4,000원. 회차(주수)만큼 합산.
   v_shipping := (case
@@ -414,6 +417,148 @@ $$;
 
 grant execute on function public.create_subscription_order(jsonb, int, jsonb) to authenticated;
 
+-- ───────────────────────────────────────────────────────────────────────────
+-- 4) request_renewal (구독 연장). referral-credit-redeem.sql 정의 그대로 보존 +
+--    회당 최소금액 25,000 → 24,000 만 변경(특수배송·적립금은 이미 보존돼 있던 그대로).
+--    클라(RenewalForm)는 MIN_ORDER_KRW=24,000 으로 검증하므로 서버 백스톱도 일치시킨다.
+-- ───────────────────────────────────────────────────────────────────────────
+create or replace function public.request_renewal(
+  p_slot_id      bigint,
+  p_items        jsonb,   -- [{product_id, qty}, ...]
+  p_period       int,     -- 1 | 2 | 3 (= 4/8/12주)
+  p_delivery_day text     -- 'mon'..'fri'
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid          uuid := auth.uid();
+  v_slot         record;
+  v_src          record;
+  v_rate         numeric;
+  v_weeks        int;
+  v_item         jsonb;
+  v_pid          text;
+  v_qty          int;
+  v_price        int;
+  v_name         text;
+  v_volume       text;
+  v_unit         int;
+  v_per_delivery int := 0;
+  v_per_list     int := 0;
+  v_taken        int;
+  v_shipping     int;
+  v_total        int;
+  v_order_id     uuid;
+  v_order_no     text;
+  v_credit       int := 0;
+begin
+  if v_uid is null then raise exception '로그인이 필요합니다.'; end if;
+
+  select * into v_slot
+    from public.subscription_slots
+   where id = p_slot_id and user_id = v_uid and status = '활성'
+   for update;
+  if not found then raise exception '연장할 수 있는 활성 구독이 아닙니다.'; end if;
+
+  if exists (select 1 from public.orders
+              where renews_slot_id = p_slot_id and status = '입금대기') then
+    raise exception '이미 연장 입금 대기 중인 주문이 있습니다. 입금 후 다시 시도해 주세요.';
+  end if;
+
+  v_rate := public.period_discount(p_period);
+  if v_rate is null then raise exception '구독 기간이 올바르지 않습니다.'; end if;
+  v_weeks := p_period * 4;
+
+  if p_delivery_day not in ('mon','tue','wed','thu','fri') then
+    raise exception '배송 요일이 올바르지 않습니다.';
+  end if;
+  if p_items is null or jsonb_array_length(p_items) = 0 then
+    raise exception '연장할 품목이 없습니다.';
+  end if;
+
+  select * into v_src from public.orders where id = v_slot.order_id;
+  if not found then raise exception '원 구독 주문을 찾을 수 없습니다.'; end if;
+
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    v_pid := v_item->>'product_id';
+    v_qty := coalesce((v_item->>'qty')::int, 0);
+    if v_qty <= 0 then raise exception '수량이 올바르지 않습니다.'; end if;
+    select price, name, volume into v_price, v_name, v_volume
+      from public.product_catalog where id = v_pid and active;
+    if not found then raise exception '판매 종료된 제품이 있어 연장할 수 없습니다.'; end if;
+    v_unit := (round((v_price * (1 - v_rate)) / 10.0) * 10)::int;
+    v_per_delivery := v_per_delivery + v_unit * v_qty;
+    v_per_list     := v_per_list + v_price * v_qty;
+  end loop;
+
+  if v_per_delivery < 24000 then
+    raise exception '회당 최소 상품 금액은 24,000원입니다.';
+  end if;
+
+  -- 요일 변경 사전 검사(권고; 권위 검사는 confirm_renewal_payment 에서 advisory lock 아래 재검사)
+  if p_delivery_day <> v_slot.delivery_day then
+    if exists (select 1 from public.subscription_slots
+                where user_id = v_uid and delivery_day = p_delivery_day and status <> '해지') then
+      raise exception '이미 그 요일에 구독이 있어 요일을 변경할 수 없습니다.';
+    end if;
+    select count(*) filter (where status in ('신청','활성')) into v_taken
+      from public.subscription_slots where delivery_day = p_delivery_day;
+    if v_taken >= 100 then
+      raise exception '선택한 요일이 마감되어 변경할 수 없습니다.';
+    end if;
+  end if;
+
+  -- 배송비(특수배송지역 보존). 연장은 원 주문 배송지를 승계하므로 원 주문 우편번호로 판별.
+  v_shipping := (case
+    when public.is_special_delivery_postcode(v_src.ship_postcode) then 5000
+    else 4000
+  end) * v_weeks;
+  v_total    := v_per_delivery * v_weeks + v_shipping;
+  v_order_no := public.gen_order_no();
+
+  insert into public.orders (
+    user_id, order_no, total_amount, shipping_fee, has_subscription,
+    block_weeks, period_months, order_type, depositor_name,
+    ship_name, ship_phone, ship_postcode, ship_address, ship_address_detail, memo,
+    is_gift, renews_slot_id
+  ) values (
+    v_uid, v_order_no, v_total, v_shipping, true,
+    v_weeks, p_period, '구독', v_src.depositor_name,
+    v_src.ship_name, v_src.ship_phone, v_src.ship_postcode,
+    v_src.ship_address, v_src.ship_address_detail, v_src.memo,
+    false, p_slot_id
+  ) returning id into v_order_id;
+
+  -- ▼ 적립금 자동 선차감(주문 insert 직후, id 확보 상태). 반환 total 도 차감 반영.
+  v_credit := public.apply_referral_credit(v_uid, v_total, v_order_id);
+  if v_credit > 0 then
+    update public.orders
+       set total_amount = v_total - v_credit, referral_credit_krw = v_credit
+     where id = v_order_id;
+    v_total := v_total - v_credit;
+  end if;
+  -- ▲
+
+  -- 연장주문 자기 order_items (새 구성·요일·할인단가)
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    v_pid := v_item->>'product_id';
+    v_qty := (v_item->>'qty')::int;
+    select price, name, volume into v_price, v_name, v_volume
+      from public.product_catalog where id = v_pid;
+    v_unit := (round((v_price * (1 - v_rate)) / 10.0) * 10)::int;
+    insert into public.order_items (order_id, product_id, product_name, volume, delivery_day, qty, unit_price)
+      values (v_order_id, v_pid, v_name, v_volume, p_delivery_day, v_qty, v_unit);
+  end loop;
+
+  return jsonb_build_object('order_id', v_order_id, 'order_no', v_order_no, 'total', v_total);
+end;
+$$;
+
+grant execute on function public.request_renewal(bigint, jsonb, int, text) to authenticated;
+
 -- ───────── 수기 검증(적용 후 SQL Editor) ─────────
 -- 1) 진단표 재실행 → 네 함수 모두 has_special_delivery = true 기대:
 --    select p.proname,
@@ -426,3 +571,4 @@ grant execute on function public.create_subscription_order(jsonb, int, jsonb) to
 --      create_subscription_order: has_special true.
 -- 2) 제주 우편번호로 단품 주문 생성 → orders.shipping_fee = 5000, total_amount 에 반영 확인.
 -- 3) 일반 지역 주문 → shipping_fee = 4000 (회귀 없음).
+-- 4) 회당 최소금액: 상품합계 24,000원 주문 통과 / 23,990원 거부 확인(단품·구독·연장 동일).
