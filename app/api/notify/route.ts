@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { sendInfo, isSolapiConfigured, type AlimtalkSpec } from "@/lib/solapi";
+import { sendInfo, isSolapiConfigured, type AlimtalkSpec, type InfoMessage } from "@/lib/solapi";
+import { logSms } from "@/lib/sms-log";
 import { DEPOSIT } from "@/lib/site";
 import { formatKRW } from "@/lib/products";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
@@ -36,6 +37,28 @@ function userClient(token: string): SupabaseClient {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+// 발송 + 이력 적재(클레임 복기). 로그는 best-effort — 실패해도 발송/응답을 막지 않는다.
+async function sendAndLog(
+  kind: string,
+  ids: { userId?: string | null; orderId?: string | null },
+  phone: string,
+  msg: InfoMessage
+) {
+  const r = await sendInfo(phone, msg);
+  await logSms({
+    kind,
+    toPhone: phone,
+    body: msg.text,
+    templateKey: msg.alimtalk?.templateKey,
+    channel: "info",
+    ok: r.ok,
+    failReason: r.ok ? null : (r.reason ?? null),
+    userId: ids.userId ?? null,
+    orderId: ids.orderId ?? null,
+  });
+  return r;
 }
 
 export async function POST(req: Request) {
@@ -101,7 +124,7 @@ async function handleWelcome(sb: SupabaseClient, userId: string) {
   const text =
     `[${SHOP}] ${name}님, 회원가입을 환영합니다.\n` +
     `정기구독은 선착순 한정으로 모십니다. 주문해 주시면 입금 안내와 발송 소식을 문자로 전해드리겠습니다.`;
-  const r = await sendInfo(phone, {
+  const r = await sendAndLog("welcome", { userId }, phone, {
     text,
     subject: `[${SHOP}] 가입을 환영합니다`,
     alimtalk: {
@@ -141,7 +164,7 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
         "#{입금계좌}": account,
       },
     };
-    const r = await sendInfo(o.ship_phone as string, {
+    const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
       text,
       subject: `[${SHOP}] 주문 접수`,
       alimtalk,
@@ -162,7 +185,7 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
         "#{주문번호}": o.order_no as string,
       },
     };
-    const r = await sendInfo(o.ship_phone as string, {
+    const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
       text,
       subject: `[${SHOP}] 입금 확인`,
       alimtalk,
@@ -183,7 +206,7 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
         "#{주문번호}": o.order_no as string,
       },
     };
-    const r = await sendInfo(o.ship_phone as string, {
+    const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
       text,
       subject: `[${SHOP}] 배송 완료`,
       alimtalk,
@@ -209,7 +232,7 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
       "#{송장번호}": tracking, // 빈 값이면 변수 누락 → LMS 폴백
     },
   };
-  const r = await sendInfo(o.ship_phone as string, {
+  const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
     text,
     subject: `[${SHOP}] 발송 안내`,
     alimtalk,
@@ -269,7 +292,7 @@ async function handleGift(sb: SupabaseClient, kind: GiftKind, orderId?: string) 
       `${gifterName}님이 아래 제품을 보내셨습니다. ${datePart}\n` +
       `${summary}${messageLine}`;
   }
-  const recipientResult = await sendInfo(o.ship_phone as string, {
+  const recipientResult = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
     text: recipientText,
     subject: `[${SHOP}] 선물이 도착할 예정입니다`,
     alimtalk: {
@@ -298,7 +321,7 @@ async function handleGift(sb: SupabaseClient, kind: GiftKind, orderId?: string) 
       `${account}\n` +
       `입금이 확인되면 ${recipientName}님께 발송해 드립니다.`;
     // 보내는 분(주문자) 입금 안내는 주문접수와 동일한 PAYMENT_GUIDE 재사용.
-    await sendInfo(buyerPhone, {
+    await sendAndLog(kind, { orderId }, buyerPhone, {
       text: buyerText,
       subject: `[${SHOP}] 선물 주문 접수`,
       alimtalk: {
@@ -337,7 +360,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
       `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
       `${account}\n` +
       `입금이 확인되면 같은 요일로 4회분이 이어집니다.`;
-    const r = await sendInfo(o.ship_phone as string, {
+    const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
       text,
       subject: `[${SHOP}] 구독 연장 접수`,
       alimtalk: {
@@ -358,7 +381,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
     `[${SHOP}] ${name}님, 구독 연장 입금이 확인되었습니다.\n` +
     `주문번호 ${o.order_no}\n` +
     `같은 요일로 4회분이 이어집니다. 변함없이 신선하게 보내드리겠습니다.`;
-  const r = await sendInfo(o.ship_phone as string, {
+  const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
     text,
     subject: `[${SHOP}] 구독 연장 확인`,
     alimtalk: {
@@ -412,7 +435,11 @@ async function handleCancel(sb: SupabaseClient, slotId?: number) {
     `[${SHOP}] ${name}님, 구독 해지가 접수되었습니다.\n` +
     `환불 예정 금액 ${formatKRW(refund)}\n` +
     `입력하신 환불 계좌로 송금해 드리겠습니다.`;
-  const r = await sendInfo(phone, {
+  const r = await sendAndLog(
+    "subscription_cancelled",
+    { userId: slot.user_id as string | null, orderId: slot.order_id as string | null },
+    phone,
+    {
     text,
     subject: `[${SHOP}] 해지 접수`,
     alimtalk: {

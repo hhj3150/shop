@@ -8,6 +8,7 @@
 // 수신번호는 서버 전용 환경변수 ADMIN_ALERT_PHONE 에서 읽는다(미설정 시 알림 생략 + 경고).
 
 import { sendInfo, type SmsResult } from "@/lib/solapi";
+import { logSms } from "@/lib/sms-log";
 
 const SHOP = "송영신목장";
 
@@ -46,10 +47,19 @@ export async function sendOrphanDepositAlert(p: OrphanAlertParams): Promise<SmsR
     return { ok: false, reason: "ADMIN_ALERT_PHONE 미설정" };
   }
   try {
-    return await sendInfo(adminPhone, {
-      text: buildOrphanAlertText(p),
-      subject: `[${SHOP}] 고아입금 발생`,
+    const text = buildOrphanAlertText(p);
+    const r = await sendInfo(adminPhone, { text, subject: `[${SHOP}] 고아입금 발생` });
+    // 클레임 복기용 적재(관리자 알림 — best-effort).
+    await logSms({
+      kind: "orphan_alert",
+      toPhone: adminPhone,
+      body: text,
+      channel: "admin_alert",
+      ok: r.ok,
+      failReason: r.ok ? null : (r.reason ?? null),
+      meta: { orderNo: p.orderNo, paidAmount: p.paidAmount, payMethod: p.payMethod },
     });
+    return r;
   } catch (error) {
     const reason = error instanceof Error ? error.message : "unknown";
     console.error("[orphan-alert] 관리자 알림 발송 실패:", reason, "order_no:", p.orderNo);

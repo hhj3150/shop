@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { PortOneClient, Webhook } from "@portone/server-sdk";
 import { sendInfo, isSolapiConfigured, type AlimtalkSpec } from "@/lib/solapi";
 import { sendOrphanDepositAlert } from "@/lib/orphan-alert";
+import { logSms } from "@/lib/sms-log";
 
 // PortOne(포트원) v2 결제 웹훅 수신.
 //
@@ -112,6 +113,7 @@ export async function POST(req: Request) {
   }
 
   const r = result as {
+    order_id?: string;
     order_no: string;
     status: string;
     changed: boolean;
@@ -160,6 +162,17 @@ export async function POST(req: Request) {
       alimtalk,
     });
     if (!sent.ok) console.warn("[payments/webhook] 입금확인 문자 실패:", sent.reason);
+    // 클레임 복기용 발송 이력 적재(best-effort).
+    await logSms({
+      kind: "payment_confirmed",
+      toPhone: r.ship_phone,
+      body: text,
+      templateKey: "PAYMENT_CONFIRMED",
+      channel: "info",
+      ok: sent.ok,
+      failReason: sent.ok ? null : (sent.reason ?? null),
+      orderId: r.order_id ?? null,
+    });
   }
 
   return NextResponse.json({ ok: true, changed: r.changed, status: r.status });

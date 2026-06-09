@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sendBulk, isSolapiConfigured } from "@/lib/solapi";
+import { logSms } from "@/lib/sms-log";
 
 // 관리자 단체문자(공지·광고) 발송. 클라이언트가 세션 토큰과 함께 호출하면
 // 서버에서 (1) 관리자 여부 (2) 입력 검증 (3) 광고성 법적 의무를 처리한 뒤 발송한다.
@@ -151,6 +152,16 @@ export async function POST(req: Request) {
 
   const skipped = recipients.length - sendList.length;
   const r = await sendBulk(sendList, finalText, subject || `[${SHOP}] 안내`);
+  // 클레임 복기용 단체발송 이력 1행(수신자 목록은 meta 에). best-effort.
+  await logSms({
+    kind: isAd ? "broadcast_ad" : "broadcast",
+    toPhone: null,
+    body: finalText,
+    channel: "bulk",
+    ok: r.ok,
+    failReason: r.ok ? null : (r.reason ?? null),
+    meta: { recipients: sendList, requested: recipients.length, skipped, failed: r.failed },
+  });
   // 광고에서 미동의로 제외된 수신자 수를 함께 알려, 클라/서버 동의 필터가 어긋나도 운영자가 인지하게 한다.
   //   (r.total = 실제 발송 시도 수.)
   return NextResponse.json({ ...r, requested: recipients.length, skipped });
