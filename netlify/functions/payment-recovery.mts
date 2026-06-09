@@ -4,6 +4,7 @@ import { isSolapiConfigured, sendInfo } from "../../lib/solapi";
 import {
   decideAction,
   buildRecoveryMessage,
+  buildExpiryCancelMessage,
   type RecoveryTarget,
 } from "../../lib/payment-recovery";
 
@@ -55,13 +56,24 @@ export default async function handler(): Promise<Response> {
     if (action === "none") continue;
 
     if (action === "EXPIRE") {
-      const { error: exErr } = await sb.rpc("apply_recovery_action", {
+      const { data: cancelled, error: exErr } = await sb.rpc("apply_recovery_action", {
         p_secret: secret,
         p_order_id: t.orderId,
         p_action: "expire",
       });
-      if (exErr) console.error(`[payment-recovery] expire 실패 ${t.orderNo}:`, exErr.message);
-      else expired += 1;
+      if (exErr) {
+        console.error(`[payment-recovery] expire 실패 ${t.orderNo}:`, exErr.message);
+        continue;
+      }
+      // 실제로 취소된 경우(막판 입금 no-op 아님)에만 구매자에게 취소 안내 문자 발송.
+      if (cancelled === true) {
+        expired += 1;
+        if (t.shipPhone) {
+          const m = buildExpiryCancelMessage(t);
+          const result = await sendInfo(t.shipPhone, { text: m.text, subject: m.subject });
+          if (!result.ok) console.warn(`[payment-recovery] 취소문자 실패 ${t.orderNo}:`, result);
+        }
+      }
       continue;
     }
 

@@ -95,3 +95,16 @@ export function buildRecoveryMessage(
       `입금하실 금액 ${amount}원\n${account}`,
   };
 }
+
+// 입금 마감(D+3) 도달로 자동취소된 주문 안내. 알림톡 템플릿이 없어 LMS 본문만 구성한다.
+//   D2 에서 "마감일까지 미입금 시 자동취소"를 예고했고, 실제 취소되었음을 확정 통보한다.
+export function buildExpiryCancelMessage(
+  t: RecoveryTarget,
+): { subject: string; text: string } {
+  return {
+    subject: `[${SHOP}] 주문 자동 취소 안내`,
+    text:
+      `[${SHOP}] ${t.shipName}님, 입금이 확인되지 않아 주문(${t.orderNo})이 자동 취소되었습니다.\n` +
+      `다시 주문을 원하시면 언제든 새로 신청해 주세요. 도움이 필요하시면 문의해 주시면 빠르게 도와드리겠습니다.`,
+  };
+}
