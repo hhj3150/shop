@@ -18,8 +18,11 @@ import {
   createOnceOrder,
   createGuestOnceOrder,
   registerPayActionDeposit,
+  revokeReferralCredit,
   type OnceItem,
 } from "@/lib/orders";
+import { getSupabase } from "@/lib/supabase";
+import { usableBalance, redeemableCoupons, type RewardLite } from "@/lib/referral-credit";
 import { backfillProfileShipping } from "@/lib/profile";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts, isCatalogRejection } from "@/lib/storefront-merge";
@@ -78,6 +81,9 @@ function OrderOnce() {
   const [cashReceiptId, setCashReceiptId] = useState("");
   // 특수배송지역(제주·도서산간 등) 신선도 고지 동의.
   const [acceptFresh, setAcceptFresh] = useState(false);
+  // 추천 적립금(쿠폰) 보유분 + 사용 여부. 기본 사용(선차감 정책). 끄면 주문 후 되돌린다.
+  const [rewards, setRewards] = useState<RewardLite[]>([]);
+  const [useReferralCredit, setUseReferralCredit] = useState(true);
 
   const { map, refresh } = useStorefrontCatalog();
 
@@ -114,6 +120,22 @@ function OrderOnce() {
     }));
   }, [profile]);
 
+  // 추천 적립금 잔액 조회(표시·미리보기용). 실패해도 주문은 그대로 진행된다.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getSupabase()
+      .from("referral_rewards")
+      .select("amount_krw,status,expires_at")
+      .eq("user_id", user.id)
+      .then(({ data }) => {
+        if (alive) setRewards((data as RewardLite[]) ?? []);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user]);
+
   const setQty = (id: string, q: number) =>
     setQtys((prev) => ({ ...prev, [id]: Math.max(0, q) }));
 
@@ -136,6 +158,14 @@ function OrderOnce() {
   const shipping = onceShippingFee(subtotal, ship.postcode);
   const total = subtotal + shipping;
   const belowMin = subtotal < ONCE_MIN_KRW;
+
+  // 추천 적립금 미리보기 — 서버(apply_referral_credit)와 동일 규칙으로 차감액을 계산해 표시한다.
+  //   실제 차감은 서버 권위값. 토글을 끄면 차감 없이 전액 입금으로 보여준다.
+  const creditAvailable = usableBalance(rewards, new Date().toISOString());
+  const redeem = useReferralCredit
+    ? redeemableCoupons({ availableCount: creditAvailable.count, orderTotal: total })
+    : { useCount: 0, creditKrw: 0, payable: total };
+  const finalPayable = total - redeem.creditKrw;
 
   const dispatch = useMemo(() => formatDispatch(nextDispatchDate()), []);
 
@@ -233,6 +263,18 @@ function OrderOnce() {
         ? await createOnceOrder(items, shipInfo)
         : await createGuestOnceOrder(items, shipInfo);
 
+      // 적립금 사용 안 함(토글 OFF): 서버가 자동 선차감한 적립금을 되돌린다(쿠폰 복구·금액 원복).
+      //   이후 결제·입금 금액은 원복된 전액(finalTotal)을 권위값으로 사용한다.
+      let finalTotal = totalAmount;
+      let finalCredit = referralCreditKrw;
+      if (!useReferralCredit && referralCreditKrw > 0) {
+        const restored = await revokeReferralCredit(orderId);
+        if (restored > 0) {
+          finalTotal = totalAmount + restored;
+          finalCredit = 0;
+        }
+      }
+
       // 회원 본인 주소 주문이면, 프로필의 빈 배송칸을 자동 보완 → 다음 주문부터 따라온다.
       if (user && profile && !isGift) void backfillProfileShipping(profile, ship);
       const shipLabel = formatDispatch(new Date(`${shipDate}T00:00:00`));
@@ -240,9 +282,9 @@ function OrderOnce() {
         no: orderNo,
         type: "once",
         ship: shipLabel,
-        amount: String(totalAmount),
+        amount: String(finalTotal),
       });
-      if (referralCreditKrw > 0) params.set("credit", String(referralCreditKrw));
+      if (finalCredit > 0) params.set("credit", String(finalCredit));
       // 비회원 주문은 '내 주문 보기'(로그인 필요)를 숨기도록 완료 페이지에 표시.
       if (!user) params.set("guest", "1");
 
@@ -256,7 +298,7 @@ function OrderOnce() {
         const result = await startPayment({
           paymentId: orderNo,
           orderName,
-          totalAmount,
+          totalAmount: finalTotal,
           payMethod: method as PayMethod,
           customerName: ship.name,
           customerPhone: ship.phone,
@@ -402,9 +444,33 @@ function OrderOnce() {
             {formatKRW(shipping)}
           </span>
         </div>
+        {creditAvailable.count > 0 && (
+          <div className="mt-2 border-t border-gold/20 pt-2 text-[14px]">
+            <label className="flex cursor-pointer items-center justify-between gap-2">
+              <span className="text-mute">
+                추천 적립금 사용{" "}
+                <span className="text-[12px] text-gold-deep">
+                  ({creditAvailable.count}장 · {formatKRW(creditAvailable.krw)} 보유)
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={useReferralCredit}
+                onChange={(e) => setUseReferralCredit(e.target.checked)}
+                className="h-4 w-4 accent-gold-deep"
+              />
+            </label>
+            {redeem.creditKrw > 0 && (
+              <div className="mt-1.5 flex justify-between text-gold-deep">
+                <span>추천 적립금 ({redeem.useCount}장 적용)</span>
+                <span className="tabular-nums">−{formatKRW(redeem.creditKrw)}</span>
+              </div>
+            )}
+          </div>
+        )}
         <div className="mt-3 flex items-end justify-between border-t border-line pt-3">
           <span className="text-mute">결제(입금) 금액</span>
-          <span className="font-serif-kr text-xl tabular-nums text-ink">{formatKRW(total)}</span>
+          <span className="font-serif-kr text-xl tabular-nums text-ink">{formatKRW(finalPayable)}</span>
         </div>
         {belowMin && (
           <p className="mt-3 text-[13px] text-mute">
@@ -419,7 +485,7 @@ function OrderOnce() {
         {canPortOne && <PayMethodSelect value={method} onChange={setMethod} />}
         {usePortOne ? (
           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-            {formatKRW(total)}을 결제합니다. 결제가 확인되는 즉시 발송됩니다.
+            {formatKRW(finalPayable)}을 결제합니다. 결제가 확인되는 즉시 발송됩니다.
           </p>
         ) : (
           <div className={canPortOne ? "mt-4" : ""}>
@@ -521,8 +587,8 @@ function OrderOnce() {
               ? "결제 진행 중…"
               : "주문 접수 중…"
             : usePortOne
-              ? `${formatKRW(total)} 결제하고 주문하기`
-              : `${formatKRW(total)} 입금하고 주문하기`}
+              ? `${formatKRW(finalPayable)} 결제하고 주문하기`
+              : `${formatKRW(finalPayable)} 입금하고 주문하기`}
         </button>
         <p className="text-center text-[12px] text-mute">
           {usePortOne
