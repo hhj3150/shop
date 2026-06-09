@@ -128,10 +128,13 @@ function shipPayload(ship: ShippingInfo) {
 // 정기구독 주문 생성. 구독 기간(1/2/3개월) 전체분을 한 번에 무통장입금.
 // 금액(병당 할인가·배송비·합계)·요일 슬롯 마감은 모두 서버(create_subscription_order RPC)에서
 // product_catalog 권위값으로 재계산한다 → 브라우저가 보낸 금액은 신뢰하지 않는다(C1·C3).
+// idempotencyKey: 더블서밋 방어용 멱등키(체크아웃당 1회 생성·재시도 시 재사용).
+//   같은 키로 재호출되면 RPC가 새 주문을 만들지 않고 기존 주문을 그대로 반환한다.
 export async function createOrder(
   items: CartItem[],
   period: SubPeriod,
-  ship: ShippingInfo
+  ship: ShippingInfo,
+  idempotencyKey: string
 ): Promise<{
   orderId: string;
   orderNo: string;
@@ -150,6 +153,7 @@ export async function createOrder(
     })),
     p_period: period,
     p_ship: shipPayload(ship),
+    p_idempotency_key: idempotencyKey,
   });
 
   if (error || !data) {
@@ -185,7 +189,8 @@ export type OnceItem = {
 // 금액·발송일은 create_once_order RPC 가 product_catalog 권위값으로 재계산한다(C1).
 export async function createOnceOrder(
   items: OnceItem[],
-  ship: ShippingInfo
+  ship: ShippingInfo,
+  idempotencyKey: string
 ): Promise<{
   orderId: string;
   orderNo: string;
@@ -200,6 +205,7 @@ export async function createOnceOrder(
   const { data, error } = await supabase.rpc("create_once_order", {
     p_items: filtered.map((i) => ({ product_id: i.productId, qty: i.qty })),
     p_ship: shipPayload(ship),
+    p_idempotency_key: idempotencyKey,
   });
 
   if (error || !data) {
@@ -223,7 +229,8 @@ export async function createOnceOrder(
 // 현금영수증은 set_cash_receipt(로그인 필요)를 못 쓰므로 p_ship 에 실어 RPC가 함께 기록한다.
 export async function createGuestOnceOrder(
   items: OnceItem[],
-  ship: ShippingInfo
+  ship: ShippingInfo,
+  idempotencyKey: string
 ): Promise<{
   orderId: string;
   orderNo: string;
@@ -242,6 +249,7 @@ export async function createGuestOnceOrder(
       cashReceiptType: ship.cashReceiptType ?? "발행안함",
       cashReceiptId: ship.cashReceiptId ?? null,
     },
+    p_idempotency_key: idempotencyKey,
   });
 
   if (error || !data) {
