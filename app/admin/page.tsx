@@ -33,6 +33,7 @@ import { Customer360Drawer } from "@/components/Customer360Drawer";
 import { AdminGlobalSearch } from "@/components/AdminGlobalSearch";
 import { AdminTodayBoard, type TodoCard } from "@/components/AdminTodayBoard";
 import { buildCustomer360, type C360OrderEvent, type C360Sms } from "@/lib/customer-360";
+import { buildMemberSmsPayload } from "@/lib/member-sms";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
@@ -233,6 +234,8 @@ export default function AdminPage() {
   // 클레임 복기 타임라인: 선택 고객의 상태전이·문자발송 이력(온디맨드 조회, best-effort).
   const [traceEvents, setTraceEvents] = useState<C360OrderEvent[]>([]);
   const [traceSms, setTraceSms] = useState<C360Sms[]>([]);
+  // CS 메모(관리자 내부 기록). 선택 고객 열 때 온디맨드 조회, best-effort.
+  const [memberMemo, setMemberMemo] = useState<string>("");
 
   const isAdmin = Boolean(profile?.is_admin);
 
@@ -254,12 +257,21 @@ export default function AdminPage() {
     if (!selectedMember) {
       setTraceEvents([]);
       setTraceSms([]);
+      setMemberMemo("");
       return;
     }
     const ids = orders.filter((o) => o.user_id === selectedMember).map((o) => o.id);
     let cancelled = false;
     (async () => {
       const sb = getSupabase();
+
+      const note = await sb
+        .from("member_admin_notes")
+        .select("memo")
+        .eq("user_id", selectedMember)
+        .maybeSingle();
+      if (!cancelled) setMemberMemo((note.data?.memo as string | undefined) ?? "");
+
       const ev = ids.length
         ? await sb
             .from("order_events")
@@ -1077,6 +1089,34 @@ export default function AdminPage() {
       .eq("id", userId);
     if (error) throw new Error(error.message);
     await load();
+  }
+
+  // CS 메모 저장 — member_admin_notes 에 upsert(is_admin RLS). 로컬 상태도 갱신해 드로어 유지.
+  async function saveMemberMemo(userId: string, memo: string) {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from("member_admin_notes")
+      .upsert({ user_id: userId, memo, updated_at: new Date().toISOString() });
+    if (error) throw new Error(error.message);
+    setMemberMemo(memo);
+  }
+
+  // 360 단건 문자발송 — 기존 회원 응대용 정보성(거래·CS) 메시지.
+  //   정보통신망법: 광고가 아니므로 isAd:false(야간차단·(광고)·동의필터 없음).
+  //   광고성은 단체문자 패널의 (광고) 경로만 사용한다(UI 라벨로 안내).
+  //   발송 결과는 broadcast 라우트가 sms_log 에 적재 → 복기 타임라인에 자동 반영.
+  async function sendMemberSms(phone: string, message: string) {
+    const sb = getSupabase();
+    const { data } = await sb.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("로그인 세션이 만료되었습니다. 다시 로그인해 주세요.");
+    const res = await fetch("/api/broadcast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(buildMemberSmsPayload(phone, message)),
+    });
+    const r = (await res.json()) as { ok: boolean; reason?: string };
+    if (!r.ok) throw new Error(r.reason ?? "발송에 실패했습니다.");
   }
 
   // 주문 배송지(스냅샷) 정정. 주문엔 주문 시점의 배송지가 따로 저장되므로(프로필과 별개)
@@ -2189,6 +2229,13 @@ export default function AdminPage() {
           data={customer360}
           onSaveMember={
             selectedMemberRow ? (values) => saveMember(selectedMember!, values) : undefined
+          }
+          memo={memberMemo}
+          onSaveMemo={(memo) => saveMemberMemo(selectedMember!, memo)}
+          onSendSms={
+            selectedMemberRow?.phone
+              ? (message) => sendMemberSms(selectedMemberRow.phone!, message)
+              : undefined
           }
           onClose={() => setSelectedMember(null)}
         />
