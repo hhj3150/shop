@@ -116,20 +116,27 @@ export async function POST(req: Request) {
     status: string;
     changed: boolean;
     orphan?: boolean;
+    orphan_inserted?: boolean;
     ship_name: string | null;
     ship_phone: string | null;
   };
 
   // 고아입금: 이미 취소된 주문에 결제가 들어옴 → 관리자에게 즉시 SMS 알림(발송/환불 누락 방지).
+  //   원장에 '이번에 처음 적재됐을 때만' 알린다(웹훅 재전송 시 중복 SMS 방지).
   if (r.orphan) {
-    console.warn("[payments/webhook] 고아입금 감지 order_no:", r.order_no);
-    await sendOrphanDepositAlert({
-      orderNo: r.order_no,
-      shipName: r.ship_name,
-      shipPhone: r.ship_phone,
-      paidAmount: paidAmount,
-      payMethod: payMethod,
-    });
+    console.warn(
+      "[payments/webhook] 고아입금 감지 order_no:", r.order_no,
+      "inserted:", r.orphan_inserted ?? false
+    );
+    if (r.orphan_inserted) {
+      await sendOrphanDepositAlert({
+        orderNo: r.order_no,
+        shipName: r.ship_name,
+        shipPhone: r.ship_phone,
+        paidAmount: paidAmount,
+        payMethod: payMethod,
+      });
+    }
   }
 
   // 4) 이번 호출로 처음 '입금확인'된 경우에만 입금확인 문자를 보낸다(멱등: 재전송 시 중복발송 없음).
