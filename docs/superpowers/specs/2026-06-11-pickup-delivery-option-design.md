@@ -107,7 +107,7 @@ insert into public.orders (... shipping_fee, ... ship_address ...) values (... v
       > 운영시간: {FARM_HOURS}
       > 문의: {BUSINESS.tel} · {BUSINESS.mobile}
     - 단품: "수령 가능일: {ship_date}" 표시(완료 화면/안내), 구독: 요일 슬롯 그대로.
-    - (권장) `방문수령` 선택 시 **선물하기(isGift) 옵션 숨김** — 선물은 택배 발송 전제. 스코프 최소화.
+    - **확정:** `방문수령` 선택 시 **선물하기(isGift) 옵션 숨김** — 선물은 택배 발송 전제. 방문수령 전환 시 `isGift` 관련 state 초기화(false)하여 잔여값이 RPC로 안 넘어가게 한다.
 - **금액 계산**: 방문수령이면 shipping 0.
   - 단품: `const shipping = deliveryMethod === '방문수령' ? 0 : onceShippingFee(subtotal, ship.postcode);`
   - 구독: `const shipTotal = deliveryMethod === '방문수령' ? 0 : subShippingFee(perDelivery, ship.postcode) * weeks;`
@@ -189,7 +189,7 @@ insert into public.orders (... shipping_fee, ... ship_address ...) values (... v
 3. **갱신 시 배송비 재부과**: `request_renewal` 누락 시 방문수령 구독이 연장에서 배송비가 다시 붙음 → 5.5b로 해결(범위 포함).
 4. **발송 명단 누출**: 로스터 SSOT(`delivery-roster.ts`) 미필터 시 방문수령 주문이 송장/발송 Excel에 포함 → 5.6으로 해결.
 5. **프로필 주소 덮어쓰기**: 5.8로 해결.
-6. **선물+방문수령 조합**: 스코프 최소화 위해 방문수령 시 선물 옵션 숨김 권장(미정 시 사용자 확인).
+6. **선물+방문수령 조합**: 확정 — 방문수령 시 선물 옵션 숨김 + state 초기화.
 
 ## 9. 작업 순서 (요약)
 
