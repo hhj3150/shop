@@ -26,3 +26,6 @@ export const BUSINESS = {
   email: "d2ovet3150@gmail.com",
   privacyManager: "송영신",
 } as const;
+
+// 목장 판매장 영업시간(방문 안내·VisitStore 공용 단일 출처).
+export const FARM_HOURS = "월–금 09:00–18:00";

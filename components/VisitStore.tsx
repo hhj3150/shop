@@ -1,5 +1,5 @@
 import { Reveal } from "./Reveal";
-import { CAFE_HOME, BUSINESS } from "@/lib/site";
+import { CAFE_HOME, BUSINESS, FARM_HOURS } from "@/lib/site";
 import { Scatter, HEY, type ConfettiItem } from "./Confetti";
 
 const VISIT_CONFETTI: ConfettiItem[] = [
@@ -42,7 +42,7 @@ export function VisitStore() {
                 </div>
                 <div className="flex gap-3">
                   <dt className="w-14 shrink-0 text-mute">운영</dt>
-                  <dd className="text-ink-soft">월–금 09:00–18:00</dd>
+                  <dd className="text-ink-soft">{FARM_HOURS}</dd>
                 </div>
                 <div className="flex gap-3">
                   <dt className="w-14 shrink-0 text-mute">문의</dt>
