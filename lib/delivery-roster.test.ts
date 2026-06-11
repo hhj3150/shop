@@ -445,6 +445,44 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
   });
 });
 
+describe("발송명단 방문수령 제외", () => {
+  function once(id: string, method: string): RosterOrderFields {
+    return {
+      id,
+      order_type: "단품",
+      block_weeks: null,
+      ship_date: "2026-06-12",
+      ship_name: "홍길동",
+      delivery_method: method,
+    };
+  }
+
+  const onceItems: RosterItemFields[] = [
+    { order_id: "택배주문", product_name: "헤이밀크", volume: "750mL", delivery_day: "fri", qty: 2 },
+    { order_id: "방문주문", product_name: "헤이밀크", volume: "750mL", delivery_day: "fri", qty: 2 },
+  ];
+  const onceOrderById = new Map<string, RosterOrderFields>([
+    ["택배주문", once("택배주문", "택배")],
+    ["방문주문", once("방문주문", "방문수령")],
+  ]);
+  const onceConfirmed = new Set(["택배주문", "방문주문"]);
+
+  it("단품 방문수령은 명단에서 제외, 택배는 포함", () => {
+    const roster = buildRosterForDate({
+      dateISO: "2026-06-12",
+      weekday: null,
+      items: onceItems,
+      orderById: onceOrderById,
+      slotByOrder: new Map(),
+      confirmedOrderIds: onceConfirmed,
+      pausedOrderIds: new Set(),
+    });
+    const ids = roster.map((e) => e.order.id);
+    expect(ids).toContain("택배주문");
+    expect(ids).not.toContain("방문주문");
+  });
+});
+
 describe("compositionSignature", () => {
   it("제품·용량·수량을 정렬해 안정적 키를 만든다", () => {
     const a = compositionSignature([
