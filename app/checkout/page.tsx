@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
-import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL, subShippingFee } from "@/lib/products";
+import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
 import { isSpecialDeliveryPostcode } from "@/lib/regions";
+import { DEFAULT_DELIVERY_METHOD, isPickup, subShippingFor, type DeliveryMethod } from "@/lib/delivery-method";
 import { createOrder, registerPayActionDeposit, revokeReferralCredit } from "@/lib/orders";
 import { getSupabase } from "@/lib/supabase";
 import { usableBalance, redeemableCoupons, type RewardLite } from "@/lib/referral-credit";
@@ -20,6 +21,7 @@ import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { Track } from "@/components/Track";
 import { GiftOptions } from "@/components/GiftOptions";
+import { DeliveryMethodSelect } from "@/components/DeliveryMethodSelect";
 import { LoadMyInfoButton, type MyInfoFields } from "@/components/LoadMyInfo";
 import { CashReceiptFields } from "@/components/CashReceiptFields";
 import {
@@ -59,6 +61,8 @@ export default function CheckoutPage() {
   const idempotencyKeyRef = useRef<string | null>(null);
   const [isGift, setIsGift] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
+  // 수령방법: 택배(기본) | 방문수령. 방문수령은 배송비 0·주소/선물/특수지역 동의 숨김.
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(DEFAULT_DELIVERY_METHOD);
   const [method, setMethod] = useState<CheckoutMethod>("BANK");
   const [cashReceiptType, setCashReceiptType] = useState<CashReceiptType>(DEFAULT_CASH_RECEIPT);
   const [cashReceiptId, setCashReceiptId] = useState("");
@@ -71,7 +75,8 @@ export default function CheckoutPage() {
   // 배송지 우편번호로 배송비를 다시 계산한다. 특수배송지역은 회당 5,000원이며
   //   서버(RPC)가 청구하는 금액과 일치시킨다. cart의 기본값(4,000원)을 덮어쓴다.
   const isSpecialRegion = isSpecialDeliveryPostcode(ship.postcode);
-  const shipTotal = subShippingFee(perDelivery, ship.postcode) * weeks;
+  const pickup = isPickup(deliveryMethod);
+  const shipTotal = subShippingFor(deliveryMethod, perDelivery, ship.postcode, weeks);
   const periodTotal = perDelivery * weeks + shipTotal;
 
   // 추천 적립금 미리보기 — 서버(apply_referral_credit)와 동일 규칙으로 차감액을 계산해 표시한다.
@@ -168,15 +173,26 @@ export default function CheckoutPage() {
     }
   }
 
+  // 수령방법 전환. 방문수령으로 바꾸면 선물·주소·특수지역 동의를 초기화한다(택배 발송 전제 항목).
+  //   주소 복원은 하지 않는다(방문수령은 주소 자체가 불필요).
+  function changeDeliveryMethod(m: DeliveryMethod) {
+    setDeliveryMethod(m);
+    if (m === "방문수령") {
+      setIsGift(false); // 선물은 택배 발송 전제 — 방문수령에선 숨김+초기화
+      setShip((prev) => ({ ...prev, postcode: "", address: "", addressDetail: "" }));
+      setAcceptFresh(false);
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     if (!user) return;
-    if (!ship.name.trim() || !ship.phone.trim() || !ship.address.trim()) {
-      setError("받는 분, 연락처, 주소를 입력해 주세요.");
+    if (!ship.name.trim() || !ship.phone.trim() || (!pickup && !ship.address.trim())) {
+      setError(pickup ? "받는 분, 연락처를 입력해 주세요." : "받는 분, 연락처, 주소를 입력해 주세요.");
       return;
     }
-    if (isSpecialRegion && !acceptFresh) {
+    if (!pickup && isSpecialRegion && !acceptFresh) {
       setError("제주·도서산간 등 특수배송지역은 신선도 안내에 동의하셔야 신청할 수 있습니다.");
       return;
     }
@@ -200,6 +216,7 @@ export default function CheckoutPage() {
       const idempotencyKey = (idempotencyKeyRef.current ??= crypto.randomUUID());
       const { orderId, orderNo, slots, totalAmount, referralCreditKrw } = await createOrder(items, period, {
         ...ship,
+        deliveryMethod,
         isGift,
         gifterName: profile?.name ?? ship.depositorName,
         giftMessage,
@@ -220,7 +237,7 @@ export default function CheckoutPage() {
       }
 
       // 본인 주소 주문이면, 프로필의 빈 배송칸(연락처·주소)을 자동 보완 → 다음 주문부터 따라온다.
-      if (profile && !isGift) void backfillProfileShipping(profile, ship);
+      if (profile && !isGift && !pickup) void backfillProfileShipping(profile, ship);
 
       // 완료 페이지로 넘길 슬롯 컨텍스트(선착순 순번 등)를 쿼리에 싣는다.
       const first = slots[0];
@@ -349,12 +366,12 @@ export default function CheckoutPage() {
         <div className="mt-1.5 flex justify-between">
           <span className="text-mute">
             배송비 ({weeks}회)
-            {isSpecialRegion && (
+            {!pickup && isSpecialRegion && (
               <span className="ml-1.5 text-[12px] text-gold-deep">제주·도서산간 회당 5,000원</span>
             )}
           </span>
           <span className="tabular-nums text-ink-soft">
-            {formatKRW(shipTotal)}
+            {pickup ? "방문수령 — 배송비 무료" : formatKRW(shipTotal)}
           </span>
         </div>
         {creditAvailable.count > 0 && (
@@ -416,7 +433,8 @@ export default function CheckoutPage() {
 
       {/* 배송지 */}
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
-        {user && (
+        <DeliveryMethodSelect value={deliveryMethod} onChange={changeDeliveryMethod} />
+        {!pickup && user && (
           <GiftOptions
             userId={user.id}
             isGift={isGift}
@@ -426,43 +444,47 @@ export default function CheckoutPage() {
             onSelectRecipient={applyRecipient}
           />
         )}
-        {!isGift && (
+        {!pickup && !isGift && (
           <LoadMyInfoButton profile={profile} onLoad={fillFromProfile} disabled={busy} />
         )}
         <Field id="name" label={isGift ? "받는 분 (선물 받으실 분)" : "받는 분"} required value={ship.name} onChange={(e) => update("name", e.target.value)} />
         <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." inputMode="numeric" required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <Field id="postcode" label="우편번호" inputMode="numeric" value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
-          </div>
-          <div className="pb-1">
-            <AddressSearch
-              onSelect={(postcode, address) =>
-                setShip((prev) => ({ ...prev, postcode, address }))
-              }
-            />
-          </div>
-        </div>
-        <Field id="address" label="주소" required value={ship.address} onChange={(e) => update("address", e.target.value)} />
-        <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
+        {!pickup && (
+          <>
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <Field id="postcode" label="우편번호" inputMode="numeric" value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
+              </div>
+              <div className="pb-1">
+                <AddressSearch
+                  onSelect={(postcode, address) =>
+                    setShip((prev) => ({ ...prev, postcode, address }))
+                  }
+                />
+              </div>
+            </div>
+            <Field id="address" label="주소" required value={ship.address} onChange={(e) => update("address", e.target.value)} />
+            <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
 
-        {isSpecialRegion && (
-          <div className="rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
-            <p className="text-[14px] font-medium text-gold-deep">신선함이 생명입니다</p>
-            <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
-              입력하신 지역(제주·도서산간 등)은 당일·익일 배송이 어려워 도착까지 하루 이상 걸릴 수
-              있고, 그만큼 신선도가 떨어질 수 있습니다. 이 지역은 배송비가 회당 5,000원입니다.
-            </p>
-            <label className="mt-3 flex items-start gap-2 text-[13px] text-ink">
-              <input
-                type="checkbox"
-                checked={acceptFresh}
-                onChange={(e) => setAcceptFresh(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
-              />
-              <span>신선도 안내를 확인했고, 배송비 회당 5,000원에 동의합니다.</span>
-            </label>
-          </div>
+            {isSpecialRegion && (
+              <div className="rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
+                <p className="text-[14px] font-medium text-gold-deep">신선함이 생명입니다</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+                  입력하신 지역(제주·도서산간 등)은 당일·익일 배송이 어려워 도착까지 하루 이상 걸릴 수
+                  있고, 그만큼 신선도가 떨어질 수 있습니다. 이 지역은 배송비가 회당 5,000원입니다.
+                </p>
+                <label className="mt-3 flex items-start gap-2 text-[13px] text-ink">
+                  <input
+                    type="checkbox"
+                    checked={acceptFresh}
+                    onChange={(e) => setAcceptFresh(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
+                  />
+                  <span>신선도 안내를 확인했고, 배송비 회당 5,000원에 동의합니다.</span>
+                </label>
+              </div>
+            )}
+          </>
         )}
 
         <Field id="depositorName" label="입금자명" hint="통장 입금 대조를 위해 실제 입금하실 분의 이름을 적어 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
@@ -502,7 +524,7 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={busy || belowMin || hasBlocked || (isSpecialRegion && !acceptFresh)}
+          disabled={busy || belowMin || hasBlocked || (!pickup && isSpecialRegion && !acceptFresh)}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy
