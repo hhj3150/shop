@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
-  collectFieldCandidates,
+  collectFeedCandidates,
   collectTermCandidates,
   scoreCandidates,
 } from "@/lib/news-radar-run";
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { term?: unknown };
   const term = typeof body.term === "string" ? body.term.trim() : "";
 
-  const candidates = term ? await collectTermCandidates(term) : await collectFieldCandidates();
+  const candidates = term ? await collectTermCandidates(term) : await collectFeedCandidates();
   if (candidates.length === 0) {
     return NextResponse.json({ ok: true, candidates: [] });
   }

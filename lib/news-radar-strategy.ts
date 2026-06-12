@@ -9,94 +9,19 @@ export type RadarField = {
   label: string; // 한글 분야 라벨(= topic 으로 저장)
   priority: number; // 1(최우선)~8
   category: RadarCategory; // 사람 유제품 vs 반려동물(펫 게이트)
-  queries: string[]; // 영문 검색 쿼리 세트(우선순위 전략 반영)
 };
 
-// 우선순위(스펙 1~8). 쿼리는 우선순위 전략 1~9를 8분야에 분배.
+// 우선순위(스펙 1~8). 분야 라벨·우선순위·펫 게이트 메타.
 //   ⑧ 펫 분야는 category='pet' — PET_CONTENT_ENABLED 플래그로 자동 수집·공개를 게이트.
 export const RADAR_FIELDS: RadarField[] = [
-  {
-    key: "a2-milk",
-    label: "A2 우유",
-    priority: 1,
-    category: "human",
-    queries: [
-      '"A2 milk" ("health" OR "research" OR "study" OR "consumer trend")',
-      '"A2 beta-casein" ("digestion" OR "protein" OR "study")',
-      '"A2 milk" ("market growth" OR "premium")',
-    ],
-  },
-  {
-    key: "jersey-milk",
-    label: "저지 우유",
-    priority: 2,
-    category: "human",
-    queries: [
-      '"Jersey milk" ("nutrition" OR "protein" OR "butterfat" OR "calcium")',
-      '"Jersey cow" milk ("omega-3" OR "CLA" OR "premium")',
-    ],
-  },
-  {
-    key: "hay-milk",
-    label: "헤이밀크",
-    priority: 3,
-    category: "human",
-    queries: [
-      '"hay milk" OR Heumilch ("quality" OR "certification" OR "grass-fed")',
-      '"grass-fed" dairy ("pasture" OR "milk quality")',
-    ],
-  },
-  {
-    key: "yogurt-fermentation",
-    label: "요거트·발효",
-    priority: 4,
-    category: "human",
-    queries: [
-      '"plain yogurt" ("probiotics" OR "postbiotics" OR "fermentation")',
-      '"yogurt" ("gut health" OR "immune" OR "premium")',
-    ],
-  },
-  {
-    key: "gut-microbiome",
-    label: "장건강·마이크로바이옴",
-    priority: 5,
-    category: "human",
-    queries: [
-      '"gut microbiome" ("dairy" OR "yogurt" OR "probiotics" OR "immune")',
-      'protein ("muscle" OR "sarcopenia" OR "healthy aging") dairy',
-    ],
-  },
-  {
-    key: "animal-welfare-sustainability",
-    label: "동물복지·지속가능",
-    priority: 6,
-    category: "human",
-    queries: [
-      'dairy ("animal welfare" OR "pasture-raised")',
-      '("low-carbon" OR "regenerative" OR "sustainable") dairy',
-    ],
-  },
-  {
-    key: "premium-food-trends",
-    label: "프리미엄 식품 트렌드",
-    priority: 7,
-    category: "human",
-    queries: [
-      '"premium dairy" ("brand" OR "consumer trend" OR "Europe")',
-      '"premium yogurt" OR "functional food" ("trend" OR "market")',
-    ],
-  },
-  {
-    key: "pet-health-human-grade",
-    label: "반려동물 건강·휴먼그레이드",
-    priority: 8,
-    category: "pet",
-    queries: [
-      '("dog gut health" OR "pet probiotics") ("microbiome" OR "immune")',
-      '("human grade" OR "farm to bowl") pet food',
-      '("pet dairy" OR "A2 pet") ("digestion" OR "premium")',
-    ],
-  },
+  { key: "a2-milk", label: "A2 우유", priority: 1, category: "human" },
+  { key: "jersey-milk", label: "저지 우유", priority: 2, category: "human" },
+  { key: "hay-milk", label: "헤이밀크", priority: 3, category: "human" },
+  { key: "yogurt-fermentation", label: "요거트·발효", priority: 4, category: "human" },
+  { key: "gut-microbiome", label: "장건강·마이크로바이옴", priority: 5, category: "human" },
+  { key: "animal-welfare-sustainability", label: "동물복지·지속가능", priority: 6, category: "human" },
+  { key: "premium-food-trends", label: "프리미엄 식품 트렌드", priority: 7, category: "human" },
+  { key: "pet-health-human-grade", label: "반려동물 건강·휴먼그레이드", priority: 8, category: "pet" },
 ];
 
 // 펫 게이트: 플래그 off 면 펫 분야(category='pet')를 제외한 사람 유제품 분야만 반환.

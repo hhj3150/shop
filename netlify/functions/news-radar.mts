@@ -11,6 +11,7 @@ export default async function handler(): Promise<Response> {
     secret: process.env.NEWS_RADAR_SECRET ?? "",
     apiKey: process.env.OPENAI_API_KEY ?? "",
     model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
+    jinaKey: process.env.JINA_API_KEY,
   });
   console.log("[news-radar]", r.status, r.reason ?? r.titles?.[0] ?? "");
   return new Response(JSON.stringify(r), {

@@ -39,6 +39,7 @@ export async function POST(req: Request) {
     secret: process.env.NEWS_RADAR_SECRET ?? "",
     apiKey: process.env.OPENAI_API_KEY ?? "",
     model: process.env.OPENAI_MODEL || "gpt-5.4-mini",
+    jinaKey: process.env.JINA_API_KEY,
   });
   return NextResponse.json(result, { status: result.ok ? 200 : 502 });
 }

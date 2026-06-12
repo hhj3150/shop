@@ -45,12 +45,10 @@ describe("RADAR_FIELDS", () => {
     expect(labels).toContain("반려동물 건강·휴먼그레이드");
   });
 
-  it("모든 분야는 라벨과 1개 이상 비어있지 않은 영문 쿼리를 가진다", () => {
+  it("모든 분야는 비어있지 않은 라벨과 키를 가진다", () => {
     for (const f of RADAR_FIELDS) {
       expect(f.label.trim().length).toBeGreaterThan(0);
       expect(f.key.trim().length).toBeGreaterThan(0);
-      expect(f.queries.length).toBeGreaterThan(0);
-      for (const q of f.queries) expect(q.trim().length).toBeGreaterThan(0);
     }
   });
 });
