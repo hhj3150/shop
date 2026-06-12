@@ -30,6 +30,7 @@ type DispatchOrder = {
   order_type: string;
   block_weeks: number | null; // 구독 1회 결제분 회차(연장 전 원 회차)
   renews_slot_id: number | null; // 연장 결제 주문이면 잇는 슬롯 id(품목 미생성·발송 안 함)
+  delivery_method: string | null; // '방문수령'이면 택배 발송 대상 아님 → 배송 큐에서 제외
   ship_date: string | null;
   ship_name: string;
   ship_phone: string;
@@ -190,6 +191,7 @@ export function DispatchPanel({
     const its: { product_name: string; volume: string; qty: number }[] = [];
     for (const o of orders) {
       if (!SHIPPABLE.includes(o.status)) continue;
+      if (o.delivery_method === "방문수령") continue; // 방문수령은 발송 대상 아님 → 수량 집계 제외
       if (o.renews_slot_id != null) continue;
       for (const it of itemsByOrder.get(o.id) ?? []) its.push(it);
     }
@@ -203,6 +205,8 @@ export function DispatchPanel({
     const rows: DispatchRow[] = [];
     for (const o of orders) {
       if (!SHIPPABLE.includes(o.status)) continue;
+      // 방문수령: 손님이 목장에서 직접 받음 → 택배 발송 대상 아님(발송명단 roster 와 동일 제외).
+      if (o.delivery_method === "방문수령") continue;
       // 연장 결제 주문: 품목 미생성·발송은 원주문 행에서 이어짐 → 유령행 제외.
       if (o.renews_slot_id != null) continue;
 
