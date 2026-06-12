@@ -71,6 +71,9 @@ export default function CheckoutPage() {
   // 추천 적립금(쿠폰) 보유분 + 사용 여부. 기본 사용(선차감 정책). 끄면 주문 후 되돌린다.
   const [rewards, setRewards] = useState<RewardLite[]>([]);
   const [useReferralCredit, setUseReferralCredit] = useState(true);
+  // 최소주문 미달 시: 죽은 버튼 대신, 클릭하면 금색 안내배너로 스크롤 + 잠깐 강조.
+  const minNoticeRef = useRef<HTMLParagraphElement>(null);
+  const [minFlash, setMinFlash] = useState(false);
 
   // 배송지 우편번호로 배송비를 다시 계산한다. 특수배송지역은 회당 5,000원이며
   //   서버(RPC)가 청구하는 금액과 일치시킨다. cart의 기본값(4,000원)을 덮어쓴다.
@@ -184,10 +187,22 @@ export default function CheckoutPage() {
     }
   }
 
+  // 최소주문 안내 배너로 스크롤 + 잠깐 강조(능동 피드백).
+  function nudgeMinNotice() {
+    minNoticeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setMinFlash(true);
+    setTimeout(() => setMinFlash(false), 1600);
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     if (!user) return;
+    // 최소 상품금액 미달은 가장 먼저 안내한다(클레임: 죽은 버튼 → 능동 안내).
+    if (perDelivery < MIN_ORDER_KRW) {
+      nudgeMinNotice();
+      return;
+    }
     if (!ship.name.trim() || !ship.phone.trim() || (!pickup && !ship.address.trim())) {
       setError(pickup ? "받는 분, 연락처를 입력해 주세요." : "받는 분, 연락처, 주소를 입력해 주세요.");
       return;
@@ -199,10 +214,6 @@ export default function CheckoutPage() {
     // 무통장입금은 입금자명이 있어야 PayAction 자동매칭이 가능하다.
     if (!usePortOne && !ship.depositorName.trim()) {
       setError("무통장입금은 입금자명을 입력해 주세요. (입금 자동 확인에 필요합니다)");
-      return;
-    }
-    if (perDelivery < MIN_ORDER_KRW) {
-      setError(`회당 최소 상품 금액은 ${formatKRW(MIN_ORDER_KRW)}입니다. (배송비 별도)`);
       return;
     }
     const receiptError = validateCashReceipt(cashReceiptType, cashReceiptId);
@@ -515,7 +526,13 @@ export default function CheckoutPage() {
         )}
 
         {belowMin && (
-          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+          <p
+            ref={minNoticeRef}
+            className={
+              "rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep transition-shadow" +
+              (minFlash ? " ring-2 ring-gold-deep ring-offset-1 ring-offset-cream" : "")
+            }
+          >
             회당 최소 상품금액은 {formatKRW(MIN_ORDER_KRW)}입니다. 현재 회당{" "}
             {formatKRW(perDelivery)}이라 {formatKRW(MIN_ORDER_KRW - perDelivery)} 더 담으셔야
             신청할 수 있습니다. (배송비 별도)
@@ -524,7 +541,7 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={busy || belowMin || hasBlocked || (!pickup && isSpecialRegion && !acceptFresh)}
+          disabled={busy || hasBlocked || (!pickup && isSpecialRegion && !acceptFresh)}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy
