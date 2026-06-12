@@ -46,21 +46,31 @@ export function NewsRadarBand() {
         A2·저지·헤이밀크·동물복지·저탄소 낙농 — 매주 가장 의미 있는 소식 하나를 골라 한글로 전해 드립니다.
       </p>
 
-      <a
-        href={lead.source_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-6 block rounded-2xl border border-line bg-cream p-6 transition-colors hover:border-gold"
-      >
+      {/* 카드 본문(요약)은 이동하지 않는다 — 사이트에서 읽고, 원문은 제목·'원문 보기'로만 이동. */}
+      <div className="mt-6 rounded-2xl border border-line bg-cream p-6">
         {lead.topic && (
           <span className="rounded-full bg-gold/10 px-2.5 py-0.5 text-[12px] text-gold-deep">{lead.topic}</span>
         )}
-        <h3 className="mt-3 font-serif-kr text-lg leading-snug text-ink">{lead.title_ko}</h3>
+        <h3 className="mt-3 font-serif-kr text-lg leading-snug text-ink">
+          <a
+            href={lead.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-gold-deep"
+          >
+            {lead.title_ko}
+          </a>
+        </h3>
         <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">{lead.summary_ko}</p>
-        <p className="mt-3 text-[12.5px] text-mute">
+        <a
+          href={lead.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-block text-[12.5px] text-mute transition-colors hover:text-gold-deep"
+        >
           {lead.source_name ? `${lead.source_name} · ` : ""}원문 보기 →
-        </p>
-      </a>
+        </a>
+      </div>
 
       {rest.length > 0 && (
         <ul className="mt-4 divide-y divide-line border-t border-line">
