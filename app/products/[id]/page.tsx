@@ -55,6 +55,11 @@ export function generateStaticParams() {
   return PRODUCTS.map((p) => ({ id: p.id }));
 }
 
+// ISR: 정적 프리렌더(빠름) + 1시간마다 런타임 재생성. 새 리뷰의 별점(JSON-LD
+//   aggregateRating)이 재배포 없이도 갱신되게 한다. (Cache Components 미사용 →
+//   route segment config 사용 가능 — node_modules/next 문서 확인.)
+export const revalidate = 3600;
+
 export async function generateMetadata({
   params,
 }: {
