@@ -100,6 +100,7 @@ type OrderRow = {
   order_no: string;
   status: string;
   order_type: string; // '구독' | '단품'
+  delivery_method: string; // '택배' | '방문수령'
   block_weeks: number | null; // 구독 1회 결제분 회차(연장 전 원 회차)
   shipping_fee: number | null; // 주문 총 배송비(회당 = shipping_fee / block_weeks)
   ship_date: string | null; // 단품 발송 예정일 (YYYY-MM-DD)
@@ -2031,6 +2032,14 @@ export default function AdminPage() {
                     {o.renews_slot_id && (
                       <span className="ml-1.5 rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-medium text-gold-deep">
                         연장
+                      </span>
+                    )}
+                    {o.delivery_method === "방문수령" && (
+                      <span
+                        title="방문수령 주문입니다. 발송하지 마세요."
+                        className="ml-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700"
+                      >
+                        방문수령
                       </span>
                     )}
                     {dupOrderIds.has(o.id) && (
