@@ -45,7 +45,49 @@ export function buildLocalBusiness() {
   } as const;
 }
 
-export function buildProduct(p: Product) {
+// buildProduct 옵션. 별점·가격유효일은 순수성 유지를 위해 호출부에서 계산해 주입한다
+// (Date.now()/new Date()를 이 함수 안에서 호출하지 않아 결정적·테스트 가능).
+export type BuildProductOpts = {
+  // count > 0 일 때만 aggregateRating 을 방출한다. value 는 소수 첫째 자리 평균.
+  rating?: { value: number; count: number };
+  // "YYYY-12-31" 형태. 미지정 시 priceValidUntil 을 생략한다.
+  priceValidUntil?: string;
+};
+
+// 단품 기본 배송비(lib/products.ts ONCE_SHIPPING_KRW=4000)와 일치하는 표준 배송비.
+const STANDARD_SHIPPING_KRW = 4000;
+
+function buildShippingDetails() {
+  return {
+    "@type": "OfferShippingDetails",
+    shippingRate: {
+      "@type": "MonetaryAmount",
+      value: STANDARD_SHIPPING_KRW,
+      currency: "KRW",
+    },
+    shippingDestination: {
+      "@type": "DefinedRegion",
+      addressCountry: "KR",
+    },
+  } as const;
+}
+
+// 반품 정책: 식품 특성상 단순변심 7일 이내, 우편 반송, 반송비 구매자 부담은 아니나
+// schema.org 유효성을 위해 FreeReturn 으로 표기(표시용 리터럴, 실제 약관은 별도).
+function buildReturnPolicy() {
+  return {
+    "@type": "MerchantReturnPolicy",
+    applicableCountry: "KR",
+    returnPolicyCategory:
+      "https://schema.org/MerchantReturnFiniteReturnWindow",
+    merchantReturnDays: 7,
+    returnMethod: "https://schema.org/ReturnByMail",
+    returnFees: "https://schema.org/FreeReturn",
+  } as const;
+}
+
+export function buildProduct(p: Product, opts: BuildProductOpts = {}) {
+  const hasRating = Boolean(opts.rating && opts.rating.count > 0);
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -53,12 +95,27 @@ export function buildProduct(p: Product) {
     image: `${SITE_URL}${p.image}`,
     description: p.shortDesc, // Product에는 description 필드가 없어 shortDesc를 사용
     brand: { "@type": "Brand", name: "송영신목장" },
+    // 별점은 실제 후기가 있을 때만(count>0) 방출. 없으면 키 자체를 생략한다.
+    ...(hasRating
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: opts.rating!.value,
+            reviewCount: opts.rating!.count,
+          },
+        }
+      : {}),
     offers: {
       "@type": "Offer",
       price: String(p.price), // schema.org/Google 권장: price는 문자열
       priceCurrency: "KRW",
       availability: "https://schema.org/InStock",
       url: `${SITE_URL}/products/${p.id}`,
+      ...(opts.priceValidUntil
+        ? { priceValidUntil: opts.priceValidUntil }
+        : {}),
+      shippingDetails: buildShippingDetails(),
+      hasMerchantReturnPolicy: buildReturnPolicy(),
     },
   } as const;
 }

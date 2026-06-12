@@ -53,6 +53,50 @@ describe("buildProduct", () => {
     expect(node.offers.price).toBe(String(p.price));
     expect(node.offers.priceCurrency).toBe("KRW");
   });
+
+  it("rating 미지정이면 aggregateRating 키를 방출하지 않는다", () => {
+    const node = buildProduct(PRODUCTS[0]);
+    expect("aggregateRating" in node).toBe(false);
+  });
+
+  it("count=0 이면 aggregateRating 을 방출하지 않는다", () => {
+    const node = buildProduct(PRODUCTS[0], { rating: { value: 0, count: 0 } });
+    expect("aggregateRating" in node).toBe(false);
+  });
+
+  it("count>0 이면 AggregateRating 을 올바른 형태로 방출한다", () => {
+    const node = buildProduct(PRODUCTS[0], { rating: { value: 4.7, count: 12 } });
+    expect("aggregateRating" in node).toBe(true);
+    const ar = (node as { aggregateRating: Record<string, unknown> })
+      .aggregateRating;
+    expect(ar["@type"]).toBe("AggregateRating");
+    expect(ar.ratingValue).toBe(4.7);
+    expect(ar.reviewCount).toBe(12);
+  });
+
+  it("offers 에 shippingDetails·hasMerchantReturnPolicy 를 추가한다", () => {
+    const node = buildProduct(PRODUCTS[0]);
+    expect(node.offers.shippingDetails["@type"]).toBe("OfferShippingDetails");
+    expect(node.offers.shippingDetails.shippingRate.value).toBe(4000);
+    expect(node.offers.shippingDetails.shippingRate.currency).toBe("KRW");
+    expect(node.offers.shippingDetails.shippingDestination.addressCountry).toBe(
+      "KR"
+    );
+    expect(node.offers.hasMerchantReturnPolicy["@type"]).toBe(
+      "MerchantReturnPolicy"
+    );
+    expect(node.offers.hasMerchantReturnPolicy.merchantReturnDays).toBe(7);
+  });
+
+  it("priceValidUntil 지정 시 offers 에 반영, 미지정 시 키 생략", () => {
+    const withDate = buildProduct(PRODUCTS[0], {
+      priceValidUntil: "2026-12-31",
+    });
+    expect(withDate.offers.priceValidUntil).toBe("2026-12-31");
+
+    const without = buildProduct(PRODUCTS[0]);
+    expect("priceValidUntil" in without.offers).toBe(false);
+  });
 });
 
 describe("buildFAQPage", () => {
