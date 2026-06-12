@@ -487,6 +487,80 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
   });
 });
 
+// ── 멀티요일 활성블록 + 공휴일 시프트 회귀 (원래 CRITICAL 버그: 누락·이중발송) ──
+//   슬롯 시작 2026-02-09(월). 블록0=4주 월(o0·우유, 회차1~4), 블록1=4주 화(o1·요거트, 회차5~8).
+//   2026-03-02(월)은 삼일절 대체공휴일 → 블록0의 월요일분이 다음 영업일 2026-03-03(화)로 시프트.
+//   2026-03-03(화)은 정상 화요일이라 '화요일 구독'도 이날 도착 → 두 요일이 같은 날 수렴(convergence).
+//   이 날 활성 블록은 블록0(월)이므로, 시프트된 블록0(o0)만 발송되고 블록1(o1·화)은 새지 않아야 한다.
+describe("buildRosterForDate — 멀티요일 활성블록 공휴일 시프트", () => {
+  function mwSlot(over: Partial<DispatchSlotInfo> = {}): DispatchSlotInfo {
+    return slot({ started_at: "2026-02-09", extended_weeks: 4, ...over });
+  }
+  // 슬롯 1개(id=10), 원주문 o0(월·우유, 블록0), 연장주문 o1(화·요거트, 블록1).
+  const block0: RawBlock = {
+    orderId: "o0",
+    weeks: 4,
+    deliveryDay: "mon",
+    shippingPerWeek: 4000,
+    items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 3000 }],
+  };
+  const block1: RawBlock = {
+    orderId: "o1",
+    weeks: 4,
+    deliveryDay: "tue",
+    shippingPerWeek: 4000,
+    items: [{ productName: "요거트", volume: "85g", qty: 2, unitPrice: 2000 }],
+  };
+  const blocksBySlot = new Map<number, RawBlock[]>([[10, [block0, block1]]]);
+  const slotIdByOrder = new Map<string, number>([
+    ["o0", 10],
+    ["o1", 10],
+  ]);
+  // 프로덕션 와이어링: slotByOrder 는 원주문(o0)만, slotById(=10)로 슬롯 상태 제공.
+  const slotByOrderProd = new Map<string, DispatchSlotInfo>([["o0", mwSlot()]]);
+  const slotByIdProd = new Map<number, DispatchSlotInfo>([[10, mwSlot()]]);
+  const orders = [order({ id: "o0" }), order({ id: "o1" })];
+  const items = [
+    item({ order_id: "o0", product_name: "우유", volume: "180ml", delivery_day: "mon", qty: 1 }),
+    item({ order_id: "o1", product_name: "요거트", volume: "85g", delivery_day: "tue", qty: 2 }),
+  ];
+
+  function buildAt(dateISO: string) {
+    return build({
+      orders,
+      items,
+      slots: slotByOrderProd,
+      slotById: slotByIdProd,
+      blocksBySlot,
+      slotIdByOrder,
+      dateISO,
+    });
+  }
+
+  it("누락 방지: 공휴일(03-02 월) 당일엔 블록0이 발송되지 않는다(시프트 전)", () => {
+    // 활성 블록은 블록0(월)이지만, 03-02 는 대체공휴일이라 그 요일분이 시프트되어 빠진다.
+    const r = buildAt("2026-03-02");
+    expect(r).toHaveLength(0);
+  });
+
+  it("누락 방지: 시프트 도착일(03-03 화)엔 블록0(o0)이 그대로 발송된다", () => {
+    // 03-02(월)이 공휴일 → 블록0 월요일분이 03-03 으로 시프트. 누락 없이 1건 발송.
+    const r = buildAt("2026-03-03");
+    expect(r).toHaveLength(1);
+    expect(r[0].order.id).toBe("o0");
+    expect(r[0].items.map((i) => i.product_name)).toEqual(["우유"]);
+  });
+
+  it("이중발송 방지: 수렴일(03-03)에 화요일 블록1(o1)은 새지 않는다(정확히 1건)", () => {
+    // 03-03 은 블록0(월) 시프트 도착일이면서 동시에 정상 화요일 → 두 요일이 수렴.
+    //   활성 블록은 블록0 이므로, 게이팅이 없으면 o1(화·요거트)까지 새어 2건이 된다.
+    //   활성 블록의 orderId(o0)와 일치하는 그룹만 발송 → 정확히 1건, o1 미포함.
+    const r = buildAt("2026-03-03");
+    expect(r).toHaveLength(1);
+    expect(r.map((e) => e.order.id)).not.toContain("o1");
+  });
+});
+
 describe("발송명단 방문수령 제외", () => {
   function once(id: string, method: string): RosterOrderFields {
     return {
