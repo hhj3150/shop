@@ -85,7 +85,10 @@ describe("buildProduct", () => {
     expect(node.offers.hasMerchantReturnPolicy["@type"]).toBe(
       "MerchantReturnPolicy"
     );
-    expect(node.offers.hasMerchantReturnPolicy.merchantReturnDays).toBe(7);
+    // 신선식품 단순변심 반품 불가(약관 제7조)를 정확히 표기 — 허위 반품정책 금지.
+    expect(node.offers.hasMerchantReturnPolicy.returnPolicyCategory).toBe(
+      "https://schema.org/MerchantReturnNotPermitted"
+    );
   });
 
   it("priceValidUntil 지정 시 offers 에 반영, 미지정 시 키 생략", () => {

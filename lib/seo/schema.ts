@@ -72,17 +72,15 @@ function buildShippingDetails() {
   } as const;
 }
 
-// 반품 정책: 식품 특성상 단순변심 7일 이내, 우편 반송, 반송비 구매자 부담은 아니나
-// schema.org 유효성을 위해 FreeReturn 으로 표기(표시용 리터럴, 실제 약관은 별도).
+// 반품 정책: 신선식품(우유) 특성상 단순변심 청약철회가 제한된다(약관 제7조).
+// 구조화데이터는 실제 약관과 일치해야 한다(허위 표기 시 구글 정책 위반·분쟁 위험) →
+// 단순변심 반품 불가를 정확히 표기한다(MerchantReturnNotPermitted).
+// 입금 후 배송준비 전 전액환불·구독 미배송분 환불·하자 교환은 별개로 약관에서 안내한다.
 function buildReturnPolicy() {
   return {
     "@type": "MerchantReturnPolicy",
     applicableCountry: "KR",
-    returnPolicyCategory:
-      "https://schema.org/MerchantReturnFiniteReturnWindow",
-    merchantReturnDays: 7,
-    returnMethod: "https://schema.org/ReturnByMail",
-    returnFees: "https://schema.org/FreeReturn",
+    returnPolicyCategory: "https://schema.org/MerchantReturnNotPermitted",
   } as const;
 }
 
