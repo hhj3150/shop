@@ -122,6 +122,18 @@ describe("buildCustomer360", () => {
     expect(c.orders[0].receipt).toBeNull();
   });
 
+  it("수령방법을 노출하고, 미지정 주문은 택배로 본다", () => {
+    const c = buildCustomer360(input({
+      orders: [
+        order({ id: "pk", order_no: "ORD-PK", created_at: "2026-06-10T00:00:00Z", delivery_method: "방문수령" }),
+        order({ id: "tb", order_no: "ORD-TB", created_at: "2026-06-09T00:00:00Z" }), // delivery_method 미지정
+      ],
+    }));
+    const byNo = new Map(c.orders.map((o) => [o.orderNo, o.deliveryMethod]));
+    expect(byNo.get("ORD-PK")).toBe("방문수령");
+    expect(byNo.get("ORD-TB")).toBe("택배");
+  });
+
   it("진행 중 구독: total=block+extended, 잔여>0, 상태 활성", () => {
     const c = buildCustomer360(input({
       orders: [order({ id: "o1", block_weeks: 8 })],
