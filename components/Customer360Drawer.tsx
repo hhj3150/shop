@@ -221,6 +221,14 @@ export function Customer360Drawer({
                                 🎁 선물{o.shipName ? ` → ${o.shipName}` : ""}
                               </span>
                             )}
+                            {o.deliveryMethod === "방문수령" && (
+                              <span
+                                className="ml-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-[12px] font-medium text-sky-700"
+                                title="방문수령 주문입니다. 발송하지 마세요."
+                              >
+                                방문수령
+                              </span>
+                            )}
                           </p>
                           <p className="mt-0.5 text-[12.5px] text-mute">
                             {new Date(o.createdAt).toLocaleDateString("ko-KR")}
