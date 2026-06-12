@@ -139,7 +139,7 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
   if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
   const { data: o } = await sb
     .from("orders")
-    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no, is_gift, gifter_name, ship_date, user_id")
+    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no, is_gift, gifter_name, ship_date, delivery_method, user_id")
     .eq("id", orderId)
     .single();
   if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
@@ -181,7 +181,9 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     const [, mo, da] = (o.ship_date as string | null)?.split("-") ?? [];
     const dispatchLine =
       mo && da
-        ? `입금이 확인되면 ${Number(mo)}월 ${Number(da)}일에 발송해 드립니다.`
+        ? o.delivery_method === "방문수령"
+          ? `입금이 확인되면 ${Number(mo)}월 ${Number(da)}일부터 목장에서 수령하실 수 있습니다.`
+          : `입금이 확인되면 ${Number(mo)}월 ${Number(da)}일에 발송해 드립니다.`
         : `입금이 확인되면 다시 안내드리겠습니다.`;
     const text =
       `[${SHOP}] ${name}님, 주문이 접수되었습니다.\n` +
@@ -212,7 +214,9 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     const [, mo, da] = (o.ship_date as string | null)?.split("-") ?? [];
     const dispatchLine =
       mo && da
-        ? `${Number(mo)}월 ${Number(da)}일에 발송해 드립니다.`
+        ? o.delivery_method === "방문수령"
+          ? `${Number(mo)}월 ${Number(da)}일부터 목장에서 수령하실 수 있습니다.`
+          : `${Number(mo)}월 ${Number(da)}일에 발송해 드립니다.`
         : `신선하게 준비하여 순차 발송해 드리겠습니다.`;
     const text =
       `[${SHOP}] ${name}님, 입금이 확인되었습니다.\n` +
