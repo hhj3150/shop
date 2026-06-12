@@ -128,8 +128,12 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
     const quoteItems = formItems
       .filter((it) => it.qty > 0)
       .map((it) => ({ listPrice: priceOf(it.productId), qty: it.qty }));
-    return renewalQuote(quoteItems, period, SUB_SHIPPING_KRW);
-  }, [formItems, period, map]);
+    return renewalQuote(
+      quoteItems,
+      period,
+      sub.deliveryMethod === "방문수령" ? 0 : SUB_SHIPPING_KRW
+    );
+  }, [formItems, period, map, sub.deliveryMethod]);
 
   const items = buildRenewalItems(formItems);
   const hasItems = items.length > 0;

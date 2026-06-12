@@ -43,6 +43,7 @@ function sub(partial: Partial<MySubscription>): MySubscription {
     periodMonths: 1,
     orderNo: "S-1",
     totalAmount: 0,
+    deliveryMethod: "택배",
     blocks: [],
     ...partial,
   };
