@@ -84,6 +84,7 @@ export type MySubscription = {
   periodMonths: number;
   orderNo: string | null;
   totalAmount: number;
+  deliveryMethod: string;
   // 원주문 + 입금확인류 연장주문을 created_at,id 순으로 조립한 블록 체인.
   // 블록별 환불 미리보기(refundAmount)와 활성 블록 산출에 쓰인다.
   blocks: RawBlock[];
@@ -104,6 +105,7 @@ type SlotJoinRow = {
     period_months: number | null;
     order_no: string | null;
     total_amount: number | null;
+    delivery_method: string | null;
   } | null;
 };
 
@@ -163,6 +165,7 @@ export function toMySubscriptions(
     orderNo: row.orders?.order_no ?? null,
     // 총 납입액 = 원 주문 + 입금확인된 연장주문 합계
     totalAmount: (row.orders?.total_amount ?? 0) + (extBySlot[row.id] ?? 0),
+    deliveryMethod: row.orders?.delivery_method ?? "택배",
     // 블록 체인(원주문 먼저, 연장 created_at,id 순) — buildRawBlocks 로 조립.
     blocks: blocksForSlot(row.id, blockSources),
   }));
@@ -180,7 +183,7 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
   const { data, error } = await sb
     .from("subscription_slots")
     .select(
-      "id, order_id, delivery_day, status, started_at, first_ship_date, paused, paused_at, paused_days, extended_weeks, orders(block_weeks, period_months, order_no, total_amount)"
+      "id, order_id, delivery_day, status, started_at, first_ship_date, paused, paused_at, paused_days, extended_weeks, orders(block_weeks, period_months, order_no, total_amount, delivery_method)"
     )
     .eq("user_id", uid)
     .neq("status", "해지")

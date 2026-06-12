@@ -2,6 +2,7 @@ import { getSupabase } from "./supabase";
 import type { CartItem, DeliveryDay } from "./cart";
 import type { SubPeriod } from "./products";
 import { digitsOnly, type CashReceiptType } from "./cash-receipt";
+import type { DeliveryMethod } from "./delivery-method";
 
 export type ShippingInfo = {
   name: string;
@@ -19,6 +20,8 @@ export type ShippingInfo = {
   // 현금영수증 — 발행 방식과 식별번호(소득공제: 휴대폰, 지출증빙: 사업자번호).
   cashReceiptType?: CashReceiptType;
   cashReceiptId?: string;
+  // 수령방법: 택배(기본) | 방문수령. 방문수령이면 서버가 배송비 0 + 주소 미요구.
+  deliveryMethod?: DeliveryMethod;
 };
 
 // 현금영수증 발행정보 저장(주문 생성 직후). '발행안함'은 컬럼 기본값과 같아 호출을 생략한다.
@@ -122,6 +125,7 @@ function shipPayload(ship: ShippingInfo) {
     isGift: ship.isGift === true,
     gifterName: ship.gifterName ?? null,
     giftMessage: ship.giftMessage ?? null,
+    deliveryMethod: ship.deliveryMethod ?? "택배",
   };
 }
 

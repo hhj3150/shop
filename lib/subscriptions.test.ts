@@ -61,6 +61,7 @@ describe("toMySubscriptions — 연장분 합산", () => {
       period_months: 1,
       order_no: "20260601-0001",
       total_amount: 40000, // 원주문 4만원
+      delivery_method: "택배",
     },
   };
 

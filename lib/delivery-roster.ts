@@ -14,6 +14,7 @@ export type RosterOrderFields = {
   block_weeks: number | null;
   ship_date: string | null; // 단품 발송 예정일(YYYY-MM-DD)
   ship_name: string;
+  delivery_method?: string; // '택배' | '방문수령' — 방문수령은 발송 대상 제외(미정의=택배 취급)
 };
 
 // 로스터 판정에 필요한 품목 최소 필드.
@@ -91,7 +92,7 @@ export function buildRosterForDate<
     }
     for (const [orderId, its] of byOrder) {
       const order = orderById.get(orderId);
-      if (!order || order.order_type === "단품") continue;
+      if (!order || order.order_type === "단품" || order.delivery_method === "방문수령") continue;
 
       // 첫배송 공휴일 시프트: 앵커(선택 요일·공휴일) 당일은 발송하지 않는다(시프트일에 포함됨).
       //   first_ship_date 는 원주문 슬롯(slotByOrder) 기준 — 연장주문엔 적용 안 함.
@@ -145,7 +146,7 @@ export function buildRosterForDate<
   const shiftByOrder = new Map<string, I[]>();
   for (const it of items) {
     const order = orderById.get(it.order_id);
-    if (!order || order.order_type === "단품") continue;
+    if (!order || order.order_type === "단품" || order.delivery_method === "방문수령") continue;
     if (alreadyIncluded.has(order.id)) continue;
     if (!confirmedOrderIds.has(it.order_id)) continue;
     if (pausedOrderIds.has(it.order_id)) continue;
@@ -166,7 +167,7 @@ export function buildRosterForDate<
   const onceByOrder = new Map<string, I[]>();
   for (const it of items) {
     const order = orderById.get(it.order_id);
-    if (!order || order.order_type !== "단품") continue;
+    if (!order || order.order_type !== "단품" || order.delivery_method === "방문수령") continue;
     if (order.ship_date !== dateISO) continue;
     if (!confirmedOrderIds.has(order.id)) continue;
     const arr = onceByOrder.get(order.id) ?? [];
