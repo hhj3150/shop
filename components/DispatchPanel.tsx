@@ -392,25 +392,31 @@ export function DispatchPanel({
   // 로젠 엑셀 파일을 읽어 운송장↔주문 매칭 미리보기를 만든다(xlsx 동적 import 로 메인 번들·SSR 제외).
   async function onLogenFile(file: File) {
     setLogenNote(null);
-    const XLSX = await import("xlsx");
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, raw: false, defval: "" });
-    const parsed = logenExcel.parseLogenSheet(rows as string[][]);
-    if (parsed.length === 0) {
-      setLogenNote("로젠 엑셀에서 인식된 행이 없습니다(헤더/시트 확인).");
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, raw: false, defval: "" });
+      const parsed = logenExcel.parseLogenSheet(rows as string[][]);
+      if (parsed.length === 0) {
+        setLogenNote("로젠 엑셀에서 인식된 행이 없습니다(헤더/시트 확인).");
+        setLogenPreview(null);
+        return;
+      }
+      const res = matchLogen(parsed, allRows.map((r) => r.o));
+      setLogenPreview(res);
+      const init: Record<number, string> = {};
+      for (const m of res.matched) if (m.confidence === "high") init[m.rowIdx] = m.orderId;
+      setLogenChecked(init);
+      setLogenNote(
+        `매칭 ${res.matched.length} · 검토 ${res.matched.filter((m) => m.confidence === "review").length} · 모호 ${res.ambiguous.length} · 이미채움 ${res.alreadyFilled.length} · 미일치 ${res.unmatched.length}`
+      );
+    } catch (e) {
+      console.error("로젠 엑셀 처리 실패:", e);
       setLogenPreview(null);
-      return;
+      setLogenNote("엑셀을 읽지 못했습니다. 로젠 주문실적조회 .xlsx 파일이 맞는지 확인하세요.");
     }
-    const res = matchLogen(parsed, allRows.map((r) => r.o));
-    setLogenPreview(res);
-    const init: Record<number, string> = {};
-    for (const m of res.matched) if (m.confidence === "high") init[m.rowIdx] = m.orderId;
-    setLogenChecked(init);
-    setLogenNote(
-      `매칭 ${res.matched.length} · 검토 ${res.matched.filter((m) => m.confidence === "review").length} · 모호 ${res.ambiguous.length} · 이미채움 ${res.alreadyFilled.length} · 미일치 ${res.unmatched.length}`
-    );
   }
 
   // 선택분(rowIdx→orderId)을 각 주문 송장칸에 채우고 자동 선택한다.
@@ -889,6 +895,7 @@ export function DispatchPanel({
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) onLogenFile(f);
+              e.target.value = "";
             }}
             className="mt-2 block w-full text-[13px] text-ink-soft file:mr-3 file:rounded-lg file:border file:border-line file:bg-cream file:px-3 file:py-1.5 file:text-[13px] file:text-ink-soft"
           />
