@@ -23,6 +23,7 @@ function makeScored(over: Partial<ScoredCandidate> = {}): ScoredCandidate {
     summary_ko: "요약",
     source_name: "출처",
     source_url: "https://x/1",
+    contentText: "",
     original_title: "orig",
     ...over,
   };
@@ -246,5 +247,20 @@ describe("buildScoringPrompt — 효능·category 규칙", () => {
     const p = buildScoringPrompt(cands);
     expect(p).toContain("category");
     expect(p).toContain("pet");
+  });
+});
+
+describe("mergeScored contentText·source", () => {
+  const cand = [{ title: "T", link: "https://p/a", source: "Phys.org", pubDate: "", contentText: "BODY", field: "농업", fieldPriority: 2, category: "human" as const }];
+  it("contentText 보존 + source 는 피드값 우선", () => {
+    const raw = [{ index: 0, title_ko: "ㄱ", summary_ko: "ㄴ", source_name: "모델추정", scores: {} }];
+    const m = mergeScored(raw, cand);
+    expect(m[0].contentText).toBe("BODY");
+    expect(m[0].source_name).toBe("Phys.org");
+  });
+  it("피드 source 가 비면 모델 추정으로 폴백", () => {
+    const c2 = [{ title: "T", link: "https://p/a", source: "", pubDate: "", contentText: "B", field: "농업", fieldPriority: 2, category: "human" as const }];
+    const raw = [{ index: 0, title_ko: "ㄱ", summary_ko: "ㄴ", source_name: "모델추정", scores: {} }];
+    expect(mergeScored(raw, c2)[0].source_name).toBe("모델추정");
   });
 });

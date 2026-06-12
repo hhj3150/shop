@@ -140,6 +140,7 @@ export type ScoredCandidate = {
   summary_ko: string;
   source_name: string;
   source_url: string;
+  contentText: string;
   original_title: string;
   totalScore?: number; // rankCandidates 가 채움
 };
@@ -265,8 +266,9 @@ export function mergeScored(
       exclude: r.exclude === true,
       title_ko: str(r.title_ko),
       summary_ko: str(r.summary_ko),
-      source_name: str(r.source_name) || src.source,
+      source_name: src.source || str(r.source_name),
       source_url: src.link,
+      contentText: src.contentText,
       original_title: src.title,
     });
   }
