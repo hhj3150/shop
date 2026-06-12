@@ -106,3 +106,28 @@ describe("computeSchedule", () => {
     });
   });
 });
+
+describe("주차별 공휴일 시프트", () => {
+  const base = { startedAt: "2026-04-28", firstShipDate: null, paused: false, pausedAt: null, pausedDays: 0 };
+
+  it("공휴일에 걸린 2회차는 다음 영업일로 시프트(endDate 반영)", () => {
+    const s = computeSchedule({ ...base, totalWeeks: 2 }, new Date("2026-05-06T00:00:00"));
+    expect(s.endDate).toBe("2026-05-06");
+    expect(s.delivered).toBe(2);
+  });
+  it("공휴일 당일(05-05)엔 2회차 미완료, nextDate=05-06", () => {
+    const s = computeSchedule({ ...base, totalWeeks: 2 }, new Date("2026-05-05T00:00:00"));
+    expect(s.delivered).toBe(1);
+    expect(s.nextDate).toBe("2026-05-06");
+  });
+  it("k=1 firstShipDate idempotent — 보정값 재전진 no-op", () => {
+    const inp = { startedAt: "2026-05-05", firstShipDate: "2026-05-06", paused: false, pausedAt: null, pausedDays: 0, totalWeeks: 1 };
+    expect(computeSchedule(inp, new Date("2026-05-06T00:00:00")).endDate).toBe("2026-05-06");
+  });
+  it("최장 연휴 클러스터에서 단조·무충돌", () => {
+    const inp = { startedAt: "2027-02-01", firstShipDate: null, paused: false, pausedAt: null, pausedDays: 0, totalWeeks: 3 };
+    const s = computeSchedule(inp, new Date("2027-02-20T00:00:00"));
+    expect(s.endDate).toBe("2027-02-15"); // 3회차(월·평일) 그대로
+    expect(s.delivered).toBe(3);
+  });
+});
