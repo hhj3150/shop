@@ -3,17 +3,15 @@
 // 이 모듈은 서버에서만 호출한다(PAYACTION_API_KEY 필요). 브라우저 노출 금지.
 // 환경변수(서버 전용, 커밋 금지): PAYACTION_API_BASE, PAYACTION_API_KEY, PAYACTION_MALL_ID.
 
+import { normalizePhone } from "./phone";
+
 const DEFAULT_BASE = "https://api.payaction.app";
 
 // 주문번호 길이 상한. 초과 시 PayAction 알림톡 발송이 불가하다(문서 권장: 22자 이하).
 const MAX_ORDER_NUMBER_LEN = 22;
 
-// 전화번호 정규화: 숫자만 남기고 국가코드(+82)를 0 으로 치환한다.
-//   "010-1234-5678" → "01012345678", "+82 10-1234-5678" → "01012345678".
-export function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  return digits.startsWith("82") ? "0" + digits.slice(2) : digits;
-}
+// 전화번호 정규화: 클라/서버 공용 lib/phone.ts 로 추출됨(단일 출처). 재노출.
+export { normalizePhone };
 
 // 주문번호 유효성: 공백 아님 + 22자 이하.
 export function validateOrderNumber(orderNumber: string): boolean {

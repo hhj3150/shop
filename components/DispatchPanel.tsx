@@ -9,6 +9,8 @@ import { stockShipOut } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
+import * as logenExcel from "@/lib/logen-excel";
+import { matchLogen, type LogenMatchResult } from "@/lib/logen-match";
 import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
@@ -159,6 +161,11 @@ export function DispatchPanel({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [pasteNote, setPasteNote] = useState<string | null>(null);
+  // 로젠 엑셀 업로드(받는분·연락처7·운송장 → 주문 매칭).
+  const [logenOpen, setLogenOpen] = useState(false);
+  const [logenPreview, setLogenPreview] = useState<LogenMatchResult | null>(null);
+  const [logenChecked, setLogenChecked] = useState<Record<number, string>>({}); // rowIdx → 선택 orderId
+  const [logenNote, setLogenNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 검색·필터·정렬 상태.
@@ -184,6 +191,13 @@ export function DispatchPanel({
     for (const s of slots) if (s.order_id) m.set(s.order_id, s);
     return m;
   }, [slots]);
+
+  // 로젠 미리보기에서 orderId → 주문(주문번호·받는분 표시)을 빠르게 찾기 위한 맵.
+  const orderById = useMemo(() => {
+    const m = new Map<string, DispatchOrder>();
+    for (const o of orders) m.set(o.id, o);
+    return m;
+  }, [orders]);
 
   // 4개 칸(우유180/750·요거트180/500)에 매핑되지 않는 제품 — 수량·총합·발송명단에서
   //   조용히 빠지므로 화면에 경고해 관리자가 분류 누락을 알아차리게 한다.
@@ -373,6 +387,77 @@ export function DispatchPanel({
       ? ` · 미매칭 ${unmatched.length}건: ${unmatched.slice(0, 5).join(", ")}${unmatched.length > 5 ? " 외" : ""}`
       : "";
     setPasteNote(`${matched.length}건 채움·선택됨${tail}`);
+  }
+
+  // 로젠 엑셀 파일을 읽어 운송장↔주문 매칭 미리보기를 만든다(xlsx 동적 import 로 메인 번들·SSR 제외).
+  async function onLogenFile(file: File) {
+    setLogenNote(null);
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, raw: false, defval: "" });
+      const parsed = logenExcel.parseLogenSheet(rows as string[][]);
+      if (parsed.length === 0) {
+        setLogenNote("로젠 엑셀에서 인식된 행이 없습니다(헤더/시트 확인).");
+        setLogenPreview(null);
+        return;
+      }
+      const res = matchLogen(parsed, allRows.map((r) => r.o));
+      setLogenPreview(res);
+      const init: Record<number, string> = {};
+      for (const m of res.matched) if (m.confidence === "high") init[m.rowIdx] = m.orderId;
+      setLogenChecked(init);
+      setLogenNote(
+        `매칭 ${res.matched.length} · 검토 ${res.matched.filter((m) => m.confidence === "review").length} · 모호 ${res.ambiguous.length} · 이미채움 ${res.alreadyFilled.length} · 미일치 ${res.unmatched.length}`
+      );
+    } catch (e) {
+      console.error("로젠 엑셀 처리 실패:", e);
+      setLogenPreview(null);
+      setLogenNote("엑셀을 읽지 못했습니다. 로젠 주문실적조회 .xlsx 파일이 맞는지 확인하세요.");
+    }
+  }
+
+  // 선택분(rowIdx→orderId)을 각 주문 송장칸에 채우고 자동 선택한다.
+  //   한 주문에 두 행이 겹치면 덮어쓰기 사고를 막기 위해 멈춘다. 택배사도 로젠으로 맞춘다.
+  function applyLogen() {
+    const picks = Object.entries(logenChecked).filter(([, id]) => id); // [rowIdxStr, orderId]
+    if (picks.length === 0) return;
+    const perOrder = new Map<string, number>();
+    for (const [, id] of picks) perOrder.set(id, (perOrder.get(id) ?? 0) + 1);
+    const dup = [...perOrder].filter(([, n]) => n > 1).map(([id]) => id);
+    if (dup.length > 0) {
+      setLogenNote(`같은 주문에 송장이 2건 이상 선택됨(${dup.join(", ")}). 행을 1건씩만 선택하세요.`);
+      return;
+    }
+    // 모호 행 후보엔 이미 송장이 있는 주문도 섞일 수 있다(lib 가 already-filled 보다 먼저 분류).
+    //   기존 송장을 덮어쓰면 오발송이 되므로, 그런 선택이 있으면 전체 적용을 멈춘다.
+    const filled = [...new Set(picks.map(([, id]) => id))].filter(
+      (id) => (orderById.get(id)?.tracking_no ?? "") !== ""
+    );
+    if (filled.length > 0) {
+      setLogenNote(`이미 송장이 있는 주문이 선택됨(${filled.join(", ")}). 해제 후 다시 시도하세요.`);
+      return;
+    }
+    // 송장값이 실제로 잡힌 행만 채움·선택 대상으로 확정(빈 채움/무근거 선택 방지).
+    const trackByRow = new Map((logenPreview?.matched ?? []).map((m) => [m.rowIdx, m.tracking]));
+    const ambByRow = new Map((logenPreview?.ambiguous ?? []).map((a) => [a.rowIdx, a.tracking]));
+    const resolved = picks
+      .map(([idxStr, id]) => ({ id, t: trackByRow.get(Number(idxStr)) ?? ambByRow.get(Number(idxStr)) }))
+      .filter((p): p is { id: string; t: string } => Boolean(p.t));
+    if (courier !== "logen") setCourier("logen");
+    setTracking((prev) => {
+      const next = { ...prev };
+      for (const { id, t } of resolved) next[id] = t;
+      return next;
+    });
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const { id } of resolved) next.add(id);
+      return next;
+    });
+    setLogenNote(`${resolved.length}건 채움·선택됨. 상단에서 '선택 발송' 진행.`);
   }
 
   function toggleSort(key: SortKey) {
@@ -759,6 +844,12 @@ export function DispatchPanel({
         >
           송장 일괄 붙여넣기 {pasteOpen ? "▴" : "▾"}
         </button>
+        <button
+          onClick={() => setLogenOpen((v) => !v)}
+          className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+        >
+          로젠 엑셀 업로드 {logenOpen ? "▴" : "▾"}
+        </button>
       </div>
 
       {/* 송장 일괄 붙여넣기 — 엑셀 '주문번호+송장번호'를 붙여 각 행 송장칸을 한 번에 채운다 */}
@@ -787,6 +878,147 @@ export function DispatchPanel({
               송장 채우기
             </button>
             {pasteNote && <span className="text-[13px] text-ink-soft">{pasteNote}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* 로젠 엑셀 업로드 — 운송장 등록 엑셀을 올려 받는분·연락처·운송장으로 주문을 매칭해 송장칸을 채운다 */}
+      {logenOpen && (
+        <div className="mt-2 rounded-2xl border border-line bg-paper p-3 no-print">
+          <p className="text-[13px] text-ink-soft">
+            로젠에서 받은 <strong>운송장 등록 엑셀</strong>(받는분·연락처·운송장번호)을 올리면 주문과
+            자동 매칭됩니다. 선택한 행만 송장칸이 채워지고 택배사는 <strong>로젠</strong>으로 맞춰집니다.
+          </p>
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onLogenFile(f);
+              e.target.value = "";
+            }}
+            className="mt-2 block w-full text-[13px] text-ink-soft file:mr-3 file:rounded-lg file:border file:border-line file:bg-cream file:px-3 file:py-1.5 file:text-[13px] file:text-ink-soft"
+          />
+
+          {logenPreview && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[760px] border-collapse text-[13px]">
+                <thead>
+                  <tr className="border-b border-line text-left text-[12px] text-mute">
+                    <th className="py-2 pr-3 font-medium">선택</th>
+                    <th className="py-2 pr-3 font-medium">로젠(받는분·연락처·운송장)</th>
+                    <th className="py-2 pr-3 font-medium">매칭 주문</th>
+                    <th className="py-2 pr-3 font-medium">상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logenPreview.matched.map((m) => {
+                    const o = orderById.get(m.orderId);
+                    const checked = logenChecked[m.rowIdx] === m.orderId;
+                    return (
+                      <tr key={`m-${m.rowIdx}`} className="border-b border-line/70 align-top">
+                        <td className="py-2 pr-3">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setLogenChecked((prev) => {
+                                const n = { ...prev };
+                                if (n[m.rowIdx]) delete n[m.rowIdx];
+                                else n[m.rowIdx] = m.orderId;
+                                return n;
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="py-2 pr-3 tabular-nums text-ink">{m.tracking}</td>
+                        <td className="py-2 pr-3 text-ink-soft">
+                          {o ? `${o.order_no} · ${o.ship_name}` : m.orderId}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {m.confidence === "high" ? (
+                            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                              매칭
+                            </span>
+                          ) : (
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                              검토
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {logenPreview.ambiguous.map((a) => (
+                    <tr key={`a-${a.rowIdx}`} className="border-b border-line/70 align-top">
+                      <td className="py-2 pr-3">
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                          모호
+                        </span>
+                      </td>
+                      <td className="py-2 pr-3 tabular-nums text-ink">{a.tracking}</td>
+                      <td className="py-2 pr-3" colSpan={2}>
+                        <select
+                          value={logenChecked[a.rowIdx] ?? ""}
+                          onChange={(e) =>
+                            setLogenChecked((prev) => {
+                              const n = { ...prev };
+                              if (e.target.value) n[a.rowIdx] = e.target.value;
+                              else delete n[a.rowIdx];
+                              return n;
+                            })
+                          }
+                          className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink"
+                        >
+                          <option value="">선택 안 함</option>
+                          {a.candidateOrderIds.map((id) => {
+                            const o = orderById.get(id);
+                            return (
+                              <option key={id} value={id}>
+                                {o ? `${o.order_no} · ${o.ship_name}` : id}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                  {logenPreview.alreadyFilled.map((f) => {
+                    const o = orderById.get(f.orderId);
+                    return (
+                      <tr key={`f-${f.rowIdx}`} className="border-b border-line/70 align-top text-mute">
+                        <td className="py-2 pr-3">—</td>
+                        <td className="py-2 pr-3 tabular-nums">{f.tracking}</td>
+                        <td className="py-2 pr-3">{o ? `${o.order_no} · ${o.ship_name}` : f.orderId}</td>
+                        <td className="py-2 pr-3">이미 송장 있음</td>
+                      </tr>
+                    );
+                  })}
+                  {logenPreview.unmatched.map((u) => (
+                    <tr key={`u-${u.rowIdx}`} className="border-b border-line/70 align-top text-mute">
+                      <td className="py-2 pr-3">—</td>
+                      <td className="py-2 pr-3 tabular-nums">
+                        {u.recipientName} · {u.phone7} · {u.tracking}
+                      </td>
+                      <td className="py-2 pr-3" colSpan={2}>
+                        미일치 (필터로 가려졌을 수 있음)
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              onClick={applyLogen}
+              disabled={!logenPreview}
+              className="rounded-lg bg-ink px-3 py-1.5 text-[13px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-30"
+            >
+              선택분 송장 채우기
+            </button>
+            {logenNote && <span className="text-[13px] text-ink-soft">{logenNote}</span>}
           </div>
         </div>
       )}
