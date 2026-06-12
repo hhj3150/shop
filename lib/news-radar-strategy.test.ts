@@ -120,7 +120,7 @@ describe("rankCandidates", () => {
 
 describe("buildScoringPrompt", () => {
   const cands = [
-    { field: "A2 우유", fieldPriority: 1, title: "A2 milk study", link: "https://x/1", source: "DairyNews", pubDate: "d" },
+    { field: "A2 우유", fieldPriority: 1, title: "A2 milk study", link: "https://x/1", source: "DairyNews", pubDate: "d", contentText: "" },
   ];
 
   it("5기준·제외규칙·JSON 배열 지시·후보 제목을 포함한다", () => {
@@ -160,8 +160,8 @@ describe("parseScoredArray", () => {
 
 describe("mergeScored", () => {
   const candidates = [
-    { field: "A2 우유", fieldPriority: 1, title: "A2 study", link: "https://x/a2", source: "S", pubDate: "d" },
-    { field: "저지 우유", fieldPriority: 2, title: "Jersey news", link: "https://x/jersey", source: "S2", pubDate: "d" },
+    { field: "A2 우유", fieldPriority: 1, title: "A2 study", link: "https://x/a2", source: "S", pubDate: "d", contentText: "" },
+    { field: "저지 우유", fieldPriority: 2, title: "Jersey news", link: "https://x/jersey", source: "S2", pubDate: "d", contentText: "" },
   ];
 
   it("index 로 원후보의 url·분야·우선순위·원제목을 붙인다", () => {
@@ -193,7 +193,7 @@ describe("mergeScored", () => {
 
   it("분야 후보의 category 는 원후보에서, 모델 category 보다 우선한다", () => {
     const petCands = [
-      { field: "반려동물 건강·휴먼그레이드", fieldPriority: 8, title: "pet", link: "https://x/pet", source: "S", pubDate: "d", category: "pet" as const },
+      { field: "반려동물 건강·휴먼그레이드", fieldPriority: 8, title: "pet", link: "https://x/pet", source: "S", pubDate: "d", category: "pet" as const, contentText: "" },
     ];
     const out = mergeScored([{ index: 0, category: "human" }], petCands);
     expect(out[0].category).toBe("pet");
@@ -235,7 +235,7 @@ describe("activeRadarFields", () => {
 
 describe("buildScoringPrompt — 효능·category 규칙", () => {
   const cands = [
-    { field: "A2 우유", fieldPriority: 1, title: "A2 milk study", link: "https://x/1", source: "S", pubDate: "d" },
+    { field: "A2 우유", fieldPriority: 1, title: "A2 milk study", link: "https://x/1", source: "S", pubDate: "d", contentText: "" },
   ];
   it("질병 예방·치료 효능 단정 콘텐츠 제외 규칙을 포함한다", () => {
     const p = buildScoringPrompt(cands);

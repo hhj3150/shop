@@ -51,7 +51,7 @@ describe("parseRss", () => {
 describe("buildRadarPrompt", () => {
   it("후보 목록과 JSON 형식 지시를 포함한다", () => {
     const p = buildRadarPrompt([
-      { topic: "A2 우유", title: "A2 news", link: "http://a", source: "S", pubDate: "d" },
+      { topic: "A2 우유", title: "A2 news", link: "http://a", source: "S", pubDate: "d", contentText: "" },
     ]);
     expect(p).toContain("A2 news");
     expect(p).toContain("title_ko");
@@ -81,5 +81,23 @@ describe("RADAR_QUERIES", () => {
       expect(topic.trim().length).toBeGreaterThan(0);
       expect(q.trim().length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("parseRss contentText", () => {
+  it("description 을 contentText 로 추출(HTML/엔티티 제거)", () => {
+    const xml = `<rss><channel><item><title>T</title><link>https://p/a</link>
+      <description><![CDATA[<p>Heat &amp; cows <b>rise</b></p>]]></description></item></channel></rss>`;
+    expect(parseRss(xml)[0].contentText).toBe("Heat & cows rise");
+  });
+  it("content:encoded 가 있으면 우선", () => {
+    const xml = `<rss><channel><item><title>T</title><link>https://p/a</link>
+      <description>short</description>
+      <content:encoded><![CDATA[<p>Full body text</p>]]></content:encoded></item></channel></rss>`;
+    expect(parseRss(xml)[0].contentText).toBe("Full body text");
+  });
+  it("본문 없으면 빈문자", () => {
+    const xml = `<rss><channel><item><title>T</title><link>https://p/a</link></item></channel></rss>`;
+    expect(parseRss(xml)[0].contentText).toBe("");
   });
 });

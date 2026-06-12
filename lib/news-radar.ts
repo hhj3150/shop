@@ -24,7 +24,7 @@ export function googleNewsRssUrl(query: string, days = 7): string {
   return `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`;
 }
 
-export type RssItem = { title: string; link: string; source: string; pubDate: string };
+export type RssItem = { title: string; link: string; source: string; pubDate: string; contentText: string };
 
 function decodeEntities(s: string): string {
   return s
@@ -35,6 +35,10 @@ function decodeEntities(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .trim();
+}
+
+function stripHtml(s: string): string {
+  return decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 }
 
 // RSS XML 에서 <item> 들을 추출. (가벼운 정규식 파서 — Google News RSS 형식 기준)
@@ -49,7 +53,11 @@ export function parseRss(xml: string, max = 6): RssItem[] {
     const title = grab("title");
     const link = grab("link");
     if (!title || !link) continue;
-    items.push({ title, link, source: grab("source"), pubDate: grab("pubDate") });
+    const contentRaw = grab("content:encoded") || grab("description");
+    items.push({
+      title, link, source: grab("source"), pubDate: grab("pubDate"),
+      contentText: contentRaw ? stripHtml(contentRaw) : "",
+    });
     if (items.length >= max) break;
   }
   return items;
