@@ -74,6 +74,9 @@ export async function POST(req: Request) {
     p_trace_id: traceId,
     p_order_status: orderStatus,
     p_processing_date: processingDate,
+    // 관찰 안전장치: PayAction 원본 페이로드를 그대로 적재(입금확인 결정엔 미사용).
+    //   며칠 관찰해 실제 '입금액' 필드 존재 여부를 증거로 확정 → 후속 금액검증 활성화.
+    p_raw_body: payload,
   });
 
   if (error) {
