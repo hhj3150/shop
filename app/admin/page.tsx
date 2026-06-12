@@ -622,7 +622,6 @@ export default function AdminPage() {
     (d: string): DeliveryEntry[] =>
       buildRosterForDate({
         dateISO: d,
-        weekday: weekdayOf(d),
         items,
         orderById,
         slotByOrder,

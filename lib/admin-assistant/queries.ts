@@ -154,7 +154,6 @@ function rosterEntriesForDate(
 ) {
   return buildRosterForDate({
     dateISO: d,
-    weekday: weekdayOf(d),
     items: items.map((it) => ({ ...it, delivery_day: (it.delivery_day ?? "mon") as DeliveryDay })),
     orderById: new Map(orders.map((o) => [o.id, { ...o, block_weeks: o.block_weeks ?? 0 }])),
     slotByOrder,

@@ -5,6 +5,7 @@
 //   최소 필드만 쓰고, 반환 entries 는 넘겨받은 원본 객체를 그대로 담는다.
 import type { DeliveryDay } from "./cart";
 import { dispatchScheduleForSlot, type DispatchSlotInfo } from "./dispatch-schedule";
+import { deliveryDayHitsDate } from "./ship-date";
 import { activeBlockForDate, type RawBlock } from "./subscription-timeline";
 
 // 로스터 판정에 필요한 주문 최소 필드.
@@ -52,7 +53,6 @@ export function buildRosterForDate<
   I extends RosterItemFields,
 >(params: {
   dateISO: string;
-  weekday: DeliveryDay | null;
   items: I[];
   orderById: ReadonlyMap<string, O>;
   slotByOrder: ReadonlyMap<string, DispatchSlotInfo>;
@@ -67,7 +67,6 @@ export function buildRosterForDate<
 }): DeliveryEntry<O, I>[] {
   const {
     dateISO,
-    weekday,
     items,
     orderById,
     slotByOrder,
@@ -79,87 +78,58 @@ export function buildRosterForDate<
   } = params;
   const entries: DeliveryEntry<O, I>[] = [];
 
-  // ── 정기: 선택 날짜의 요일분 ──
-  if (weekday) {
-    const byOrder = new Map<string, I[]>();
-    for (const it of items) {
-      if (it.delivery_day !== weekday) continue;
-      if (!confirmedOrderIds.has(it.order_id)) continue;
-      if (pausedOrderIds.has(it.order_id)) continue;
-      const arr = byOrder.get(it.order_id) ?? [];
-      arr.push(it);
-      byOrder.set(it.order_id, arr);
-    }
-    for (const [orderId, its] of byOrder) {
-      const order = orderById.get(orderId);
-      if (!order || order.order_type === "단품" || order.delivery_method === "방문수령") continue;
-
-      // 첫배송 공휴일 시프트: 앵커(선택 요일·공휴일) 당일은 발송하지 않는다(시프트일에 포함됨).
-      //   first_ship_date 는 원주문 슬롯(slotByOrder) 기준 — 연장주문엔 적용 안 함.
-      const shiftSlot = slotByOrder.get(orderId);
-      if (shiftSlot?.first_ship_date && shiftSlot.started_at === dateISO) continue;
-
-      // 활성 블록 게이팅: 슬롯의 블록 체인이 있으면 그 발송일의 활성 블록만 발송한다.
-      //   ★ 연장주문 id 는 slotByOrder(원주문만)에 없으므로, 슬롯은 slotIdByOrder→slotById 로
-      //   해석한다(원주문·연장주문 모두 동일 슬롯에 닿는다). 활성 블록의 orderId 와 이 그룹
-      //   order_id 가 같을 때만 발송 → 한 슬롯의 여러 블록 이중발송을 막는다.
-      //   블록 데이터가 없으면(레거시·미상) 기존 dispatchScheduleForSlot 폴백으로 보수적 포함.
-      const slotId = slotIdByOrder?.get(orderId);
-      const slotForBlocks = slotId != null ? slotById?.get(slotId) : undefined;
-      const blocks = slotId != null ? blocksBySlot?.get(slotId) : undefined;
-      if (slotForBlocks && blocks && blocks.length > 0) {
-        // 해지·정지 슬롯은 발송 대상이 아니다(activeBlockForDate 는 status 미반영).
-        if (slotForBlocks.status === "해지" || slotForBlocks.paused) continue;
-        const active = activeBlockForDate(
-          {
-            startedAt: slotForBlocks.started_at,
-            paused: slotForBlocks.paused,
-            pausedAt: slotForBlocks.paused_at,
-            pausedDays: slotForBlocks.paused_days,
-            blocks,
-          },
-          dateISO
-        );
-        if (!active || active.orderId !== orderId) continue;
-        entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
-        continue;
-      }
-
-      // 폴백: 해지·회차소진(·정지) 구독은 그 발송일 기준 배송 대상이 아니다 → 명단에서 제외.
-      //   배송 탭(DispatchPanel)과 동일한 SSOT 로 과배송을 막는다. 슬롯이 없으면 보수적으로 포함.
-      //   폴백 슬롯은 원주문 매핑(slotByOrder)을 쓴다 — block_weeks 가 원주문 기준이기 때문.
-      const fallbackSlot = slotByOrder.get(orderId);
-      if (
-        fallbackSlot &&
-        dispatchScheduleForSlot(fallbackSlot, order.block_weeks ?? 0, dateISO).excluded
-      ) {
-        continue;
-      }
-      entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
-    }
-  }
-
-  // ── 첫배송 공휴일 시프트분: 요일과 무관하게 first_ship_date == dateISO 인 구독의 1회차 포함 ──
-  //   앵커 요일과 다른 날(다음 영업일)이라 위 요일 루프에 안 잡히므로 별도로 채운다.
-  //   해지·정지·미확인은 제외. 위에서 이미 포함된 주문(드문 7일 시프트)은 중복 방지.
-  const alreadyIncluded = new Set(entries.map((e) => e.order.id));
-  const shiftByOrder = new Map<string, I[]>();
+  // ── 정기: 이 날짜(공휴일 시프트 반영)에 배송되는 회차분 ──
+  //   날짜 매칭은 슬롯 앵커가 아니라 '요일'만 본다(deliveryDayHitsDate) — 평소 당일 또는
+  //   직전 그 요일이 공휴일이라 다음 영업일이 이 날짜인 시프트 도착일을 모두 한 번에 잡는다.
+  const byOrder = new Map<string, I[]>();
   for (const it of items) {
-    const order = orderById.get(it.order_id);
-    if (!order || order.order_type === "단품" || order.delivery_method === "방문수령") continue;
-    if (alreadyIncluded.has(order.id)) continue;
     if (!confirmedOrderIds.has(it.order_id)) continue;
     if (pausedOrderIds.has(it.order_id)) continue;
-    // first_ship_date 는 원주문 슬롯(slotByOrder) 기준 — 연장주문은 대상 아님.
-    const s = slotByOrder.get(it.order_id);
-    if (!s || s.first_ship_date !== dateISO) continue;
-    if (s.status === "해지" || s.paused) continue;
-    const arr = shiftByOrder.get(it.order_id) ?? [];
+    if (!deliveryDayHitsDate(it.delivery_day, dateISO).hits) continue; // 평소 당일 또는 공휴일 시프트 도착일
+    const arr = byOrder.get(it.order_id) ?? [];
     arr.push(it);
-    shiftByOrder.set(it.order_id, arr);
+    byOrder.set(it.order_id, arr);
   }
-  for (const [orderId, its] of shiftByOrder) {
-    const order = orderById.get(orderId)!;
+  for (const [orderId, its] of byOrder) {
+    const order = orderById.get(orderId);
+    if (!order || order.order_type === "단품" || order.delivery_method === "방문수령") continue;
+
+    // 활성 블록 게이팅: 슬롯의 블록 체인이 있으면 그 발송일의 활성 블록만 발송한다.
+    //   ★ 연장주문 id 는 slotByOrder(원주문만)에 없으므로, 슬롯은 slotIdByOrder→slotById 로
+    //   해석한다(원주문·연장주문 모두 동일 슬롯에 닿는다). 활성 블록의 orderId 와 이 그룹
+    //   order_id 가 같을 때만 발송 → 한 슬롯의 여러 블록 이중발송을 막는다.
+    //   블록 데이터가 없으면(레거시·미상) 기존 dispatchScheduleForSlot 폴백으로 보수적 포함.
+    const slotId = slotIdByOrder?.get(orderId);
+    const slotForBlocks = slotId != null ? slotById?.get(slotId) : undefined;
+    const blocks = slotId != null ? blocksBySlot?.get(slotId) : undefined;
+    if (slotForBlocks && blocks && blocks.length > 0) {
+      // 해지·정지 슬롯은 발송 대상이 아니다(activeBlockForDate 는 status 미반영).
+      if (slotForBlocks.status === "해지" || slotForBlocks.paused) continue;
+      const active = activeBlockForDate(
+        {
+          startedAt: slotForBlocks.started_at,
+          paused: slotForBlocks.paused,
+          pausedAt: slotForBlocks.paused_at,
+          pausedDays: slotForBlocks.paused_days,
+          blocks,
+        },
+        dateISO
+      );
+      if (!active || active.orderId !== orderId) continue;
+      entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
+      continue;
+    }
+
+    // 폴백: 해지·회차소진(·정지) 구독은 그 발송일 기준 배송 대상이 아니다 → 명단에서 제외.
+    //   배송 탭(DispatchPanel)과 동일한 SSOT 로 과배송을 막는다. 슬롯이 없으면 보수적으로 포함.
+    //   폴백 슬롯은 원주문 매핑(slotByOrder)을 쓴다 — block_weeks 가 원주문 기준이기 때문.
+    const fallbackSlot = slotByOrder.get(orderId);
+    if (
+      fallbackSlot &&
+      dispatchScheduleForSlot(fallbackSlot, order.block_weeks ?? 0, dateISO).excluded
+    ) {
+      continue;
+    }
     entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
   }
 
