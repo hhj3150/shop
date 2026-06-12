@@ -9,7 +9,7 @@ import { isHolidayISO } from "./holidays";
 const WEEKDAY_KR = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
 /** 토·일·공휴일이면 다음 영업일(평일·비공휴일)까지 전진시킨다(d 를 직접 수정). */
-function advanceToBusinessDay(d: Date): void {
+export function advanceToBusinessDay(d: Date): void {
   while (d.getDay() === 0 || d.getDay() === 6 || isHolidayISO(toISODate(d))) {
     d.setDate(d.getDate() + 1);
   }
@@ -29,6 +29,32 @@ export function nextDispatchDate(now: Date = new Date()): Date {
 // 정기구독 첫 배송일: 신청(또는 입금확인) 다음 날부터 가능, 선택한 요일의 가장 가까운 날.
 // 전날 자정까지 접수분만 다음 날 배송이 되므로 최소 +1일부터 탐색한다.
 const SUB_DAY_NUM: Record<string, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5 };
+
+// 주어진 배송요일(deliveryDay)의 그 주 배송일이 dateISO 인지 — 공휴일/주말이면 다음 영업일로 시프트.
+//   슬롯 앵커가 아니라 '요일'만 보므로 멀티요일 슬롯(원주문/연장 요일 상이)도 정확하다.
+//   ① 평소: dateISO 가 그 요일·평일 → {hits:true, shifted:false}
+//   ② 공휴일 당일: 그 요일이지만 공휴일 → 전진 결과가 미래 → {hits:false}
+//   ③ 시프트 도착일: 직전 그 요일이 공휴일이라 다음 영업일이 dateISO → {hits:true, shifted:true}
+//   ④ 주말 dateISO: 전진 결과는 평일뿐 → hits:false
+export function deliveryDayHitsDate(
+  deliveryDay: string,
+  dateISO: string
+): { hits: boolean; shifted: boolean } {
+  const target = SUB_DAY_NUM[deliveryDay];
+  if (!target) return { hits: false, shifted: false };
+  const cand = new Date(`${dateISO}T00:00:00`);
+  let i = 0;
+  while (cand.getDay() !== target && i < 7) {
+    cand.setDate(cand.getDate() - 1);
+    i++;
+  }
+  if (cand.getDay() !== target) return { hits: false, shifted: false };
+  const candISO = toISODate(cand);
+  const shiftedDate = new Date(cand);
+  advanceToBusinessDay(shiftedDate);
+  const hits = toISODate(shiftedDate) === dateISO;
+  return { hits, shifted: hits && candISO !== dateISO };
+}
 
 export function firstSubscriptionDelivery(
   deliveryDay: string,

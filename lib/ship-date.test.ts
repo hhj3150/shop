@@ -1,5 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { firstDeliveryOnOrAfter, nextDispatchDate, toISODate } from "./ship-date";
+import {
+  deliveryDayHitsDate,
+  firstDeliveryOnOrAfter,
+  nextDispatchDate,
+  toISODate,
+} from "./ship-date";
+
+describe("deliveryDayHitsDate", () => {
+  it("평소 당일(평일·해당요일)은 hits true, shifted false", () => {
+    expect(deliveryDayHitsDate("tue", "2026-04-28")).toEqual({ hits: true, shifted: false });
+  });
+  it("공휴일 당일은 hits false(시프트로 오늘 아님)", () => {
+    expect(deliveryDayHitsDate("tue", "2026-05-05")).toEqual({ hits: false, shifted: false });
+  });
+  it("시프트 도착일(다음 영업일)은 hits true, shifted true", () => {
+    expect(deliveryDayHitsDate("tue", "2026-05-06")).toEqual({ hits: true, shifted: true });
+  });
+  it("그 요일이 아니고 시프트도 아니면 hits false", () => {
+    expect(deliveryDayHitsDate("tue", "2026-04-29").hits).toBe(false);
+  });
+  it("주말 날짜는 항상 hits false(전진 결과는 평일)", () => {
+    expect(deliveryDayHitsDate("fri", "2026-05-09").hits).toBe(false);
+  });
+});
 
 // 2026-08-01 = 토, 08-03 = 월, 08-05 = 수, 08-07 = 금.
 describe("firstDeliveryOnOrAfter", () => {
