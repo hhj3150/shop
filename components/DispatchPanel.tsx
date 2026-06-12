@@ -425,23 +425,33 @@ export function DispatchPanel({
       setLogenNote(`같은 주문에 송장이 2건 이상 선택됨(${dup.join(", ")}). 행을 1건씩만 선택하세요.`);
       return;
     }
-    if (courier !== "logen") setCourier("logen");
+    // 모호 행 후보엔 이미 송장이 있는 주문도 섞일 수 있다(lib 가 already-filled 보다 먼저 분류).
+    //   기존 송장을 덮어쓰면 오발송이 되므로, 그런 선택이 있으면 전체 적용을 멈춘다.
+    const filled = [...new Set(picks.map(([, id]) => id))].filter(
+      (id) => (orderById.get(id)?.tracking_no ?? "") !== ""
+    );
+    if (filled.length > 0) {
+      setLogenNote(`이미 송장이 있는 주문이 선택됨(${filled.join(", ")}). 해제 후 다시 시도하세요.`);
+      return;
+    }
+    // 송장값이 실제로 잡힌 행만 채움·선택 대상으로 확정(빈 채움/무근거 선택 방지).
     const trackByRow = new Map((logenPreview?.matched ?? []).map((m) => [m.rowIdx, m.tracking]));
     const ambByRow = new Map((logenPreview?.ambiguous ?? []).map((a) => [a.rowIdx, a.tracking]));
+    const resolved = picks
+      .map(([idxStr, id]) => ({ id, t: trackByRow.get(Number(idxStr)) ?? ambByRow.get(Number(idxStr)) }))
+      .filter((p): p is { id: string; t: string } => Boolean(p.t));
+    if (courier !== "logen") setCourier("logen");
     setTracking((prev) => {
       const next = { ...prev };
-      for (const [idxStr, id] of picks) {
-        const t = trackByRow.get(Number(idxStr)) ?? ambByRow.get(Number(idxStr));
-        if (t) next[id] = t;
-      }
+      for (const { id, t } of resolved) next[id] = t;
       return next;
     });
     setSelected((prev) => {
       const next = new Set(prev);
-      for (const [, id] of picks) next.add(id);
+      for (const { id } of resolved) next.add(id);
       return next;
     });
-    setLogenNote(`${picks.length}건 채움·선택됨. 상단에서 '선택 발송' 진행.`);
+    setLogenNote(`${resolved.length}건 채움·선택됨. 상단에서 '선택 발송' 진행.`);
   }
 
   function toggleSort(key: SortKey) {
