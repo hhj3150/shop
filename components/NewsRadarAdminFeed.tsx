@@ -31,6 +31,7 @@ type Candidate = {
   source_name: string;
   source_url: string;
   original_title: string;
+  contentText: string;
   totalScore?: number;
 };
 
@@ -148,21 +149,35 @@ export function NewsRadarAdminFeed() {
     setAddingUrl(c.source_url);
     setRunMsg(null);
     try {
-      const { data, error } = await getSupabase().rpc("news_radar_insert_draft", {
-        p_title_ko: c.title_ko,
-        p_summary_ko: c.summary_ko,
-        p_source_name: c.source_name,
-        p_source_url: c.source_url,
-        p_original_title: c.original_title,
-        p_topic: c.field,
-        p_category: c.category,
+      const { data } = await getSupabase().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        setRunMsg("로그인이 필요합니다.");
+        return;
+      }
+      const res = await fetch("/api/admin/news-radar-add", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title_ko: c.title_ko,
+          summary_ko: c.summary_ko,
+          source_name: c.source_name,
+          source_url: c.source_url,
+          original_title: c.original_title,
+          topic: c.field,
+          category: c.category,
+          contentText: c.contentText,
+        }),
       });
-      if (error) {
-        setRunMsg(`대기 추가 실패: ${error.message}`);
+      const json = (await res.json().catch(() => null)) as
+        | { ok: boolean; inserted?: boolean; reason?: string }
+        | null;
+      if (!json?.ok) {
+        setRunMsg(`대기 추가 실패: ${json?.reason ?? "알 수 없음"}`);
         return;
       }
       setCandidates((prev) => prev.filter((x) => x.source_url !== c.source_url));
-      setRunMsg(data ? "대기 목록에 추가했습니다." : "이미 수집된 소식입니다(중복).");
+      setRunMsg(json.inserted ? "대기 목록에 추가했습니다." : "이미 수집된 소식입니다(중복).");
       await load();
     } catch {
       setRunMsg("네트워크 오류가 발생했습니다.");
