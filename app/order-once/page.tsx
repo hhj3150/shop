@@ -90,6 +90,9 @@ function OrderOnce() {
   // 추천 적립금(쿠폰) 보유분 + 사용 여부. 기본 사용(선차감 정책). 끄면 주문 후 되돌린다.
   const [rewards, setRewards] = useState<RewardLite[]>([]);
   const [useReferralCredit, setUseReferralCredit] = useState(true);
+  // 최소주문 미달/미선택 시: 죽은 버튼 대신, 클릭하면 금색 안내배너로 스크롤 + 잠깐 강조.
+  const minNoticeRef = useRef<HTMLParagraphElement>(null);
+  const [minFlash, setMinFlash] = useState(false);
 
   const { map, refresh } = useStorefrontCatalog();
 
@@ -233,15 +236,19 @@ function OrderOnce() {
     }
   }
 
+  // 최소주문/미선택 안내 배너로 스크롤 + 잠깐 강조(능동 피드백).
+  function nudgeMinNotice() {
+    minNoticeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setMinFlash(true);
+    setTimeout(() => setMinFlash(false), 1600);
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (count === 0) {
-      setError("구매하실 제품의 수량을 선택해 주세요.");
-      return;
-    }
-    if (belowMin) {
-      setError(`단품 구매는 상품 합계 ${formatKRW(ONCE_MIN_KRW)}부터 가능합니다.`);
+    // 수량 미선택·최소금액 미달은 가장 먼저 안내한다(클레임: 죽은 버튼 → 능동 안내).
+    if (count === 0 || belowMin) {
+      nudgeMinNotice();
       return;
     }
     if (!ship.name.trim() || !ship.phone.trim() || (!pickup && !ship.address.trim())) {
@@ -599,7 +606,13 @@ function OrderOnce() {
         )}
 
         {(count === 0 || belowMin) && (
-          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+          <p
+            ref={minNoticeRef}
+            className={
+              "rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep transition-shadow" +
+              (minFlash ? " ring-2 ring-gold-deep ring-offset-1 ring-offset-cream" : "")
+            }
+          >
             {count === 0
               ? "구매하실 제품의 수량을 먼저 선택해 주세요."
               : `최소 주문금액은 ${formatKRW(ONCE_MIN_KRW)}입니다. 현재 상품 합계 ${formatKRW(subtotal)}이라 ${formatKRW(ONCE_MIN_KRW - subtotal)} 더 담으셔야 주문할 수 있습니다.`}
@@ -608,7 +621,7 @@ function OrderOnce() {
 
         <button
           type="submit"
-          disabled={busy || belowMin || count === 0 || (!pickup && isSpecialRegion && !acceptFresh)}
+          disabled={busy || (!pickup && isSpecialRegion && !acceptFresh)}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy
