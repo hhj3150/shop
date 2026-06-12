@@ -17,10 +17,48 @@ import { Reveal } from "@/components/Reveal";
 import { SwipeNav } from "@/components/SwipeNav";
 import { JsonLd } from "@/components/JsonLd";
 import { buildProduct } from "@/lib/seo/schema";
+import { createClient } from "@supabase/supabase-js";
+import { reviewSummary, type ReviewRow } from "@/lib/reviews";
+
+// 서버 컴포넌트에서 별점 집계를 위해 후기를 읽는다. lib/supabase.ts 의 getSupabase()는
+// "use client" 브라우저 전용 클라이언트(persistSession)라 서버에서 쓸 수 없으므로,
+// anon 키로 최소 서버 클라이언트를 인라인 생성한다(service_role 사용 금지).
+// list_reviews 는 SECURITY DEFINER RPC 라 anon 으로도 호출 가능.
+async function fetchRatingSummary(
+  productId: string
+): Promise<{ value: number; count: number }> {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !anonKey) {
+      throw new Error(
+        "Supabase 환경변수가 없습니다. NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY를 설정하세요."
+      );
+    }
+    const supabase = createClient(url, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await supabase.rpc("list_reviews", {
+      p_product_id: productId,
+    });
+    if (error) throw new Error(error.message);
+    const summary = reviewSummary((data ?? []) as ReviewRow[]);
+    return { value: summary.average, count: summary.count };
+  } catch (err) {
+    // 후기 조회 실패가 제품 페이지를 깨뜨리지 않도록 별점 없이 계속 진행.
+    console.error("제품 별점 집계 실패:", err);
+    return { value: 0, count: 0 };
+  }
+}
 
 export function generateStaticParams() {
   return PRODUCTS.map((p) => ({ id: p.id }));
 }
+
+// ISR: 정적 프리렌더(빠름) + 1시간마다 런타임 재생성. 새 리뷰의 별점(JSON-LD
+//   aggregateRating)이 재배포 없이도 갱신되게 한다. (Cache Components 미사용 →
+//   route segment config 사용 가능 — node_modules/next 문서 확인.)
+export const revalidate = 3600;
 
 export async function generateMetadata({
   params,
@@ -63,6 +101,10 @@ export default async function ProductPage({
   const product = getProduct(id);
   if (!product) notFound();
 
+  // 별점 집계(서버) + 가격 유효일(올해 말). buildProduct 는 순수 함수라 날짜를 여기서 계산해 주입한다.
+  const rating = await fetchRatingSummary(product.id);
+  const priceValidUntil = `${new Date().getFullYear()}-12-31`;
+
   const related = PRODUCTS.filter((p) => p.id !== product.id);
 
   const idx = PRODUCTS.findIndex((p) => p.id === product.id);
@@ -76,7 +118,7 @@ export default async function ProductPage({
 
   return (
     <SwipeNav prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`}>
-      <JsonLd data={buildProduct(product)} />
+      <JsonLd data={buildProduct(product, { rating, priceValidUntil })} />
       <Track event="view_product" />
       {/* 브레드크럼 */}
       <div className="mx-auto max-w-7xl px-5 pt-24 sm:px-8">
