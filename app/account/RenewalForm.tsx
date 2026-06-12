@@ -312,8 +312,10 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
           </span>
         </div>
         <div className="mt-1 flex items-center justify-between text-[13px] text-ink-soft">
-          <span>배송비 ({quote.weeks}회)</span>
-          <span className="tabular-nums">{formatKRW(quote.shipping)}</span>
+          <span>{sub.deliveryMethod === "방문수령" ? "배송비" : `배송비 (${quote.weeks}회)`}</span>
+          <span className="tabular-nums">
+            {sub.deliveryMethod === "방문수령" ? "방문수령 — 배송비 무료" : formatKRW(quote.shipping)}
+          </span>
         </div>
         <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5">
           <span className="text-[13px] text-mute">한 번에 입금</span>
