@@ -164,16 +164,18 @@ describe("rosterForDate — 권위 게이팅", () => {
     expect(rows.map((r) => r.name)).toContain("홍길동");
   });
 
-  it("첫배송 공휴일 시프트: 앵커(수) 당일 제외, 시프트일(목) 포함", () => {
-    const slots = [subSlot({ order_id: "A", started_at: "2026-06-10", first_ship_date: "2026-06-11" })];
+  it("첫배송 공휴일 시프트: 앵커(화·어린이날) 당일 제외, 시프트일(수) 포함", () => {
+    // 실제 공휴일에 고정: 2026-05-05(화·어린이날) 앵커 → 다음 영업일 2026-05-06(수)로 시프트.
+    const subTue = item({ order_id: "A", delivery_day: "tue", qty: 2 });
+    const slots = [subSlot({ order_id: "A", started_at: "2026-05-05", first_ship_date: "2026-05-06" })];
     const conf = confirmedIds([subOrder]);
     const sbo = slotInfoByOrder(slots);
     const pz = pausedOrderIds(slots);
     expect(
-      rosterForDate("2026-06-10", [subOrder], [subItem], conf, pz, sbo).map((r) => r.name)
+      rosterForDate("2026-05-05", [subOrder], [subTue], conf, pz, sbo).map((r) => r.name)
     ).not.toContain("홍길동"); // 앵커(공휴일) 당일 제외
     expect(
-      rosterForDate("2026-06-11", [subOrder], [subItem], conf, pz, sbo).map((r) => r.name)
+      rosterForDate("2026-05-06", [subOrder], [subTue], conf, pz, sbo).map((r) => r.name)
     ).toContain("홍길동"); // 다음 영업일에 포함
   });
 });

@@ -2,6 +2,8 @@
 // 핵심: 총 배송 횟수(totalWeeks)는 보존하고, 일시정지한 일수만큼 모든 잔여 배송일이 뒤로 밀린다.
 // 정지 중에는 누적 정지일이 매일 늘어 다음 배송일도 같이 밀리므로 발송 완료 수가 자연히 멈춘다.
 
+import { advanceToBusinessDay } from "./ship-date";
+
 const DAY_MS = 86_400_000;
 
 function parseISO(iso: string): Date {
@@ -72,10 +74,16 @@ export function computeSchedule(input: SubInput, now: Date = new Date()): SubSch
 
   // k번째(1-base) 배송 예정일 + 누적 정지일.
   //   1회차는 공휴일 보정된 firstBase, 2회차+ 는 앵커 요일 cadence(앵커 + (k-1)주).
-  const deliveryDate = (k: number) =>
-    k === 1
-      ? addDays(firstBase, totalPausedDays)
-      : addDays(anchor, (k - 1) * 7 + totalPausedDays);
+  // k번째 배송 예정일 + 누적 정지일, 주말·공휴일이면 다음 영업일로 시프트(날짜만).
+  //   1회차 firstBase 는 #73 과 동일 술어로 이미 보정된 값(또는 평일 앵커) → 재전진 no-op.
+  const deliveryDate = (k: number) => {
+    const d =
+      k === 1
+        ? addDays(firstBase, totalPausedDays)
+        : addDays(anchor, (k - 1) * 7 + totalPausedDays);
+    advanceToBusinessDay(d); // addDays 는 새 Date → 변이 안전
+    return d;
+  };
 
   let delivered = 0;
   for (let k = 1; k <= total; k++) {

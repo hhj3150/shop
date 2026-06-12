@@ -7,7 +7,6 @@ import {
 } from "./delivery-roster";
 import type { DispatchSlotInfo } from "./dispatch-schedule";
 import type { RawBlock } from "./subscription-timeline";
-import type { DeliveryDay } from "./cart";
 
 // ── 테스트 픽스처 헬퍼 ──
 function order(over: Partial<RosterOrderFields> & { id: string }): RosterOrderFields {
@@ -44,7 +43,6 @@ function slot(over: Partial<DispatchSlotInfo> = {}): DispatchSlotInfo {
 // 4주 구독(2026-06-01 시작) 발송일: 06-01, 06-08, 06-15, 06-22(마지막).
 const DATE = "2026-06-15"; // 명단 발송일(월요일분, 3회차 — 마지막 아님)
 const AFTER_END_DATE = "2026-06-29"; // 마지막 발송일(06-22) 이후의 월요일 → 회차소진
-const WD = "mon" as const;
 
 function build(opts: {
   orders: RosterOrderFields[];
@@ -53,14 +51,12 @@ function build(opts: {
   confirmed?: Set<string>;
   paused?: Set<string>;
   dateISO?: string;
-  weekday?: DeliveryDay | null;
   blocksBySlot?: Map<number, RawBlock[]>;
   slotIdByOrder?: Map<string, number>;
   slotById?: Map<number, DispatchSlotInfo>;
 }) {
   return buildRosterForDate({
     dateISO: opts.dateISO ?? DATE,
-    weekday: opts.weekday ?? WD,
     items: opts.items,
     orderById: new Map(opts.orders.map((o) => [o.id, o])),
     slotByOrder: opts.slots ?? new Map(),
@@ -167,18 +163,18 @@ describe("buildRosterForDate", () => {
   });
 
   // ── 첫배송 공휴일 시프트(first_ship_date): 앵커(선택 요일·공휴일) 당일 제외 + 시프트일 포함 ──
+  //   실제 공휴일에 고정: 2026-05-05(화·어린이날)이 앵커, 다음 영업일 2026-05-06(수)로 시프트.
   describe("첫배송 공휴일 시프트(first_ship_date)", () => {
-    const ANCHOR = "2026-06-01"; // 선택 요일(월) 앵커 = 공휴일 가정
-    const SHIFTED = "2026-06-02"; // 다음 영업일(화)로 시프트된 첫배송
+    const ANCHOR = "2026-05-05"; // 선택 요일(화) 앵커 = 어린이날(실제 공휴일)
+    const SHIFTED = "2026-05-06"; // 다음 영업일(수)로 시프트된 첫배송
 
     it("앵커(공휴일) 당일은 명단에서 제외 — 그날 발송하지 않는다", () => {
       const o = order({ id: "o1" });
       const r = build({
         orders: [o],
-        items: [item({ order_id: "o1" })], // delivery_day mon
+        items: [item({ order_id: "o1", delivery_day: "tue" })], // 화요일 구독
         slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED })]]),
         dateISO: ANCHOR,
-        weekday: "mon",
       });
       expect(r).toHaveLength(0);
     });
@@ -187,10 +183,9 @@ describe("buildRosterForDate", () => {
       const o = order({ id: "o1" });
       const r = build({
         orders: [o],
-        items: [item({ order_id: "o1" })],
+        items: [item({ order_id: "o1", delivery_day: "tue" })],
         slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED })]]),
-        dateISO: SHIFTED,
-        weekday: "tue", // 화요일분 — mon 구독이지만 시프트로 이날 발송
+        dateISO: SHIFTED, // 수요일 — tue 구독이지만 공휴일 시프트로 이날 발송
       });
       expect(r).toHaveLength(1);
       expect(r[0].order.id).toBe("o1");
@@ -201,10 +196,9 @@ describe("buildRosterForDate", () => {
       const o = order({ id: "o1" });
       const r = build({
         orders: [o],
-        items: [item({ order_id: "o1" })],
+        items: [item({ order_id: "o1", delivery_day: "tue" })],
         slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED, status: "해지" })]]),
         dateISO: SHIFTED,
-        weekday: "tue",
       });
       expect(r).toHaveLength(0);
     });
@@ -213,25 +207,82 @@ describe("buildRosterForDate", () => {
       const o = order({ id: "o1" });
       const r = build({
         orders: [o],
-        items: [item({ order_id: "o1" })],
+        items: [item({ order_id: "o1", delivery_day: "tue" })],
         slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED })]]),
         paused: new Set(["o1"]),
         dateISO: SHIFTED,
-        weekday: "tue",
       });
       expect(r).toHaveLength(0);
     });
 
-    it("2회차+(다음 월요일)은 시프트 영향 없이 정상 포함", () => {
+    it("2회차+(다음 화요일)은 시프트 영향 없이 정상 포함", () => {
       const o = order({ id: "o1" });
       const r = build({
         orders: [o],
-        items: [item({ order_id: "o1" })],
+        items: [item({ order_id: "o1", delivery_day: "tue" })],
         slots: new Map([["o1", slot({ started_at: ANCHOR, first_ship_date: SHIFTED })]]),
-        dateISO: "2026-06-08", // 2회차(월)
-        weekday: "mon",
+        dateISO: "2026-05-12", // 2회차(화) — 평소 화요일
       });
       expect(r).toHaveLength(1);
+    });
+  });
+
+  // ── 주차별 공휴일 시프트(2회차+): 회차 전반에 걸쳐 요일 기준 시프트가 적용된다 ──
+  //   화요일 구독, 어린이날 2026-05-05(화) → 다음 영업일 2026-05-06(수)로 시프트.
+  describe("주차별 공휴일 시프트(2회차+)", () => {
+    const TUE = (over: Partial<RosterItemFields> = {}) =>
+      item({ order_id: "o1", delivery_day: "tue", ...over });
+
+    it("공휴일(화) 당일은 제외 — 시프트로 그날 발송하지 않는다", () => {
+      const o = order({ id: "o1" });
+      const r = build({
+        orders: [o],
+        items: [TUE()],
+        slots: new Map([["o1", slot({ started_at: "2026-04-21" })]]),
+        dateISO: "2026-05-05", // 어린이날(화) 공휴일
+      });
+      expect(r).toHaveLength(0);
+    });
+
+    it("시프트 도착일(수)에는 포함된다", () => {
+      const o = order({ id: "o1" });
+      const r = build({
+        orders: [o],
+        items: [TUE()],
+        slots: new Map([["o1", slot({ started_at: "2026-04-21" })]]),
+        dateISO: "2026-05-06", // 어린이날 다음 영업일(수)
+      });
+      expect(r).toHaveLength(1);
+      expect(r[0].order.id).toBe("o1");
+    });
+
+    it("평소 화요일(공휴일 무관)은 정상 포함", () => {
+      const o = order({ id: "o1" });
+      const r = build({
+        orders: [o],
+        items: [TUE()],
+        slots: new Map([["o1", slot({ started_at: "2026-04-21" })]]),
+        dateISO: "2026-04-28", // 평소 화요일
+      });
+      expect(r).toHaveLength(1);
+    });
+
+    it("슬롯 없어도 공휴일은 제외, 시프트 도착일은 포함(보수적 포함 불변식)", () => {
+      const o = order({ id: "o1" });
+      const holiday = build({
+        orders: [o],
+        items: [TUE()],
+        slots: new Map(), // 슬롯 미상
+        dateISO: "2026-05-05",
+      });
+      expect(holiday).toHaveLength(0);
+      const shifted = build({
+        orders: [o],
+        items: [TUE()],
+        slots: new Map(), // 슬롯 미상
+        dateISO: "2026-05-06",
+      });
+      expect(shifted).toHaveLength(1);
     });
   });
 
@@ -241,7 +292,6 @@ describe("buildRosterForDate", () => {
     const r = build({
       orders: [match, off],
       items: [item({ order_id: "once1" }), item({ order_id: "once2" })],
-      weekday: null, // 단품은 요일 무관
     });
     expect(r).toHaveLength(1);
     expect(r[0].order.id).toBe("once1");
@@ -311,7 +361,6 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-15",
-      weekday: "mon",
     });
     expect(r).toHaveLength(1);
     expect(r[0].order.id).toBe("o0");
@@ -331,7 +380,6 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-16", // 블록0 구간(2회차) 화요일 — 활성 블록은 블록0(월)
-      weekday: "tue",
     });
     expect(r).toHaveLength(0); // 블록1(화·요거트) 미활성 → 발송 없음
   });
@@ -345,7 +393,6 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-30",
-      weekday: "tue",
     });
     expect(r).toHaveLength(1);
     expect(r[0].order.id).toBe("o1");
@@ -362,7 +409,6 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-29",
-      weekday: "mon",
     });
     expect(r).toHaveLength(0);
   });
@@ -382,7 +428,6 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
       blocksBySlot: new Map<number, RawBlock[]>([[10, [b0Mon, b1Mon]]]),
       slotIdByOrder,
       dateISO: "2026-07-06", // 회차6(블록1 구간) 월요일
-      weekday: "mon",
     });
     expect(r).toHaveLength(1);
     expect(r[0].order.id).toBe("o1");
@@ -399,7 +444,6 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-07-28",
-      weekday: "tue",
     });
     expect(r).toHaveLength(0);
   });
@@ -413,7 +457,6 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-15",
-      weekday: "mon",
     });
     expect(r).toHaveLength(0);
   });
@@ -427,7 +470,6 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
       blocksBySlot,
       slotIdByOrder,
       dateISO: "2026-06-30", // 블록1 구간 화요일
-      weekday: "tue",
     });
     expect(r).toHaveLength(0);
   });
@@ -442,6 +484,80 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
     });
     expect(r).toHaveLength(1);
     expect(r[0].order.id).toBe("o1");
+  });
+});
+
+// ── 멀티요일 활성블록 + 공휴일 시프트 회귀 (원래 CRITICAL 버그: 누락·이중발송) ──
+//   슬롯 시작 2026-02-09(월). 블록0=4주 월(o0·우유, 회차1~4), 블록1=4주 화(o1·요거트, 회차5~8).
+//   2026-03-02(월)은 삼일절 대체공휴일 → 블록0의 월요일분이 다음 영업일 2026-03-03(화)로 시프트.
+//   2026-03-03(화)은 정상 화요일이라 '화요일 구독'도 이날 도착 → 두 요일이 같은 날 수렴(convergence).
+//   이 날 활성 블록은 블록0(월)이므로, 시프트된 블록0(o0)만 발송되고 블록1(o1·화)은 새지 않아야 한다.
+describe("buildRosterForDate — 멀티요일 활성블록 공휴일 시프트", () => {
+  function mwSlot(over: Partial<DispatchSlotInfo> = {}): DispatchSlotInfo {
+    return slot({ started_at: "2026-02-09", extended_weeks: 4, ...over });
+  }
+  // 슬롯 1개(id=10), 원주문 o0(월·우유, 블록0), 연장주문 o1(화·요거트, 블록1).
+  const block0: RawBlock = {
+    orderId: "o0",
+    weeks: 4,
+    deliveryDay: "mon",
+    shippingPerWeek: 4000,
+    items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 3000 }],
+  };
+  const block1: RawBlock = {
+    orderId: "o1",
+    weeks: 4,
+    deliveryDay: "tue",
+    shippingPerWeek: 4000,
+    items: [{ productName: "요거트", volume: "85g", qty: 2, unitPrice: 2000 }],
+  };
+  const blocksBySlot = new Map<number, RawBlock[]>([[10, [block0, block1]]]);
+  const slotIdByOrder = new Map<string, number>([
+    ["o0", 10],
+    ["o1", 10],
+  ]);
+  // 프로덕션 와이어링: slotByOrder 는 원주문(o0)만, slotById(=10)로 슬롯 상태 제공.
+  const slotByOrderProd = new Map<string, DispatchSlotInfo>([["o0", mwSlot()]]);
+  const slotByIdProd = new Map<number, DispatchSlotInfo>([[10, mwSlot()]]);
+  const orders = [order({ id: "o0" }), order({ id: "o1" })];
+  const items = [
+    item({ order_id: "o0", product_name: "우유", volume: "180ml", delivery_day: "mon", qty: 1 }),
+    item({ order_id: "o1", product_name: "요거트", volume: "85g", delivery_day: "tue", qty: 2 }),
+  ];
+
+  function buildAt(dateISO: string) {
+    return build({
+      orders,
+      items,
+      slots: slotByOrderProd,
+      slotById: slotByIdProd,
+      blocksBySlot,
+      slotIdByOrder,
+      dateISO,
+    });
+  }
+
+  it("누락 방지: 공휴일(03-02 월) 당일엔 블록0이 발송되지 않는다(시프트 전)", () => {
+    // 활성 블록은 블록0(월)이지만, 03-02 는 대체공휴일이라 그 요일분이 시프트되어 빠진다.
+    const r = buildAt("2026-03-02");
+    expect(r).toHaveLength(0);
+  });
+
+  it("누락 방지: 시프트 도착일(03-03 화)엔 블록0(o0)이 그대로 발송된다", () => {
+    // 03-02(월)이 공휴일 → 블록0 월요일분이 03-03 으로 시프트. 누락 없이 1건 발송.
+    const r = buildAt("2026-03-03");
+    expect(r).toHaveLength(1);
+    expect(r[0].order.id).toBe("o0");
+    expect(r[0].items.map((i) => i.product_name)).toEqual(["우유"]);
+  });
+
+  it("이중발송 방지: 수렴일(03-03)에 화요일 블록1(o1)은 새지 않는다(정확히 1건)", () => {
+    // 03-03 은 블록0(월) 시프트 도착일이면서 동시에 정상 화요일 → 두 요일이 수렴.
+    //   활성 블록은 블록0 이므로, 게이팅이 없으면 o1(화·요거트)까지 새어 2건이 된다.
+    //   활성 블록의 orderId(o0)와 일치하는 그룹만 발송 → 정확히 1건, o1 미포함.
+    const r = buildAt("2026-03-03");
+    expect(r).toHaveLength(1);
+    expect(r.map((e) => e.order.id)).not.toContain("o1");
   });
 });
 
@@ -470,7 +586,6 @@ describe("발송명단 방문수령 제외", () => {
   it("단품 방문수령은 명단에서 제외, 택배는 포함", () => {
     const roster = buildRosterForDate({
       dateISO: "2026-06-12",
-      weekday: null,
       items: onceItems,
       orderById: onceOrderById,
       slotByOrder: new Map(),
