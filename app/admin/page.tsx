@@ -1316,7 +1316,13 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-5 pb-24 pt-28 sm:px-8" id="report">
-      <style>{`@media print { .no-print { display: none !important; } #report { padding-top: 0 !important; } }`}</style>
+      <style>{`@media print {
+        .no-print { display: none !important; }
+        #report { padding-top: 0 !important; }
+        body.printing-section .print-hidden { display: none !important; }
+        .print-only { display: none; }
+        body.printing-section .print-only { display: block; }
+      }`}</style>
 
       {/* AI 비서 — 모든 탭에서 우하단 플로팅으로 접근(읽기 전용 즉답) */}
       <AdminAssistant />
