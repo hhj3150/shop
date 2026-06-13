@@ -3,8 +3,9 @@
 // 관리자: 배송 일괄처리 — 결제완료(입금확인 이후) 주문을 한 화면에서 모아
 //   택배사·송장번호를 입력하고 상태를 일괄 전환한다.
 //   단품은 발송예정일(ship_date), 구독은 요일(delivery_day)로 날짜 필터.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { PrintButton } from "@/components/PrintButton";
 import { stockShipOut } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
@@ -152,6 +153,7 @@ export function DispatchPanel({
   shippedKeys?: Set<string>; // 이미 출고된 `${order_id}|${ship_date}` 키(재고 차감 완료)
   onReload: () => Promise<void> | void;
 }) {
+  const queueRef = useRef<HTMLDivElement>(null);
   const [date, setDate] = useState(todayISO());
   const [useDateFilter, setUseDateFilter] = useState(true);
   const [courier, setCourier] = useState<string>("cj");
@@ -1050,11 +1052,18 @@ export function DispatchPanel({
         </p>
       )}
 
-      <div className="mt-4 overflow-x-auto">
+      <div className="no-print mb-2 flex justify-end">
+        <PrintButton targetRef={queueRef} />
+      </div>
+
+      <div ref={queueRef} className="mt-4 overflow-x-auto">
+        <div className="print-only mb-3 text-[15px] font-semibold text-ink">
+          배송 리스트 · {new Date().toLocaleDateString("ko-KR")}
+        </div>
         <table className="w-full min-w-[1080px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-[12.5px] text-mute">
-              <th className="py-2.5 pr-3">
+              <th className="no-print py-2.5 pr-3">
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} />
               </th>
               {sortTh("name", "받는 분")}
@@ -1068,7 +1077,7 @@ export function DispatchPanel({
               {sortTh("region", "배송지")}
               {sortTh("status", "상태")}
               <th className="py-2.5 font-medium">송장번호</th>
-              <th className="py-2.5 font-medium">출고</th>
+              <th className="no-print py-2.5 font-medium">출고</th>
             </tr>
           </thead>
           <tbody>
@@ -1089,7 +1098,7 @@ export function DispatchPanel({
                   );
                 return (
                   <tr key={o.id} className="border-b border-line/70 align-top">
-                    <td className="py-3 pr-3">
+                    <td className="no-print py-3 pr-3">
                       <input
                         type="checkbox"
                         checked={selected.has(o.id)}
@@ -1144,10 +1153,11 @@ export function DispatchPanel({
                           setTracking((prev) => ({ ...prev, [o.id]: e.target.value }))
                         }
                         placeholder="송장번호"
-                        className="w-36 rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] tabular-nums text-ink outline-none focus:border-gold"
+                        className="no-print w-36 rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] tabular-nums text-ink outline-none focus:border-gold"
                       />
+                      <span className="print-only tabular-nums">{trackingOf(o)}</span>
                     </td>
-                    <td className="py-3">
+                    <td className="no-print py-3">
                       {isShipped(r) ? (
                         <div className="flex items-center gap-1.5">
                           <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
