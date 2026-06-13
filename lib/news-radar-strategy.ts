@@ -4,31 +4,6 @@ import type { RssItem } from "./news-radar";
 
 export type RadarCategory = "human" | "pet";
 
-export type RadarField = {
-  key: string; // 안정적 영문 키
-  label: string; // 한글 분야 라벨(= topic 으로 저장)
-  priority: number; // 1(최우선)~8
-  category: RadarCategory; // 사람 유제품 vs 반려동물(펫 게이트)
-};
-
-// 우선순위(스펙 1~8). 분야 라벨·우선순위·펫 게이트 메타.
-//   ⑧ 펫 분야는 category='pet' — PET_CONTENT_ENABLED 플래그로 자동 수집·공개를 게이트.
-export const RADAR_FIELDS: RadarField[] = [
-  { key: "a2-milk", label: "A2 우유", priority: 1, category: "human" },
-  { key: "jersey-milk", label: "저지 우유", priority: 2, category: "human" },
-  { key: "hay-milk", label: "헤이밀크", priority: 3, category: "human" },
-  { key: "yogurt-fermentation", label: "요거트·발효", priority: 4, category: "human" },
-  { key: "gut-microbiome", label: "장건강·마이크로바이옴", priority: 5, category: "human" },
-  { key: "animal-welfare-sustainability", label: "동물복지·지속가능", priority: 6, category: "human" },
-  { key: "premium-food-trends", label: "프리미엄 식품 트렌드", priority: 7, category: "human" },
-  { key: "pet-health-human-grade", label: "반려동물 건강·휴먼그레이드", priority: 8, category: "pet" },
-];
-
-// 펫 게이트: 플래그 off 면 펫 분야(category='pet')를 제외한 사람 유제품 분야만 반환.
-export function activeRadarFields(petEnabled: boolean): RadarField[] {
-  return petEnabled ? RADAR_FIELDS : RADAR_FIELDS.filter((f) => f.category !== "pet");
-}
-
 // 100점 루브릭 5기준(각 0~20). 가중치 없음 — 합산 0~100. 분야 우선순위는 동점 tiebreak(rankCandidates)에서만.
 export type CriteriaScores = {
   recency: number; // 최신성
