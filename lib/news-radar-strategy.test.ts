@@ -1,13 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-  RADAR_FIELDS,
   CRITERIA_KEYS,
   scoreCandidate,
   rankCandidates,
   buildScoringPrompt,
   parseScoredArray,
   mergeScored,
-  activeRadarFields,
 } from "./news-radar-strategy";
 import type { ScoredCandidate } from "./news-radar-strategy";
 
@@ -28,30 +26,6 @@ function makeScored(over: Partial<ScoredCandidate> = {}): ScoredCandidate {
     ...over,
   };
 }
-
-describe("RADAR_FIELDS", () => {
-  it("8개 분야를 우선순위 1~8로 정의한다", () => {
-    expect(RADAR_FIELDS).toHaveLength(8);
-    const priorities = RADAR_FIELDS.map((f) => f.priority).sort((a, b) => a - b);
-    expect(priorities).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-  });
-
-  it("핵심 분야 라벨을 포함한다", () => {
-    const labels = RADAR_FIELDS.map((f) => f.label);
-    expect(labels).toContain("A2 우유");
-    expect(labels).toContain("저지 우유");
-    expect(labels).toContain("헤이밀크");
-    expect(labels).toContain("요거트·발효");
-    expect(labels).toContain("반려동물 건강·휴먼그레이드");
-  });
-
-  it("모든 분야는 비어있지 않은 라벨과 키를 가진다", () => {
-    for (const f of RADAR_FIELDS) {
-      expect(f.label.trim().length).toBeGreaterThan(0);
-      expect(f.key.trim().length).toBeGreaterThan(0);
-    }
-  });
-});
 
 describe("CRITERIA_KEYS", () => {
   it("5개 기준 키를 정의한다", () => {
@@ -206,29 +180,6 @@ describe("mergeScored", () => {
   it("category 정보가 전혀 없으면 'human' 으로 기본 설정", () => {
     const out = mergeScored([{ index: 0 }], candidates);
     expect(out[0].category).toBe("human");
-  });
-});
-
-describe("RADAR_FIELDS category", () => {
-  it("펫 분야만 category='pet', 나머지는 'human'", () => {
-    const pet = RADAR_FIELDS.find((f) => f.key === "pet-health-human-grade");
-    expect(pet?.category).toBe("pet");
-    for (const f of RADAR_FIELDS.filter((x) => x.key !== "pet-health-human-grade")) {
-      expect(f.category).toBe("human");
-    }
-  });
-});
-
-describe("activeRadarFields", () => {
-  it("flag off 면 펫 제외 7분야", () => {
-    const fields = activeRadarFields(false);
-    expect(fields).toHaveLength(7);
-    expect(fields.some((f) => f.category === "pet")).toBe(false);
-  });
-  it("flag on 이면 펫 포함 8분야", () => {
-    const fields = activeRadarFields(true);
-    expect(fields).toHaveLength(8);
-    expect(fields.some((f) => f.category === "pet")).toBe(true);
   });
 });
 
