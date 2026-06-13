@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
@@ -45,6 +45,7 @@ import { loadReturns, type OrderReturn } from "@/lib/returns";
 import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
 import { duplicateIds, normalizePhone } from "@/lib/duplicates";
 import { SettlementPanel } from "@/components/SettlementPanel";
+import { PrintButton } from "@/components/PrintButton";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
 const TABS = ["종합 관리", "주문·입금", "회원·구독", "생산·재고", "상품·재고", "배송", "환불·교환", "정산·세금"] as const;
@@ -201,6 +202,9 @@ function downloadCsv(filename: string, rows: string[][]) {
 export default function AdminPage() {
   const router = useRouter();
   const { ready, user, profile, profileLoaded } = useAuth();
+
+  const demandRef = useRef<HTMLDivElement>(null);
+  const ordersRef = useRef<HTMLDivElement>(null);
 
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [items, setItems] = useState<ItemRow[]>([]);
@@ -1316,7 +1320,13 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-5 pb-24 pt-28 sm:px-8" id="report">
-      <style>{`@media print { .no-print { display: none !important; } #report { padding-top: 0 !important; } }`}</style>
+      <style>{`@media print {
+        .no-print { display: none !important; }
+        #report { padding-top: 0 !important; }
+        body.printing-section .print-hidden { display: none !important; }
+        .print-only { display: none; }
+        body.printing-section .print-only { display: block; }
+      }`}</style>
 
       {/* AI 비서 — 모든 탭에서 우하단 플로팅으로 접근(읽기 전용 즉답) */}
       <AdminAssistant />
@@ -1649,7 +1659,11 @@ export default function AdminPage() {
       )}
 
       {tab === "생산·재고" && (
-        <>
+        <div ref={demandRef}>
+      <div className="no-print mb-2 flex justify-end">
+        <PrintButton targetRef={demandRef} label="수요표 인쇄" />
+      </div>
+      <div className="print-only mb-3 text-[15px] font-semibold text-ink">주간 필요 수량 · {new Date().toLocaleDateString("ko-KR")}</div>
       {/* 요일별·제품별 주간 필요 수량 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별·제품별 주간 필요 수량</h2>
       <p className="mt-1 text-[13px] text-mute">확정 구독(입금 확인) 기준, 1회(매주) 발송 수량입니다. 일시정지 중인 구독은 제외됩니다.</p>
@@ -1688,7 +1702,7 @@ export default function AdminPage() {
 
       {/* 이번 주(월~금) 통합 생산·배송 계획 */}
       <WeeklyPlanTable productKeys={productKeys} demandForDate={rosterDemandForDate} />
-        </>
+        </div>
       )}
 
       {/* 기간별 배송 명단 — 배송 탭에서 작업 화면(DispatchPanel) 아래에 노출 */}
@@ -1994,9 +2008,11 @@ export default function AdminPage() {
             초기화
           </button>
         )}
+        <PrintButton targetRef={ordersRef} />
       </div>
 
-      <div className="mt-4 overflow-x-auto">
+      <div ref={ordersRef} className="mt-4 overflow-x-auto">
+        <div className="print-only mb-3 text-[15px] font-semibold text-ink">주문·입금 · {new Date().toLocaleDateString("ko-KR")}</div>
         <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[640px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">

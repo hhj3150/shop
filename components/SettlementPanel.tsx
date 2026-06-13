@@ -4,8 +4,9 @@
 //   확정 주문(입금확인 이후)의 상품 매출을 과세/면세로 나누고, 과세분의
 //   공급가액·부가세(10%)를 계산한다. product_catalog 의 원가로 마진도 함께 낸다.
 //   상품 매출 기준(배송비 제외). 무통장입금 수기운영의 월 마감용 표.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { PrintButton } from "@/components/PrintButton";
 import { formatKRW } from "@/lib/products";
 import { loadCatalog, type CatalogProduct } from "@/lib/catalog";
 import { buildSettlementCsvRows } from "@/lib/settlement-csv";
@@ -43,6 +44,7 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
   const [items, setItems] = useState<LineItem[]>([]);
   const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
   const [month, setMonth] = useState(currentMonth());
+  const tableRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -179,6 +181,7 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
           >
             CSV
           </button>
+          <PrintButton targetRef={tableRef} />
         </div>
       </div>
       <p className="mt-1 text-[13px] text-mute">
@@ -202,7 +205,8 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
       </div>
 
       {/* 제품별 매출·원가·마진 */}
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-line bg-paper p-5">
+      <div ref={tableRef} className="mt-6 overflow-x-auto rounded-2xl border border-line bg-paper p-5">
+        <div className="print-only mb-3 text-[15px] font-semibold text-ink">정산 · {month}</div>
         <h3 className="font-serif-kr text-[15px] text-ink">제품별 정산</h3>
         {summary.rows.length === 0 ? (
           <p className="mt-4 py-6 text-center text-[14px] text-mute">
