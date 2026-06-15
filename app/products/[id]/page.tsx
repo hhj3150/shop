@@ -170,7 +170,7 @@ export default async function ProductPage({
 
       {/* 구성 — 좌측 고정 이미지·스토리 / 우측 가이드형 옵션 패널 */}
       <div id="configure" className="mx-auto max-w-7xl scroll-mt-24 px-5 pb-8 pt-14 sm:px-8">
-        <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-16">
           {/* Image (sticky) */}
           <div className="lg:sticky lg:top-24 lg:self-start">
             <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-paper">
@@ -188,7 +188,9 @@ export default async function ProductPage({
 
           {/* 옵션 패널 — 바로 구매로(군더더기 텍스트 제거) */}
           <div className="flex flex-col">
-            <div>
+            {/* data-swipe-ignore: 구매 진행 중 좌우 스와이프가 제품 이동으로 잡혀
+                선택이 초기화되지 않도록 SwipeNav 제스처에서 제외한다. */}
+            <div data-swipe-ignore>
               <PurchasePanel product={product} />
             </div>
 

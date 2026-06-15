@@ -27,6 +27,19 @@ export function SwipeNav({
   function onTouchStart(e: TouchEvent) {
     const t = e.touches[0];
     locked.current = "none";
+    // 멀티터치(핀치 줌)는 제품 이동 제스처가 아니다. 손가락이 둘 이상이면 무시한다.
+    //   (가로로 넘친 화면을 핀치로 맞추려는 동작이 좌우 스와이프로 오인돼 페이지가
+    //   넘어가고 구매 진행이 초기화되던 문제를 막는다.)
+    if (e.touches.length > 1) {
+      start.current = null;
+      return;
+    }
+    // 입력 중인 영역([data-swipe-ignore], 예: 구매 패널)에서 시작한 스와이프는
+    //   제품 이동으로 처리하지 않는다. 옵션을 고르다 옆으로 쓸어도 진행이 사라지지 않게.
+    if (e.target instanceof Element && e.target.closest("[data-swipe-ignore]")) {
+      start.current = null;
+      return;
+    }
     if (t.clientX <= EDGE_GUARD || t.clientX >= window.innerWidth - EDGE_GUARD) {
       start.current = null;
       return;
@@ -36,6 +49,11 @@ export function SwipeNav({
 
   function onTouchMove(e: TouchEvent) {
     if (!start.current || locked.current !== "none") return;
+    // 제스처 도중 둘째 손가락이 닿으면(핀치 시작) 스와이프 후보에서 제외한다.
+    if (e.touches.length > 1) {
+      start.current = null;
+      return;
+    }
     const t = e.touches[0];
     // 첫 유의미한 움직임에서 가로/세로를 확정한다. 세로면 이후 가로 드리프트를 무시.
     locked.current = lockDirection(t.clientX - start.current.x, t.clientY - start.current.y);
