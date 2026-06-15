@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
 import {
   type Product,
   type SubPeriod,
@@ -119,16 +120,12 @@ export function PurchasePanel({ product }: { product: Product }) {
   //   로딩 중엔 hidden=false(정적 폴백)이라 패널이 먼저 그려진 뒤 전환된다.
   if (liveMain.hidden) {
     return (
-      <div className="rounded-3xl border border-line bg-cream p-6 text-center sm:p-8">
-        <p className="text-[13px] uppercase tracking-[0.2em] text-gold-deep">
-          준비 중
-        </p>
-        <p className="mt-4 font-serif-kr text-xl text-ink">
-          지금은 판매하지 않는 상품입니다
-        </p>
-        <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">
-          더 좋은 모습으로 다시 찾아뵙겠습니다. 다른 제품을 둘러봐 주세요.
-        </p>
+      <div className="rounded-3xl border border-line bg-cream p-8 sm:p-10">
+        <EmptyState
+          icon={<path d="M12 7.5v5l3 1.8 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" strokeLinecap="round" strokeLinejoin="round" />}
+          title="지금은 판매하지 않는 상품입니다"
+          description="더 좋은 모습으로 다시 찾아뵙겠습니다. 다른 제품을 둘러봐 주세요."
+        />
       </div>
     );
   }
@@ -219,22 +216,24 @@ export function PurchasePanel({ product }: { product: Product }) {
           onConfirm={() => setShowShipNotice(false)}
         />
       )}
-      {selected && (
-        <p className="mt-2 text-[13px] text-ink-soft">
-          {selectedFull ? (
-            <>
+      {selected &&
+        (selectedFull ? (
+          <div className="mt-2 flex items-start gap-2 rounded-xl bg-gold/8 px-3 py-2.5 text-[13px] text-ink-soft">
+            <svg className="mt-0.5 shrink-0 text-gold-deep" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <path d="M12 8v5M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>
               {DELIVERY_DAY_LABEL[deliveryDay]} 정원 마감 — 신청 시{" "}
               <span className="font-medium text-ink">대기자</span>로 등록됩니다.
-            </>
-          ) : (
-            <>
-              {DELIVERY_DAY_LABEL[deliveryDay]} ·{" "}
-              <span className="font-medium text-gold-deep">{selectedRemaining}자리</span>{" "}
-              남음 (현재 {selected.taken}번째까지 모집)
-            </>
-          )}
-        </p>
-      )}
+            </span>
+          </div>
+        ) : (
+          <p className="mt-2 text-[13px] text-ink-soft">
+            {DELIVERY_DAY_LABEL[deliveryDay]} ·{" "}
+            <span className="font-medium text-gold-deep">{selectedRemaining}자리</span>{" "}
+            남음 (현재 {selected.taken}번째까지 모집)
+          </p>
+        ))}
 
       {/* 수량 (매주 회당) */}
       <div className="mt-7 flex items-center justify-between">

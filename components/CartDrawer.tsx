@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { EmptyState } from "@/components/EmptyState";
 import { useRouter } from "next/navigation";
 import { useDialog } from "@/lib/useDialog";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
@@ -105,9 +106,22 @@ export function CartDrawer() {
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {items.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center">
-              <p className="font-serif-kr text-base text-ink-soft">담긴 제품이 없습니다.</p>
-              <p className="mt-2 text-sm text-mute">목장에서 갓 짜낸 한 병을 담아보세요.</p>
+            <div className="flex h-full flex-col items-center justify-center">
+              <EmptyState
+                icon={<path d="M6 7h12l-1 13H7L6 7Z M9 7a3 3 0 0 1 6 0" strokeLinecap="round" strokeLinejoin="round" />}
+                title="담긴 제품이 없습니다"
+                description="목장에서 갓 짜낸 한 병을 담아보세요."
+              >
+                <button
+                  onClick={() => {
+                    close();
+                    router.push("/#products");
+                  }}
+                  className="rounded-full bg-ink px-6 py-2.5 text-[14px] font-medium text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.98]"
+                >
+                  제품 보러가기
+                </button>
+              </EmptyState>
             </div>
           ) : (
             <>
