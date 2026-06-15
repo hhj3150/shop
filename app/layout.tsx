@@ -13,24 +13,27 @@ import { ReferralCapture } from "@/components/ReferralCapture";
 import { JsonLd } from "@/components/JsonLd";
 import { buildOrganization, buildWebSite } from "@/lib/seo/schema";
 
+// 폰트 weight는 실제 사용분만 로드한다(한글 폰트는 weight마다 대용량).
+// 앱 전역 사용: 400(normal)·500(medium)·600(semibold) + <strong>/<b>용 700(sans만).
+// 미사용 300(font-light)·serif/cormorant 700·cormorant 600은 제외 — 불필요한 다운로드 절감.
 const notoSans = Noto_Sans_KR({
   variable: "--font-noto-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
 const notoSerif = Noto_Serif_KR({
   variable: "--font-noto-serif",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
   display: "swap",
 });
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
+  weight: ["400", "500"],
   style: ["normal", "italic"],
   display: "swap",
 });
