@@ -213,7 +213,7 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
             해당 월 확정 매출이 없습니다.
           </p>
         ) : (
-          <table className="mt-3 w-full min-w-[560px] border-collapse text-[14px]">
+          <table className="admin-cards-sm mt-3 w-full border-collapse text-[14px] md:min-w-[560px]">
             <thead>
               <tr className="border-b border-line text-left text-[12.5px] text-mute">
                 <th className="py-2 pr-3 font-medium">제품</th>
@@ -226,17 +226,17 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
             <tbody>
               {summary.rows.map((r) => (
                 <tr key={`${r.name} ${r.volume}`} className="border-b border-line/70">
-                  <td className="py-2.5 pr-3 text-ink">
+                  <td data-label="제품" className="py-2.5 pr-3 text-ink">
                     {r.name} <span className="text-mute">{r.volume}</span>
                   </td>
-                  <td className="py-2.5 pr-3 text-right tabular-nums text-ink-soft">{r.qty}</td>
-                  <td className="py-2.5 pr-3 text-right tabular-nums text-ink">
+                  <td data-label="수량" className="py-2.5 pr-3 text-right tabular-nums text-ink-soft">{r.qty}</td>
+                  <td data-label="매출" className="py-2.5 pr-3 text-right tabular-nums text-ink">
                     {formatKRW(r.revenue)}
                   </td>
-                  <td className="py-2.5 pr-3 text-right tabular-nums text-mute">
+                  <td data-label="원가" className="py-2.5 pr-3 text-right tabular-nums text-mute">
                     {formatKRW(r.cost)}
                   </td>
-                  <td className="py-2.5 text-right tabular-nums text-ink">
+                  <td data-label="마진" className="py-2.5 text-right tabular-nums text-ink">
                     {formatKRW(r.margin)}
                   </td>
                 </tr>

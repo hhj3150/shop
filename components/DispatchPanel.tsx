@@ -904,7 +904,7 @@ export function DispatchPanel({
 
           {logenPreview && (
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[760px] border-collapse text-[13px]">
+              <table className="admin-cards-sm w-full md:min-w-[760px] border-collapse text-[13px]">
                 <thead>
                   <tr className="border-b border-line text-left text-[12px] text-mute">
                     <th className="py-2 pr-3 font-medium">선택</th>
@@ -919,7 +919,7 @@ export function DispatchPanel({
                     const checked = logenChecked[m.rowIdx] === m.orderId;
                     return (
                       <tr key={`m-${m.rowIdx}`} className="border-b border-line/70 align-top">
-                        <td className="py-2 pr-3">
+                        <td data-label="선택" className="py-2 pr-3">
                           <input
                             type="checkbox"
                             checked={checked}
@@ -933,11 +933,11 @@ export function DispatchPanel({
                             }
                           />
                         </td>
-                        <td className="py-2 pr-3 tabular-nums text-ink">{m.tracking}</td>
-                        <td className="py-2 pr-3 text-ink-soft">
+                        <td data-label="로젠" className="py-2 pr-3 tabular-nums text-ink">{m.tracking}</td>
+                        <td data-label="매칭 주문" className="py-2 pr-3 text-ink-soft">
                           {o ? `${o.order_no} · ${o.ship_name}` : m.orderId}
                         </td>
-                        <td className="py-2 pr-3">
+                        <td data-label="상태" className="py-2 pr-3">
                           {m.confidence === "high" ? (
                             <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">
                               매칭
@@ -953,12 +953,12 @@ export function DispatchPanel({
                   })}
                   {logenPreview.ambiguous.map((a) => (
                     <tr key={`a-${a.rowIdx}`} className="border-b border-line/70 align-top">
-                      <td className="py-2 pr-3">
+                      <td data-label="선택" className="py-2 pr-3">
                         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700">
                           모호
                         </span>
                       </td>
-                      <td className="py-2 pr-3 tabular-nums text-ink">{a.tracking}</td>
+                      <td data-label="로젠" className="py-2 pr-3 tabular-nums text-ink">{a.tracking}</td>
                       <td className="py-2 pr-3" colSpan={2}>
                         <select
                           value={logenChecked[a.rowIdx] ?? ""}
@@ -989,17 +989,17 @@ export function DispatchPanel({
                     const o = orderById.get(f.orderId);
                     return (
                       <tr key={`f-${f.rowIdx}`} className="border-b border-line/70 align-top text-mute">
-                        <td className="py-2 pr-3">—</td>
-                        <td className="py-2 pr-3 tabular-nums">{f.tracking}</td>
-                        <td className="py-2 pr-3">{o ? `${o.order_no} · ${o.ship_name}` : f.orderId}</td>
-                        <td className="py-2 pr-3">이미 송장 있음</td>
+                        <td data-label="선택" className="py-2 pr-3">—</td>
+                        <td data-label="로젠" className="py-2 pr-3 tabular-nums">{f.tracking}</td>
+                        <td data-label="매칭 주문" className="py-2 pr-3">{o ? `${o.order_no} · ${o.ship_name}` : f.orderId}</td>
+                        <td data-label="상태" className="py-2 pr-3">이미 송장 있음</td>
                       </tr>
                     );
                   })}
                   {logenPreview.unmatched.map((u) => (
                     <tr key={`u-${u.rowIdx}`} className="border-b border-line/70 align-top text-mute">
-                      <td className="py-2 pr-3">—</td>
-                      <td className="py-2 pr-3 tabular-nums">
+                      <td data-label="선택" className="py-2 pr-3">—</td>
+                      <td data-label="로젠" className="py-2 pr-3 tabular-nums">
                         {u.recipientName} · {u.phone7} · {u.tracking}
                       </td>
                       <td className="py-2 pr-3" colSpan={2}>
@@ -1060,7 +1060,7 @@ export function DispatchPanel({
         <div className="print-only mb-3 text-[15px] font-semibold text-ink">
           배송 리스트 · {new Date().toLocaleDateString("ko-KR")}
         </div>
-        <table className="w-full min-w-[1080px] border-collapse text-[14px]">
+        <table className="admin-cards-sm w-full md:min-w-[1080px] border-collapse text-[14px]">
           <thead>
             <tr className="border-b border-line text-left text-[12.5px] text-mute">
               <th className="no-print py-2.5 pr-3">
@@ -1098,14 +1098,14 @@ export function DispatchPanel({
                   );
                 return (
                   <tr key={o.id} className="border-b border-line/70 align-top">
-                    <td className="no-print py-3 pr-3">
+                    <td data-label="선택" className="no-print py-3 pr-3">
                       <input
                         type="checkbox"
                         checked={selected.has(o.id)}
                         onChange={() => toggle(o.id)}
                       />
                     </td>
-                    <td className="py-3 pr-3">
+                    <td data-label="받는 분" className="py-3 pr-3">
                       <p className="text-ink">{o.ship_name}</p>
                       {giftSenderLabel(o.is_gift, o.gifter_name) && (
                         <p className="text-[12px] font-medium text-gold-deep">
@@ -1115,7 +1115,7 @@ export function DispatchPanel({
                       <p className="text-[12px] tabular-nums text-mute">{o.ship_phone}</p>
                       <p className="text-[11px] tabular-nums text-line">{o.order_no}</p>
                     </td>
-                    <td className="py-3 pr-3 text-[13px] text-ink-soft">
+                    <td data-label="구분·회차" className="py-3 pr-3 text-[13px] text-ink-soft">
                       {o.order_type === "단품" ? "단품" : "구독"}
                       <span className="ml-1 rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-semibold text-gold-deep">
                         {o.order_type === "단품"
@@ -1133,19 +1133,19 @@ export function DispatchPanel({
                         </span>
                       )}
                     </td>
-                    <td className="py-3 pr-3 text-[13px] text-ink-soft">{r.dayLabel || "—"}</td>
-                    <td className="py-3 px-1 text-center">{qcell(r.q[0])}</td>
-                    <td className="py-3 px-1 text-center">{qcell(r.q[1])}</td>
-                    <td className="py-3 px-1 text-center">{qcell(r.q[2])}</td>
-                    <td className="py-3 px-1 text-center">{qcell(r.q[3])}</td>
-                    <td className="py-3 pr-3 text-center text-[13px] tabular-nums text-ink">{r.count}</td>
-                    <td className="py-3 pr-3 text-[12.5px] text-ink-soft">
+                    <td data-label="요일" className="py-3 pr-3 text-[13px] text-ink-soft">{r.dayLabel || "—"}</td>
+                    <td data-label="우180" className="py-3 px-1 text-center">{qcell(r.q[0])}</td>
+                    <td data-label="우750" className="py-3 px-1 text-center">{qcell(r.q[1])}</td>
+                    <td data-label="요180" className="py-3 px-1 text-center">{qcell(r.q[2])}</td>
+                    <td data-label="요500" className="py-3 px-1 text-center">{qcell(r.q[3])}</td>
+                    <td data-label="개수" className="py-3 pr-3 text-center text-[13px] tabular-nums text-ink">{r.count}</td>
+                    <td data-label="배송지" className="py-3 pr-3 text-[12.5px] text-ink-soft">
                       {o.ship_postcode ? `(${o.ship_postcode}) ` : ""}
                       {o.ship_address}
                       {o.ship_address_detail ? ` ${o.ship_address_detail}` : ""}
                     </td>
-                    <td className="py-3 pr-3 text-[13px] text-gold-deep">{o.status}</td>
-                    <td className="py-3">
+                    <td data-label="상태" className="py-3 pr-3 text-[13px] text-gold-deep">{o.status}</td>
+                    <td data-label="송장번호" className="py-3">
                       <input
                         type="text"
                         value={trackingOf(o)}
@@ -1157,7 +1157,7 @@ export function DispatchPanel({
                       />
                       <span className="print-only tabular-nums">{trackingOf(o)}</span>
                     </td>
-                    <td className="no-print py-3">
+                    <td data-label="출고" className="no-print py-3">
                       {isShipped(r) ? (
                         <div className="flex items-center gap-1.5">
                           <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">

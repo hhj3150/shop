@@ -144,7 +144,7 @@ export function ProductAdminPanel() {
       )}
 
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[820px] border-collapse text-[14px]">
+        <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[820px]">
           <thead>
             <tr className="border-b border-line text-left text-[12.5px] text-mute">
               <th className="py-2.5 pr-3 font-medium">상품</th>
@@ -165,7 +165,7 @@ export function ProductAdminPanel() {
               const dirty = isDirty(p);
               return (
                 <tr key={p.id} className="border-b border-line/70">
-                  <td className="py-3 pr-3">
+                  <td data-label="상품" className="py-3 pr-3">
                     <p className="text-ink">{p.name}</p>
                     <p className="text-[12.5px] text-mute">
                       {p.volume}
@@ -176,32 +176,32 @@ export function ProductAdminPanel() {
                       )}
                     </p>
                   </td>
-                  <td className="py-3 pr-3 text-[13px] text-ink-soft">
+                  <td data-label="구분" className="py-3 pr-3 text-[13px] text-ink-soft">
                     {p.tax_free ? "면세" : "과세"}
                   </td>
-                  <td className="py-3 pr-3 text-right">
+                  <td data-label="판매가" className="py-3 pr-3 text-right">
                     <NumInput
                       value={d.price}
                       onChange={(v) => patchDraft(p.id, { price: v })}
                     />
                   </td>
-                  <td className="py-3 pr-3 text-right">
+                  <td data-label="원가" className="py-3 pr-3 text-right">
                     <NumInput
                       value={d.cost}
                       onChange={(v) => patchDraft(p.id, { cost: v })}
                     />
                   </td>
-                  <td className="py-3 pr-3 text-right tabular-nums text-ink-soft">
+                  <td data-label="마진율" className="py-3 pr-3 text-right tabular-nums text-ink-soft">
                     {rate}%
                   </td>
-                  <td className="py-3 pr-3 text-right">
+                  <td data-label="재고" className="py-3 pr-3 text-right">
                     <NumInput
                       value={d.stock}
                       placeholder="무제한"
                       onChange={(v) => patchDraft(p.id, { stock: v })}
                     />
                   </td>
-                  <td className="py-3 pr-3 text-center">
+                  <td data-label="노출" className="py-3 pr-3 text-center">
                     <button
                       onClick={() => patchDraft(p.id, { active: !d.active })}
                       className={`rounded-full px-2.5 py-1 text-[12.5px] transition-colors ${
