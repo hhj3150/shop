@@ -23,6 +23,7 @@ import { speak } from "@/lib/speech";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
 import { DEPOSIT } from "@/lib/site";
+import { EmptyState } from "@/components/EmptyState";
 import { RecipientBook } from "@/components/RecipientBook";
 import { ReferralCard } from "@/components/ReferralCard";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
@@ -636,12 +637,20 @@ export default function AccountPage() {
 
       <h2 className="mt-12 font-serif-kr text-lg text-ink">주문 내역</h2>
       {orders.length === 0 ? (
-        <p className="mt-4 text-[14px] text-mute">
-          아직 주문이 없습니다.{" "}
-          <Link href="/#products" className="text-gold-deep underline">
-            제품 보러 가기
-          </Link>
-        </p>
+        <div className="mt-6">
+          <EmptyState
+            icon={<path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9Z M3.5 7.5 12 12l8.5-4.5 M12 12v9" strokeLinecap="round" strokeLinejoin="round" />}
+            title="아직 주문이 없습니다"
+            description="목장에서 갓 짜낸 첫 한 병을 만나보세요."
+          >
+            <Link
+              href="/#products"
+              className="rounded-full bg-ink px-6 py-2.5 text-[14px] font-medium text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.98]"
+            >
+              제품 보러 가기
+            </Link>
+          </EmptyState>
+        </div>
       ) : (
         <ul className="mt-4 divide-y divide-line rounded-2xl border border-line bg-cream">
           {orders.map((o) => {
