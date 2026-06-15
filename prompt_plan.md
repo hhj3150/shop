@@ -1,4 +1,30 @@
-# 구현 계획: 프리미엄 격상 P2-8 — 가장자리 상태 일관화 (확정·완료 2026-06-16)
+# 구현 계획: 프리미엄 격상 P2-7 — 성능(폰트 weight 정리) (확정·완료 2026-06-16)
+
+> 근거: docs/premium-audit.md P2-7 · CTO 위임 승인 · 실측 기반
+
+## 측정 결과 (dev 서버, 코드 감사)
+- 폰트/이미지 설정은 이미 양호(priority·sizes·display:swap·next/image 자동 webp). Geist는 dev 오버레이 아티팩트(프로덕션 미적용).
+- **진짜 낭비+버그**: 앱 전체 weight 사용 = 400·500·600 + <strong>/<b>용 700뿐인데, Noto Sans는 미사용 300/700 로드 + 사용하는 600 **미로드(faux-bold 합성)**. Serif는 미사용 300/700, Cormorant는 미사용 300/600 로드.
+- ※ 정확한 LCP/INP는 dev로 측정 불가 → 프로덕션 Lighthouse 필요(별도).
+
+## 구현 (app/layout.tsx)
+- Noto Sans: [300,400,500,700] → [400,500,600,700] (미사용 300 제거 + 600 추가=faux-bold 수정, strong용 700 유지)
+- Noto Serif: [300,400,500,600,700] → [400,500,600] (미사용 300·700 제거)
+- Cormorant: [300,400,500,600] → [400,500] (미사용 300·600 제거)
+
+## 검증 (완료·증거)
+- tsc 0 · vitest 539/539 · build 0(요청 weight 없으면 빌드 실패하는데 통과)
+- 라이브: 본문 Noto Sans·h1 Noto Serif(500)·semibold = Noto Sans **600 실로드**(faux-bold 해소) 확인.
+
+## 진행 상태
+- [x] 폰트 weight 실사용분 정리 + faux-bold 수정 + 검증
+
+## 프리미엄 남은 항목
+- P1-3 이미지 아트디렉션(촬영 의존) · P2-7 추가 — 프로덕션 Lighthouse 실측 후 LCP/INP 튜닝(차후)
+
+---
+
+## 이전 계획 (P2-8 가장자리 상태 일관화, 완료·머지 #100, 2026-06-16)
 
 > 근거: docs/premium-audit.md P2-8 · CTO/디자인·마케팅총괄 위임 승인
 
