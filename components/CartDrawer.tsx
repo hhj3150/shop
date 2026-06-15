@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDialog } from "@/lib/useDialog";
 import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
@@ -35,11 +36,21 @@ export function CartDrawer() {
     setQty,
     remove,
     add,
+    lastAdded,
   } = useCart();
   const { map } = useStorefrontCatalog();
 
   // Escape·배경 스크롤 잠금·포커스 트랩을 공통 훅으로 처리.
   const dialogRef = useDialog<HTMLElement>(isOpen, close);
+
+  // 방금 담은 항목을 잠깐 하이라이트해 시선을 안착시킨다(1.4s 후 해제).
+  const [pulseKey, setPulseKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!lastAdded) return;
+    setPulseKey(lastAdded.key);
+    const t = setTimeout(() => setPulseKey(null), 1400);
+    return () => clearTimeout(t);
+  }, [lastAdded]);
 
   // 회당(매주) 상품 합계가 최소 주문금액 미만이면 배송 불가 → 주문하기 차단 + 안내.
   //   (이전엔 미만이어도 checkout 으로 넘어가 거기서 막혀 '주문이 안된다' 클레임이 잦았음)
@@ -84,7 +95,7 @@ export function CartDrawer() {
           <button
             onClick={close}
             aria-label="닫기"
-            className="-mr-2 flex h-11 w-11 items-center justify-center text-mute transition-colors hover:text-ink"
+            className="-mr-2 flex h-11 w-11 items-center justify-center text-mute transition-[transform,colors] hover:text-ink active:scale-90"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
@@ -105,7 +116,10 @@ export function CartDrawer() {
                 const p = getProduct(item.productId);
                 if (!p) return null;
                 return (
-                  <li key={item.key} className="flex gap-4 py-5">
+                  <li
+                    key={item.key}
+                    className={`flex gap-4 rounded-lg py-5 ${item.key === pulseKey ? "cart-added" : ""}`}
+                  >
                     <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-paper-2">
                       <Image
                         src={p.image}
@@ -128,7 +142,7 @@ export function CartDrawer() {
                         <button
                           onClick={() => remove(item.key)}
                           aria-label="삭제"
-                          className="-mr-2 -mt-1 flex h-10 w-10 items-center justify-center text-mute transition-colors hover:text-ink"
+                          className="-mr-2 -mt-1 flex h-10 w-10 items-center justify-center text-mute transition-[transform,colors] hover:text-ink active:scale-90"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                             <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
@@ -140,7 +154,7 @@ export function CartDrawer() {
                         <div className="flex items-center rounded-full border border-line">
                           <button
                             onClick={() => setQty(item.key, item.qty - 1)}
-                            className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink"
+                            className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-[transform,colors] hover:text-ink active:scale-90"
                             aria-label="수량 감소"
                           >
                             −
@@ -150,7 +164,7 @@ export function CartDrawer() {
                           </span>
                           <button
                             onClick={() => setQty(item.key, item.qty + 1)}
-                            className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-colors hover:text-ink"
+                            className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-[transform,colors] hover:text-ink active:scale-90"
                             aria-label="수량 증가"
                           >
                             +
@@ -201,7 +215,7 @@ export function CartDrawer() {
                           add({ productId: p.id, qty: 1, deliveryDay: targetDay });
                         }}
                         disabled={p.soldOut}
-                        className="shrink-0 rounded-full border border-line px-3.5 py-2 text-[13px] font-medium text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:opacity-40"
+                        className="shrink-0 rounded-full border border-line px-3.5 py-2 text-[13px] font-medium text-ink-soft transition-[transform,colors] hover:border-gold hover:text-gold-deep active:scale-95 disabled:opacity-40"
                         aria-label={`${p.name} ${p.volume} 담기`}
                       >
                         담기

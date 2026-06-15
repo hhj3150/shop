@@ -57,6 +57,7 @@ type CartContextValue = {
   setQty: (key: string, qty: number) => void;
   remove: (key: string) => void;
   clear: () => void;
+  lastAdded: { key: string; seq: number } | null; // 방금 담은 항목 — 드로어 하이라이트 신호
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -76,6 +77,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [period, setPeriodState] = useState<SubPeriod>(2); // 8주 기본('인기')
   const [isOpen, setIsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  // 방금 담은 항목 키 + 증가 시퀀스(같은 항목을 또 담아도 신호가 갱신되도록).
+  const [lastAdded, setLastAdded] = useState<{ key: string; seq: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -144,6 +147,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           return [...prev, { ...incoming, key }];
         });
         setIsOpen(true);
+        setLastAdded((prev) => ({ key, seq: (prev?.seq ?? 0) + 1 }));
       },
       setQty: (key, qty) =>
         setItems((prev) =>
@@ -153,8 +157,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         ),
       remove: (key) => setItems((prev) => prev.filter((i) => i.key !== key)),
       clear: () => setItems([]),
+      lastAdded,
     };
-  }, [items, period, isOpen, map]);
+  }, [items, period, isOpen, map, lastAdded]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

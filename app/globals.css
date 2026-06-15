@@ -24,6 +24,16 @@
   --font-display: var(--font-cormorant), Georgia, serif;
 
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* 상호작용 전환 기본값을 브랜드 이징·리듬으로 통일한다(Tailwind v4 default 덮어쓰기).
+     맨 transition-* 유틸 전부가 이 값을 따라 사이트 전역 손맛이 한 결로 깎인다. */
+  --default-transition-timing-function: var(--ease-soft);
+  --default-transition-duration: 200ms;
+
+  /* 명시 지정용 듀레이션 스케일 — 탭(fast)·토글/리빌(base)·드로어/오버레이(slow). */
+  --dur-fast: 160ms;
+  --dur-base: 280ms;
+  --dur-slow: 500ms;
 }
 
 :root {
@@ -238,9 +248,28 @@ body {
   animation: scrollcue 2.2s var(--ease-soft) infinite;
 }
 
+/* 장바구니에 방금 담은 항목 — 은은한 골드 배경이 한 번 번졌다 사라지며 시선을 안착시킨다. */
+@keyframes cart-added {
+  0% {
+    background-color: color-mix(in srgb, var(--color-gold) 20%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.cart-added {
+  animation: cart-added 1.4s var(--ease-soft);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  /* 상태 전환(transition)도 즉시화한다 — 키프레임은 위에서 따로 처리, 방울 드리프트는 유지. */
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
   }
   .reveal,
   .reveal.in {
@@ -248,7 +277,8 @@ body {
     animation: none;
   }
   .animate-float,
-  .animate-scrollcue {
+  .animate-scrollcue,
+  .cart-added {
     animation: none;
   }
   /* 비누방울은 멈추지 않고, 진폭을 줄인 느린 드리프트로 은은하게 유지한다.
