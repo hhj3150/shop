@@ -1,55 +1,41 @@
-# 구현 계획: 프리미엄 격상 P1-5 — 모션·마이크로인터랙션 일관화 (확정 2026-06-16)
+# 구현 계획: 프리미엄 격상 P1.5 — 데스크톱 스티키 구매카드 (확정·완료 2026-06-16)
 
-> 근거: docs/premium-audit.md P1-5 · CTO 위임 승인("너가 CTO·너의 권고대로")
-> 기준선: tsc 0 · vitest 539/539 (착수 전 확인)
+> 근거: docs/premium-audit.md P1-4 Phase3 잔여 · CTO/디자인·마케팅총괄 위임 승인
+> 기준선: tsc 0 · vitest 539/539
 
 ## 목표
-"애플급 결" — 모든 상태 전환을 같은 이징·같은 리듬으로 "깎아 만든" 느낌. 갈아엎지 않고 기존 강점(paper/ink/gold, serif-kr, reveal/float/roam 모션) 위에 일관성만 더한다. prefers-reduced-motion 존중. 회귀 0.
+데스크톱(lg+)에서 제품 상세를 2단 구도로 — 우측에 스크롤 따라오는 스티키 구매카드, 좌측에 보조 콘텐츠 — 재구성해 와이드 화면의 휑한 여백을 의도된 구도로 채운다(애플식 sticky buy box). 모바일/태블릿은 현행 세로 흐름 100% 유지(회귀 0).
 
-## 현황 (소스 점검)
-- `--ease-soft: cubic-bezier(0.22,1,0.36,1)` 존재(globals.css:26). keyframe 모션은 모두 이 토큰 사용 + reduced-motion 완비.
-- 그러나 **상호작용 전환(담기·수량·요일·탭)은 대부분 맨 `transition-*`** → Tailwind 기본 이징(cubic-bezier(0.4,0,0.2,1)·150ms). `--ease-soft` 쓰는 tsx는 5개뿐.
-- CartDrawer조차 패널은 ease-soft, 오버레이는 맨 transition으로 불일치.
-- 담기 성공 피드백: 버튼 active:scale + 드로어 열림이 전부. 버튼 자체 성공 모먼트 없음.
-- Tailwind v4: `@theme`에서 `--default-transition-timing-function`/`--default-transition-duration` 덮으면 전 사이트 `transition-*` 일괄 통일(theme.css:492-493 기본값 확인).
+## 구현 (app/products/[id]/page.tsx 1파일)
+- `#configure`~표시사항을 `lg:grid lg:grid-cols-[1fr_400px] lg:items-start lg:gap-12`(max-w-7xl) 컨테이너로 감쌈.
+- 구매카드(PurchasePanel): DOM 앞 + `lg:order-last lg:sticky lg:top-24` → 모바일 맨 위(현행), 데스크톱 우측 고정. id=configure·data-swipe-ignore 유지.
+- 좌측(`lg:order-first`): Specs(dl) + ProductReviews + 표시사항/영양 섹션. 각 블록은 모바일 자체 max-w/패딩 보존, `lg:mx-0 lg:max-w-none lg:px-0`로 그리드 셀에 맞춤.
+- 후기는 풀페이지 폭 대신 좌측 컬럼(~758px)에 둠 — 모바일 DOM 순서 보존 위해(회귀 0 우선). 관련상품은 그리드 밖 풀폭 유지.
 
-## Phase 1 — 모션 토큰 단일화 (app/globals.css 1파일)
-- `--ease-soft`를 `@theme`로 편입.
-- `@theme`에 `--default-transition-timing-function: var(--ease-soft)` · `--default-transition-duration: 200ms`.
-- 명시용 듀레이션 스케일: `--dur-fast`(160ms)·`--dur-base`(280ms)·`--dur-slow`(500ms).
-- reduced-motion에서 transition도 즉시화(현재 keyframe만 처리) — 전역 1블록, !important 범위 최소.
-
-## Phase 2 — 핵심 인터랙션 손맛 (PurchasePanel.tsx, CartDrawer.tsx)
-- 요일·기간·수량·함께담기 토글: 메인 버튼과 동일한 `active:scale` 누름감 통일(이징은 Phase1로 자동).
-- 담기 성공 피드백(절제): handleAdd 직후 버튼에 짧은 "✓ 담겼습니다"(~1.2s) 상태. reduced-motion 시 텍스트만. 드로어 열림과 비차단.
-- (테스트 가능 로직 = 성공 상태 토글 → 단위 테스트 추가 검토. 이징은 CSS라 build+preview로.)
-
-## Phase 3 — 검증 (증거 기반)
-- 착수 전 `npm test` 539/539 확인(완료) → 구현 후 `tsc 0` · `npm test 539/539 유지` · `next build exit 0`
-- preview 모바일375/데스크톱1280: 담기/요일/수량 전환 + 성공 피드백 스크린샷
-- reduced-motion 에뮬레이션으로 즉시화 확인
+## 검증 (완료·증거)
+- tsc 0 · vitest 539/539 · next build 0
+- 데스크톱 1280: grid display, cols 758px+400px, 패널 position:sticky·top:96 고정(스크롤 후 pin 확인), 좌측 x32/폭758·우측 x838/폭400, 오버플로 0. (프리뷰 스크린샷 도구가 스크롤 중간영역 캡처 불가 → 계산스타일·geometry로 검증)
+- 모바일 375: grid display:block·패널 position:static·DOM순서 패널→Specs→후기→표시사항 보존·오버플로0
+- 태블릿 768: block·오버플로0
 
 ## 진행 상태
-- [x] Phase 1 — 모션 토큰 단일화(@theme default-transition + dur 스케일 + reduced-motion transition)
-- [x] Phase 2 — 인터랙션 손맛(토글·수량·삭제·함께담기 active:scale) + 담은 항목 하이라이트(cart-added)
-- [x] Phase 3 — 검증: tsc 0 · vitest 539/539 · build 0 · 라이브(이징 200ms/ease-soft·하이라이트·오버플로0)
-- 비고: add()가 드로어를 자동 여는 구조라 "버튼 성공 라벨"은 가려져 무의미 → "방금 담은 항목 하이라이트"로 대체
+- [x] 2단 그리드 셸 + 우측 스티키 구매카드
+- [x] 좌측 보조콘텐츠(Specs·후기·표시사항) 이동
+- [x] 검증(3 뷰포트 + 테스트 + 빌드)
+- 비고: PurchasePanel이 ~1102px로 길어 스티키 이동폭은 큰 모니터에서 더 살아남. 핵심 목표(휑함 해소·2단 구도)는 달성.
 
-## 위험
-- MEDIUM: @theme 전역 변경이 관리자 포함 전 사이트 적용 → 머지 전 육안 회귀 확인(변화는 "더 부드럽게"라 파손 위험 낮음).
-- LOW: 담기 성공 상태 ↔ 드로어 자동열림 타이밍 → 비차단 처리.
-- LOW: reduced-motion 전역 transition 즉시화 부작용 → 범위 최소.
-
-## 후속 대기 (이번 범위 아님)
-- P1.5 데스크톱 스티키 구매카드(P1-4 Phase 3 잔여) · P1-3 이미지 아트디렉션(촬영 의존) · P2 신뢰·성능·마감
+## 프리미엄 남은 항목 (이번 범위 아님)
+- P1-3 이미지 아트디렉션(촬영 의존) · P2 신뢰단서·성능·가장자리 상태
 
 ---
 
-## 이전 계획 (P1 — 구매 동선, 완료·머지 #95, 2026-06-16)
-- Phase 1 모바일 하단 고정 담기 바(IntersectionObserver, shop:addbar로 FAB 겹침 해소) — 완료
-- Phase 2 보조정보 접이식(`<details>`) — 완료
-- Phase 3 데스크톱 스티키 구매카드 — 미착수(P1.5로 후행)
-- 검증: tsc 0 · vitest 539/539 · 모바일375 오버플로0 · 데스크톱1280 바 미노출
+## 이전 계획 (P1-5 모션 일관화, 완료·머지 #97, 2026-06-16)
+- @theme default-transition = ease-soft·200ms로 전역 통일 + reduced-motion transition 즉시화
+- 담은 항목 하이라이트(cart lastAdded → CartDrawer cart-added) + 토글/수량/삭제/함께담기 active:scale
+- 검증: tsc0·vitest539·build0·라이브
 
-## 이전 계획 (P0 — 첫인상, 완료·머지 #94)
-- Phase 1 넛지 지연 등장(스크롤60%/6초 게이트) · Phase 2 데스크톱 lg 2단 히어로 — 완료
+## 이전 계획 (P1 구매 동선, 완료·머지 #95)
+- 모바일 하단 담기바 + 보조정보 접이식 + FAB겹침 해소. (데스크톱 스티키 카드는 P1.5로 후행 → 이번에 완료)
+
+## 이전 계획 (P0 첫인상, 완료·머지 #94)
+- 넛지 지연 등장 + 데스크톱 lg 2단 히어로
