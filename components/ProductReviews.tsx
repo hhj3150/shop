@@ -133,8 +133,16 @@ export function ProductReviews({ productId }: { productId: string }) {
       {/* 후기 목록 */}
       <ul className="mt-8 divide-y divide-line border-t border-line">
         {loaded && reviews.length === 0 && (
-          <li className="py-8 text-center text-[14px] text-mute">
-            아직 후기가 없습니다. 첫 후기를 남겨 주세요.
+          <li className="flex flex-col items-center gap-3 py-12 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gold/10 text-gold-deep">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+                <path d="M12 4l2.3 4.9 5.2.7-3.8 3.6.9 5.2L12 16.6 7.4 18.4l.9-5.2-3.8-3.6 5.2-.7L12 4Z" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <p className="font-serif-kr text-[15px] text-ink-soft">첫 한 병의 후기를 기다립니다</p>
+            <p className="max-w-xs text-[13px] leading-relaxed text-mute">
+              받아보신 솔직한 한 마디가 다음 한 분의 선택에 큰 힘이 됩니다.
+            </p>
           </li>
         )}
         {reviews.map((r) => (

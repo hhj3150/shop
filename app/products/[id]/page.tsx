@@ -12,6 +12,7 @@ import { PurchasePanel } from "@/components/PurchasePanel";
 import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
 import { ProductReviews } from "@/components/ProductReviews";
+import { TrustBadges } from "@/components/TrustBadges";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
 import { SwipeNav } from "@/components/SwipeNav";
@@ -202,8 +203,13 @@ export default async function ProductPage({
 
         {/* 보조 콘텐츠 — DOM 뒤(모바일 구매카드 아래) / 데스크톱 좌측 스크롤 */}
         <div className="lg:order-first lg:min-w-0">
+          {/* 신뢰 단서 — 구매 결정 지점(모바일에선 구매카드 바로 아래) */}
+          <div className="mx-auto mt-10 max-w-xl px-5 sm:px-8 lg:mx-0 lg:mt-0 lg:max-w-none lg:px-0">
+            <TrustBadges />
+          </div>
+
           {/* Specs — quick reference */}
-          <dl className="mx-auto mt-10 max-w-xl divide-y divide-line border-y border-line px-5 sm:px-8 lg:mx-0 lg:mt-0 lg:max-w-none lg:px-0">
+          <dl className="mx-auto mt-8 max-w-xl divide-y divide-line border-y border-line px-5 sm:px-8 lg:mx-0 lg:mt-8 lg:max-w-none lg:px-0">
             {product.specs.map((s) => (
               <div key={s.label} className="flex items-baseline justify-between gap-4 py-4">
                 <dt className="shrink-0 text-[13px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
