@@ -1,6 +1,7 @@
 import { Hero } from "@/components/Hero";
 import { ProductShowcase } from "@/components/ProductShowcase";
 import { FarmBand } from "@/components/FarmBand";
+import { Provenance } from "@/components/Provenance";
 import { RegenerativeBand } from "@/components/RegenerativeBand";
 import { NewsBand } from "@/components/NewsBand";
 import { NewsRadarBand } from "@/components/NewsRadarBand";
@@ -19,6 +20,7 @@ export default function Home() {
       <Hero />
       <ProductShowcase />
       <FarmBand />
+      <Provenance />
       <RegenerativeBand />
       <NewsBand />
       <NewsRadarBand />
