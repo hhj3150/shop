@@ -131,80 +131,80 @@ export default async function ProductPage({
         </nav>
       </div>
 
-      {/* 애플식 풀블리드 히어로 — 큰 타이포 + 큰 이미지 + 가격 + 구성 앵커 */}
-      <section className="overflow-hidden pb-1 pt-2 text-center">
-        <div className="mx-auto max-w-xl px-5 sm:px-8">
-          {/* 영문 카테고리 */}
-          <p className="text-[12px] font-medium uppercase tracking-[0.28em] text-gold-deep">
-            {product.nameEn}
-          </p>
-          {/* 제품명 — 핵심. 콤팩트하고 우아하게. */}
-          <h1 className="mt-1.5 font-serif-kr text-[clamp(1.5rem,3.6vw,2rem)] font-medium leading-[1.18] tracking-[-0.01em] text-ink">
-            {product.name}
-            <span className="ml-2 align-baseline text-[0.62em] font-semibold tracking-tight text-gold-deep lining-nums tabular-nums">
-              {product.volume}
-            </span>
-          </h1>
-          {/* 브랜드 한 줄(보조) */}
-          <p className="mx-auto mt-2 max-w-md font-serif-kr text-[13.5px] leading-relaxed text-ink-soft">
-            {product.tagline}{" "}
-            <span className="font-display italic text-gold">{product.taglineEm}</span>
-          </p>
-          <ProductHeroPrice product={product} maxRate={maxRate} />
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-            <a
-              href="#configure"
-              className="inline-flex items-center gap-1.5 rounded-full bg-ink px-6 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
-            >
-              정기구독 신청 <span aria-hidden>↓</span>
-            </a>
-            <Link
-              href={`/order-once?add=${product.id}`}
-              className="inline-flex items-center gap-1.5 rounded-full border border-ink/25 bg-cream px-6 py-3 text-sm font-medium tracking-wide text-ink transition-colors hover:border-gold hover:text-gold-deep"
-            >
-              단품구매
-            </Link>
+      {/* 애플식 히어로 — 데스크톱은 이미지·정보 2단 구도, 모바일은 정보→이미지 1단.
+          이미지를 히어로로 끌어올려 와이드 화면의 빈 여백을 제품으로 채운다. */}
+      <section className="overflow-hidden pb-1 pt-2">
+        <div className="mx-auto max-w-xl px-5 sm:px-8 lg:max-w-7xl lg:pt-6">
+          <div className="text-center lg:grid lg:grid-cols-2 lg:items-center lg:gap-16 lg:text-left">
+            {/* 정보 — DOM 우선(모바일에서 먼저 보임) / 데스크톱은 오른쪽 */}
+            <div className="lg:order-last">
+              {/* 영문 카테고리 */}
+              <p className="text-[12px] font-medium uppercase tracking-[0.28em] text-gold-deep">
+                {product.nameEn}
+              </p>
+              {/* 제품명 — 핵심. 데스크톱에서 더 크게 화면을 장악. */}
+              <h1 className="mt-1.5 font-serif-kr text-[clamp(1.5rem,3.6vw,2.6rem)] font-medium leading-[1.16] tracking-[-0.01em] text-ink">
+                {product.name}
+                <span className="ml-2 align-baseline text-[0.62em] font-semibold tracking-tight text-gold-deep lining-nums tabular-nums">
+                  {product.volume}
+                </span>
+              </h1>
+              {/* 브랜드 한 줄(보조) */}
+              <p className="mx-auto mt-2 max-w-md font-serif-kr text-[13.5px] leading-relaxed text-ink-soft lg:mx-0">
+                {product.tagline}{" "}
+                <span className="font-display italic text-gold">{product.taglineEm}</span>
+              </p>
+              <ProductHeroPrice product={product} maxRate={maxRate} />
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                <a
+                  href="#configure"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-ink px-6 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
+                >
+                  정기구독 신청 <span aria-hidden>↓</span>
+                </a>
+                <Link
+                  href={`/order-once?add=${product.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-ink/25 bg-cream px-6 py-3 text-sm font-medium tracking-wide text-ink transition-colors hover:border-gold hover:text-gold-deep"
+                >
+                  단품구매
+                </Link>
+              </div>
+            </div>
+            {/* 이미지 — DOM 차순(모바일 정보 아래) / 데스크톱은 왼쪽 */}
+            <div className="mt-8 lg:order-first lg:mt-0">
+              <div className="relative mx-auto aspect-[4/5] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:max-w-none">
+                <Image
+                  src={product.image}
+                  alt={`${product.name} ${product.volume}`}
+                  width={1200}
+                  height={1200}
+                  priority
+                  sizes="(max-width:1024px) 92vw, 46vw"
+                  className="h-full w-full object-contain p-8 sm:p-10"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 구성 — 좌측 고정 이미지·스토리 / 우측 가이드형 옵션 패널 */}
-      <div id="configure" className="mx-auto max-w-7xl scroll-mt-24 px-5 pb-8 pt-14 sm:px-8">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-16">
-          {/* Image (sticky) */}
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-paper">
-              <Image
-                src={product.image}
-                alt={`${product.name} ${product.volume}`}
-                width={1200}
-                height={1200}
-                priority
-                sizes="(max-width:1024px) 92vw, 46vw"
-                className="h-full w-full object-contain p-8 sm:p-10"
-              />
-            </div>
-          </div>
-
-          {/* 옵션 패널 — 바로 구매로(군더더기 텍스트 제거) */}
-          <div className="flex flex-col">
-            {/* data-swipe-ignore: 구매 진행 중 좌우 스와이프가 제품 이동으로 잡혀
-                선택이 초기화되지 않도록 SwipeNav 제스처에서 제외한다. */}
-            <div data-swipe-ignore>
-              <PurchasePanel product={product} />
-            </div>
-
-            {/* Specs — quick reference */}
-            <dl className="mt-10 divide-y divide-line border-y border-line">
-              {product.specs.map((s) => (
-                <div key={s.label} className="flex items-baseline justify-between gap-4 py-4">
-                  <dt className="shrink-0 text-[13px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
-                  <dd className="min-w-0 break-keep text-right text-[14px] text-ink">{s.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+      {/* 구매 — 가이드형 옵션 패널 + 표시 스펙(데스크톱은 중앙 집중형 구매 카드) */}
+      <div id="configure" className="mx-auto max-w-xl scroll-mt-24 px-5 pb-8 pt-12 sm:px-8">
+        {/* data-swipe-ignore: 구매 진행 중 좌우 스와이프가 제품 이동으로 잡혀
+            선택이 초기화되지 않도록 SwipeNav 제스처에서 제외한다. */}
+        <div data-swipe-ignore>
+          <PurchasePanel product={product} />
         </div>
+
+        {/* Specs — quick reference */}
+        <dl className="mt-10 divide-y divide-line border-y border-line">
+          {product.specs.map((s) => (
+            <div key={s.label} className="flex items-baseline justify-between gap-4 py-4">
+              <dt className="shrink-0 text-[13px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
+              <dd className="min-w-0 break-keep text-right text-[14px] text-ink">{s.value}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
       {/* 구매평 — 별점 후기 */}

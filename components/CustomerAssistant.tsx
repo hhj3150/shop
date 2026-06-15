@@ -28,6 +28,9 @@ export function CustomerAssistant() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNudge, setShowNudge] = useState(false);
+  // 넛지를 첫 페인트에 띄우지 않는다 — 첫 화면을 제품만으로 채우기 위해, 사용자가
+  //   첫 화면의 60%를 스크롤하거나 6초가 지난 뒤(먼저 도달하는 쪽)에만 등장시킨다.
+  const [nudgeReady, setNudgeReady] = useState(false);
   // 음성 답변 on/off. 음성으로 물으면 자동으로 켜진다(음성 질문 → 음성 답변).
   const [voiceOut, setVoiceOut] = useState(false);
   // 담기 보조로 장바구니에 항목을 담았으면 '주문하러 가기' CTA를 띄운다.
@@ -51,6 +54,29 @@ export function CustomerAssistant() {
       // 무시
     }
   }, []);
+
+  // 넛지 등장 게이트: 첫 화면을 가리지 않도록, 첫 화면 60% 스크롤 또는 6초 경과 중
+  //   먼저 도달하는 시점에만 노출한다. 둘 중 하나가 충족되면 리스너·타이머를 정리한다.
+  useEffect(() => {
+    if (!showNudge || nudgeReady) return;
+    let done = false;
+    const reveal = () => {
+      if (done) return;
+      done = true;
+      setNudgeReady(true);
+      window.removeEventListener("scroll", onScroll);
+      clearTimeout(timer);
+    };
+    const onScroll = () => {
+      if (window.scrollY > window.innerHeight * 0.6) reveal();
+    };
+    const timer = setTimeout(reveal, 6000);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      clearTimeout(timer);
+    };
+  }, [showNudge, nudgeReady]);
 
   function dismissNudge() {
     setShowNudge(false);
@@ -117,9 +143,9 @@ export function CustomerAssistant() {
 
   return (
     <>
-      {/* 첫 방문 넛지 말풍선 — 무엇이든 물어보세요 */}
-      {!open && showNudge && (
-        <div className="fixed bottom-[150px] right-5 z-40 flex max-w-[240px] items-start gap-2 rounded-2xl border border-line bg-cream px-4 py-3 shadow-xl md:bottom-[88px] md:right-6 no-print">
+      {/* 첫 방문 넛지 말풍선 — 무엇이든 물어보세요 (첫 화면을 가리지 않도록 지연 등장) */}
+      {!open && showNudge && nudgeReady && (
+        <div className="fixed bottom-[150px] right-5 z-40 flex max-w-[240px] items-start gap-2 rounded-2xl border border-line bg-cream px-4 py-3 shadow-xl animate-[rise_0.5s_var(--ease-soft)_both] md:bottom-[88px] md:right-6 no-print">
           <p className="text-[13px] leading-snug text-ink">
             궁금한 점, <span className="font-medium text-gold-deep">무엇이든 물어보세요</span> — A2·저지·헤이밀크 같은 제품 이야기부터 추천·구독·배송까지 바로 답해 드려요.
           </p>
