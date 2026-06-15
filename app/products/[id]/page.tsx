@@ -188,30 +188,35 @@ export default async function ProductPage({
         </div>
       </section>
 
-      {/* 구매 — 가이드형 옵션 패널 + 표시 스펙(데스크톱은 중앙 집중형 구매 카드) */}
-      <div id="configure" className="mx-auto max-w-xl scroll-mt-24 px-5 pb-8 pt-12 sm:px-8">
-        {/* data-swipe-ignore: 구매 진행 중 좌우 스와이프가 제품 이동으로 잡혀
-            선택이 초기화되지 않도록 SwipeNav 제스처에서 제외한다. */}
-        <div data-swipe-ignore>
+      {/* 구매 — 데스크톱은 우측 스티키 구매카드 + 좌측 보조콘텐츠 2단, 모바일은 현행 세로 흐름 유지 */}
+      <div className="lg:mx-auto lg:grid lg:max-w-7xl lg:grid-cols-[1fr_400px] lg:items-start lg:gap-12 lg:px-8 lg:pt-12">
+        {/* 구매 카드 — DOM 앞(모바일 맨 위) / 데스크톱 우측 스티키.
+            data-swipe-ignore: 구매 중 좌우 스와이프가 제품 이동으로 잡혀 선택이 초기화되지 않도록 제외. */}
+        <div
+          id="configure"
+          data-swipe-ignore
+          className="mx-auto max-w-xl scroll-mt-24 px-5 pt-12 sm:px-8 lg:order-last lg:mx-0 lg:max-w-none lg:px-0 lg:pt-0 lg:sticky lg:top-24"
+        >
           <PurchasePanel product={product} />
         </div>
 
-        {/* Specs — quick reference */}
-        <dl className="mt-10 divide-y divide-line border-y border-line">
-          {product.specs.map((s) => (
-            <div key={s.label} className="flex items-baseline justify-between gap-4 py-4">
-              <dt className="shrink-0 text-[13px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
-              <dd className="min-w-0 break-keep text-right text-[14px] text-ink">{s.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+        {/* 보조 콘텐츠 — DOM 뒤(모바일 구매카드 아래) / 데스크톱 좌측 스크롤 */}
+        <div className="lg:order-first lg:min-w-0">
+          {/* Specs — quick reference */}
+          <dl className="mx-auto mt-10 max-w-xl divide-y divide-line border-y border-line px-5 sm:px-8 lg:mx-0 lg:mt-0 lg:max-w-none lg:px-0">
+            {product.specs.map((s) => (
+              <div key={s.label} className="flex items-baseline justify-between gap-4 py-4">
+                <dt className="shrink-0 text-[13px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
+                <dd className="min-w-0 break-keep text-right text-[14px] text-ink">{s.value}</dd>
+              </div>
+            ))}
+          </dl>
 
-      {/* 구매평 — 별점 후기 */}
-      <ProductReviews productId={product.id} />
+          {/* 구매평 — 별점 후기 */}
+          <ProductReviews productId={product.id} />
 
-      {/* 법정 제품표시사항 · 영양정보 — 기본 접힘으로 핵심 구매를 위로, 페이지를 짧게 */}
-      <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8">
+          {/* 법정 제품표시사항 · 영양정보 — 기본 접힘으로 핵심 구매를 위로, 페이지를 짧게 */}
+          <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8 lg:mx-0 lg:max-w-none lg:px-0 lg:py-16">
         <Reveal>
           <p className="eyebrow text-gold-deep">Product Information</p>
         </Reveal>
@@ -292,7 +297,9 @@ export default async function ProductPage({
           </div>
         </details>
         </div>
-      </section>
+          </section>
+        </div>
+      </div>
 
       {/* Related */}
       <section className="mx-auto max-w-7xl px-5 py-24 sm:px-8">
