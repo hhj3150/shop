@@ -1548,7 +1548,7 @@ export default function AdminPage() {
         </span>
       </div>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[1000px] border-collapse text-[14px]">
+        <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[1000px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">이름</th>
@@ -1573,7 +1573,7 @@ export default function AdminPage() {
             ) : (
               filteredMembers.map((m) => (
                 <tr key={m.id} className="border-b border-line/60 align-top">
-                  <td className="py-2.5">
+                  <td data-label="이름" className="py-2.5">
                     <button
                       onClick={() => setSelectedMember(m.id)}
                       className="text-ink underline decoration-line underline-offset-2 transition-colors hover:text-gold-deep hover:decoration-gold"
@@ -1581,14 +1581,14 @@ export default function AdminPage() {
                       {m.name || "—"}
                     </button>
                   </td>
-                  <td className="py-2.5">
+                  <td data-label="등급" className="py-2.5">
                     <span
                       className={`rounded-full px-2 py-0.5 text-[12px] font-medium ${SEGMENT_TONE[m.segment]}`}
                     >
                       {m.segment}
                     </span>
                   </td>
-                  <td className="py-2.5 tabular-nums text-ink-soft">
+                  <td data-label="연락처" className="py-2.5 tabular-nums text-ink-soft">
                     {m.phone || "—"}
                     {dupPhoneIds.has(m.id) && (
                       <span
@@ -1599,25 +1599,25 @@ export default function AdminPage() {
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 text-ink-soft">
+                  <td data-label="주소" className="py-2.5 text-ink-soft">
                     {m.address
                       ? `${m.postcode ? `(${m.postcode}) ` : ""}${m.address} ${m.address_detail ?? ""}`
                       : "—"}
                   </td>
-                  <td className="py-2.5 text-mute">
+                  <td data-label="가입일" className="py-2.5 text-mute">
                     {m.created_at ? new Date(m.created_at).toLocaleDateString("ko-KR") : "—"}
                   </td>
-                  <td className="py-2.5 text-center">
+                  <td data-label="마케팅" className="py-2.5 text-center">
                     {m.marketing_consent ? (
                       <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[12px] text-gold-deep">동의</span>
                     ) : (
                       <span className="text-mute">·</span>
                     )}
                   </td>
-                  <td className="py-2.5 text-right tabular-nums text-ink-soft">{m.orderCount || "·"}</td>
-                  <td className="py-2.5 text-right tabular-nums text-gold-deep">{m.activeSubs || "·"}</td>
-                  <td className="py-2.5 text-right tabular-nums text-ink">{m.ltv ? formatKRW(m.ltv) : "·"}</td>
-                  <td className="py-2.5 text-right tabular-nums text-mute">
+                  <td data-label="주문" className="py-2.5 text-right tabular-nums text-ink-soft">{m.orderCount || "·"}</td>
+                  <td data-label="활성구독" className="py-2.5 text-right tabular-nums text-gold-deep">{m.activeSubs || "·"}</td>
+                  <td data-label="누적구매" className="py-2.5 text-right tabular-nums text-ink">{m.ltv ? formatKRW(m.ltv) : "·"}</td>
+                  <td data-label="최근주문" className="py-2.5 text-right tabular-nums text-mute">
                     {m.lastOrderAt ? new Date(m.lastOrderAt).toLocaleDateString("ko-KR") : "·"}
                   </td>
                 </tr>
@@ -1630,7 +1630,7 @@ export default function AdminPage() {
       {/* 요일별 모집 현황 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별 모집 현황 (정원 100명)</h2>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[480px] border-collapse text-[14px]">
+        <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[480px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">요일</th>
@@ -1644,12 +1644,12 @@ export default function AdminPage() {
           <tbody>
             {dayStats.map((s) => (
               <tr key={s.day} className="border-b border-line/60">
-                <td className="py-2.5 text-ink">{DELIVERY_DAY_LABEL[s.day]}</td>
-                <td className="py-2.5 text-right tabular-nums text-ink">{s.taken} / 100</td>
-                <td className="py-2.5 text-right tabular-nums text-ink-soft">{s.active}</td>
-                <td className="py-2.5 text-right tabular-nums text-ink-soft">{s.paused || "·"}</td>
-                <td className="py-2.5 text-right tabular-nums text-gold-deep">{Math.max(0, 100 - s.taken)}</td>
-                <td className="py-2.5 text-right tabular-nums text-ink-soft">{s.waitlist}</td>
+                <td data-label="요일" className="py-2.5 text-ink">{DELIVERY_DAY_LABEL[s.day]}</td>
+                <td data-label="모집(신청+활성)" className="py-2.5 text-right tabular-nums text-ink">{s.taken} / 100</td>
+                <td data-label="활성(입금확인)" className="py-2.5 text-right tabular-nums text-ink-soft">{s.active}</td>
+                <td data-label="정지중" className="py-2.5 text-right tabular-nums text-ink-soft">{s.paused || "·"}</td>
+                <td data-label="잔여" className="py-2.5 text-right tabular-nums text-gold-deep">{Math.max(0, 100 - s.taken)}</td>
+                <td data-label="대기자" className="py-2.5 text-right tabular-nums text-ink-soft">{s.waitlist}</td>
               </tr>
             ))}
           </tbody>
@@ -1799,7 +1799,7 @@ export default function AdminPage() {
                   </span>
                 </div>
                 <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[640px] border-collapse text-[14px]">
+                  <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[640px]">
                     <thead>
                       <tr className="border-b border-line text-left text-mute">
                         <th className="py-2 font-normal">이름</th>
@@ -1826,7 +1826,7 @@ export default function AdminPage() {
                           </tr>
                           {g.rows.map(({ order, items: its }) => (
                             <tr key={order.id} className="border-b border-line/60 align-top">
-                              <td className="py-2.5 text-ink">
+                              <td data-label="이름" className="py-2.5 text-ink">
                                 {order.ship_name}
                                 {giftSenderLabel(order.is_gift, order.gifter_name) && (
                                   <span className="mt-0.5 block text-[12px] text-gold-deep">
@@ -1834,14 +1834,14 @@ export default function AdminPage() {
                                   </span>
                                 )}
                               </td>
-                              <td className="py-2.5 tabular-nums text-ink-soft">{order.ship_phone}</td>
-                              <td className="py-2.5 text-ink-soft">
+                              <td data-label="연락처" className="py-2.5 tabular-nums text-ink-soft">{order.ship_phone}</td>
+                              <td data-label="주소" className="py-2.5 text-ink-soft">
                                 ({order.ship_postcode}) {order.ship_address} {order.ship_address_detail ?? ""}
                               </td>
-                              <td className="py-2.5 text-ink-soft">
+                              <td data-label="제품(수량)" className="py-2.5 text-ink-soft">
                                 {its.map((it) => `${it.product_name} ${it.volume}×${it.qty}`).join(", ")}
                               </td>
-                              <td className="py-2.5 text-gold-deep">{order.status}</td>
+                              <td data-label="상태" className="py-2.5 text-gold-deep">{order.status}</td>
                             </tr>
                           ))}
                         </Fragment>
@@ -1863,7 +1863,7 @@ export default function AdminPage() {
       {/* 대기자 명단 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">대기자 명단</h2>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[420px] border-collapse text-[14px]">
+        <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[420px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">요일</th>
@@ -1878,10 +1878,10 @@ export default function AdminPage() {
             ) : (
               waitlist.map((s) => (
                 <tr key={s.id} className="border-b border-line/60">
-                  <td className="py-2.5 text-ink">{DELIVERY_DAY_LABEL[s.delivery_day]}</td>
-                  <td className="py-2.5 text-ink-soft">{nameByUser.get(s.user_id) ?? "—"}</td>
-                  <td className="py-2.5 tabular-nums text-ink-soft">{phoneByUser.get(s.user_id) ?? "—"}</td>
-                  <td className="py-2.5 text-mute">{new Date(s.created_at).toLocaleDateString("ko-KR")}</td>
+                  <td data-label="요일" className="py-2.5 text-ink">{DELIVERY_DAY_LABEL[s.delivery_day]}</td>
+                  <td data-label="이름" className="py-2.5 text-ink-soft">{nameByUser.get(s.user_id) ?? "—"}</td>
+                  <td data-label="연락처" className="py-2.5 tabular-nums text-ink-soft">{phoneByUser.get(s.user_id) ?? "—"}</td>
+                  <td data-label="신청일" className="py-2.5 text-mute">{new Date(s.created_at).toLocaleDateString("ko-KR")}</td>
                 </tr>
               ))
             )}
@@ -1912,7 +1912,7 @@ export default function AdminPage() {
       </div>
       <p className="mt-1 text-[13px] text-mute">회원이 해지 시 입력한 환불 계좌로 남은 회차분을 수동 송금하세요. 환불 완료 여부는 별도로 관리합니다.</p>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse text-[14px]">
+        <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[720px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">해지일</th>
@@ -1931,14 +1931,14 @@ export default function AdminPage() {
             ) : (
               cancellations.map((s) => (
                 <tr key={s.id} className="border-b border-line/60 align-top">
-                  <td className="py-2.5 tabular-nums text-ink-soft">{s.cancelled_at}</td>
-                  <td className="py-2.5 text-ink">{nameByUser.get(s.user_id) ?? "—"}</td>
-                  <td className="py-2.5 tabular-nums text-ink-soft">{phoneByUser.get(s.user_id) ?? "—"}</td>
-                  <td className="py-2.5 tabular-nums text-mute">{s.order_id ? orderById.get(s.order_id)?.order_no ?? "—" : "—"}</td>
-                  <td className="py-2.5 text-ink-soft">{DELIVERY_DAY_LABEL[s.delivery_day]}</td>
-                  <td className="py-2.5 text-right font-medium tabular-nums text-gold-deep">{formatKRW(s.refund_amount ?? 0)}</td>
-                  <td className="py-2.5 text-ink-soft">{s.refund_account ?? "—"}</td>
-                  <td className="py-2.5 text-ink-soft">{s.cancel_reason ?? "—"}</td>
+                  <td data-label="해지일" className="py-2.5 tabular-nums text-ink-soft">{s.cancelled_at}</td>
+                  <td data-label="이름" className="py-2.5 text-ink">{nameByUser.get(s.user_id) ?? "—"}</td>
+                  <td data-label="연락처" className="py-2.5 tabular-nums text-ink-soft">{phoneByUser.get(s.user_id) ?? "—"}</td>
+                  <td data-label="주문번호" className="py-2.5 tabular-nums text-mute">{s.order_id ? orderById.get(s.order_id)?.order_no ?? "—" : "—"}</td>
+                  <td data-label="요일" className="py-2.5 text-ink-soft">{DELIVERY_DAY_LABEL[s.delivery_day]}</td>
+                  <td data-label="환불액" className="py-2.5 text-right font-medium tabular-nums text-gold-deep">{formatKRW(s.refund_amount ?? 0)}</td>
+                  <td data-label="환불계좌" className="py-2.5 text-ink-soft">{s.refund_account ?? "—"}</td>
+                  <td data-label="사유" className="py-2.5 text-ink-soft">{s.cancel_reason ?? "—"}</td>
                 </tr>
               ))
             )}

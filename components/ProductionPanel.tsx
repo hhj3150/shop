@@ -316,7 +316,7 @@ export function ProductionPanel({
 
       {/* 제품별 생산 표 */}
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[780px] border-collapse text-[14px]">
+        <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[780px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">제품</th>
@@ -345,17 +345,17 @@ export function ProductionPanel({
                 const gap = row.produced - required;
                 return (
                   <tr key={key} className="border-b border-line/60 align-middle">
-                    <td className="py-2.5 text-ink">{key}</td>
-                    <td className="py-2.5 text-right tabular-nums text-ink-soft">
+                    <td data-label="제품" className="py-2.5 text-ink">{key}</td>
+                    <td data-label="온라인" className="py-2.5 text-right tabular-nums text-ink-soft">
                       {online || "·"}
                     </td>
-                    <td className="py-2.5 text-right tabular-nums text-ink-soft">
+                    <td data-label="B2B" className="py-2.5 text-right tabular-nums text-ink-soft">
                       {b2b || "·"}
                     </td>
-                    <td className="py-2.5 text-right font-medium tabular-nums text-ink">
+                    <td data-label="총 필요" className="py-2.5 text-right font-medium tabular-nums text-ink">
                       {required || "·"}
                     </td>
-                    <td className="py-2.5 text-right">
+                    <td data-label="생산계획" className="py-2.5 text-right">
                       <input
                         type="number"
                         min={0}
@@ -364,7 +364,7 @@ export function ProductionPanel({
                         className="w-20 rounded-lg border border-line bg-cream px-2 py-1 text-right tabular-nums text-ink"
                       />
                     </td>
-                    <td className="py-2.5 text-right">
+                    <td data-label="실제생산" className="py-2.5 text-right">
                       <input
                         type="number"
                         min={0}
@@ -374,6 +374,7 @@ export function ProductionPanel({
                       />
                     </td>
                     <td
+                      data-label="부족/잉여"
                       className={`py-2.5 text-right font-medium tabular-nums ${
                         gap < 0
                           ? "text-red-600"
@@ -384,7 +385,7 @@ export function ProductionPanel({
                     >
                       {gap === 0 ? "0" : gap > 0 ? `+${gap}` : gap}
                     </td>
-                    <td className="py-2.5">
+                    <td data-label="메모" className="py-2.5">
                       <input
                         type="text"
                         value={row.note}

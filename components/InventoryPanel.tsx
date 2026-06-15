@@ -272,7 +272,7 @@ export function InventoryPanel({
       )}
 
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[920px] border-collapse text-[14px]">
+        <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[920px]">
           <thead>
             <tr className="border-b border-line text-left text-[12.5px] text-mute">
               <th className="py-2.5 pr-3 font-medium">상품</th>
@@ -290,7 +290,7 @@ export function InventoryPanel({
               const busy = busyId === p.id;
               return (
                 <tr key={p.id} className="border-b border-line/70 align-top">
-                  <td className="py-3 pr-3">
+                  <td data-label="상품" className="py-3 pr-3">
                     <p className="text-ink">{p.name}</p>
                     <p className="text-[12.5px] text-mute">
                       {p.volume}
@@ -301,7 +301,7 @@ export function InventoryPanel({
                       )}
                     </p>
                   </td>
-                  <td className="py-3 pr-3 text-right">
+                  <td data-label="현재고" className="py-3 pr-3 text-right">
                     {managed ? (
                       <span
                         className={`tabular-nums ${low ? "font-semibold text-rose-600" : "text-ink"}`}
@@ -339,7 +339,7 @@ export function InventoryPanel({
                       <span className="text-[12.5px] text-mute">무제한</span>
                     )}
                   </td>
-                  <td className="py-3 pr-3 text-right">
+                  <td data-label="안전재고" className="py-3 pr-3 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <input
                         type="number"
@@ -362,7 +362,7 @@ export function InventoryPanel({
                       </button>
                     </div>
                   </td>
-                  <td className="py-3 pr-3">
+                  <td data-label="거래 입력" className="py-3 pr-3">
                     {managed ? (
                       <div className="flex flex-wrap items-center gap-1.5">
                         <select
@@ -470,7 +470,7 @@ export function InventoryPanel({
           <p className="mt-3 text-[13px] text-mute">아직 기록된 거래가 없습니다.</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse text-[13.5px]">
+            <table className="admin-cards-sm w-full border-collapse text-[13.5px] md:min-w-[640px]">
               <thead>
                 <tr className="border-b border-line text-left text-[12px] text-mute">
                   <th className="py-2 pr-3 font-medium">일시</th>
@@ -483,13 +483,13 @@ export function InventoryPanel({
               <tbody>
                 {movements.map((m) => (
                   <tr key={m.id} className="border-b border-line/60">
-                    <td className="py-2 pr-3 tabular-nums text-mute">
+                    <td data-label="일시" className="py-2 pr-3 tabular-nums text-mute">
                       {m.created_at.slice(0, 16).replace("T", " ")}
                     </td>
-                    <td className="py-2 pr-3 text-ink-soft">
+                    <td data-label="상품" className="py-2 pr-3 text-ink-soft">
                       {nameById.get(m.product_id) ?? m.product_id}
                     </td>
-                    <td className="py-2 pr-3">
+                    <td data-label="유형" className="py-2 pr-3">
                       <span
                         className={`rounded px-1.5 py-0.5 text-[11.5px] font-semibold ${KIND_BADGE[m.kind]}`}
                       >
@@ -497,11 +497,12 @@ export function InventoryPanel({
                       </span>
                     </td>
                     <td
+                      data-label="증감"
                       className={`py-2 pr-3 text-right tabular-nums ${m.delta < 0 ? "text-rose-600" : "text-emerald-700"}`}
                     >
                       {m.delta > 0 ? `+${m.delta}` : m.delta}
                     </td>
-                    <td className="py-2 text-[13px] text-mute">
+                    <td data-label="사유" className="py-2 text-[13px] text-mute">
                       {m.note ?? ""}
                       {m.expiry_date && (
                         <span className="text-mute"> · 유통 {m.expiry_date.slice(5)}</span>
