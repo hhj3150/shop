@@ -210,13 +210,21 @@ export default async function ProductPage({
       {/* 구매평 — 별점 후기 */}
       <ProductReviews productId={product.id} />
 
-      {/* 법정 제품표시사항 */}
+      {/* 법정 제품표시사항 · 영양정보 — 기본 접힘으로 핵심 구매를 위로, 페이지를 짧게 */}
       <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8">
         <Reveal>
           <p className="eyebrow text-gold-deep">Product Information</p>
-          <h2 className="mt-3 font-serif-kr text-xl font-medium text-ink">제품표시사항</h2>
         </Reveal>
-        <dl className="mt-8 divide-y divide-line border-y border-line text-[14px]">
+        <div className="mt-5 divide-y divide-line border-y border-line">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center justify-between py-5 font-serif-kr text-xl font-medium text-ink [&::-webkit-details-marker]:hidden">
+            제품표시사항
+            <svg className="h-4 w-4 shrink-0 text-mute transition-transform duration-300 group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </summary>
+          <div className="pb-6">
+        <dl className="divide-y divide-line border-y border-line text-[14px]">
           {(
             [
               ["제품명", `${product.name} ${product.volume}`],
@@ -240,16 +248,19 @@ export default async function ProductPage({
           ※ 본 제품은 식품의 표시기준에 따라 표시되었으며, 부정·불량식품 신고는 국번 없이 1399.
           소비기한·중량 등 상세 표기는 수령하신 제품의 라벨을 따릅니다.
         </p>
+          </div>
+        </details>
 
         {/* 영양정보 */}
-        <div className="mt-14">
-          <Reveal>
-            <h3 className="font-serif-kr text-lg font-medium text-ink">
-              영양정보{" "}
-              <span className="text-[13px] font-normal text-mute">({product.nutrition.basis})</span>
-            </h3>
-          </Reveal>
-          <table className="mt-6 w-full border-y border-line text-[14px]">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center justify-between py-5 font-serif-kr text-xl font-medium text-ink [&::-webkit-details-marker]:hidden">
+            <span>영양정보 <span className="text-[13px] font-normal text-mute">({product.nutrition.basis})</span></span>
+            <svg className="h-4 w-4 shrink-0 text-mute transition-transform duration-300 group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </summary>
+          <div className="pb-6">
+          <table className="w-full border-y border-line text-[14px]">
             <caption className="sr-only">
               {product.name} {product.volume} 영양정보 ({product.nutrition.basis})
             </caption>
@@ -278,6 +289,8 @@ export default async function ProductPage({
           <p className="mt-4 text-[11.5px] leading-relaxed text-mute">
             ※ % 영양성분기준치는 1일 영양성분 기준치에 대한 비율이므로 개인의 필요 열량에 따라 다를 수 있습니다.
           </p>
+          </div>
+        </details>
         </div>
       </section>
 

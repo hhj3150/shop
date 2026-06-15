@@ -31,6 +31,8 @@ export function CustomerAssistant() {
   // 넛지를 첫 페인트에 띄우지 않는다 — 첫 화면을 제품만으로 채우기 위해, 사용자가
   //   첫 화면의 60%를 스크롤하거나 6초가 지난 뒤(먼저 도달하는 쪽)에만 등장시킨다.
   const [nudgeReady, setNudgeReady] = useState(false);
+  // 제품 상세의 모바일 하단 담기 바가 떠 있으면 FAB·넛지를 숨겨 겹침을 피한다.
+  const [addBarOpen, setAddBarOpen] = useState(false);
   // 음성 답변 on/off. 음성으로 물으면 자동으로 켜진다(음성 질문 → 음성 답변).
   const [voiceOut, setVoiceOut] = useState(false);
   // 담기 보조로 장바구니에 항목을 담았으면 '주문하러 가기' CTA를 띄운다.
@@ -53,6 +55,13 @@ export function CustomerAssistant() {
     } catch {
       // 무시
     }
+  }, []);
+
+  // 제품 상세의 하단 담기 바 표시 신호를 듣고 겹침을 피한다(PurchasePanel이 발행).
+  useEffect(() => {
+    const onAddBar = (e: Event) => setAddBarOpen(Boolean((e as CustomEvent).detail));
+    window.addEventListener("shop:addbar", onAddBar);
+    return () => window.removeEventListener("shop:addbar", onAddBar);
   }, []);
 
   // 넛지 등장 게이트: 첫 화면을 가리지 않도록, 첫 화면 60% 스크롤 또는 6초 경과 중
@@ -144,7 +153,7 @@ export function CustomerAssistant() {
   return (
     <>
       {/* 첫 방문 넛지 말풍선 — 무엇이든 물어보세요 (첫 화면을 가리지 않도록 지연 등장) */}
-      {!open && showNudge && nudgeReady && (
+      {!open && showNudge && nudgeReady && !addBarOpen && (
         <div className="fixed bottom-[150px] right-5 z-40 flex max-w-[240px] items-start gap-2 rounded-2xl border border-line bg-cream px-4 py-3 shadow-xl animate-[rise_0.5s_var(--ease-soft)_both] md:bottom-[88px] md:right-6 no-print">
           <p className="text-[13px] leading-snug text-ink">
             궁금한 점, <span className="font-medium text-gold-deep">무엇이든 물어보세요</span> — A2·저지·헤이밀크 같은 제품 이야기부터 추천·구독·배송까지 바로 답해 드려요.
@@ -162,8 +171,8 @@ export function CustomerAssistant() {
         </div>
       )}
 
-      {/* 플로팅 버튼 */}
-      {!open && (
+      {/* 플로팅 버튼 (하단 담기 바와 겹치지 않게 바가 떠 있으면 숨김) */}
+      {!open && !addBarOpen && (
         <button
           type="button"
           onClick={() => {

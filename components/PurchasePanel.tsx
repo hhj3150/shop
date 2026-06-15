@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   type Product,
   type SubPeriod,
@@ -33,10 +33,39 @@ export function PurchasePanel({ product }: { product: Product }) {
   // 배송 요일을 고르면 "그 요일에 배송(=다음 날 수령)"임을 팝업으로 명확히 안내하고
   //   확인을 받는다. 바탕 글씨로는 놓치는 분들이 있어 모달로 한 번 짚어 준다.
   const [showShipNotice, setShowShipNotice] = useState(false);
+  // 모바일 하단 고정 '담기' 바 — 메인 담기 버튼이 화면 밖으로 나가면 노출한다.
+  const addBtnRef = useRef<HTMLButtonElement>(null);
+  const [showStickyBar, setShowStickyBar] = useState(false);
 
   useEffect(() => {
     getDayCounts().then(setCounts);
   }, []);
+
+  // 메인 담기 버튼의 화면 노출 여부를 관찰 — 보이지 않을 때만 하단 바를 띄운다.
+  useEffect(() => {
+    const el = addBtnRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      // 버튼을 '지나쳐 위로 스크롤한' 경우(top < 0)에만 띄운다. 아직 도달 전(아래)엔 숨김.
+      ([entry]) =>
+        setShowStickyBar(!entry.isIntersecting && entry.boundingClientRect.top < 0),
+      { rootMargin: "0px 0px -10% 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  // 하단 담기 바가 떠 있는 동안엔 고객 채팅 FAB가 겹치지 않도록 신호를 보낸다.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("shop:addbar", { detail: showStickyBar }));
+  }, [showStickyBar]);
+  // 페이지 이탈(언마운트) 시 FAB를 반드시 복구.
+  useEffect(
+    () => () => {
+      window.dispatchEvent(new CustomEvent("shop:addbar", { detail: false }));
+    },
+    []
+  );
 
   const { map, loading: catalogLoading } = useStorefrontCatalog();
   const liveMain = mergeProduct(product, map.get(product.id));
@@ -105,6 +134,7 @@ export function PurchasePanel({ product }: { product: Product }) {
   }
 
   return (
+    <>
     <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
       <div className="flex items-center justify-between">
         <p className="text-[13px] uppercase tracking-[0.2em] text-gold-deep">
@@ -334,6 +364,7 @@ export function PurchasePanel({ product }: { product: Product }) {
         </div>
 
         <button
+          ref={addBtnRef}
           onClick={handleAdd}
           disabled={catalogLoading || liveMain.soldOut}
           className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-ink"
@@ -347,6 +378,31 @@ export function PurchasePanel({ product }: { product: Product }) {
         </p>
       </div>
     </div>
+
+    {/* 모바일 하단 고정 담기 바 — 메인 버튼이 화면 밖일 때만. BottomNav(68px) 위에 스택. */}
+    {showStickyBar && !liveMain.hidden && (
+      <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+68px)] z-30 border-t border-line bg-cream/95 px-5 py-2.5 backdrop-blur-sm md:hidden no-print">
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-[11.5px] text-mute">
+              매주 {DELIVERY_DAY_LABEL[deliveryDay]} · {PERIOD_LABEL[period]}분
+            </p>
+            <p className="font-serif-kr text-lg leading-tight text-ink tabular-nums">
+              {formatKRW(perDelivery)}
+              <span className="ml-1 text-[12px] font-sans text-mute">/ 회</span>
+            </p>
+          </div>
+          <button
+            onClick={handleAdd}
+            disabled={catalogLoading || liveMain.soldOut}
+            className="shrink-0 rounded-full bg-ink px-7 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-ink"
+          >
+            {liveMain.soldOut ? "품절" : catalogLoading ? "확인 중…" : "구독 담기"}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
