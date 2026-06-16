@@ -14,10 +14,10 @@ export function FarmBand() {
         {/* 제품 이미지 — 전체(잘림 없음) */}
         <div className="relative">
           <Image
-            src="/brand/story-podium.jpg"
-            alt="송영신목장 A2 저지 헤이밀크 4종 제품 컷"
-            width={1122}
-            height={1402}
+            src="/brand/farm-herd.webp"
+            alt="골든아워 목초지에서 풀을 뜯는 송영신목장 A2 저지 젖소 무리"
+            width={1300}
+            height={2157}
             sizes="(max-width:1024px) 100vw, 50vw"
             className="h-auto w-full"
           />
