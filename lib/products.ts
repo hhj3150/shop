@@ -35,6 +35,21 @@ export type Nutrition = {
   rows: NutritionRow[];
 };
 
+// 히어로 요약 하이라이트 한 줄. v/em의 인라인 강조 규약:
+//   *키워드* → 굵게(잉크),  ~숫자~ → 명조 강조.
+export type ProductHighlightRow = {
+  k: string; // 좌측 소형 라벨 (원유, 사육 …)
+  v: string; // 본문 값
+  em?: string; // 보조 설명(연한 회색, 출처·기준 등)
+};
+
+// 히어로 요약 블록. 효능 표현 없이 사실만(식품 표시·광고법 안전선).
+export type ProductHighlights = {
+  kicker: string; // 선언 2줄. 줄바꿈은 "\n", *0.01%* → 골드 강조.
+  rows: ProductHighlightRow[];
+  proof: string; // 출처 한 줄(공인 분석 접수번호 등)
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -50,10 +65,38 @@ export type Product = {
   specs: ProductSpec[];
   label: ProductLabel;
   nutrition: Nutrition;
+  highlights?: ProductHighlights;
   price: number;
   taxFree: boolean;
   image: string;
   accent: string;
+};
+
+// 히어로 요약 — 우유/요거트 라인별 공유(같은 원유·공정·분석성적서).
+// 모든 줄은 검증된 사실 서술. 질병·기능성 암시 금지.
+const MILK_HIGHLIGHTS: ProductHighlights = {
+  kicker: "0.01%의 소로,\n*0.01%*를 위해.",
+  rows: [
+    { k: "원유", v: "*A2 저지.* A2 베타카제인 단백질만." },
+    { k: "사육", v: "*헤이밀크.* 풀과 건초. 사일리지는 없습니다." },
+    { k: "공정", v: "~75℃~에서 ~20초~. 최소한의 균질." },
+    { k: "오메가", v: "6:3, ~2:1~의 균형.", em: "당사 분석 기준" },
+    { k: "칼슘", v: "하루 권장의 ~15%~.", em: "100g당 104.9mg" },
+    { k: "원산지", v: "*100% 국내산.*" },
+  ],
+  proof: "공인 영양성분 분석 · 26-06-BR0114",
+};
+
+const YOGURT_HIGHLIGHTS: ProductHighlights = {
+  kicker: "0.01%의 우유로,\n*0.01%*를 위해.",
+  rows: [
+    { k: "원유", v: "*그 우유, 그대로.* 0.01%의 A2 저지." },
+    { k: "발효", v: "유산균과 ~12시간~. 그뿐입니다." },
+    { k: "유산균", v: "~1g당 7.2억~ 마리.", em: "공인 시험성적서" },
+    { k: "당류", v: "*무설탕* · ~3.5g~.", em: "발효로 원유 5.9g → 3.5g (100g당)" },
+    { k: "칼슘", v: "하루 권장의 ~16%~.", em: "100g당 108.7mg" },
+  ],
+  proof: "공인 영양성분 분석 · 26-06-BR0115 · 무증점제",
 };
 
 // ───────── 정기구독 정책 ─────────
@@ -177,6 +220,7 @@ export const PRODUCTS: Product[] = [
         { label: "단백질", amount: "6.8 g", percent: "12 %" },
       ],
     },
+    highlights: MILK_HIGHLIGHTS,
     price: 3500,
     taxFree: true,
     image: "/products/milk-180-pure.webp",
@@ -227,6 +271,7 @@ export const PRODUCTS: Product[] = [
         { label: "단백질", amount: "3.8 g", percent: "7 %" },
       ],
     },
+    highlights: MILK_HIGHLIGHTS,
     price: 12000,
     taxFree: true,
     image: "/products/milk-750-pure.webp",
@@ -277,6 +322,7 @@ export const PRODUCTS: Product[] = [
         { label: "단백질", amount: "7.6 g", percent: "14 %" },
       ],
     },
+    highlights: YOGURT_HIGHLIGHTS,
     price: 4300,
     taxFree: false,
     image: "/products/yogurt-180-pure.webp",
@@ -327,6 +373,7 @@ export const PRODUCTS: Product[] = [
         { label: "단백질", amount: "4.2 g", percent: "8 %" },
       ],
     },
+    highlights: YOGURT_HIGHLIGHTS,
     price: 10000,
     taxFree: false,
     image: "/products/yogurt-500-pure.webp",

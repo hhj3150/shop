@@ -11,6 +11,7 @@ import {
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
+import { ProductHighlights } from "@/components/ProductHighlights";
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
 import { Footer } from "@/components/Footer";
@@ -170,6 +171,8 @@ export default async function ProductPage({
                   단품구매
                 </Link>
               </div>
+              {/* 히어로 요약 — 0.01% 선언 + 무선 스펙시트(효능 표현 없이 사실만) */}
+              <ProductHighlights highlights={product.highlights} />
             </div>
             {/* 이미지 — DOM 차순(모바일 정보 아래) / 데스크톱은 왼쪽 */}
             <div className="mt-8 lg:order-first lg:mt-0">
