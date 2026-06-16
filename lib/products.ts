@@ -92,7 +92,7 @@ const YOGURT_HIGHLIGHTS: ProductHighlights = {
   rows: [
     { k: "원유", v: "*그 우유, 그대로.* 0.01%의 A2 저지." },
     { k: "발효", v: "유산균과 ~12시간~. 그뿐입니다." },
-    { k: "유산균", v: "~1g당 7.2억~ 마리.", em: "공인 시험성적서" },
+    { k: "유산균", v: "~1g당 7.2억~ CFU.", em: "공인 시험성적서" },
     { k: "당류", v: "*무설탕* · ~3.5g~.", em: "발효로 원유 5.9g → 3.5g (100g당)" },
     { k: "칼슘", v: "하루 권장의 ~16%~.", em: "100g당 108.7mg" },
   ],
@@ -202,7 +202,7 @@ export const PRODUCTS: Product[] = [
       ingredients: "원유(A2/A2 저지 원유 100%, 국산)",
       content: "180mL (135 kcal)",
       storage: "냉장 0–10℃ 보관",
-      packaging: "유리병 / 종이팩",
+      packaging: "PET병",
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관, 가능한 빨리 드십시오)",
     },
@@ -239,7 +239,7 @@ export const PRODUCTS: Product[] = [
     shortDesc: "같은 원유, 더 넉넉하게. 한 병이 일주일을 함께.",
     story: [
       "대한민국 0.01%뿐인 A2/A2 저지소의 원유. 사일리지 없이 신선한 풀과 건초만 먹여 길렀습니다.",
-      "냉장고 문을 열 때마다 목장의 아침을 떠올리게 하는, 유리병에 담긴 750mL.",
+      "냉장고 문을 열 때마다 목장의 아침을 떠올리게 하는, 넉넉한 750mL 한 병.",
     ],
     specs: [
       { label: "원유", value: "A2/A2 저지 원유 100%" },
@@ -253,7 +253,7 @@ export const PRODUCTS: Product[] = [
       ingredients: "원유(A2/A2 저지 원유 100%, 국산)",
       content: "750mL (570 kcal)",
       storage: "냉장 0–10℃ 보관",
-      packaging: "유리병 / 종이팩",
+      packaging: "PET병",
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관, 가능한 빨리 드십시오)",
     },
