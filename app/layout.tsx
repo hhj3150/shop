@@ -21,6 +21,9 @@ const notoSans = Noto_Sans_KR({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
+  // 한글 본문 폰트는 latin 서브셋 preload가 무용하고 LCP 이미지와 대역폭을
+  // 경쟁한다. preload 해제 → LCP 우선, display:swap이 폴백으로 첫 페인트 보장.
+  preload: false,
 });
 
 const notoSerif = Noto_Serif_KR({
@@ -28,6 +31,7 @@ const notoSerif = Noto_Serif_KR({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   display: "swap",
+  preload: false,
 });
 
 const cormorant = Cormorant_Garamond({

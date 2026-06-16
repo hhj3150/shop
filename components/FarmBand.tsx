@@ -19,7 +19,6 @@ export function FarmBand() {
             width={1122}
             height={1402}
             sizes="(max-width:1024px) 100vw, 50vw"
-            priority
             className="h-auto w-full"
           />
 
