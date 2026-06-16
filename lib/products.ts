@@ -300,11 +300,11 @@ export const PRODUCTS: Product[] = [
       { label: "구분", value: "과세품 · 세금 포함가" },
     ],
     label: {
-      type: "발효유 (호상)",
+      type: "발효유 (액상)",
       ingredients: "원유(A2 저지 원유, 국산), 유산균",
       content: "180mL (약 140 kcal)",
       storage: "냉장 0–10℃ 보관",
-      packaging: "용기·뚜껑(PP/PS 등)",
+      packaging: "PET병",
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관)",
     },
@@ -340,7 +340,7 @@ export const PRODUCTS: Product[] = [
     taglineEm: "깊이.",
     shortDesc: "건강한 우유, 프리미엄 유산균, 12시간 발효. 가족이 넉넉히.",
     story: [
-      "온 가족이 나누는 500mL. 떠먹을수록 진해지는 텍스처는 좋은 원유에서만 나옵니다.",
+      "온 가족이 나누는 500mL. 한 모금마다 느껴지는 농밀함은 좋은 원유에서만 나옵니다.",
       "무엇을 더해도 흔들리지 않는 베이스. 사일리지 없는 헤이밀크 원유의 단단함입니다.",
     ],
     specs: [
@@ -351,11 +351,11 @@ export const PRODUCTS: Product[] = [
       { label: "구분", value: "과세품 · 세금 포함가" },
     ],
     label: {
-      type: "발효유 (호상)",
+      type: "발효유 (액상)",
       ingredients: "원유(A2 저지 원유, 국산), 유산균",
       content: "500mL (약 390 kcal)",
       storage: "냉장 0–10℃ 보관",
-      packaging: "용기·뚜껑(PP/PS 등)",
+      packaging: "PET병",
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관)",
     },
