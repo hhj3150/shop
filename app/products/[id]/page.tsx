@@ -11,7 +11,7 @@ import {
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
-import { ProductHighlights } from "@/components/ProductHighlights";
+import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights";
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
 import { Footer } from "@/components/Footer";
@@ -151,11 +151,8 @@ export default async function ProductPage({
                   {product.volume}
                 </span>
               </h1>
-              {/* 브랜드 한 줄(보조) */}
-              <p className="mx-auto mt-2 max-w-md font-serif-kr text-[13.5px] leading-relaxed text-ink-soft lg:mx-0">
-                {product.tagline}{" "}
-                <span className="font-display italic text-gold">{product.taglineEm}</span>
-              </p>
+              {/* 브랜드 한 줄 — 0.01% 선언(태그라인 대체) */}
+              <ProductKicker highlights={product.highlights} />
               <ProductHeroPrice product={product} maxRate={maxRate} />
               <div className="mt-4 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
                 <a
