@@ -28,23 +28,30 @@ function renderRich(text: string, strongClass: string) {
     });
 }
 
-// 히어로 요약 — CTA 버튼 아래. 선언 한 줄 + 무선(無線) 스펙시트.
+// 0.01% 선언 — 제목 바로 아래(태그라인 자리). 브랜드의 한 줄.
+export function ProductKicker({ highlights }: { highlights?: Highlights }) {
+  if (!highlights) return null;
+
+  return (
+    <p className="mx-auto mt-3 max-w-md font-serif-kr text-[clamp(1rem,2.1vw,1.18rem)] font-medium leading-snug tracking-[-0.015em] text-ink lg:mx-0">
+      {highlights.kicker.split("\n").map((line, i) => (
+        <span key={i} className="block">
+          {renderRich(line, "font-medium text-gold")}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+// 히어로 요약 — CTA 버튼 아래. 핵심 차별점만 무선(無線) 스펙시트로.
 // 효능 표현 없이 사실만(식품 표시·광고법 안전선).
 export function ProductHighlights({ highlights }: { highlights?: Highlights }) {
   if (!highlights) return null;
-  const { kicker, rows, proof } = highlights;
+  const { rows, proof } = highlights;
 
   return (
     <div className="mx-auto mt-6 max-w-sm border-t border-ink/10 pt-6 text-left lg:mx-0 lg:max-w-none">
-      <p className="text-center font-serif-kr text-[clamp(1.15rem,2.4vw,1.4rem)] font-medium leading-[1.3] tracking-[-0.015em] text-ink lg:text-left">
-        {kicker.split("\n").map((line, i) => (
-          <span key={i} className="block">
-            {renderRich(line, "font-medium text-gold")}
-          </span>
-        ))}
-      </p>
-
-      <dl className="mt-4 space-y-2">
+      <dl className="space-y-1.5">
         {rows.map((row) => (
           <div key={row.k} className="flex items-baseline gap-4">
             <dt className="w-12 flex-none pt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/35">
