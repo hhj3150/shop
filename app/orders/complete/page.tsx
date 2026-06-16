@@ -135,7 +135,38 @@ function Complete() {
           </p>
         )}
 
-        <div className="mt-9 flex justify-center gap-3">
+        {/* 단품 → 구독 브리지 — 이미 한 번 산 분을 가장 싸게 전환. AI 상담으로 핸드오프. */}
+        <div className="mt-9 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
+          <p className="font-serif-kr text-[18px] font-medium text-ink">다음 주도, 같은 신선함을.</p>
+          <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
+            정기구독은 회당 최대{" "}
+            <span className="font-semibold text-gold-deep">15% 더 저렴</span>하고, 매주 같은 요일에
+            자동으로 도착합니다. 매번 주문·입금하지 않아도 돼요.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/#subscribe"
+              className="rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.98]"
+            >
+              정기구독 보기
+            </Link>
+            <button
+              type="button"
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("shop:assistant-open", {
+                    detail: { prompt: "단품으로 처음 마셔봤어요. 저한테 맞는 정기구독은 무엇일까요?" },
+                  })
+                )
+              }
+              className="rounded-full border border-gold/50 px-5 py-2.5 text-[14px] font-medium text-gold-deep transition-[transform,colors] hover:border-gold hover:bg-gold/10 active:scale-[0.98]"
+            >
+              맞는 구독 AI 상담
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-center gap-3">
           {!isGuest && (
             <Link href="/account" className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
               내 주문 보기
@@ -143,11 +174,7 @@ function Complete() {
           )}
           <Link
             href="/#products"
-            className={
-              isGuest
-                ? "rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep"
-                : "rounded-full border border-line px-6 py-3 text-sm text-ink-soft hover:border-gold hover:text-gold"
-            }
+            className="rounded-full border border-line px-6 py-3 text-sm text-ink-soft hover:border-gold hover:text-gold"
           >
             계속 둘러보기
           </Link>

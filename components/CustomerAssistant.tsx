@@ -64,6 +64,19 @@ export function CustomerAssistant() {
     return () => window.removeEventListener("shop:addbar", onAddBar);
   }, []);
 
+  // 퍼널 핸드오프: 다른 화면(단품 완료 등)에서 'shop:assistant-open'을 발행하면
+  //   어시스턴트를 열고, 함께 온 질문(prompt)을 입력칸에 채워 맞춤 상담으로 이어준다.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      setOpen(true);
+      setShowNudge(false);
+      const seed = (e as CustomEvent).detail?.prompt;
+      if (typeof seed === "string" && seed) setInput(seed);
+    };
+    window.addEventListener("shop:assistant-open", onOpen);
+    return () => window.removeEventListener("shop:assistant-open", onOpen);
+  }, []);
+
   // 넛지 등장 게이트: 첫 화면을 가리지 않도록, 첫 화면 60% 스크롤 또는 6초 경과 중
   //   먼저 도달하는 시점에만 노출한다. 둘 중 하나가 충족되면 리스너·타이머를 정리한다.
   useEffect(() => {
