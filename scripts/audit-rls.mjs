@@ -133,6 +133,19 @@ async function main() {
     else { leak++; console.log(`🚨 누출   referral_reward_void   비관리자가 보상 변경 성공!`); }
   }
 
+  console.log("\n── 결제 무결성: anon이 가짜 시크릿으로 결제 RPC 호출 → 거부돼야 함(위변조 방지) ──");
+  const payProbes = [
+    ["confirm_payment", { p_order_no: "AUDIT-NONEXISTENT", p_secret: "wrong-" + "x".repeat(16), p_paid_amount: 0 }, "가짜 입금확인"],
+    ["payaction_confirm", { p_order_no: "AUDIT-NONEXISTENT", p_secret: "wrong-" + "x".repeat(16), p_trace_id: "audit" }, "가짜 페이액션 입금"],
+    ["store_billing_key", { p_secret: "wrong-" + "x".repeat(16), p_user_id: "00000000-0000-0000-0000-000000000000", p_billing_key: "audit-fake" }, "남의 결제키 등록"],
+  ];
+  for (const [fn, args, desc] of payProbes) {
+    const { data, error } = await anon.rpc(fn, args);
+    if (error && isNetErr(error)) { incon++; console.log(`⚠️ 미확정 ${fn.padEnd(20)} 연결실패`); }
+    else if (error) { safe++; console.log(`✅ 안전   ${fn.padEnd(20)} ${desc} 차단: "${(error.message||"").slice(0,28)}"`); }
+    else { leak++; console.log(`🚨 누출   ${fn.padEnd(20)} ${desc} 성공! 시크릿 없이 통과 (${JSON.stringify(data).slice(0,40)})`); }
+  }
+
   console.log(`\n────────────────────────────────`);
   console.log(`✅ 안전 ${safe} · 🚨 누출 ${leak} · ⚠️ 미확정 ${incon}`);
   if (leak>0) console.log("→ ⚠️ 누출 발견! 위 🚨 RLS 정책 즉시 점검.");
