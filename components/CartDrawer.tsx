@@ -214,10 +214,9 @@ export function CartDrawer() {
                         />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] text-ink">
-                          {p.name} {p.volume}
-                        </p>
+                        <p className="truncate text-[13px] text-ink">{p.name}</p>
                         <p className="mt-0.5 text-[12px] tabular-nums text-gold-deep">
+                          <span className="font-medium">{p.volume}</span> ·{" "}
                           {formatKRW(weeklyPrice(p.id))} / 회
                           {p.soldOut && <span className="ml-1.5 text-mute">품절</span>}
                         </p>
