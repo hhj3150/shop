@@ -39,7 +39,9 @@ export function FarmBand() {
               {EYEBROW}
             </p>
             <h2 className="mt-3 font-serif-kr text-[clamp(1.7rem,6vw,2.4rem)] font-medium leading-[1.16] text-cream">
-              풀과 건초로 기른 <span className="text-gold">100% A2 저지.</span>
+              풀과 건초로 기른
+              <br />
+              <span className="text-gold">100% A2 저지.</span>
             </h2>
             <p className="mt-3 text-[14px] tracking-wide text-cream/65">{SUB}</p>
           </div>
