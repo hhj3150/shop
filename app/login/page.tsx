@@ -20,6 +20,8 @@ function LoginForm() {
   const params = useSearchParams();
   const next = params.get("next") || "/account";
   const { configured } = useAuth();
+  // 구독 결제로 오던 길이면(=고관여 진입), 막다른 벽 대신 혜택 + 무로그인 단품 대안을 보여준다.
+  const fromCheckout = next.includes("checkout");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +62,27 @@ function LoginForm() {
         <p className="mt-6 rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] text-gold-deep">
           현재 회원 시스템 연결이 설정되지 않았습니다.
         </p>
+      )}
+
+      {fromCheckout && (
+        <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-5">
+          <p className="text-[14px] leading-relaxed text-ink-soft">
+            정기구독은 <span className="font-medium text-ink">구독 관리·적립금·재구매 자동</span>을 위해
+            회원으로 시작합니다. 가입은 30초면 됩니다.
+          </p>
+          <Link
+            href={`/signup?next=${encodeURIComponent(next)}`}
+            className="mt-3 inline-flex rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.98]"
+          >
+            30초 가입하고 구독 시작
+          </Link>
+          <p className="mt-3 text-[13px] text-mute">
+            처음이세요?{" "}
+            <Link href="/order-once" className="text-gold-deep underline underline-offset-2 hover:text-gold">
+              로그인 없이 단품으로 먼저 맛보기 →
+            </Link>
+          </p>
+        </div>
       )}
 
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
@@ -108,7 +131,10 @@ function LoginForm() {
 
       <p className="mt-3 text-center text-[14px] text-mute">
         아직 회원이 아니신가요?{" "}
-        <Link href="/signup" className="text-gold-deep underline hover:text-gold">
+        <Link
+          href={`/signup?next=${encodeURIComponent(next)}`}
+          className="text-gold-deep underline hover:text-gold"
+        >
           회원가입
         </Link>
       </p>

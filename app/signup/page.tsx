@@ -96,7 +96,10 @@ export default function SignupPage() {
 
       if (data.session) {
         // 이메일 확인이 꺼져 있어 즉시 로그인됨. 후속 작업은 AuthProvider 의 SIGNED_IN 가 처리.
-        router.push("/account");
+        // 구독 결제 등에서 넘어왔으면(next) 그 흐름으로 매끄럽게 복귀(내부 경로만 허용).
+        const raw = new URLSearchParams(window.location.search).get("next");
+        const dest = raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/account";
+        router.push(dest);
       } else {
         // 이메일 확인 필요 → 확인 후 최초 로그인 시 프로필 생성·후속 작업이 자동 처리된다.
         setInfo(
