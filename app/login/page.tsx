@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { Field } from "@/components/Field";
+import { KakaoLoginButton } from "@/components/KakaoLoginButton";
 
 export default function LoginPage() {
   return (
@@ -64,6 +65,13 @@ function LoginForm() {
         </p>
       )}
 
+      {/* 카카오 — 한 번에 시작(가입+로그인). 한국 사용자 주력 동선. */}
+      {configured && (
+        <div className="mt-6">
+          <KakaoLoginButton next={next} />
+        </div>
+      )}
+
       {fromCheckout && (
         <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 p-5">
           <p className="text-[14px] leading-relaxed text-ink-soft">
@@ -85,7 +93,15 @@ function LoginForm() {
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-5">
+      {configured && (
+        <div className="mt-7 flex items-center gap-3 text-[12px] text-mute">
+          <span className="h-px flex-1 bg-line" />
+          또는 이메일로
+          <span className="h-px flex-1 bg-line" />
+        </div>
+      )}
+
+      <form onSubmit={onSubmit} className="mt-6 space-y-5">
         <Field
           id="email"
           label="이메일"

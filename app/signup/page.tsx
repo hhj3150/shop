@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { Field } from "@/components/Field";
+import { KakaoLoginButton } from "@/components/KakaoLoginButton";
 import { AddressSearch } from "@/components/AddressSearch";
 import { MembershipAssurance } from "@/components/MembershipAssurance";
 import { SocialProof } from "@/components/SocialProof";
@@ -175,7 +176,21 @@ export default function SignupPage() {
         </p>
       )}
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-5">
+      {/* 카카오 — 3초 가입(이름·연락처는 결제 시 한 번만). 한국 사용자 주력 동선. */}
+      {configured && (
+        <>
+          <div className="mt-7">
+            <KakaoLoginButton />
+          </div>
+          <div className="mt-7 flex items-center gap-3 text-[12px] text-mute">
+            <span className="h-px flex-1 bg-line" />
+            또는 이메일로 가입
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
+
+      <form onSubmit={onSubmit} className="mt-6 space-y-5">
         <Field
           id="name"
           label="이름"
