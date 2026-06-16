@@ -14,6 +14,7 @@ export function Hero() {
             width={800}
             height={800}
             priority
+            sizes="112px"
             className="mb-4 w-[104px] max-w-full sm:w-[112px]"
           />
 
