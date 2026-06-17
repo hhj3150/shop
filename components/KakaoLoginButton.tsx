@@ -21,7 +21,10 @@ export function KakaoLoginButton({ next }: { next?: string }) {
       const redirectTo = `${window.location.origin}${dest}`;
       const { error } = await getSupabase().auth.signInWithOAuth({
         provider: "kakao",
-        options: { redirectTo },
+        // 카카오 동의항목에서 켜둔 항목(닉네임)만 요청한다.
+        //   Supabase 기본값은 이메일(account_email)도 요청하는데, 카카오 앱에서
+        //   이메일이 "사용 안 함"이면 KOE205로 거부된다. 비즈앱 전환 전까지 닉네임만.
+        options: { redirectTo, scopes: "profile_nickname" },
       });
       if (error) throw error;
       // 정상 시 카카오로 페이지가 이동하므로 이후 코드는 실행되지 않는다.
