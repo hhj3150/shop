@@ -49,28 +49,28 @@ const BADGES: Badge[] = [
 
 export function TrustBadges() {
   return (
-    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <ul className="grid grid-cols-1 divide-y divide-line border-y border-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {BADGES.map((b) => (
         <li
           key={b.title}
-          className="flex items-center gap-3 rounded-2xl border border-line bg-paper-2/40 px-4 py-3.5 sm:flex-col sm:items-start sm:gap-2"
+          className="flex items-center gap-4 py-5 sm:flex-col sm:items-start sm:gap-3 sm:px-6 sm:py-7 sm:first:pl-0 sm:last:pr-0"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/12 text-gold-deep">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gold/8 text-gold-deep ring-1 ring-line">
             <svg
-              width="19"
-              height="19"
+              width="22"
+              height="22"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.5"
+              strokeWidth="1.3"
               aria-hidden
             >
               {b.icon}
             </svg>
           </span>
           <div className="min-w-0">
-            <p className="text-[13.5px] font-medium text-ink">{b.title}</p>
-            <p className="mt-0.5 text-[12px] leading-snug text-mute">{b.desc}</p>
+            <p className="font-serif-kr text-[15px] text-ink">{b.title}</p>
+            <p className="mt-1 text-[12px] leading-snug text-mute">{b.desc}</p>
           </div>
         </li>
       ))}

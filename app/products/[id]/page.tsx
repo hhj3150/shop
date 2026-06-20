@@ -209,14 +209,17 @@ export default async function ProductPage({
           </div>
 
           {/* Specs — quick reference */}
-          <dl className="mx-auto mt-8 max-w-xl divide-y divide-line border-y border-line px-5 sm:px-8 lg:mx-0 lg:mt-8 lg:max-w-none lg:px-0">
-            {product.specs.map((s) => (
-              <div key={s.label} className="flex items-baseline justify-between gap-4 py-4">
-                <dt className="shrink-0 text-[13px] uppercase tracking-[0.18em] text-mute">{s.label}</dt>
-                <dd className="min-w-0 break-keep text-right text-[14px] text-ink">{s.value}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="mx-auto mt-12 max-w-xl px-5 sm:px-8 lg:mx-0 lg:mt-14 lg:max-w-none lg:px-0">
+            <p className="eyebrow text-gold-deep">Specification</p>
+            <dl className="mt-5 divide-y divide-line border-t border-line">
+              {product.specs.map((s) => (
+                <div key={s.label} className="flex items-baseline justify-between gap-4 py-5">
+                  <dt className="shrink-0 text-[11px] uppercase tracking-[0.22em] text-mute">{s.label}</dt>
+                  <dd className="min-w-0 break-keep text-right font-serif-kr text-[15.5px] text-ink-soft">{s.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
 
           {/* 구매평 — 별점 후기 */}
           <ProductReviews productId={product.id} />
