@@ -50,6 +50,17 @@ export type ProductHighlights = {
   proof: string; // 출처 한 줄(공인 분석 접수번호 등)
 };
 
+// 시그니처 증명 — 제품별 단 하나의 대표 수치(임팩트) + 정체성 한 줄.
+// 모든 수치는 검증된 사실(분석·시험성적서). 효능·기능성 암시 금지.
+export type ProductSignature = {
+  topLabel: string; // 수치 위 소형 라벨 ("오메가 6 : 3 비율", "병당 총 유산균")
+  pre?: string; // 숫자 앞 한글(작은 명조). 예: "약"
+  figure: string; // 핵심 수치 — 라틴 디스플레이로 크게 ("2 : 1", "1,300")
+  unit?: string; // 숫자 뒤 한글(작은 명조). 예: "억"
+  caption: string; // 출처·기준 한 줄
+  identity: string; // 정체성 한 줄(· 구분)
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -66,6 +77,7 @@ export type Product = {
   label: ProductLabel;
   nutrition: Nutrition;
   highlights?: ProductHighlights;
+  signature?: ProductSignature;
   price: number;
   taxFree: boolean;
   image: string;
@@ -92,6 +104,36 @@ const YOGURT_HIGHLIGHTS: ProductHighlights = {
     { k: "발효", v: "유산균과 ~12시간~. 그뿐입니다." },
   ],
   proof: "공인 영양성분 분석 · 26-06-BR0115 · 무증점제",
+};
+
+// 시그니처 증명 — 우유 라인 공유(같은 원유·분석성적서). 오메가 6:3 = 2:1.
+const MILK_SIGNATURE: ProductSignature = {
+  topLabel: "오메가 6 : 3 비율",
+  figure: "2 : 1",
+  caption: "당사 분석 기준 · 26-06-BR0114",
+  identity: "A2/A2 저지 원유 100% · 사일리지 없는 헤이밀크 · 국내 0.01%",
+};
+// (pre/unit 미지정 — 우유는 비율이라 한글 단위 없음)
+
+// 요거트 시그니처 — 1g당 7.2억 CFU(공인)를 병당 총량으로 환산(1mL≈1g 보수적).
+//   180mL → 7.2억×180 = 1,296억 ≈ 약 1,300억 / 500mL → 3,600억.
+//   실제 요거트 밀도는 1g/mL 초과라 실측은 이보다 많음(과장 아님).
+const YOGURT_SIGNATURE_180: ProductSignature = {
+  topLabel: "병당 총 유산균",
+  pre: "약",
+  figure: "1,300",
+  unit: "억",
+  caption: "1g당 7.2억 CFU · 공인 시험성적서",
+  identity: "A2 저지 원유 100% · 12시간 발효 · 무가당",
+};
+
+const YOGURT_SIGNATURE_500: ProductSignature = {
+  topLabel: "통당 총 유산균",
+  pre: "약",
+  figure: "3,600",
+  unit: "억",
+  caption: "1g당 7.2억 CFU · 공인 시험성적서",
+  identity: "A2 저지 원유 100% · 12시간 발효 · 무가당",
 };
 
 // ───────── 정기구독 정책 ─────────
@@ -216,6 +258,7 @@ export const PRODUCTS: Product[] = [
       ],
     },
     highlights: MILK_HIGHLIGHTS,
+    signature: MILK_SIGNATURE,
     price: 3500,
     taxFree: true,
     image: "/products/milk-180-pure.webp",
@@ -267,6 +310,7 @@ export const PRODUCTS: Product[] = [
       ],
     },
     highlights: MILK_HIGHLIGHTS,
+    signature: MILK_SIGNATURE,
     price: 12000,
     taxFree: true,
     image: "/products/milk-750-pure.webp",
@@ -318,6 +362,7 @@ export const PRODUCTS: Product[] = [
       ],
     },
     highlights: YOGURT_HIGHLIGHTS,
+    signature: YOGURT_SIGNATURE_180,
     price: 4300,
     taxFree: false,
     image: "/products/yogurt-180-pure.webp",
@@ -369,6 +414,7 @@ export const PRODUCTS: Product[] = [
       ],
     },
     highlights: YOGURT_HIGHLIGHTS,
+    signature: YOGURT_SIGNATURE_500,
     price: 10000,
     taxFree: false,
     image: "/products/yogurt-500-pure.webp",

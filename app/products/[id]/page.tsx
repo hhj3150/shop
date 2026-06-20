@@ -14,6 +14,7 @@ import { ProductHeroPrice } from "@/components/ProductCommercial";
 import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights";
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
+import { ProductSignature } from "@/components/ProductSignature";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
 import { SwipeNav } from "@/components/SwipeNav";
@@ -188,6 +189,9 @@ export default async function ProductPage({
           </div>
         </div>
       </section>
+
+      {/* 시그니처 증명 — 제품별 대표 수치 하나를 크게(우유=오메가 2:1, 요거트=병당 유산균) */}
+      <ProductSignature signature={product.signature} />
 
       {/* 구매 — 데스크톱은 우측 스티키 구매카드 + 좌측 보조콘텐츠 2단, 모바일은 현행 세로 흐름 유지 */}
       <div className="lg:mx-auto lg:grid lg:max-w-7xl lg:grid-cols-[1fr_400px] lg:items-start lg:gap-12 lg:px-8 lg:pt-12">
