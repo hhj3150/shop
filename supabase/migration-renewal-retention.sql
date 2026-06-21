@@ -41,9 +41,10 @@ declare
   v_expected text;
   v_today    date := (now() at time zone 'Asia/Seoul')::date;
 begin
-  select decrypted_secret into v_expected
-    from vault.decrypted_secrets
-   where name = 'renewal_reminder_secret';
+  -- 시크릿 컬럼을 별칭(ds)으로 명시 — RETURNS TABLE 출력변수 name 과의 모호성 제거
+  select ds.decrypted_secret into v_expected
+    from vault.decrypted_secrets ds
+   where ds.name = 'renewal_reminder_secret';
   if v_expected is null or coalesce(p_secret, '') = '' or p_secret <> v_expected then
     raise exception 'forbidden';
   end if;
