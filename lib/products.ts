@@ -88,9 +88,9 @@ export type Product = {
 // 모든 줄은 검증된 사실 서술. 질병·기능성 암시 금지.
 const MILK_HIGHLIGHTS: ProductHighlights = {
   kicker: "0.01%의 소로,\n*0.01%*를 위해.",
+  // 오메가 6:3=2:1은 히어로 아래 시그니처가 크게 소유 → 중복 방지 위해 여기선 제외.
   rows: [
     { k: "살균", v: "*HTST 살균.* 최소한의 균질." },
-    { k: "오메가", v: "6:3, ~2:1~의 균형.", em: "당사 분석 기준" },
     { k: "원산지", v: "*100% 국내산* A2 저지." },
   ],
   proof: "공인 영양성분 분석 · 26-06-BR0114",
@@ -98,8 +98,8 @@ const MILK_HIGHLIGHTS: ProductHighlights = {
 
 const YOGURT_HIGHLIGHTS: ProductHighlights = {
   kicker: "0.01%의 우유로,\n*0.01%*를 위해.",
+  // 유산균 수치는 히어로 아래 시그니처가 '병당 총량'으로 크게 소유 → 여기선 제외.
   rows: [
-    { k: "유산균", v: "~1g당 7.2억~ CFU.", em: "공인 시험성적서" },
     { k: "당류", v: "*무설탕.* 남은 당은 우유 유당뿐.", em: "12시간 발효로 원유 5.9g → 3.5g (100g당)" },
     { k: "발효", v: "유산균과 ~12시간~. 그뿐입니다." },
   ],
