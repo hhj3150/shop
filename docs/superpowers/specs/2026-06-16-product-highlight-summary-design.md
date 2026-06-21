@@ -70,3 +70,16 @@
 
 - 영양성분표·시험성적서 이미지를 본문 '증빙'으로 노출(신뢰도↑) — 추후 옵션.
 - 요거트 식품유형(호상 vs 드링킹) 사실 확인 후 eyebrow/라벨 정합화.
+
+## 보충 구현: 시그니처 증명 섹션 (2026-06-21)
+
+히어로 요약(ProductHighlights)과 별개로, 제품별 **단 하나의 대표 수치**를 히어로 아래 풀폭으로 크게 부각한다.
+
+- 데이터: `lib/products.ts`에 `ProductSignature { topLabel; pre?; figure; unit?; caption; identity }` 타입 + 제품별 `signature` 필드.
+  - 우유(공유): `오메가 6 : 3 비율` / `2 : 1` / 당사 분석 기준 · 26-06-BR0114.
+  - 요거트 180·500: `병당(통당) 총 유산균` / `약 1,300억`·`약 3,600억` / 1g당 7.2억 CFU · 공인 시험성적서.
+  - 유산균 병당값 = 공인 1g당 7.2억 × 용량(1mL≈1g 보수적 환산 → 실측 이상, 과장 아님). 출처 병기로 표시·광고법 안전.
+- 컴포넌트: `components/ProductSignature.tsx`. 조판 = 라틴 수치 디스플레이 세리프(`.font-display` = Cormorant) + 한글 단위 작은 명조(`font-serif-kr`) + 얇은 골드 필레. 박스 없이 여백·위계로(애플 절제 × 에르메스 장인성).
+- 배치: `app/products/[id]/page.tsx` 히어로 `</section>` 직후.
+- 중복 정리: 히어로 ProductHighlights에서 오메가(우유)·유산균(요거트) 행 제거 — 헤드라인 증명은 시그니처가 소유.
+- 디자인 기준: 메모리 `feedback_design_bar`.
