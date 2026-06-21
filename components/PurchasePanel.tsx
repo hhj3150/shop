@@ -229,9 +229,8 @@ export function PurchasePanel({ product }: { product: Product }) {
           </div>
         ) : (
           <p className="mt-2 text-[13px] text-ink-soft">
-            {DELIVERY_DAY_LABEL[deliveryDay]} ·{" "}
-            <span className="font-medium text-gold-deep">{selectedRemaining}자리</span>{" "}
-            남음 (현재 {selected.taken}번째까지 모집)
+            매주 {DELIVERY_DAY_LABEL[deliveryDay]} 발송 · 선착순{" "}
+            <span className="font-medium text-gold-deep">{selectedRemaining}자리</span> 남음
           </p>
         ))}
 
