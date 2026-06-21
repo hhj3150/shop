@@ -13,8 +13,10 @@ export function ProductHeroPrice({ product, maxRate }: { product: Product; maxRa
   const memberPrice = subscribePrice(live.price, maxRate / 100);
   return (
     <div className="mt-4">
+      {/* 이 가격이 '정기구독' 회원가임을 명시 — 옆 단품구매 CTA와 혼동 방지 */}
+      <p className="text-[11px] tracking-wide text-mute">정기구독 회원가</p>
       {/* 가격 — 회원가를 앞세우고 정가는 취소선으로 가치 대비를 즉시 인지 */}
-      <div className="flex items-baseline justify-center gap-2.5 lg:justify-start">
+      <div className="mt-1 flex items-baseline justify-center gap-2.5 lg:justify-start">
         <p className="text-[clamp(1.5rem,4vw,1.9rem)] font-semibold leading-none text-ink lining-nums tabular-nums">
           {formatKRW(memberPrice)}
           <span className="ml-1.5 align-baseline text-[13.5px] font-normal text-mute">/ 회</span>

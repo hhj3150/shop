@@ -80,21 +80,23 @@ export function ProductReviews({ productId }: { productId: string }) {
         <h2 className="mt-3 font-serif-kr text-xl font-medium text-ink">구매평</h2>
       </Reveal>
 
-      {/* 평균 별점 요약 */}
-      <div className="mt-6 flex items-center gap-4 rounded-2xl border border-line bg-cream p-5">
-        <div className="text-center">
-          <p className="font-serif-kr text-3xl tabular-nums text-ink">
-            {reviews.length > 0 ? avg.toFixed(1) : "–"}
-          </p>
-          <p className="mt-0.5 text-[12px] text-mute">/ 5.0</p>
+      {/* 평균 별점 요약 — 후기가 있을 때만. 빈 '– / 5.0' 카드가 신규 신뢰를 깎지 않도록. */}
+      {reviews.length > 0 && (
+        <div className="mt-6 flex items-center gap-4 rounded-2xl border border-line bg-cream p-5">
+          <div className="text-center">
+            <p className="font-serif-kr text-3xl tabular-nums text-ink">
+              {avg.toFixed(1)}
+            </p>
+            <p className="mt-0.5 text-[12px] text-mute">/ 5.0</p>
+          </div>
+          <div>
+            <Stars value={avg} size={20} />
+            <p className="mt-1 text-[13px] text-mute">
+              후기 {reviews.length}개
+            </p>
+          </div>
         </div>
-        <div>
-          <Stars value={avg} size={20} />
-          <p className="mt-1 text-[13px] text-mute">
-            후기 {reviews.length}개
-          </p>
-        </div>
-      </div>
+      )}
 
       {/* 작성 폼 */}
       {user ? (
