@@ -6,7 +6,7 @@
 import { useMemo, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { PrintButton } from "@/components/PrintButton";
-import { stockShipOut } from "@/lib/inventory-data";
+import { stockShipOut, recordShipmentTracking } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
@@ -536,6 +536,8 @@ export function DispatchPanel({
         const sb = getSupabase();
         const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
         if (error) throw error;
+        // 회차별 배송 레코드(shipment_log)에도 그 회차 송장을 기록 — 회차 이력·고객 추적의 권위값.
+        await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
         if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
       }
       setJustShipped((prev) => new Set(prev).add(k));
@@ -570,6 +572,7 @@ export function DispatchPanel({
       const sb = getSupabase();
       const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
       if (error) throw error;
+      await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
       if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
       await onReload();
     } catch (e) {
@@ -658,23 +661,31 @@ export function DispatchPanel({
     setError(null);
     try {
       const sb = getSupabase();
-      // 행 출고와 동일한 결정 로직 공유 — 송장·상태·문자 처리를 일관되게 유지.
+      // 행 출고와 완전히 동일하게: 재고차감(stock_ship_out, 회차당 1회·서버 멱등) +
+      //   주문 갱신 + 회차 송장 기록(shipment_log)까지 일괄로 수행한다. 선택 발송도 '출고'로
+      //   보고 재고·회차 이력을 정확히 남겨, 행 출고와 결과가 갈리지 않게 한다.
       const results = await Promise.all(
-        targets.map((r) => {
+        targets.map(async (r) => {
           const o = r.o;
           const decision = decideShipOut({
             status: o.status,
             shipped_at: o.shipped_at,
             courier,
             trackingNo: trackingOf(r),
-            shipISO: date,
+            shipISO: r.shipISO,
             alreadyShipped: isShipped(r),
           });
-          return sb
-            .from("orders")
-            .update(decision.patch ?? {})
-            .eq("id", o.id)
-            .then(({ error }) => ({ o, decision, error }));
+          try {
+            await stockShipOut(o.id, r.shipISO); // 이미 출고된 회차면 서버가 'already' → 이중차감 없음
+            if (decision.patch) {
+              const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
+              if (error) throw error;
+              await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
+            }
+            return { o, decision, error: null as { message?: string } | null };
+          } catch (e) {
+            return { o, decision, error: { message: e instanceof Error ? e.message : "처리 실패" } };
+          }
         })
       );
       // 업데이트 성공 + 새로 '배송중'으로 전환된 건에만 발송 문자를 보낸다.
