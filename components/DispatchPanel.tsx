@@ -338,6 +338,21 @@ export function DispatchPanel({
 
   const allSelected = queue.length > 0 && queue.every((r) => selected.has(r.o.id));
 
+  // 발송 진척도 — 선택 날짜의 배송 대상(필터 무관) 중 출고완료/미발송 집계.
+  //   회차 단위 출고 이력(shipment_log 기반 isShipped)으로 '오늘 얼마나 보냈나'를 한눈에.
+  const dayProgress = useMemo(() => {
+    const inDay = allRows.filter((r) => {
+      if (!useDateFilter) return true;
+      const o = r.o;
+      if (o.order_type === "단품") return o.ship_date === date || isCarriedOver(o, date);
+      return dayOfDate !== null && r.dayKey === dayOfDate;
+    });
+    let shipped = 0;
+    for (const r of inDay) if (isShipped(r)) shipped += 1;
+    return { total: inDay.length, shipped, pending: inDay.length - shipped };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRows, useDateFilter, date, dayOfDate, shippedKeys, justShipped]);
+
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -839,6 +854,28 @@ export function DispatchPanel({
           ))}
         </select>
       </div>
+
+      {/* 발송 진척도 — 선택 날짜 배송 대상의 출고완료/미발송 한눈 요약 */}
+      {useDateFilter && dayProgress.total > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-line bg-paper px-4 py-2.5 text-[13px] no-print">
+          <span className="font-medium text-ink">발송 진척도</span>
+          <span className="text-mute">
+            총 <span className="tabular-nums font-semibold text-ink">{dayProgress.total}</span>건
+          </span>
+          <span className="text-emerald-700">
+            발송완료 <span className="tabular-nums font-semibold">{dayProgress.shipped}</span>
+          </span>
+          <span className={dayProgress.pending > 0 ? "text-gold-deep" : "text-mute"}>
+            미발송 <span className="tabular-nums font-semibold">{dayProgress.pending}</span>
+          </span>
+          <span className="ml-auto h-2 w-32 overflow-hidden rounded-full bg-line/60" aria-hidden>
+            <span
+              className="block h-full rounded-full bg-emerald-500 transition-[width]"
+              style={{ width: `${Math.round((dayProgress.shipped / dayProgress.total) * 100)}%` }}
+            />
+          </span>
+        </div>
+      )}
 
       {/* 일괄 도구 */}
       <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paper p-3 no-print">
