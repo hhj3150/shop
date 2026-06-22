@@ -351,8 +351,14 @@ export function DispatchPanel({
     setSelected(allSelected ? new Set() : new Set(queue.map((r) => r.o.id)));
   }
 
-  function trackingOf(o: DispatchOrder): string {
-    return tracking[o.id] ?? o.tracking_no ?? "";
+  // 행(회차) 단위 송장값. 운영자가 이번 화면에서 입력한 값이 최우선(빈칸으로 지운 것도 존중).
+  //   저장된 o.tracking_no 는 '이 회차'가 실제 출고된 경우에만 노출한다 — 구독은 같은 주문 행을
+  //   회차마다 재출고하므로, 아직 출고 안 한 다음 회차에 직전 회차 송장이 남아 보이면 운영자가
+  //   그대로 재발송해 오배송이 된다(이전 송장 = 이전 배송 추적). 미출고 회차는 반드시 빈칸.
+  function trackingOf(r: DispatchRow): string {
+    const typed = tracking[r.o.id];
+    if (typed != null) return typed;
+    return isShipped(r) ? (r.o.tracking_no ?? "") : "";
   }
 
   // 붙여넣은 '주문번호+송장번호'를 파싱·매칭해 각 행 송장칸을 자동으로 채운다.
@@ -406,7 +412,19 @@ export function DispatchPanel({
         setLogenPreview(null);
         return;
       }
-      const res = matchLogen(parsed, allRows.map((r) => r.o));
+      // 구독은 같은 주문 행을 회차마다 재출고하므로 o.tracking_no 엔 직전 회차 송장이 남는다.
+      //   원본을 그대로 넘기면 이번 회차가 '이미채움'으로 잘못 분류돼 새 송장이 자동입력되지 않는다.
+      //   → 회차 단위 유효 송장(미출고 회차는 빈값)으로 치환해 매칭한다.
+      const res = matchLogen(
+        parsed,
+        allRows.map((r) => ({
+          id: r.o.id,
+          order_no: r.o.order_no,
+          ship_name: r.o.ship_name,
+          ship_phone: r.o.ship_phone,
+          tracking_no: trackingOf(r) || null,
+        }))
+      );
       setLogenPreview(res);
       const init: Record<number, string> = {};
       for (const m of res.matched) if (m.confidence === "high") init[m.rowIdx] = m.orderId;
@@ -435,9 +453,13 @@ export function DispatchPanel({
     }
     // 모호 행 후보엔 이미 송장이 있는 주문도 섞일 수 있다(lib 가 already-filled 보다 먼저 분류).
     //   기존 송장을 덮어쓰면 오발송이 되므로, 그런 선택이 있으면 전체 적용을 멈춘다.
-    const filled = [...new Set(picks.map(([, id]) => id))].filter(
-      (id) => (orderById.get(id)?.tracking_no ?? "") !== ""
-    );
+    //   판정은 회차 단위 유효 송장(trackingOf)으로 한다 — 구독 다음 회차는 이전 회차 송장이
+    //   주문에 남아 있어도 '아직 미채움'이어야 새 송장을 받을 수 있다.
+    const rowById = new Map(allRows.map((r) => [r.o.id, r]));
+    const filled = [...new Set(picks.map(([, id]) => id))].filter((id) => {
+      const row = rowById.get(id);
+      return row ? trackingOf(row).trim() !== "" : false;
+    });
     if (filled.length > 0) {
       setLogenNote(`이미 송장이 있는 주문이 선택됨(${filled.join(", ")}). 해제 후 다시 시도하세요.`);
       return;
@@ -495,7 +517,7 @@ export function DispatchPanel({
       status: o.status,
       shipped_at: o.shipped_at,
       courier,
-      trackingNo: trackingOf(o),
+      trackingNo: trackingOf(r),
       shipISO: r.shipISO,
     });
     // 송장 없이 출고하면 발송 문자·배송추적이 누락되고 주문이 '입금확인'에 묶인다(되돌리기 번거로움).
@@ -532,7 +554,7 @@ export function DispatchPanel({
       status: o.status,
       shipped_at: o.shipped_at,
       courier,
-      trackingNo: trackingOf(o),
+      trackingNo: trackingOf(r),
       shipISO: r.shipISO,
     });
     if (!decision.patch) {
@@ -590,7 +612,7 @@ export function DispatchPanel({
         r.q[2] ? String(r.q[2]) : "",
         r.q[3] ? String(r.q[3]) : "",
         courierName,
-        excelText(trackingOf(o)),
+        excelText(trackingOf(r)),
         receiptStatus(o),
         o.status,
       ]);
@@ -621,9 +643,7 @@ export function DispatchPanel({
 
   // 선택분 일괄 발송: 송장 입력된 건만 배송중 전환 + 발송일·택배사 기록 + 알림.
   async function bulkShip() {
-    const targets = queue
-      .filter((r) => selected.has(r.o.id) && trackingOf(r.o).trim())
-      .map((r) => r.o);
+    const targets = queue.filter((r) => selected.has(r.o.id) && trackingOf(r).trim());
     if (targets.length === 0) {
       setError("송장번호가 입력된 선택 주문이 없습니다.");
       return;
@@ -638,12 +658,13 @@ export function DispatchPanel({
       const sb = getSupabase();
       // 행 출고와 동일한 결정 로직 공유 — 송장·상태·문자 처리를 일관되게 유지.
       const results = await Promise.all(
-        targets.map((o) => {
+        targets.map((r) => {
+          const o = r.o;
           const decision = decideShipOut({
             status: o.status,
             shipped_at: o.shipped_at,
             courier,
-            trackingNo: trackingOf(o),
+            trackingNo: trackingOf(r),
             shipISO: date,
           });
           return sb
@@ -1148,14 +1169,14 @@ export function DispatchPanel({
                     <td data-label="송장번호" className="py-3">
                       <input
                         type="text"
-                        value={trackingOf(o)}
+                        value={trackingOf(r)}
                         onChange={(e) =>
                           setTracking((prev) => ({ ...prev, [o.id]: e.target.value }))
                         }
                         placeholder="송장번호"
                         className="no-print w-36 rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] tabular-nums text-ink outline-none focus:border-gold"
                       />
-                      <span className="print-only tabular-nums">{trackingOf(o)}</span>
+                      <span className="print-only tabular-nums">{trackingOf(r)}</span>
                     </td>
                     <td data-label="출고" className="no-print py-3">
                       {isShipped(r) ? (
