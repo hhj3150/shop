@@ -15,7 +15,7 @@ export type RosterOrderFields = {
   block_weeks: number | null;
   ship_date: string | null; // 단품 발송 예정일(YYYY-MM-DD)
   ship_name: string;
-  delivery_method?: string; // '택배' | '방문수령' — 방문수령은 발송 대상 제외(미정의=택배 취급)
+  delivery_method?: string | null; // '택배' | '방문수령' — 방문수령은 발송 대상 제외(미정의/널=택배 취급)
 };
 
 // 로스터 판정에 필요한 품목 최소 필드.
