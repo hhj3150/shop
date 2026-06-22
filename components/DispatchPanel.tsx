@@ -519,6 +519,7 @@ export function DispatchPanel({
       courier,
       trackingNo: trackingOf(r),
       shipISO: r.shipISO,
+      alreadyShipped: isShipped(r),
     });
     // 송장 없이 출고하면 발송 문자·배송추적이 누락되고 주문이 '입금확인'에 묶인다(되돌리기 번거로움).
     //   → 송장번호를 필수로 막는다. (출고 후 뒤늦게 넣을 땐 '출고됨' 행의 송장 저장 버튼 사용.)
@@ -556,6 +557,7 @@ export function DispatchPanel({
       courier,
       trackingNo: trackingOf(r),
       shipISO: r.shipISO,
+      alreadyShipped: isShipped(r),
     });
     if (!decision.patch) {
       setError(`${o.ship_name}: 송장번호를 입력해 주세요.`);
@@ -666,6 +668,7 @@ export function DispatchPanel({
             courier,
             trackingNo: trackingOf(r),
             shipISO: date,
+            alreadyShipped: isShipped(r),
           });
           return sb
             .from("orders")
