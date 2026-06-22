@@ -105,6 +105,25 @@ export async function loadShippedKeys(): Promise<Set<string>> {
   }
 }
 
+// 이미 배송완료(도착확인)된 (order_id, ship_date) 키 집합 — DispatchPanel 도착확인 표시용.
+//   delivered_at 이 채워진 회차만. 키 형식: `${order_id}|${ship_date}`.
+export async function loadDeliveredKeys(): Promise<Set<string>> {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("shipment_log")
+      .select("order_id, ship_date")
+      .not("delivered_at", "is", null);
+    if (error) throw error;
+    return new Set(
+      (data ?? []).map((r) => `${r.order_id}|${r.ship_date}`)
+    );
+  } catch (error) {
+    console.error("배송완료 이력 조회 실패:", error);
+    throw new Error("배송완료 이력을 불러오지 못했습니다.");
+  }
+}
+
 // 관리자 수동 거래(입고/조정/폐기). 성공 시 변동 후 현재고 반환.
 export async function stockAdjust(
   productId: string,
