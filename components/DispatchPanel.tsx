@@ -6,6 +6,7 @@
 import { useMemo, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { PrintButton } from "@/components/PrintButton";
+import { SmsHistoryModal } from "@/components/SmsHistoryModal";
 import { stockShipOut, recordShipmentTracking, markShipmentDelivered } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
@@ -185,6 +186,8 @@ export function DispatchPanel({
   // 이번 화면에서 방금 도착확인한 행. 서버 deliveredKeys 와 합쳐 판정.
   const [justDelivered, setJustDelivered] = useState<Set<string>>(new Set());
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  // 문자 이력·재발송 모달 대상 주문(null = 닫힘).
+  const [smsOrder, setSmsOrder] = useState<DispatchOrder | null>(null);
 
   // 선택 날짜의 요일(구독 매칭용). 주말이면 null → 구독은 매칭 안 됨.
   const dayOfDate = useMemo<DeliveryDay | null>(() => {
@@ -1263,7 +1266,18 @@ export function DispatchPanel({
                       {o.ship_address}
                       {o.ship_address_detail ? ` ${o.ship_address_detail}` : ""}
                     </td>
-                    <td data-label="상태" className="py-3 pr-3 text-[13px] text-gold-deep">{o.status}</td>
+                    <td data-label="상태" className="py-3 pr-3 text-[13px] text-gold-deep">
+                      <div className="flex flex-col items-start gap-1">
+                        <span>{o.status}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSmsOrder(o)}
+                          className="no-print text-[11.5px] text-mute underline-offset-2 transition-colors hover:text-ink hover:underline"
+                        >
+                          문자 이력
+                        </button>
+                      </div>
+                    </td>
                     <td data-label="송장번호" className="py-3">
                       <input
                         type="text"
@@ -1350,6 +1364,8 @@ export function DispatchPanel({
         ※ 헤더를 누르면 정렬됩니다. ‘선택 발송’은 송장번호가 입력된 주문만 배송중으로 전환하고
         발송 알림을 보냅니다. 택배사는 선택분 전체에 동일 적용됩니다. 엑셀에는 회차별 발송일·유입·소득공발행 칸이 함께 출력됩니다.
       </p>
+
+      {smsOrder && <SmsHistoryModal order={smsOrder} onClose={() => setSmsOrder(null)} />}
     </section>
   );
 }
