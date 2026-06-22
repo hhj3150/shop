@@ -38,7 +38,7 @@ import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEdito
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
-import { loadShippedKeys } from "@/lib/inventory-data";
+import { loadShippedKeys, loadDeliveredKeys } from "@/lib/inventory-data";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
 import { loadReturns, type OrderReturn } from "@/lib/returns";
 import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
@@ -214,6 +214,7 @@ export default function AdminPage() {
   const [returns, setReturns] = useState<OrderReturn[]>([]);
   // 이미 출고된 (주문|발송일) 키 — 배송 행 [출고 확정] 비활성용(이중차감 방지).
   const [shippedKeys, setShippedKeys] = useState<Set<string>>(new Set());
+  const [deliveredKeys, setDeliveredKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [batchRunning, setBatchRunning] = useState(false);
@@ -317,7 +318,7 @@ export default function AdminPage() {
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
     const sb = getSupabase();
-    const [o, i, s, p, shipped, r] = await Promise.all([
+    const [o, i, s, p, shipped, delivered, r] = await Promise.all([
       // ★ .range() 페이지네이션은 '전순서(total order)'가 있어야 안전하다. 정렬 기준이
       //   없거나 동순위가 있으면 페이지 경계에서 행이 누락·중복되어, 1000행을 넘는 순간
       //   배송 명단에서 몇 건씩 빠진다. 모든 쿼리에 고유키(id) 정렬을 붙여 안정화한다.
@@ -343,6 +344,7 @@ export default function AdminPage() {
           .range(from, to)
       ),
       loadShippedKeys().catch(() => new Set<string>()),
+      loadDeliveredKeys().catch(() => new Set<string>()),
       loadReturns().catch(() => [] as OrderReturn[]),
     ]);
     setOrders(o);
@@ -350,6 +352,7 @@ export default function AdminPage() {
     setSlots(s);
     setProfiles(p);
     setShippedKeys(shipped);
+    setDeliveredKeys(delivered);
     setReturns(r);
     setLastRefreshed(new Date());
     setLoading(false);
@@ -1374,6 +1377,7 @@ export default function AdminPage() {
           itemsByOrder={itemsByOrder}
           slots={slots}
           shippedKeys={shippedKeys}
+          deliveredKeys={deliveredKeys}
           onReload={load}
         />
       )}

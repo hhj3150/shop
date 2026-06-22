@@ -6,7 +6,7 @@
 import { useMemo, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { PrintButton } from "@/components/PrintButton";
-import { stockShipOut, recordShipmentTracking } from "@/lib/inventory-data";
+import { stockShipOut, recordShipmentTracking, markShipmentDelivered } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
@@ -145,12 +145,14 @@ export function DispatchPanel({
   itemsByOrder,
   slots = [],
   shippedKeys = new Set(),
+  deliveredKeys = new Set(),
   onReload,
 }: {
   orders: DispatchOrder[];
   itemsByOrder: Map<string, DispatchItem[]>;
   slots?: DispatchSlot[];
   shippedKeys?: Set<string>; // 이미 출고된 `${order_id}|${ship_date}` 키(재고 차감 완료)
+  deliveredKeys?: Set<string>; // 이미 배송완료(도착확인)된 `${order_id}|${ship_date}` 키
   onReload: () => Promise<void> | void;
 }) {
   const queueRef = useRef<HTMLDivElement>(null);
@@ -180,6 +182,9 @@ export function DispatchPanel({
   // 이번 화면에서 방금 출고 확정한 행(즉시 비활성). 서버 shippedKeys 와 합쳐 판정.
   const [justShipped, setJustShipped] = useState<Set<string>>(new Set());
   const [shippingId, setShippingId] = useState<string | null>(null);
+  // 이번 화면에서 방금 도착확인한 행. 서버 deliveredKeys 와 합쳐 판정.
+  const [justDelivered, setJustDelivered] = useState<Set<string>>(new Set());
+  const [deliveringId, setDeliveringId] = useState<string | null>(null);
 
   // 선택 날짜의 요일(구독 매칭용). 주말이면 null → 구독은 매칭 안 됨.
   const dayOfDate = useMemo<DeliveryDay | null>(() => {
@@ -523,6 +528,11 @@ export function DispatchPanel({
     return shippedKeys.has(k) || justShipped.has(k);
   }
 
+  function isDelivered(r: DispatchRow): boolean {
+    const k = shipKey(r);
+    return deliveredKeys.has(k) || justDelivered.has(k);
+  }
+
   // 출고·발송 → 그 발송일분 재고 차감(stock_ship_out, 주차당 1회·서버 보장) +
   //   송장·택배사·발송일 기록 + '배송중' 전환 + 발송 문자(새 전환 건만).
   //   재고 차감이 먼저라 주문 갱신이 실패해도 재시도 시 이중차감 없이 송장만 다시 반영된다.
@@ -594,6 +604,32 @@ export function DispatchPanel({
       setError(e instanceof Error ? e.message : "송장 저장 실패");
     } finally {
       setShippingId(null);
+    }
+  }
+
+  // 도착확인 → 그 회차의 배송완료 시각 기록(shipment_log.delivered_at) + 주문 '배송완료' 전환 +
+  //   배송완료 안내 문자(새 전환 건만). 고객 '내 배송 현황'의 배송완료 표시가 이 값으로 켜진다.
+  async function markDelivered(r: DispatchRow) {
+    const o = r.o;
+    const k = shipKey(r);
+    setDeliveringId(k);
+    setError(null);
+    try {
+      // 회차별 배송완료 시각 기록(권위값). 미출고 회차면 RPC no-op.
+      await markShipmentDelivered(o.id, r.shipISO);
+      const transitioned = o.status !== "배송완료";
+      if (transitioned) {
+        const sb = getSupabase();
+        const { error } = await sb.from("orders").update({ status: "배송완료" }).eq("id", o.id);
+        if (error) throw error;
+        void notify({ kind: "delivered", orderId: o.id });
+      }
+      setJustDelivered((prev) => new Set(prev).add(k));
+      await onReload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "도착확인 처리 실패");
+    } finally {
+      setDeliveringId(null);
     }
   }
 
@@ -723,7 +759,8 @@ export function DispatchPanel({
 
   // 선택분 상태 일괄 전환(배송준비 / 배송완료).
   async function bulkStatus(status: string) {
-    const targets = queue.filter((r) => selected.has(r.o.id)).map((r) => r.o);
+    const rows = queue.filter((r) => selected.has(r.o.id));
+    const targets = rows.map((r) => r.o);
     if (targets.length === 0) {
       setError("선택된 주문이 없습니다.");
       return;
@@ -741,12 +778,22 @@ export function DispatchPanel({
           sb.from("orders").update({ status }).eq("id", o.id).then(({ error }) => ({ o, error }))
         )
       );
-      // 배송완료로 전환된 건은 고객에게 배송 완료 안내 발송(업데이트 성공분만).
-      //   (배송완료는 SHIPPABLE 큐에서 제외되므로 재선택·중복 발송 위험 없음)
+      // 배송완료로 전환된 건은 회차별 도착시각(shipment_log.delivered_at)을 기록하고
+      //   고객에게 배송 완료 안내 발송(업데이트 성공분만). delivered_at 으로 고객 '내 배송
+      //   현황'의 배송완료 표시가 켜진다. (배송완료는 SHIPPABLE 큐에서 제외 → 중복 발송 없음)
       if (status === "배송완료") {
-        for (const { o, error } of results) {
-          if (!error) void notify({ kind: "delivered", orderId: o.id });
-        }
+        await Promise.all(
+          rows.map(async (r, i) => {
+            if (results[i].error) return;
+            // 회차별 도착 기록은 best-effort — 실패해도 상태 전환·문자는 유지.
+            try {
+              await markShipmentDelivered(r.o.id, r.shipISO);
+            } catch (e) {
+              console.error(`배송완료 기록 실패 ${r.o.order_no}:`, e);
+            }
+            void notify({ kind: "delivered", orderId: r.o.id });
+          })
+        );
       }
       setSelected(new Set());
       const failed = results.filter((r) => r.error);
@@ -1235,7 +1282,7 @@ export function DispatchPanel({
                           <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
                             출고됨
                           </span>
-                          {o.status !== "배송중" && (
+                          {o.status !== "배송중" && o.status !== "배송완료" && (
                             // 출고는 됐으나 송장 없어 입금확인에 묶인 건 — 여기서 송장 넣고 배송중 전환·문자.
                             <button
                               type="button"
@@ -1244,6 +1291,21 @@ export function DispatchPanel({
                               className="rounded-full border border-gold/50 bg-gold/10 px-2.5 py-1 text-[12px] font-semibold text-gold-deep transition-colors enabled:hover:bg-gold/20 disabled:opacity-40"
                             >
                               {shippingId === shipKey(r) ? "처리 중…" : "송장 저장"}
+                            </button>
+                          )}
+                          {isDelivered(r) ? (
+                            <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[12px] font-semibold text-sky-700">
+                              배송완료
+                            </span>
+                          ) : (
+                            // 도착확인 → 회차별 delivered_at 기록 + 배송완료 전환·문자. 고객 배송현황에 반영.
+                            <button
+                              type="button"
+                              onClick={() => markDelivered(r)}
+                              disabled={deliveringId === shipKey(r)}
+                              className="rounded-full border border-sky-400/60 bg-sky-50 px-2.5 py-1 text-[12px] font-semibold text-sky-700 transition-colors enabled:hover:bg-sky-100 disabled:opacity-40"
+                            >
+                              {deliveringId === shipKey(r) ? "처리 중…" : "도착확인"}
                             </button>
                           )}
                         </div>
