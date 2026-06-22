@@ -78,11 +78,21 @@ function fmtDateTime(iso: string | null): string {
   });
 }
 
-// 본인 주문 + 품목을 한 번에 조회(RLS가 본인으로 한정). setState 없는 순수 조회 함수 —
-//   effect/핸들러 양쪽에서 재사용하고, 호출부에서 결과로 상태를 갱신한다.
+// 회차별 배송 1건(shipment_log). 구독은 회차마다 1행 → 고객이 지난 배송까지 추적.
+type ShipmentRow = {
+  order_id: string;
+  ship_date: string;
+  courier: string | null;
+  tracking_no: string | null;
+  delivered_at: string | null;
+};
+
+// 본인 주문 + 품목 + 회차별 배송을 한 번에 조회(RLS가 본인으로 한정). setState 없는 순수
+//   조회 함수 — effect/핸들러 양쪽에서 재사용하고, 호출부에서 결과로 상태를 갱신한다.
 async function fetchOrdersWithItems(userId: string): Promise<{
   orders: OrderRow[];
   items: Record<string, OrderItemRow[]>;
+  shipments: Record<string, ShipmentRow[]>;
 }> {
   const supabase = getSupabase();
   // 본인 것만 — 관리자 계정은 RLS상 전체 주문 조회가 가능하므로 user_id 를 반드시 명시한다.
@@ -92,15 +102,13 @@ async function fetchOrdersWithItems(userId: string): Promise<{
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   const orders = (data as OrderRow[]) ?? [];
-  if (orders.length === 0) return { orders, items: {} };
+  if (orders.length === 0) return { orders, items: {}, shipments: {} };
 
+  const orderIds = orders.map((o) => o.id);
   const { data: itemData } = await supabase
     .from("order_items")
     .select("order_id, product_name, volume, qty, unit_price, delivery_day")
-    .in(
-      "order_id",
-      orders.map((o) => o.id)
-    );
+    .in("order_id", orderIds);
   // order_id 별로 묶는다(불변 누적).
   const items = ((itemData as OrderItemRow[]) ?? []).reduce<Record<string, OrderItemRow[]>>(
     (acc, it) => ({
@@ -109,7 +117,26 @@ async function fetchOrdersWithItems(userId: string): Promise<{
     }),
     {}
   );
-  return { orders, items };
+
+  // 회차별 배송 이력 — best-effort: 마이그레이션 미적용 등으로 실패해도 주문 화면은 떠야 한다.
+  //   최신 회차가 위로 오도록 ship_date 내림차순.
+  let shipments: Record<string, ShipmentRow[]> = {};
+  try {
+    const { data: shipData, error } = await supabase
+      .from("shipment_log")
+      .select("order_id, ship_date, courier, tracking_no, delivered_at")
+      .in("order_id", orderIds)
+      .order("ship_date", { ascending: false });
+    if (error) throw error;
+    shipments = ((shipData as ShipmentRow[]) ?? []).reduce<Record<string, ShipmentRow[]>>(
+      (acc, s) => ({ ...acc, [s.order_id]: [...(acc[s.order_id] ?? []), s] }),
+      {}
+    );
+  } catch {
+    shipments = {};
+  }
+
+  return { orders, items, shipments };
 }
 
 export default function AccountPage() {
@@ -118,6 +145,7 @@ export default function AccountPage() {
   const [editingInfo, setEditingInfo] = useState(false);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [orderItems, setOrderItems] = useState<Record<string, OrderItemRow[]>>({});
+  const [shipments, setShipments] = useState<Record<string, ShipmentRow[]>>({});
   const [subs, setSubs] = useState<MySubscription[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
   const [busyOrder, setBusyOrder] = useState<string | null>(null);
@@ -135,19 +163,21 @@ export default function AccountPage() {
   // 핸들러(주문 취소·갱신)에서 호출하는 재조회 래퍼.
   async function reloadOrders() {
     if (!user) return;
-    const { orders, items } = await fetchOrdersWithItems(user.id);
+    const { orders, items, shipments } = await fetchOrdersWithItems(user.id);
     setOrders(orders);
     setOrderItems(items);
+    setShipments(shipments);
   }
 
   useEffect(() => {
     if (!user) return;
     let alive = true;
     (async () => {
-      const { orders, items } = await fetchOrdersWithItems(user.id);
+      const { orders, items, shipments } = await fetchOrdersWithItems(user.id);
       if (!alive) return;
       setOrders(orders);
       setOrderItems(items);
+      setShipments(shipments);
     })();
     return () => {
       alive = false;
@@ -655,6 +685,7 @@ export default function AccountPage() {
         <ul className="mt-4 divide-y divide-line rounded-2xl border border-line bg-cream">
           {orders.map((o) => {
             const trackUrl = trackingUrl(o.courier, o.tracking_no);
+            const ship = shipments[o.id] ?? [];
             return (
               <li key={o.id} className="px-5 py-4">
                 <div className="flex items-center justify-between">
@@ -698,25 +729,77 @@ export default function AccountPage() {
                     ))}
                   </ul>
                 ) : null}
-                {o.tracking_no && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-paper-2 px-3 py-2.5">
-                    <p className="text-[13px] text-ink-soft">
-                      {courierLabel(o.courier)}{" "}
-                      <span className="tabular-nums text-ink">{o.tracking_no}</span>
-                    </p>
-                    {trackUrl ? (
-                      <a
-                        href={trackUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-cream transition-colors hover:bg-gold-deep"
-                      >
-                        배송조회 →
-                      </a>
-                    ) : (
-                      <span className="text-[12px] text-mute">택배사 사이트에서 조회</span>
-                    )}
+                {ship.length > 0 ? (
+                  // 회차별 배송 현황 — 구독은 매주 1행. 최신 회차가 위. 각 회차의 송장·상태를 그대로.
+                  <div className="mt-3 border-t border-line pt-3">
+                    <p className="mb-2 text-[12px] font-medium text-mute">배송 현황</p>
+                    <ul className="space-y-2">
+                      {ship.map((s) => {
+                        const url = trackingUrl(s.courier, s.tracking_no);
+                        const delivered = Boolean(s.delivered_at);
+                        return (
+                          <li
+                            key={s.ship_date}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-paper-2 px-3 py-2.5"
+                          >
+                            <div className="text-[13px]">
+                              <span className="tabular-nums text-ink">{fmtDate(s.ship_date)}</span>
+                              <span
+                                className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                  delivered
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-gold/15 text-gold-deep"
+                                }`}
+                              >
+                                {delivered ? "배송완료" : "배송중"}
+                              </span>
+                              {s.tracking_no && (
+                                <p className="mt-0.5 text-[12px] text-ink-soft">
+                                  {courierLabel(s.courier)}{" "}
+                                  <span className="tabular-nums text-ink">{s.tracking_no}</span>
+                                </p>
+                              )}
+                            </div>
+                            {s.tracking_no &&
+                              (url ? (
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-cream transition-colors hover:bg-gold-deep"
+                                >
+                                  배송조회 →
+                                </a>
+                              ) : (
+                                <span className="text-[12px] text-mute">택배사 사이트에서 조회</span>
+                              ))}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
+                ) : (
+                  // 레거시 폴백 — 회차 레코드가 없는(마이그레이션 이전) 주문은 주문 단일 송장으로 표시.
+                  o.tracking_no && (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-paper-2 px-3 py-2.5">
+                      <p className="text-[13px] text-ink-soft">
+                        {courierLabel(o.courier)}{" "}
+                        <span className="tabular-nums text-ink">{o.tracking_no}</span>
+                      </p>
+                      {trackUrl ? (
+                        <a
+                          href={trackUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-full bg-ink px-4 py-1.5 text-[13px] text-cream transition-colors hover:bg-gold-deep"
+                        >
+                          배송조회 →
+                        </a>
+                      ) : (
+                        <span className="text-[12px] text-mute">택배사 사이트에서 조회</span>
+                      )}
+                    </div>
+                  )
                 )}
                 {o.status === "입금대기" && (
                   <div className="mt-3 flex items-center justify-end">

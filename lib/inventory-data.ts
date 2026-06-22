@@ -152,3 +152,47 @@ export async function stockShipOut(
     );
   }
 }
+
+// 회차별 배송 송장 기록 — 출고로 만들어진 그 회차(주문|발송일) 행에 택배사·송장을 채운다.
+//   best-effort: 마이그레이션 미적용 등으로 실패해도 출고/주문 갱신 흐름을 막지 않는다.
+//   (orders 단일 컬럼은 호출자가 별도로 갱신 — 레거시 표시·알림 호환)
+export async function recordShipmentTracking(
+  orderId: string,
+  shipDate: string,
+  courier: string,
+  trackingNo: string
+): Promise<boolean> {
+  try {
+    const sb = getSupabase();
+    const { error } = await sb.rpc("record_shipment_tracking", {
+      p_order_id: orderId,
+      p_ship_date: shipDate,
+      p_courier: courier,
+      p_tracking_no: trackingNo,
+    });
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error("회차 송장 기록 실패:", error);
+    return false;
+  }
+}
+
+// 회차별 배송완료 표시 — 그 회차 행에 delivered_at 기록. best-effort.
+export async function markShipmentDelivered(
+  orderId: string,
+  shipDate: string
+): Promise<boolean> {
+  try {
+    const sb = getSupabase();
+    const { error } = await sb.rpc("mark_shipment_delivered", {
+      p_order_id: orderId,
+      p_ship_date: shipDate,
+    });
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error("회차 배송완료 표시 실패:", error);
+    return false;
+  }
+}

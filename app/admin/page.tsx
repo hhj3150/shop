@@ -17,7 +17,6 @@ import {
   type DeliveryDay,
 } from "@/lib/cart";
 import { firstSubscriptionDelivery, firstDeliveryOnOrAfter, toISODate } from "@/lib/ship-date";
-import { COURIERS, COURIER_IDS } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
 import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
@@ -1187,42 +1186,6 @@ export default function AdminPage() {
     await load();
   }
 
-  // 택배사·송장번호 저장. 송장이 입력되면 상태를 자동으로 '배송중'으로 올리고 발송일 기록.
-  async function saveTracking(order: OrderRow, courier: string, trackingNo: string) {
-    const sb = getSupabase();
-    const tracking = trackingNo.trim();
-    const patch: Record<string, unknown> = {
-      courier: courier || null,
-      tracking_no: tracking || null,
-    };
-    if (tracking) {
-      patch.shipped_at = order.shipped_at ?? todayISO();
-      if (order.status === "입금확인" || order.status === "배송준비") {
-        patch.status = "배송중";
-      }
-    }
-    const { error } = await sb.from("orders").update(patch).eq("id", order.id);
-    if (error) {
-      alert(`송장 저장 실패: ${error.message}`);
-      return;
-    }
-    const shippedTransition = Boolean(tracking) && (order.status === "입금확인" || order.status === "배송준비");
-    // 클레임 복기: 발송/송장 이력(누가·언제·택배사·송장). 감사로그라 실패해도 흐름 무영향.
-    void sb.rpc("log_order_event", {
-      p_order_id: order.id,
-      p_event: shippedTransition ? "shipped" : "tracking_update",
-      p_from_status: order.status,
-      p_to_status: shippedTransition ? "배송중" : null,
-      p_meta: { courier: courier || null, tracking_no: tracking || null },
-    });
-    // 새로 '배송중'으로 전환된 건에만 발송 안내 — 이미 배송중인 주문을 재저장할 때
-    //   중복 발송 문자를 보내지 않는다(상태 전이일 때만 발송).
-    if (shippedTransition) {
-      void notify({ kind: "shipped", orderId: order.id });
-    }
-    await load();
-  }
-
   // 화면의 배송 명단(선택 날짜 기준, 정기+단품)을 그대로 CSV로 내보낸다.
   //   정기 건은 '이번이 총 몇 회 중 몇 회차 발송인지'와 '구독 기간(총 회차)'을 회차 형식으로
   //   적어, 날짜만으로는 알 수 없던 '8회 구독자의 1회차 발송' 같은 정보를 한눈에 보이게 한다.
@@ -2022,12 +1985,11 @@ export default function AdminPage() {
               <th className="py-2 font-normal">신청일</th>
               <th className="py-2 font-normal">현금영수증</th>
               <th className="py-2 font-normal no-print">상태</th>
-              <th className="py-2 font-normal no-print">배송 추적 (택배사·송장)</th>
             </tr>
           </thead>
           <tbody>
             {managedOrders.length === 0 ? (
-              <tr><td colSpan={7} className="py-4 text-center text-mute">{orders.length === 0 ? "주문이 없습니다." : "검색 결과가 없습니다."}</td></tr>
+              <tr><td colSpan={6} className="py-4 text-center text-mute">{orders.length === 0 ? "주문이 없습니다." : "검색 결과가 없습니다."}</td></tr>
             ) : (
               managedOrders.map((o) => {
                 const orderItems = itemsByOrder.get(o.id) ?? [];
@@ -2120,13 +2082,10 @@ export default function AdminPage() {
                       )}
                     </div>
                   </td>
-                  <td data-label="배송 추적" className="py-2.5 no-print">
-                    <TrackingCell order={o} onSave={saveTracking} />
-                  </td>
                 </tr>
                 {open && (
                   <tr className="border-b border-line/60 bg-paper-2/40">
-                    <td colSpan={7} className="px-4 py-3">
+                    <td colSpan={6} className="px-4 py-3">
                       {orderItems.length === 0 ? (
                         <span className="text-[13px] text-mute">담긴 품목 정보가 없습니다.</span>
                       ) : (
@@ -2334,54 +2293,3 @@ function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRo
   );
 }
 
-function TrackingCell({
-  order,
-  onSave,
-}: {
-  order: OrderRow;
-  onSave: (order: OrderRow, courier: string, trackingNo: string) => Promise<void>;
-}) {
-  const [courier, setCourier] = useState(order.courier ?? "cj");
-  const [trackingNo, setTrackingNo] = useState(order.tracking_no ?? "");
-  const [saving, setSaving] = useState(false);
-  const dirty = courier !== (order.courier ?? "cj") || trackingNo !== (order.tracking_no ?? "");
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await onSave(order, courier, trackingNo);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <select
-        value={courier}
-        onChange={(e) => setCourier(e.target.value)}
-        className="rounded-lg border border-line bg-cream px-2 py-1 text-[13px] text-ink"
-      >
-        {COURIER_IDS.map((id) => (
-          <option key={id} value={id}>
-            {COURIERS[id].label}
-          </option>
-        ))}
-      </select>
-      <input
-        type="text"
-        value={trackingNo}
-        onChange={(e) => setTrackingNo(e.target.value)}
-        placeholder="송장번호"
-        className="w-32 rounded-lg border border-line bg-cream px-2 py-1 text-[13px] tabular-nums text-ink"
-      />
-      <button
-        onClick={handleSave}
-        disabled={!dirty || saving}
-        className="rounded-lg bg-ink px-2.5 py-1 text-[13px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-30"
-      >
-        {saving ? "…" : "저장"}
-      </button>
-    </div>
-  );
-}

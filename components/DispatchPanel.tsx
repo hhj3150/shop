@@ -6,7 +6,7 @@
 import { useMemo, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { PrintButton } from "@/components/PrintButton";
-import { stockShipOut } from "@/lib/inventory-data";
+import { stockShipOut, recordShipmentTracking } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
 import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
 import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
@@ -338,6 +338,21 @@ export function DispatchPanel({
 
   const allSelected = queue.length > 0 && queue.every((r) => selected.has(r.o.id));
 
+  // 발송 진척도 — 선택 날짜의 배송 대상(필터 무관) 중 출고완료/미발송 집계.
+  //   회차 단위 출고 이력(shipment_log 기반 isShipped)으로 '오늘 얼마나 보냈나'를 한눈에.
+  const dayProgress = useMemo(() => {
+    const inDay = allRows.filter((r) => {
+      if (!useDateFilter) return true;
+      const o = r.o;
+      if (o.order_type === "단품") return o.ship_date === date || isCarriedOver(o, date);
+      return dayOfDate !== null && r.dayKey === dayOfDate;
+    });
+    let shipped = 0;
+    for (const r of inDay) if (isShipped(r)) shipped += 1;
+    return { total: inDay.length, shipped, pending: inDay.length - shipped };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRows, useDateFilter, date, dayOfDate, shippedKeys, justShipped]);
+
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -351,8 +366,14 @@ export function DispatchPanel({
     setSelected(allSelected ? new Set() : new Set(queue.map((r) => r.o.id)));
   }
 
-  function trackingOf(o: DispatchOrder): string {
-    return tracking[o.id] ?? o.tracking_no ?? "";
+  // 행(회차) 단위 송장값. 운영자가 이번 화면에서 입력한 값이 최우선(빈칸으로 지운 것도 존중).
+  //   저장된 o.tracking_no 는 '이 회차'가 실제 출고된 경우에만 노출한다 — 구독은 같은 주문 행을
+  //   회차마다 재출고하므로, 아직 출고 안 한 다음 회차에 직전 회차 송장이 남아 보이면 운영자가
+  //   그대로 재발송해 오배송이 된다(이전 송장 = 이전 배송 추적). 미출고 회차는 반드시 빈칸.
+  function trackingOf(r: DispatchRow): string {
+    const typed = tracking[r.o.id];
+    if (typed != null) return typed;
+    return isShipped(r) ? (r.o.tracking_no ?? "") : "";
   }
 
   // 붙여넣은 '주문번호+송장번호'를 파싱·매칭해 각 행 송장칸을 자동으로 채운다.
@@ -406,7 +427,19 @@ export function DispatchPanel({
         setLogenPreview(null);
         return;
       }
-      const res = matchLogen(parsed, allRows.map((r) => r.o));
+      // 구독은 같은 주문 행을 회차마다 재출고하므로 o.tracking_no 엔 직전 회차 송장이 남는다.
+      //   원본을 그대로 넘기면 이번 회차가 '이미채움'으로 잘못 분류돼 새 송장이 자동입력되지 않는다.
+      //   → 회차 단위 유효 송장(미출고 회차는 빈값)으로 치환해 매칭한다.
+      const res = matchLogen(
+        parsed,
+        allRows.map((r) => ({
+          id: r.o.id,
+          order_no: r.o.order_no,
+          ship_name: r.o.ship_name,
+          ship_phone: r.o.ship_phone,
+          tracking_no: trackingOf(r) || null,
+        }))
+      );
       setLogenPreview(res);
       const init: Record<number, string> = {};
       for (const m of res.matched) if (m.confidence === "high") init[m.rowIdx] = m.orderId;
@@ -435,9 +468,13 @@ export function DispatchPanel({
     }
     // 모호 행 후보엔 이미 송장이 있는 주문도 섞일 수 있다(lib 가 already-filled 보다 먼저 분류).
     //   기존 송장을 덮어쓰면 오발송이 되므로, 그런 선택이 있으면 전체 적용을 멈춘다.
-    const filled = [...new Set(picks.map(([, id]) => id))].filter(
-      (id) => (orderById.get(id)?.tracking_no ?? "") !== ""
-    );
+    //   판정은 회차 단위 유효 송장(trackingOf)으로 한다 — 구독 다음 회차는 이전 회차 송장이
+    //   주문에 남아 있어도 '아직 미채움'이어야 새 송장을 받을 수 있다.
+    const rowById = new Map(allRows.map((r) => [r.o.id, r]));
+    const filled = [...new Set(picks.map(([, id]) => id))].filter((id) => {
+      const row = rowById.get(id);
+      return row ? trackingOf(row).trim() !== "" : false;
+    });
     if (filled.length > 0) {
       setLogenNote(`이미 송장이 있는 주문이 선택됨(${filled.join(", ")}). 해제 후 다시 시도하세요.`);
       return;
@@ -495,8 +532,9 @@ export function DispatchPanel({
       status: o.status,
       shipped_at: o.shipped_at,
       courier,
-      trackingNo: trackingOf(o),
+      trackingNo: trackingOf(r),
       shipISO: r.shipISO,
+      alreadyShipped: isShipped(r),
     });
     // 송장 없이 출고하면 발송 문자·배송추적이 누락되고 주문이 '입금확인'에 묶인다(되돌리기 번거로움).
     //   → 송장번호를 필수로 막는다. (출고 후 뒤늦게 넣을 땐 '출고됨' 행의 송장 저장 버튼 사용.)
@@ -513,6 +551,8 @@ export function DispatchPanel({
         const sb = getSupabase();
         const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
         if (error) throw error;
+        // 회차별 배송 레코드(shipment_log)에도 그 회차 송장을 기록 — 회차 이력·고객 추적의 권위값.
+        await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
         if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
       }
       setJustShipped((prev) => new Set(prev).add(k));
@@ -532,8 +572,9 @@ export function DispatchPanel({
       status: o.status,
       shipped_at: o.shipped_at,
       courier,
-      trackingNo: trackingOf(o),
+      trackingNo: trackingOf(r),
       shipISO: r.shipISO,
+      alreadyShipped: isShipped(r),
     });
     if (!decision.patch) {
       setError(`${o.ship_name}: 송장번호를 입력해 주세요.`);
@@ -546,6 +587,7 @@ export function DispatchPanel({
       const sb = getSupabase();
       const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
       if (error) throw error;
+      await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
       if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
       await onReload();
     } catch (e) {
@@ -590,7 +632,7 @@ export function DispatchPanel({
         r.q[2] ? String(r.q[2]) : "",
         r.q[3] ? String(r.q[3]) : "",
         courierName,
-        excelText(trackingOf(o)),
+        excelText(trackingOf(r)),
         receiptStatus(o),
         o.status,
       ]);
@@ -621,9 +663,7 @@ export function DispatchPanel({
 
   // 선택분 일괄 발송: 송장 입력된 건만 배송중 전환 + 발송일·택배사 기록 + 알림.
   async function bulkShip() {
-    const targets = queue
-      .filter((r) => selected.has(r.o.id) && trackingOf(r.o).trim())
-      .map((r) => r.o);
+    const targets = queue.filter((r) => selected.has(r.o.id) && trackingOf(r).trim());
     if (targets.length === 0) {
       setError("송장번호가 입력된 선택 주문이 없습니다.");
       return;
@@ -636,21 +676,31 @@ export function DispatchPanel({
     setError(null);
     try {
       const sb = getSupabase();
-      // 행 출고와 동일한 결정 로직 공유 — 송장·상태·문자 처리를 일관되게 유지.
+      // 행 출고와 완전히 동일하게: 재고차감(stock_ship_out, 회차당 1회·서버 멱등) +
+      //   주문 갱신 + 회차 송장 기록(shipment_log)까지 일괄로 수행한다. 선택 발송도 '출고'로
+      //   보고 재고·회차 이력을 정확히 남겨, 행 출고와 결과가 갈리지 않게 한다.
       const results = await Promise.all(
-        targets.map((o) => {
+        targets.map(async (r) => {
+          const o = r.o;
           const decision = decideShipOut({
             status: o.status,
             shipped_at: o.shipped_at,
             courier,
-            trackingNo: trackingOf(o),
-            shipISO: date,
+            trackingNo: trackingOf(r),
+            shipISO: r.shipISO,
+            alreadyShipped: isShipped(r),
           });
-          return sb
-            .from("orders")
-            .update(decision.patch ?? {})
-            .eq("id", o.id)
-            .then(({ error }) => ({ o, decision, error }));
+          try {
+            await stockShipOut(o.id, r.shipISO); // 이미 출고된 회차면 서버가 'already' → 이중차감 없음
+            if (decision.patch) {
+              const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
+              if (error) throw error;
+              await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
+            }
+            return { o, decision, error: null as { message?: string } | null };
+          } catch (e) {
+            return { o, decision, error: { message: e instanceof Error ? e.message : "처리 실패" } };
+          }
         })
       );
       // 업데이트 성공 + 새로 '배송중'으로 전환된 건에만 발송 문자를 보낸다.
@@ -804,6 +854,28 @@ export function DispatchPanel({
           ))}
         </select>
       </div>
+
+      {/* 발송 진척도 — 선택 날짜 배송 대상의 출고완료/미발송 한눈 요약 */}
+      {useDateFilter && dayProgress.total > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-line bg-paper px-4 py-2.5 text-[13px] no-print">
+          <span className="font-medium text-ink">발송 진척도</span>
+          <span className="text-mute">
+            총 <span className="tabular-nums font-semibold text-ink">{dayProgress.total}</span>건
+          </span>
+          <span className="text-emerald-700">
+            발송완료 <span className="tabular-nums font-semibold">{dayProgress.shipped}</span>
+          </span>
+          <span className={dayProgress.pending > 0 ? "text-gold-deep" : "text-mute"}>
+            미발송 <span className="tabular-nums font-semibold">{dayProgress.pending}</span>
+          </span>
+          <span className="ml-auto h-2 w-32 overflow-hidden rounded-full bg-line/60" aria-hidden>
+            <span
+              className="block h-full rounded-full bg-emerald-500 transition-[width]"
+              style={{ width: `${Math.round((dayProgress.shipped / dayProgress.total) * 100)}%` }}
+            />
+          </span>
+        </div>
+      )}
 
       {/* 일괄 도구 */}
       <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paper p-3 no-print">
@@ -1148,14 +1220,14 @@ export function DispatchPanel({
                     <td data-label="송장번호" className="py-3">
                       <input
                         type="text"
-                        value={trackingOf(o)}
+                        value={trackingOf(r)}
                         onChange={(e) =>
                           setTracking((prev) => ({ ...prev, [o.id]: e.target.value }))
                         }
                         placeholder="송장번호"
                         className="no-print w-36 rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] tabular-nums text-ink outline-none focus:border-gold"
                       />
-                      <span className="print-only tabular-nums">{trackingOf(o)}</span>
+                      <span className="print-only tabular-nums">{trackingOf(r)}</span>
                     </td>
                     <td data-label="출고" className="no-print py-3">
                       {isShipped(r) ? (
