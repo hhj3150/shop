@@ -124,6 +124,27 @@ export async function loadDeliveredKeys(): Promise<Set<string>> {
   }
 }
 
+// 배송 통계용 회차 행 — 발송일(ship_date) 기간 내 shipment_log 의 출고/도착/택배사.
+//   computeDeliveryStats 의 입력. 관리자만(RLS is_admin) 전체 조회.
+export async function loadShipmentStatRows(
+  fromISO: string,
+  toISO: string
+): Promise<{ shipped_at: string | null; delivered_at: string | null; courier: string | null }[]> {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("shipment_log")
+      .select("shipped_at, delivered_at, courier")
+      .gte("ship_date", fromISO)
+      .lte("ship_date", toISO);
+    if (error) throw error;
+    return data ?? [];
+  } catch (error) {
+    console.error("배송 통계 조회 실패:", error);
+    throw new Error("배송 통계를 불러오지 못했습니다.");
+  }
+}
+
 // 관리자 수동 거래(입고/조정/폐기). 성공 시 변동 후 현재고 반환.
 export async function stockAdjust(
   productId: string,

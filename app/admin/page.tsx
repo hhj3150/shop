@@ -38,6 +38,7 @@ import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEdito
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
+import { DeliveryStatsPanel } from "@/components/DeliveryStatsPanel";
 import { loadShippedKeys, loadDeliveredKeys } from "@/lib/inventory-data";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
 import { loadReturns, type OrderReturn } from "@/lib/returns";
@@ -1675,6 +1676,10 @@ export default function AdminPage() {
       {/* 기간별 배송 명단 — 배송 탭에서 작업 화면(DispatchPanel) 아래에 노출 */}
       {tab === "배송" && (
         <>
+      {/* 배송 통계·리드타임 — 회차별 출고/도착 기록 기반 성과 집계 */}
+      <div className="mt-12">
+        <DeliveryStatsPanel />
+      </div>
       {/* 기간별 배송 명단 — 당일 또는 기간(from~to) 선택. 기본 접힘. */}
       <button
         type="button"
