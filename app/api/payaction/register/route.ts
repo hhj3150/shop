@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { registerOrder, isPayActionConfigured } from "@/lib/payaction";
+import { normalizeBillingName } from "@/lib/depositor-name";
 
 // PayAction 주문등록 라우트. 주문 생성 직후 브라우저가 호출한다(orderNo + 주문자 연락처).
 //
@@ -75,7 +76,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "not_pending" });
   }
 
-  const billingName = (o.depositor_name ?? "").trim();
+  // 입금자명 정규화(방어): 신규 주문은 저장 시 이미 정규화되지만, 레거시·외부 경로 대비
+  //   등록 직전 한 번 더 괄호 메모를 떼어 통장 보내는분 이름과 정합시킨다(자동매칭 실패 방지).
+  const billingName = normalizeBillingName(o.depositor_name);
   if (!billingName) {
     // 입금자명이 비면 자동매칭이 불가하므로 등록을 건너뛴다(관리자 수동 처리).
     return NextResponse.json({ ok: false, reason: "missing_depositor_name" });

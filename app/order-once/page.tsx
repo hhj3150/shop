@@ -587,7 +587,7 @@ function OrderOnce() {
           </>
         )}
 
-        <Field id="depositorName" label="입금자명" hint="통장 입금 대조를 위해 실제 입금하실 분의 이름을 적어 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
+        <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
         <CashReceiptFields
