@@ -32,6 +32,15 @@ export const DELIVERY_DAY_LABEL: Record<DeliveryDay, string> = {
 
 export const DELIVERY_DAYS: DeliveryDay[] = ["mon", "tue", "wed", "thu", "fri"];
 
+// 장바구니에 담긴 서로 다른 배송 요일(정렬은 월→금 고정). 한 정기구독 주문은 한 요일만
+//   허용한다(요일별로 회차 금액·배송비·배송 명단이 따로 잡혀야 하므로) — 길이>1 이면 다요일.
+//   서버(create_subscription_order)도 같은 규칙으로 막으며, 여기선 결제 전 능동 안내에 쓴다.
+export function cartDeliveryDays(
+  items: ReadonlyArray<Pick<CartItem, "deliveryDay">>
+): DeliveryDay[] {
+  return DELIVERY_DAYS.filter((d) => items.some((i) => i.deliveryDay === d));
+}
+
 export type CartItem = {
   key: string;
   productId: string;

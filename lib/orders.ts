@@ -2,6 +2,7 @@ import { getSupabase } from "./supabase";
 import type { CartItem, DeliveryDay } from "./cart";
 import type { SubPeriod } from "./products";
 import { digitsOnly, type CashReceiptType } from "./cash-receipt";
+import { normalizeBillingName } from "./depositor-name";
 import type { DeliveryMethod } from "./delivery-method";
 
 export type ShippingInfo = {
@@ -120,7 +121,8 @@ function shipPayload(ship: ShippingInfo) {
     postcode: ship.postcode,
     address: ship.address,
     addressDetail: ship.addressDetail,
-    depositorName: ship.depositorName,
+    // 입금자명은 PayAction 자동매칭 기준이므로 괄호 메모를 떼어 저장한다(통장 보내는분 이름과 정합).
+    depositorName: normalizeBillingName(ship.depositorName),
     memo: ship.memo,
     isGift: ship.isGift === true,
     gifterName: ship.gifterName ?? null,

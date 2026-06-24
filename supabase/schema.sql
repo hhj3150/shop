@@ -848,6 +848,15 @@ begin
     v_per_list     := v_per_list + v_price * v_qty;
   end loop;
 
+  -- ★ 단일 배송요일 강제: 한 정기구독 주문은 한 요일만. 다요일 혼합은 요일별로 따로 신청해야
+  --   회차 금액·배송비·배송 명단이 요일별로 바르게 잡힌다('1주문=1슬롯' 모델 보존).
+  --   (권위 정의는 migration-subscription-single-day.sql)
+  select array_agg(distinct (e->>'delivery_day')) into v_days
+    from jsonb_array_elements(p_items) e;
+  if coalesce(array_length(v_days, 1), 0) > 1 then
+    raise exception '정기구독은 한 번에 한 배송 요일만 신청할 수 있습니다. 요일별로 따로 신청해 주세요.';
+  end if;
+
   if v_per_delivery < 25000 then
     raise exception '회당 최소 상품 금액은 25,000원입니다.';
   end if;
