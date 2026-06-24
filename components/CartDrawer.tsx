@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { useRouter } from "next/navigation";
 import { useDialog } from "@/lib/useDialog";
-import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
+import { useCart, cartDeliveryDays, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
 import {
   getProduct,
@@ -57,6 +57,11 @@ export function CartDrawer() {
   //   (이전엔 미만이어도 checkout 으로 넘어가 거기서 막혀 '주문이 안된다' 클레임이 잦았음)
   const belowMin = perDelivery < MIN_ORDER_KRW;
 
+  // 정기구독은 한 주문에 한 배송 요일만 — 요일이 섞이면 주문 차단(요일별로 따로 신청).
+  //   요일별로 회차 금액·배송비·배송 명단이 따로 잡혀야 하므로(다요일 합산 주문은 회차/배송 오류).
+  const deliveryDays = cartDeliveryDays(items);
+  const multiDay = deliveryDays.length > 1;
+
   // 함께 담기 — 이전 화면으로 돌아가지 않고 장바구니에서 바로 다른 제품을 더 담는다.
   //   (단품 1개로 최소금액 미달일 때 되돌아가던 번거로움 제거). 같은 요일로 담는다.
   const targetDay = items[0]?.deliveryDay ?? "wed";
@@ -65,7 +70,7 @@ export function CartDrawer() {
   );
 
   function goCheckout() {
-    if (belowMin) return;
+    if (belowMin || multiDay) return;
     close();
     router.push(user ? "/checkout" : "/login?next=/checkout");
   }
@@ -289,7 +294,19 @@ export function CartDrawer() {
                 {formatKRW(periodTotal)}
               </span>
             </div>
-            {belowMin ? (
+            {multiDay ? (
+              <div
+                role="alert"
+                className="mt-3 rounded-xl border border-gold/50 bg-gold/10 px-4 py-3 text-[13px] leading-relaxed text-gold-deep"
+              >
+                정기구독은 한 번에 <span className="font-semibold">한 배송 요일</span>만 신청할 수
+                있어요. 지금{" "}
+                <span className="font-semibold">
+                  {deliveryDays.map((d) => DELIVERY_DAY_LABEL[d]).join("·")}
+                </span>
+                이 함께 담겨 있습니다. 한 요일만 남기고, 다른 요일은 따로 신청해 주세요.
+              </div>
+            ) : belowMin ? (
               <div
                 role="alert"
                 className="mt-3 rounded-xl border border-gold/50 bg-gold/10 px-4 py-3 text-[13px] leading-relaxed text-gold-deep"
@@ -310,10 +327,12 @@ export function CartDrawer() {
             )}
             <button
               onClick={goCheckout}
-              disabled={belowMin}
+              disabled={belowMin || multiDay}
               className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-ink"
             >
-              {belowMin
+              {multiDay
+                ? "한 요일만 남기고 주문 가능"
+                : belowMin
                 ? `${formatKRW(MIN_ORDER_KRW - perDelivery)} 더 담아야 주문 가능`
                 : user
                 ? "주문하기 (무통장입금)"

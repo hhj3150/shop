@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { useCart, DELIVERY_DAY_LABEL } from "@/lib/cart";
+import { useCart, cartDeliveryDays, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
 import { isSpecialDeliveryPostcode } from "@/lib/regions";
 import { DEFAULT_DELIVERY_METHOD, isPickup, subShippingFor, type DeliveryMethod } from "@/lib/delivery-method";
@@ -38,6 +38,11 @@ export default function CheckoutPage() {
   const { map, refresh } = useStorefrontCatalog();
   // 회당 상품 합계가 최소 주문금액 미만이면 신청 불가(버튼 비활성화 + 안내).
   const belowMin = perDelivery < MIN_ORDER_KRW;
+  // 정기구독은 한 주문에 한 배송 요일만 — 요일이 섞여 있으면 신청 불가(버튼 비활성화 + 안내).
+  //   요일별로 회차 금액·배송비·배송 명단이 따로 잡혀야 하므로(다요일 합산 주문은 회차/배송 오류).
+  //   서버(create_subscription_order)도 같은 규칙으로 막는다 — 여기선 결제 전 능동 안내.
+  const deliveryDays = cartDeliveryDays(items);
+  const multiDay = deliveryDays.length > 1;
   // 장바구니 항목 중 품절·판매중지가 하나라도 있으면 제출 차단(체크아웃 진입 재검증).
   const hasBlocked = items.some((it) => {
     const p = getProduct(it.productId);
@@ -201,6 +206,15 @@ export default function CheckoutPage() {
     // 최소 상품금액 미달은 가장 먼저 안내한다(클레임: 죽은 버튼 → 능동 안내).
     if (perDelivery < MIN_ORDER_KRW) {
       nudgeMinNotice();
+      return;
+    }
+    // 다요일 혼합 주문 차단 — 한 번에 한 요일만(요일별 따로 신청). 서버도 동일하게 막는다.
+    if (multiDay) {
+      setError(
+        `정기구독은 한 번에 한 배송 요일만 신청할 수 있어요. 지금 ${deliveryDays
+          .map((d) => DELIVERY_DAY_LABEL[d])
+          .join("·")}이 함께 담겨 있습니다. 요일별로 따로 신청해 주세요.`
+      );
       return;
     }
     if (!ship.name.trim() || !ship.phone.trim() || (!pickup && !ship.address.trim())) {
@@ -519,6 +533,17 @@ export default function CheckoutPage() {
           </p>
         )}
 
+        {multiDay && (
+          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+            정기구독은 한 번에 한 배송 요일만 신청할 수 있어요. 지금{" "}
+            <span className="font-medium text-ink">
+              {deliveryDays.map((d) => DELIVERY_DAY_LABEL[d]).join("·")}
+            </span>
+            이 함께 담겨 있습니다. 요일이 다른 항목은 장바구니에서 빼고, 그 요일은 따로 신청해
+            주세요. (요일별로 회차 금액·배송이 각각 잡힙니다.)
+          </p>
+        )}
+
         {error && (
           <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
             {error}
@@ -541,7 +566,7 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={busy || hasBlocked || (!pickup && isSpecialRegion && !acceptFresh)}
+          disabled={busy || hasBlocked || multiDay || (!pickup && isSpecialRegion && !acceptFresh)}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy
