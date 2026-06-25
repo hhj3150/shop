@@ -525,7 +525,7 @@ export default function AccountPage() {
                           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
                             아래 계좌로 <span className="tabular-nums">{renewal.orderNo}</span>{" "}
                             주문의 금액을 입금해 주세요. 입금이 확인되면 선택하신 요일로{" "}
-                            {periodWeeks(renewal.period)}회분이 이어집니다.
+                            {periodWeeks(renewal.period)}회분이 더 이어집니다.
                           </p>
                           <p className="mt-2 rounded-xl bg-cream px-4 py-3 text-[13px] text-ink">
                             {DEPOSIT.bank} {DEPOSIT.account} (예금주 {DEPOSIT.holder})

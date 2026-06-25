@@ -407,7 +407,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
       `주문번호 ${o.order_no}\n` +
       `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
       `${account}\n` +
-      `입금이 확인되면 같은 요일로 ${roundsLabel}이 이어집니다.`;
+      `입금이 확인되면 같은 요일로 ${roundsLabel}이 더 이어집니다.`;
     const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
       text,
       subject: `[${SHOP}] 구독 연장 접수`,
@@ -428,7 +428,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
   const text =
     `[${SHOP}] ${name}님, 구독 연장 입금이 확인되었습니다.\n` +
     `주문번호 ${o.order_no}\n` +
-    `같은 요일로 ${roundsLabel}이 이어집니다. 변함없이 신선하게 보내드리겠습니다.`;
+    `같은 요일로 ${roundsLabel}이 더 이어집니다. 변함없이 신선하게 보내드리겠습니다.`;
   const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
     text,
     subject: `[${SHOP}] 구독 연장 확인`,
