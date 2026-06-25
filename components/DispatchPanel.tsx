@@ -17,6 +17,7 @@ import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
+import { downloadXlsx } from "@/lib/xlsx-export";
 import { decideShipOut } from "@/lib/dispatch-shipout";
 import { isCarriedOver, overdueDays } from "@/lib/dispatch-overdue";
 import {
@@ -89,26 +90,9 @@ function todayISO(): string {
   return d.toISOString().slice(0, 10);
 }
 
-// 엑셀(한글) 호환 CSV 다운로드 — UTF-8 BOM 포함.
-function downloadCsv(filename: string, rows: string[][]) {
-  const csv = rows
-    .map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(","))
-    .join("\r\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// 엑셀이 숫자로 해석해 앞자리 0을 떼거나(우편번호·연락처) 지수표기로 깨뜨리는(송장번호)
-//   값을 텍스트로 고정한다. ="…" 형태는 엑셀이 텍스트 그대로 표시한다. 빈 값은 빈칸 유지.
-function excelText(v: string | null | undefined): string {
-  const s = String(v ?? "");
-  return s === "" ? "" : `="${s}"`;
-}
+// 발송명단은 진짜 엑셀(.xlsx)로 내보낸다(lib/xlsx-export). 모든 셀이 문자열로 고정돼
+//   "2/8회"의 날짜 변환, 전화·우편번호·송장번호의 지수/0누락, 한글 깨짐, 칸 밀림이 없다.
+//   (과거 CSV + ="…" 텍스트 강제 방식은 엑셀별 호환이 들쭉날쭉이라 폐기)
 
 // 구독 회차 — 시작일 대비 발송일이 몇 주차인지(1-base). 정지·총회차를 모르는
 //   비(非)슬롯 경로(단품 등) 전용 보조 계산. 슬롯이 있으면 dispatchScheduleForSlot 를 쓴다.
@@ -637,7 +621,7 @@ export function DispatchPanel({
   }
 
   // 배송 담당자용 발송 명단 엑셀 — 회차별 발송일 칸 + 제품 수량 + 총개수/총 L량 합계(빠뜨림 방지).
-  function exportDispatchCsv() {
+  async function exportDispatchCsv() {
     const header = [
       "유입", "이름", "보낸이(선물)", "연락처", "우편번호", "주소", "상세주소", "최근주문",
       "구분", "배송요일", "회차", "남은회차", "발송일",
@@ -656,8 +640,8 @@ export function DispatchPanel({
         "", // 유입경로 — 현재 미수집(담당자 기입용)
         o.ship_name,
         giftSenderCsv(o.is_gift, o.gifter_name),
-        excelText(o.ship_phone),
-        excelText(o.ship_postcode),
+        o.ship_phone ?? "",
+        o.ship_postcode ?? "",
         o.ship_address,
         o.ship_address_detail ?? "",
         o.created_at?.slice(0, 10) ?? "",
@@ -671,7 +655,7 @@ export function DispatchPanel({
         r.q[2] ? String(r.q[2]) : "",
         r.q[3] ? String(r.q[3]) : "",
         courierName,
-        excelText(trackingOf(r)),
+        trackingOf(r),
         receiptStatus(o),
         o.status,
       ]);
@@ -697,7 +681,7 @@ export function DispatchPanel({
       })
     );
     const tag = useDateFilter ? date : "전체";
-    downloadCsv(`발송명단_${tag}.csv`, rows);
+    await downloadXlsx(`발송명단_${tag}.xlsx`, rows, "발송명단");
   }
 
   // 선택분 일괄 발송: 송장 입력된 건만 배송중 전환 + 발송일·택배사 기록 + 알림.

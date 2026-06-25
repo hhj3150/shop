@@ -38,6 +38,7 @@ import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEdito
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
+import { PickupPanel } from "@/components/PickupPanel";
 import { DeliveryStatsPanel } from "@/components/DeliveryStatsPanel";
 import { loadShippedKeys, loadDeliveredKeys } from "@/lib/inventory-data";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
@@ -48,7 +49,7 @@ import { SettlementPanel } from "@/components/SettlementPanel";
 import { PrintButton } from "@/components/PrintButton";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
-const TABS = ["종합 관리", "주문·입금", "회원·구독", "생산·재고", "상품·재고", "배송", "환불·교환", "정산·세금"] as const;
+const TABS = ["종합 관리", "주문·입금", "회원·구독", "생산·재고", "상품·재고", "배송", "방문수령", "환불·교환", "정산·세금"] as const;
 type AdminTab = (typeof TABS)[number];
 
 // 자동이체 확인 이후 = 확정 구독 (생산·배송 집계 대상).
@@ -1381,6 +1382,10 @@ export default function AdminPage() {
           deliveredKeys={deliveredKeys}
           onReload={load}
         />
+      )}
+
+      {tab === "방문수령" && (
+        <PickupPanel orders={orders} itemsByOrder={itemsByOrder} slots={slots} />
       )}
 
       {tab === "환불·교환" && <ReturnsPanel orders={orders} />}

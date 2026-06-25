@@ -25,7 +25,7 @@ import { mergeProduct, visibleProducts } from "@/lib/storefront-merge";
 import { track } from "@/lib/track";
 
 export function PurchasePanel({ product }: { product: Product }) {
-  const { add, setPeriod } = useCart();
+  const { add, setPeriod, items } = useCart();
   const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("mon");
   const [period, setPeriodLocal] = useState<SubPeriod>(2); // 8주 기본('인기')
   const [qty, setQty] = useState(1);
@@ -41,6 +41,14 @@ export function PurchasePanel({ product }: { product: Product }) {
   useEffect(() => {
     getDayCounts().then(setCounts);
   }, []);
+
+  // 정기구독은 한 번에 한 배송요일만 신청할 수 있다(서버도 다요일 주문을 거절).
+  //   장바구니에 이미 담긴 요일이 있으면 그 요일로 고정해, 고객이 서로 다른 요일을
+  //   담았다가 결제 단계에서 막히는 일을 처음부터 방지한다(같은 요일만 선택 가능).
+  const cartDay: DeliveryDay | null = items.length > 0 ? items[0].deliveryDay : null;
+  useEffect(() => {
+    if (cartDay) setDeliveryDay(cartDay);
+  }, [cartDay]);
 
   // 메인 담기 버튼의 화면 노출 여부를 관찰 — 보이지 않을 때만 하단 바를 띄운다.
   useEffect(() => {
@@ -183,15 +191,18 @@ export function PurchasePanel({ product }: { product: Product }) {
           const c = counts?.[d] ?? null;
           const rem = c ? remaining(c) : null;
           const full = c ? isWaitlisted(c) : false;
+          // 장바구니에 담긴 요일이 있으면 그 요일만 선택 가능(나머지 비활성).
+          const locked = cartDay !== null && cartDay !== d;
           return (
             <button
               key={d}
+              disabled={locked}
               onClick={() => {
                 setDeliveryDay(d);
                 setShowShipNotice(true);
               }}
               aria-pressed={deliveryDay === d}
-              className={`flex min-h-11 flex-col items-center justify-center rounded-xl border py-2.5 text-[14px] transition-all active:scale-[0.98] ${
+              className={`flex min-h-11 flex-col items-center justify-center rounded-xl border py-2.5 text-[14px] transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 ${
                 deliveryDay === d
                   ? "border-gold bg-gold/10 text-ink"
                   : "border-line text-ink-soft hover:border-gold/50"
@@ -209,6 +220,12 @@ export function PurchasePanel({ product }: { product: Product }) {
           );
         })}
       </div>
+      {cartDay && (
+        <p className="mt-2 rounded-xl bg-paper-2 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink-soft">
+          이미 <span className="font-medium text-ink">{DELIVERY_DAY_LABEL[cartDay]}</span> 구독을 담으셨어요.
+          정기구독은 한 번에 <span className="font-medium text-ink">한 요일</span>로만 신청돼요 — 다른 요일은 따로 신청해 주세요.
+        </p>
+      )}
       {showShipNotice && (
         <ShipNoticeModal
           day={DELIVERY_DAY_LABEL[deliveryDay]}
