@@ -418,6 +418,8 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
           "#{주문번호}": o.order_no as string,
           "#{금액}": formatKRW(o.total_amount as number),
           "#{입금계좌}": account,
+          // 회차수가 없으면(레거시) 빈 값 → variablesComplete=false → 자동 LMS 폴백.
+          "#{회차}": rounds > 0 ? String(rounds) : "",
         },
       },
     });
@@ -437,6 +439,8 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
       variables: {
         "#{고객명}": name,
         "#{주문번호}": o.order_no as string,
+        // 회차수가 없으면(레거시) 빈 값 → variablesComplete=false → 자동 LMS 폴백.
+        "#{회차}": rounds > 0 ? String(rounds) : "",
       },
     },
   });

@@ -36,6 +36,12 @@ const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
 };
 
 // 템플릿별 변수명(등록 시 본문의 `#{...}` 와 동일하게 맞출 것). 문서·검증용.
+//
+// ★ Solapi 알림톡 검수 등록 시 LMS 본문과 맞춰야 할 항목(알림톡 전환 전 필수):
+//   - RENEW_GUIDE / RENEW_CONFIRMED: 본문에 "#{회차}회분이 더 이어집니다" 처럼 #{회차} 포함.
+//     (코드가 #{회차} 를 전달한다. 회차수가 없는 레거시 주문은 빈 값→자동 LMS 폴백되므로 안전.)
+//   - EXPIRE_SOON: 재구독 링크(https://shop.a2jerseymilk.com/account)는 변수가 아니라
+//     템플릿 본문의 고정 텍스트(또는 웹링크 버튼)로 등록한다 — URL 이 고정이라 변수 불필요.
 export const TEMPLATE_VARS: Record<NotifyTemplateKey, readonly string[]> = {
   EXPIRE_SOON: ["#{고객명}", "#{만료일}"],
   PAYMENT_DEADLINE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{마감일}"],
@@ -46,8 +52,8 @@ export const TEMPLATE_VARS: Record<NotifyTemplateKey, readonly string[]> = {
   DELIVERED: ["#{고객명}", "#{주문번호}"],
   SUBSCRIPTION_CANCELLED: ["#{고객명}", "#{환불금액}"],
   GIFT_RECIPIENT: ["#{받는분}", "#{보내는분}", "#{제품요약}"],
-  RENEW_GUIDE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{입금계좌}"],
-  RENEW_CONFIRMED: ["#{고객명}", "#{주문번호}"],
+  RENEW_GUIDE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{입금계좌}", "#{회차}"],
+  RENEW_CONFIRMED: ["#{고객명}", "#{주문번호}", "#{회차}"],
 };
 
 // 검수 승인 후 env 에 templateId 가 들어왔을 때만 값을 반환. 비어 있으면 undefined.
