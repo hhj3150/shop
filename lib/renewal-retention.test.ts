@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { decideRenewalStage, buildRenewalMessage, type RenewalTarget } from "./renewal-retention";
+import { SITE_URL } from "./site";
 
 // 기준 현재시각: KST 2026-06-10 12:00 (UTC 03:00) → KST 오늘 = 2026-06-10.
 const now = new Date("2026-06-10T03:00:00.000Z");
@@ -72,5 +73,10 @@ describe("buildRenewalMessage (EXPIRE_SOON)", () => {
     expect(m.text).toContain("홍길동");
     expect(m.text).toContain("6월 17일");
     expect(m.subject).toContain(SHOP_FOR_TEST);
+  });
+
+  it("본문에 재구독 신청 링크(마이페이지 절대 URL)가 들어간다", () => {
+    const m = buildRenewalMessage(t);
+    expect(m.text).toContain(`${SITE_URL}/account`);
   });
 });

@@ -1,7 +1,10 @@
 // 재구독 리텐션 — 만료 임박 단계 판정·메시지 조립 (순수 함수, I/O 없음).
 // import는 Netlify 번들러(esbuild) 호환을 위해 상대경로만 사용.
+import { SITE_URL } from "./site";
 
 const SHOP = "송영신목장";
+// 재구독 신청 화면(마이페이지). 문자에서 바로 눌러 들어가도록 절대 URL 로 안내한다.
+const RENEW_URL = `${SITE_URL}/account`;
 
 export type RenewalTarget = {
   slotId: number;
@@ -60,6 +63,7 @@ export function buildRenewalMessage(t: RenewalTarget): RenewalMessage {
     subject: `[${SHOP}] 구독 만료 안내`,
     text:
       `[${SHOP}] ${t.name}님, 정기구독이 ${label}에 만료됩니다.\n` +
-      `계속 받아보시려면 마이페이지에서 재구독을 신청해 주세요.`,
+      `계속 받아보시려면 아래에서 재구독을 신청해 주세요.\n` +
+      `${RENEW_URL}`,
   };
 }

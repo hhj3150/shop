@@ -5,6 +5,7 @@ import { logSms } from "@/lib/sms-log";
 import { DEPOSIT } from "@/lib/site";
 import { formatKRW } from "@/lib/products";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
+import { dispatchScheduleForSlot, type DispatchSlotInfo } from "@/lib/dispatch-schedule";
 
 // 정보성 문자 자동 발송. 클라이언트가 세션 토큰과 함께 호출하면 서버에서
 // 토큰을 검증하고, DB의 권위 있는 값으로 수신번호·문구를 구성해 발송한다.
@@ -22,6 +23,12 @@ type Body = {
 };
 
 const SHOP = "송영신목장";
+
+// 현재 KST 날짜(YYYY-MM-DD). KST는 DST 없는 UTC+9.
+function kstTodayISO(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 const DAY_LABEL: Record<string, string> = {
   mon: "월",
   tue: "화",
@@ -139,7 +146,7 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
   if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
   const { data: o } = await sb
     .from("orders")
-    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no, is_gift, gifter_name, ship_date, delivery_method, user_id")
+    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no, is_gift, gifter_name, ship_date, delivery_method, user_id, order_type, block_weeks, shipped_at")
     .eq("id", orderId)
     .single();
   if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
@@ -262,8 +269,29 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
   const courier = courierLabel(o.courier as string | null);
   const tracking = (o.tracking_no as string | null) ?? "";
   const url = trackingUrl(o.courier as string | null, tracking);
+
+  // 구독 발송이면 "총 N회 중 M번째"를 본문에 덧붙인다(서버 권위 재계산).
+  //   발송은 항상 원주문 행에서 나가므로(연장주문은 유령행) slot.order_id = 이 주문.
+  //   회차는 발송일(shipped_at, 없으면 ship_date/오늘) 기준으로 산출 — DispatchPanel 과 동일 SSOT.
+  //   주의: 회차 표시는 LMS 본문에만 넣는다. SHIPPED 알림톡 변수에 회차를 강제하면
+  //     회차가 없는 단품 발송까지 빈 값→LMS 폴백되어 단품 알림톡이 비활성화되므로 제외.
+  let roundSuffix = "";
+  if (o.order_type === "구독") {
+    const shipISO =
+      ((o.shipped_at as string | null) ?? (o.ship_date as string | null) ?? kstTodayISO()).slice(0, 10);
+    const { data: slot } = await sb
+      .from("subscription_slots")
+      .select("status, started_at, first_ship_date, paused, paused_at, paused_days, extended_weeks")
+      .eq("order_id", orderId)
+      .maybeSingle();
+    if (slot) {
+      const sch = dispatchScheduleForSlot(slot as DispatchSlotInfo, (o.block_weeks as number | null) ?? 0, shipISO);
+      if (sch.total > 0) roundSuffix = ` (${sch.total}회 중 ${sch.round}번째)`;
+    }
+  }
+
   const text =
-    `[${SHOP}] ${name}님, 상품이 발송되었습니다.\n` +
+    `[${SHOP}] ${name}님, 상품이 발송되었습니다.${roundSuffix}\n` +
     `주문번호 ${o.order_no}\n` +
     `${courier}${tracking ? ` ${tracking}` : ""}` +
     (url ? `\n배송조회 ${url}` : "");
@@ -389,12 +417,16 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
   if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
   const { data: o } = await sb
     .from("orders")
-    .select("order_no, total_amount, ship_name, ship_phone")
+    .select("order_no, total_amount, ship_name, ship_phone, block_weeks")
     .eq("id", orderId)
     .single();
   if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
 
   const name = (o.ship_name as string) || "고객";
+  // 이번 연장으로 이어지는 회차수. 주당 1회 발송이라 block_weeks 가 곧 "회분"이다.
+  //   값이 없으면(레거시) 횟수를 단정하지 않고 "다음 회차분" 으로 안내한다.
+  const rounds = (o.block_weeks as number | null) ?? 0;
+  const roundsLabel = rounds > 0 ? `${rounds}회분` : "다음 회차분";
 
   if (kind === "renewal_guide") {
     const account = `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
@@ -403,7 +435,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
       `주문번호 ${o.order_no}\n` +
       `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
       `${account}\n` +
-      `입금이 확인되면 같은 요일로 4회분이 이어집니다.`;
+      `입금이 확인되면 같은 요일로 ${roundsLabel}이 더 이어집니다.`;
     const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
       text,
       subject: `[${SHOP}] 구독 연장 접수`,
@@ -414,6 +446,8 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
           "#{주문번호}": o.order_no as string,
           "#{금액}": formatKRW(o.total_amount as number),
           "#{입금계좌}": account,
+          // 회차수가 없으면(레거시) 빈 값 → variablesComplete=false → 자동 LMS 폴백.
+          "#{회차}": rounds > 0 ? String(rounds) : "",
         },
       },
     });
@@ -424,7 +458,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
   const text =
     `[${SHOP}] ${name}님, 구독 연장 입금이 확인되었습니다.\n` +
     `주문번호 ${o.order_no}\n` +
-    `같은 요일로 4회분이 이어집니다. 변함없이 신선하게 보내드리겠습니다.`;
+    `같은 요일로 ${roundsLabel}이 더 이어집니다. 변함없이 신선하게 보내드리겠습니다.`;
   const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
     text,
     subject: `[${SHOP}] 구독 연장 확인`,
@@ -433,6 +467,8 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
       variables: {
         "#{고객명}": name,
         "#{주문번호}": o.order_no as string,
+        // 회차수가 없으면(레거시) 빈 값 → variablesComplete=false → 자동 LMS 폴백.
+        "#{회차}": rounds > 0 ? String(rounds) : "",
       },
     },
   });
