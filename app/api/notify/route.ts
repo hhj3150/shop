@@ -389,12 +389,16 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
   if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
   const { data: o } = await sb
     .from("orders")
-    .select("order_no, total_amount, ship_name, ship_phone")
+    .select("order_no, total_amount, ship_name, ship_phone, block_weeks")
     .eq("id", orderId)
     .single();
   if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
 
   const name = (o.ship_name as string) || "고객";
+  // 이번 연장으로 이어지는 회차수. 주당 1회 발송이라 block_weeks 가 곧 "회분"이다.
+  //   값이 없으면(레거시) 횟수를 단정하지 않고 "다음 회차분" 으로 안내한다.
+  const rounds = (o.block_weeks as number | null) ?? 0;
+  const roundsLabel = rounds > 0 ? `${rounds}회분` : "다음 회차분";
 
   if (kind === "renewal_guide") {
     const account = `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
@@ -403,7 +407,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
       `주문번호 ${o.order_no}\n` +
       `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
       `${account}\n` +
-      `입금이 확인되면 같은 요일로 4회분이 이어집니다.`;
+      `입금이 확인되면 같은 요일로 ${roundsLabel}이 이어집니다.`;
     const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
       text,
       subject: `[${SHOP}] 구독 연장 접수`,
@@ -424,7 +428,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
   const text =
     `[${SHOP}] ${name}님, 구독 연장 입금이 확인되었습니다.\n` +
     `주문번호 ${o.order_no}\n` +
-    `같은 요일로 4회분이 이어집니다. 변함없이 신선하게 보내드리겠습니다.`;
+    `같은 요일로 ${roundsLabel}이 이어집니다. 변함없이 신선하게 보내드리겠습니다.`;
   const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
     text,
     subject: `[${SHOP}] 구독 연장 확인`,
