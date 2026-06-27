@@ -57,13 +57,13 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Product visual — 흰배경 정렬샷(1448×1086) */}
+        {/* Product visual — 흰배경 정렬샷(1600×1195) */}
         <div className="flex justify-center">
           <Image
             src="/brand/hero-row-white.jpg"
             alt="송영신목장 A2 저지 헤이밀크 제품 라인업"
-            width={1448}
-            height={1086}
+            width={1600}
+            height={1195}
             priority
             sizes="(max-width:1024px) 86vw, 50vw"
             className="h-auto w-[86%] max-w-[520px] object-contain lg:w-full lg:max-w-[600px]"
