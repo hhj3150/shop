@@ -23,6 +23,8 @@ const SUGGESTIONS = [
 
 export function CustomerAssistant() {
   const pathname = usePathname();
+  // 대화 묶음 식별자(한 세션). 서버 로그에서 한 사람의 대화를 묶어 본다.
+  const sessionIdRef = useRef<string>("");
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -131,10 +133,16 @@ export function CustomerAssistant() {
       } catch {
         // 세션 조회 실패 → 익명으로 진행
       }
+      if (!sessionIdRef.current) {
+        sessionIdRef.current =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
       const res = await fetch("/api/assistant/order", {
         method: "POST",
         headers,
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({ messages: next, sessionId: sessionIdRef.current }),
       });
       const json = (await res.json().catch(() => null)) as
         | { ok: boolean; reply?: string; reason?: string; add?: AddItem[] }

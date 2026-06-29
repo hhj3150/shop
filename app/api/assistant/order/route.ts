@@ -92,6 +92,36 @@ async function fetchMemberContext(req: Request): Promise<string> {
   }
 }
 
+// 대화 한 턴을 best-effort 로 적재한다(SECURITY DEFINER RPC). 로그인 시 토큰을 실어
+//   user_id 가 기록되게 한다. 실패(테이블/RPC 미적용 포함)해도 응답은 막지 않는다.
+async function logAssistantTurn(
+  req: Request,
+  userMessage: string,
+  reply: string,
+  addedCount: number,
+  sessionId: string | null
+): Promise<void> {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !anon) return;
+    const authz = req.headers.get("authorization") ?? "";
+    const token = authz.toLowerCase().startsWith("bearer ") ? authz.slice(7).trim() : "";
+    const sb = createClient(url, anon, {
+      global: token ? { headers: { Authorization: `Bearer ${token}` } } : {},
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await sb.rpc("log_assistant_turn", {
+      p_user_message: userMessage,
+      p_assistant_reply: reply,
+      p_added_count: addedCount,
+      p_session_id: sessionId,
+    });
+  } catch {
+    // 적재 실패는 무시(부가 기능 — 본 응답에 영향 없음).
+  }
+}
+
 export async function POST(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-5.4-mini";
@@ -99,9 +129,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "openai_not_configured" }, { status: 503 });
   }
 
-  let body: { messages?: unknown };
+  let body: { messages?: unknown; sessionId?: unknown };
   try {
-    body = (await req.json()) as { messages?: unknown };
+    body = (await req.json()) as { messages?: unknown; sessionId?: unknown };
   } catch {
     return NextResponse.json({ ok: false, reason: "bad_json" }, { status: 400 });
   }
@@ -173,6 +203,12 @@ export async function POST(req: Request) {
       reply = content;
     }
     if (!reply) return NextResponse.json({ ok: false, reason: "no_reply" }, { status: 502 });
+
+    // 이 턴 적재(고객 질문·답변·담은 수) — 무엇을 묻는지 쌓아 FAQ/GEO·이탈 분석에 쓴다.
+    const lastUser = [...cleanHistory].reverse().find((m) => m.role === "user")?.content ?? "";
+    const sessionId = typeof body.sessionId === "string" ? body.sessionId.slice(0, 100) : null;
+    await logAssistantTurn(req, lastUser, reply, add.length, sessionId);
+
     return NextResponse.json({ ok: true, reply, add });
   } catch (error) {
     console.error("[assistant/order] 처리 실패:", error);
