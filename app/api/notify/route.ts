@@ -6,6 +6,7 @@ import { DEPOSIT } from "@/lib/site";
 import { formatKRW } from "@/lib/products";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { dispatchScheduleForSlot, type DispatchSlotInfo } from "@/lib/dispatch-schedule";
+import { firstDeliveryRitualNote } from "@/lib/first-delivery";
 
 // 정보성 문자 자동 발송. 클라이언트가 세션 토큰과 함께 호출하면 서버에서
 // 토큰을 검증하고, DB의 권위 있는 값으로 수신번호·문구를 구성해 발송한다.
@@ -276,6 +277,9 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
   //   주의: 회차 표시는 LMS 본문에만 넣는다. SHIPPED 알림톡 변수에 회차를 강제하면
   //     회차가 없는 단품 발송까지 빈 값→LMS 폴백되어 단품 알림톡이 비활성화되므로 제외.
   let roundSuffix = "";
+  // 첫 배송(1회차)에만 '왜 이 우유인지' 브랜드필름 한 줄을 덧붙인다(첫인상 → 리텐션).
+  //   LMS 본문에만 싣는다(알림톡 채널로도 보내려면 별도 첫배송 템플릿 등록 필요 — 운영 단계).
+  let firstNote = "";
   if (o.order_type === "구독") {
     const shipISO =
       ((o.shipped_at as string | null) ?? (o.ship_date as string | null) ?? kstTodayISO()).slice(0, 10);
@@ -287,6 +291,7 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     if (slot) {
       const sch = dispatchScheduleForSlot(slot as DispatchSlotInfo, (o.block_weeks as number | null) ?? 0, shipISO);
       if (sch.total > 0) roundSuffix = ` (${sch.total}회 중 ${sch.round}번째)`;
+      if (sch.round === 1) firstNote = firstDeliveryRitualNote();
     }
   }
 
@@ -294,7 +299,8 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     `[${SHOP}] ${name}님, 상품이 발송되었습니다.${roundSuffix}\n` +
     `주문번호 ${o.order_no}\n` +
     `${courier}${tracking ? ` ${tracking}` : ""}` +
-    (url ? `\n배송조회 ${url}` : "");
+    (url ? `\n배송조회 ${url}` : "") +
+    firstNote;
   const alimtalk: AlimtalkSpec = {
     templateKey: "SHIPPED",
     variables: {
