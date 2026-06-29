@@ -681,7 +681,50 @@ export default function AccountPage() {
                       {cancelSlot === s.slotId ? (
                         <div className="rounded-2xl bg-paper-2 p-4">
                           <p className="text-[14px] font-medium text-ink">구독 해지</p>
-                          <div className="mt-3 flex items-center justify-between rounded-xl bg-cream px-4 py-3">
+
+                          {/* 이탈 방지 — 해지 대신 '쉬어가기/정지'를 먼저 제안. 우유가 남아
+                              해지하려던 분을 붙잡는 출구 방어(총 회차는 보존됨을 함께 안내). */}
+                          {(canSkip || canPause) && (
+                            <div className="mt-3 rounded-xl border border-gold/40 bg-gold/5 p-3.5">
+                              <p className="text-[13px] leading-relaxed text-ink-soft">
+                                아직 <span className="font-semibold text-ink">{sch.remaining}회</span>가
+                                남아 있어요. 우유가 많이 남았다면, 해지 대신 잠깐 쉬어가는 건 어떨까요?
+                              </p>
+                              <div className="mt-2.5 flex flex-wrap gap-2">
+                                {canSkip && (
+                                  <button
+                                    onClick={() => {
+                                      setCancelSlot(null);
+                                      onSkip(s.slotId, sch.nextDate as string);
+                                    }}
+                                    disabled={busy === s.slotId}
+                                    className="rounded-full bg-ink px-4 py-2 text-[13px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
+                                  >
+                                    이번 주만 쉬어가기
+                                  </button>
+                                )}
+                                {canPause && (
+                                  <button
+                                    onClick={() => {
+                                      setCancelSlot(null);
+                                      onPause(s.slotId);
+                                    }}
+                                    disabled={busy === s.slotId}
+                                    className="rounded-full border border-gold/50 px-4 py-2 text-[13px] text-gold-deep transition-colors hover:bg-gold/10 disabled:opacity-50"
+                                  >
+                                    구독 일시정지
+                                  </button>
+                                )}
+                              </div>
+                              <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                                쉬어가도 총 {sch.total}회는 모두 받으실 수 있어요. 종료일만 그만큼
+                                미뤄집니다.
+                              </p>
+                            </div>
+                          )}
+
+                          <p className="mt-4 text-[12px] text-mute">그래도 해지하시겠다면</p>
+                          <div className="mt-2 flex items-center justify-between rounded-xl bg-cream px-4 py-3">
                             <span className="text-[13px] text-ink-soft">
                               남은 {sch.remaining}회분 환불 예정액
                             </span>
