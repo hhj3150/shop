@@ -78,7 +78,8 @@ function OrderOnce() {
   // 더블서밋 방어용 멱등키: 주문당 1회 생성, 빠른 더블탭·재시도 때 같은 키를 재사용한다.
   //   주문이 완료(결제 성공·무통장 등록)되면 회전 → 다음 주문은 새 키를 쓴다.
   const idempotencyKeyRef = useRef<string | null>(null);
-  const [isGift, setIsGift] = useState(false);
+  // ?gift=1 로 들어오면 선물 모드로 시작(주문완료 화면의 '선물로 보내기' 유입 루프).
+  const [isGift, setIsGift] = useState(sp.get("gift") === "1");
   const [giftMessage, setGiftMessage] = useState("");
   // 수령방법: 택배(기본) | 방문수령. 방문수령은 배송비 0·주소/선물/특수지역 동의 숨김.
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(DEFAULT_DELIVERY_METHOD);

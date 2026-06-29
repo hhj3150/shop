@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { track } from "@/lib/track";
 import { DepositAccount } from "@/components/DepositAccount";
 import { CopyAmount } from "@/components/CopyAmount";
+import { ReferralCard } from "@/components/ReferralCard";
 import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
 import { formatKRW } from "@/lib/products";
 import { DEPOSIT } from "@/lib/site";
@@ -41,6 +42,27 @@ function Complete() {
   useEffect(() => {
     if (orderNo && !(isPortOne && failCode)) track("purchase", { once: true });
   }, [orderNo, isPortOne, failCode]);
+
+  // 유입 루프 — 막 주문한 peak 순간에 '선물(받는 분=신규 리드)' + '친구 추천(가입=신규 리드)'을
+  //   권한다. 사장님 철학("물어물어 찾아옴")의 정공법: 광고가 아니라 만족한 고객이 데려온다.
+  const growthCTA = (
+    <>
+      <div className="mt-6 rounded-2xl border border-hey-green/40 bg-hey-green/5 p-6 text-left">
+        <p className="font-serif-kr text-[18px] font-medium text-ink">곁에 두고 싶은 분께, 한 병.</p>
+        <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
+          정성껏 기른 우유를 선물로 보내보세요. 받는 분께 안내 문자와 함께 신선하게 도착합니다.
+        </p>
+        <Link
+          href="/order-once?gift=1"
+          className="mt-4 inline-flex rounded-full bg-hey-green px-5 py-2.5 text-[14px] font-medium text-cream transition-transform hover:scale-[1.02] active:scale-95"
+        >
+          선물로 보내기
+        </Link>
+      </div>
+      {/* 로그인 회원만 노출(비회원이면 null) — 추천코드·링크 공유로 신규 가입 유입. */}
+      <ReferralCard />
+    </>
+  );
 
   // PortOne 결제 실패/취소 → 재시도 안내.
   if (isPortOne && failCode) {
@@ -166,6 +188,8 @@ function Complete() {
           </div>
         </div>
 
+        {growthCTA}
+
         <div className="mt-6 flex justify-center gap-3">
           {!isGuest && (
             <Link href="/account" className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
@@ -257,6 +281,8 @@ function Complete() {
           </p>
         </div>
       )}
+
+      {growthCTA}
 
       <div className="mt-9 flex justify-center gap-3">
         <Link href="/account" className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
