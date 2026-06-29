@@ -45,6 +45,13 @@ export function DepositAccount() {
         </button>
       </div>
       <p className="mt-0.5 text-[14px] text-mute">예금주 {DEPOSIT.holder}</p>
+      {/* 구매내용 미기재 입금 사고 방지: 계좌만 보고 송금하면 어떤 주문인지 매칭되지 않는다.
+          반드시 '이번 주문'을 사이트에서 접수한 뒤 안내된 금액으로 입금해야 자동 확인된다.
+          (다음에 또 받아보실 땐 계좌로 바로 송금하지 마시고 사이트에서 주문부터 해주세요.) */}
+      <p className="mt-3 rounded-xl bg-paper-2/70 px-3.5 py-2.5 text-[13px] leading-relaxed text-mute">
+        ※ 계좌로 입금만 하시면 주문이 자동으로 접수되지 않습니다. 다음에 또 주문하실 때도
+        먼저 사이트에서 주문을 완료한 뒤 안내되는 금액으로 입금해 주세요.
+      </p>
     </div>
   );
 }
