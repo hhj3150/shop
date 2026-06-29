@@ -13,7 +13,7 @@ import { SMS_PRESETS, fillPreset } from "@/lib/admin-sms";
 type ProfileLite = { id: string; name: string; phone: string; marketing_consent?: boolean };
 type SlotLite = { user_id: string; delivery_day: DeliveryDay; status: string };
 
-type FilterKey = "all" | "active" | DeliveryDay;
+type FilterKey = "all" | "active" | "nosub" | DeliveryDay;
 
 // EUC-KR 기준 바이트(한글 2바이트). 90바이트 초과 시 LMS.
 function eucKrBytes(s: string): number {
@@ -60,6 +60,12 @@ export function BroadcastPanel({
     }
     return m;
   }, [slots]);
+  // 구독 이력이 한 번이라도 있는 회원(상태 무관 — 해지 포함). '미구독(미전환)' 필터는 이 집합의
+  //   여집합 = 구독 슬롯이 전혀 없는 회원만 고른다(과거 구독자=전환 경험자는 제외).
+  const everSubscribedUserIds = useMemo(
+    () => new Set(slots.map((s) => s.user_id)),
+    [slots]
+  );
 
   // 필터 합집합으로 후보 회원 산출(번호 있는 회원만).
   // 광고 발송 시에는 광고 수신동의(marketing_consent) 회원만 포함(정보통신망법).
@@ -70,12 +76,13 @@ export function BroadcastPanel({
       if (isAd && !p.marketing_consent) return false;
       if (filters.has("all")) return true;
       if (filters.has("active") && activeUserIds.has(p.id)) return true;
+      if (filters.has("nosub") && !everSubscribedUserIds.has(p.id)) return true;
       for (const d of DELIVERY_DAYS) {
         if (filters.has(d) && dayUserIds.get(d)?.has(p.id)) return true;
       }
       return false;
     });
-  }, [filters, profiles, activeUserIds, dayUserIds, isAd]);
+  }, [filters, profiles, activeUserIds, everSubscribedUserIds, dayUserIds, isAd]);
 
   const selectedProfiles = useMemo(
     () => candidates.filter((p) => !excluded.has(p.id)),
@@ -232,6 +239,7 @@ export function BroadcastPanel({
   const filterChips: { key: FilterKey; label: string }[] = [
     { key: "all", label: "전체 회원" },
     { key: "active", label: "활성 구독자" },
+    { key: "nosub", label: "미구독 회원" },
     ...DELIVERY_DAYS.map((d) => ({ key: d as FilterKey, label: `${DELIVERY_DAY_LABEL[d]} 배송` })),
   ];
 
