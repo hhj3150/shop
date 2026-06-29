@@ -33,6 +33,24 @@ export function profileBackfillPatch(
   return patch;
 }
 
+// 정기구독 배송지 동기화용 — 프로필 주소를 orders.ship_* 스냅샷 패치로 변환(순수 함수, 테스트 대상).
+//   프로필 주소를 바꾸면 진행 중인 구독의 배송지도 새 주소로 따라오게 한다(향후 배송분).
+//   주소가 비면 null 을 반환해 '동기화 안 함'을 알린다 — 빈 주소로 기존 배송지를 덮어써
+//   배송지를 지우는 사고를 막는다(이름·연락처 스냅샷은 의도적으로 건드리지 않는다).
+export type AddressFields = Pick<ShippingFields, "postcode" | "address" | "addressDetail">;
+
+export function subscriptionShipAddressPatch(
+  fields: AddressFields
+): { ship_postcode: string | null; ship_address: string; ship_address_detail: string | null } | null {
+  const address = fields.address.trim();
+  if (!address) return null;
+  return {
+    ship_postcode: fields.postcode.trim() || null,
+    ship_address: address,
+    ship_address_detail: fields.addressDetail.trim() || null,
+  };
+}
+
 // 프로필의 빈 배송 칸을 주문서 값으로 보완한다. 실패는 흡수(보조 기능 — 주문엔 영향 없음).
 export async function backfillProfileShipping(
   profile: Profile,

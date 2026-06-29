@@ -35,6 +35,7 @@ import { buildCustomer360, type C360OrderEvent, type C360Sms } from "@/lib/custo
 import { buildMemberSmsPayload } from "@/lib/member-sms";
 import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
+import { subscriptionShipAddressPatch } from "@/lib/profile";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
@@ -1104,6 +1105,25 @@ export default function AdminPage() {
       })
       .eq("id", userId);
     if (error) throw new Error(error.message);
+
+    // 진행 중인 정기구독 배송지도 새 주소로 동기화 — 향후 배송이 옛 주소로 나가는 사고 방지.
+    //   선물 제외·취소 제외. 단품은 건드리지 않는다. RLS(orders_update_admin)로 관리자만 가능.
+    //   best-effort: 실패해도 프로필 저장은 유지(주문 동기화는 보조).
+    const shipPatch = subscriptionShipAddressPatch({
+      postcode: values.postcode,
+      address: values.address,
+      addressDetail: values.address_detail,
+    });
+    if (shipPatch) {
+      const { error: shipErr } = await sb
+        .from("orders")
+        .update(shipPatch)
+        .eq("user_id", userId)
+        .eq("order_type", "구독")
+        .eq("is_gift", false)
+        .neq("status", "취소");
+      if (shipErr) console.error("구독 배송지 동기화 실패:", shipErr.message);
+    }
     await load();
   }
 
