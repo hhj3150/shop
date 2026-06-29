@@ -1,5 +1,6 @@
 import { Hero } from "@/components/Hero";
 import { ProductShowcase } from "@/components/ProductShowcase";
+import { ConciergeInvite } from "@/components/ConciergeInvite";
 import { FarmBand } from "@/components/FarmBand";
 import { Provenance } from "@/components/Provenance";
 import { RegenerativeBand } from "@/components/RegenerativeBand";
@@ -20,6 +21,7 @@ export default function Home() {
       <JsonLd data={buildFAQPage(FAQ_ITEMS)} />
       <Hero />
       <ProductShowcase />
+      <ConciergeInvite />
       <FarmBand />
       <Provenance />
       <RegenerativeBand />
