@@ -157,7 +157,6 @@ export function CustomerAssistant() {
         );
       } else {
         const reply = json.reply as string;
-        setMessages((m) => [...m, { role: "assistant", content: reply }]);
         // 담기 보조: 모델이 담을 항목을 돌려주면 정기구독 장바구니에 반영(결제는 안 함).
         const toAdd = Array.isArray(json.add) ? json.add : [];
         if (toAdd.length > 0) {
@@ -166,12 +165,35 @@ export function CustomerAssistant() {
           );
           setAddedToCart(true);
         }
-        // 음성으로 물었으면(speak=true) 또는 음성답변이 켜져 있으면 읽어준다.
+        // 음성으로 물었으면(speak=true) 또는 음성답변이 켜져 있으면 읽어준다(전체를 바로 읽음).
         if (opts?.speak ?? voiceOut) {
           speak(reply).catch(() => {
             // 음성은 보조 — 실패해도 텍스트 답변은 그대로 유지.
           });
         }
+        // 타이핑 리빌 — 답을 한 번에 쏟지 않고 흐르듯 보여줘 체감 생동감·가독성을 높인다.
+        //   loading 은 타이핑 동안 true 로 유지(재진입 방지). '…' 점은 마지막이 어시스턴트
+        //   말이 되는 순간 숨겨지므로 점·타이핑이 겹치지 않는다.
+        setMessages((m) => [...m, { role: "assistant", content: "" }]);
+        const ticks = Math.min(60, Math.max(8, Math.ceil(reply.length / 6)));
+        const stepN = Math.ceil(reply.length / ticks);
+        await new Promise<void>((resolve) => {
+          let i = 0;
+          const timer = setInterval(() => {
+            i = Math.min(reply.length, i + stepN);
+            const shown = reply.slice(0, i);
+            setMessages((m) => {
+              const copy = m.slice();
+              copy[copy.length - 1] = { role: "assistant", content: shown };
+              return copy;
+            });
+            scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+            if (i >= reply.length) {
+              clearInterval(timer);
+              resolve();
+            }
+          }, 16);
+        });
       }
     } catch {
       setError("네트워크 오류가 발생했습니다.");
@@ -290,7 +312,9 @@ export function CustomerAssistant() {
                 </div>
               ))
             )}
-            {loading && (
+            {/* 대기 인디케이터 — 응답을 기다리는 동안만(마지막이 사용자 말). 타이핑 리빌이
+                시작되면(마지막이 어시스턴트 말) 숨겨 점·타이핑이 겹치지 않게 한다. */}
+            {loading && messages[messages.length - 1]?.role !== "assistant" && (
               <div className="flex justify-start">
                 <div className="rounded-2xl border border-line bg-white px-3.5 py-2 text-[14px] text-mute">…</div>
               </div>
