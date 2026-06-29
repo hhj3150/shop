@@ -39,6 +39,44 @@ const FACTS = [
   "반려동물(개·고양이) 급여: 일부 보호자는 신선 우유를 '간식/토퍼'로 소량 급여합니다. 다만 고양이와 일부 개는 유당 분해가 어려워 일반 우유가 소화에 부담(설사 등)을 줄 수 있고, A2 우유도 베타카세인만 다를 뿐 '유당은 그대로' 들어 있어 유당 문제를 해결하지는 않습니다. 주식이 아니라 아주 소량부터 시작해 반응을 살피고, 어린 동물·질환·알레르기가 있으면 수의사와 상담하세요. 식품으로서 급여하는 것이며 치료 목적이 아닙니다.",
 ];
 
+// ── 로그인 회원 개인화 컨텍스트 ───────────────────────────────────────────
+//   서버가 토큰으로 조회한 '진행 중 구독' 요약을 시스템 프롬프트에 덧붙여, 어시스턴트가
+//   신규/기존 회원 상황에 맞춰 응대하게 한다. 순수 함수(테스트 대상) — 입력은 서버가
+//   RLS 로 본인 것만 조회한 권위 데이터다.
+const DAY_KR: Record<string, string> = { mon: "월", tue: "화", wed: "수", thu: "목", fri: "금" };
+
+export type MemberSub = {
+  deliveryDay: string; // mon..fri
+  weeks: number; // 총 회차(원 block_weeks + 연장)
+  status: string; // 활성/신청/대기 …
+  paused: boolean;
+  skipping: boolean; // 이번 주 건너뛰는 중
+};
+
+export function buildMemberContextBlock(name: string | null, subs: MemberSub[]): string {
+  const lines: string[] = [];
+  const who = (name ?? "").trim();
+  if (who) lines.push(`- 이름: ${who}님 (대화 중 한 번쯤 자연스럽게 이름을 불러도 좋음).`);
+
+  if (subs.length === 0) {
+    lines.push(
+      "- 진행 중 정기구독: 없음. 아직 구독 전이니 부담 없이 추천·안내하고, 첫 경험은 단품도 권할 수 있음."
+    );
+  } else {
+    for (const s of subs) {
+      const day = DAY_KR[s.deliveryDay] ?? s.deliveryDay;
+      const state = s.skipping ? "이번 주 건너뛰는 중" : s.paused ? "일시정지 중" : s.status;
+      lines.push(`- 진행 중 정기구독: ${day}요일 ${s.weeks}주 구독 (${state}).`);
+    }
+    lines.push(
+      "- 이미 구독 중인 회원이므로, 새 가입을 권하기보다 현재 구독에 맞춘 도움(추가 담기·요거트 곁들임·선물·연장·요일/기간 변경 안내)을 우선하세요."
+    );
+  }
+
+  if (lines.length === 0) return "";
+  return ["", "[회원 컨텍스트 — 로그인한 고객. 아래 상황에 맞춰 자연스럽게 응대]", ...lines].join("\n");
+}
+
 export function buildCustomerSystemPrompt(): string {
   const faq = FAQ_ITEMS.map((f, i) => `${i + 1}. Q: ${f.question}\n   A: ${f.answer}`).join("\n");
   const facts = FACTS.map((f) => `- ${f}`).join("\n");

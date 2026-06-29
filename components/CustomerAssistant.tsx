@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useCart } from "@/lib/cart";
 import { useVoiceInput } from "@/lib/useVoiceInput";
 import { speak, stopSpeaking } from "@/lib/speech";
+import { getSupabase } from "@/lib/supabase";
 
 type Msg = { role: "user" | "assistant"; content: string };
 type AddItem = { productId: string; qty: number };
@@ -121,9 +122,18 @@ export function CustomerAssistant() {
     setInput("");
     setLoading(true);
     try {
+      // 로그인 상태면 토큰을 함께 보내 개인화 상담(서버가 본인 구독을 조회). 비로그인은 익명.
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      try {
+        const { data } = await getSupabase().auth.getSession();
+        const token = data.session?.access_token;
+        if (token) headers.Authorization = `Bearer ${token}`;
+      } catch {
+        // 세션 조회 실패 → 익명으로 진행
+      }
       const res = await fetch("/api/assistant/order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ messages: next }),
       });
       const json = (await res.json().catch(() => null)) as
