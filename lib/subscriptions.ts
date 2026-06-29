@@ -80,6 +80,8 @@ export type MySubscription = {
   paused: boolean;
   pausedAt: string | null;
   pausedDays: number;
+  // '이번 주 건너뛰기' 자동재개 예정일(set 이면 1주 건너뛰는 중, null 이면 일반 상태/일시정지).
+  skipResumeOn: string | null;
   totalWeeks: number;
   periodMonths: number;
   orderNo: string | null;
@@ -99,6 +101,7 @@ type SlotJoinRow = {
   paused: boolean;
   paused_at: string | null;
   paused_days: number;
+  skip_resume_on: string | null;
   extended_weeks: number | null;
   orders: {
     block_weeks: number | null;
@@ -159,6 +162,7 @@ export function toMySubscriptions(
     paused: row.paused,
     pausedAt: row.paused_at,
     pausedDays: row.paused_days,
+    skipResumeOn: row.skip_resume_on,
     // 총 배송 회차 = 원 주문 block_weeks + 연장 누적 회차
     totalWeeks: (row.orders?.block_weeks ?? 0) + (row.extended_weeks ?? 0),
     periodMonths: row.orders?.period_months ?? 1,
@@ -183,7 +187,7 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
   const { data, error } = await sb
     .from("subscription_slots")
     .select(
-      "id, order_id, delivery_day, status, started_at, first_ship_date, paused, paused_at, paused_days, extended_weeks, orders(block_weeks, period_months, order_no, total_amount, delivery_method)"
+      "id, order_id, delivery_day, status, started_at, first_ship_date, paused, paused_at, paused_days, skip_resume_on, extended_weeks, orders(block_weeks, period_months, order_no, total_amount, delivery_method)"
     )
     .eq("user_id", uid)
     .neq("status", "해지")
@@ -439,4 +443,34 @@ export async function resumeSubscription(slotId: number): Promise<void> {
     p_slot_id: slotId,
   });
   if (error) throw new Error(error.message);
+}
+
+// 이번 주(다음 배송 1회) 건너뛰기. skipDate = 건너뛸 다음 배송 예정일(computeSchedule 의 nextDate).
+//   서버가 그 날짜+1에 자동재개(7일 적립)하도록 예약 → 총 회차 보존, 종료일만 +7.
+export async function skipNextDelivery(slotId: number, skipDate: string): Promise<void> {
+  const { error } = await getSupabase().rpc("skip_next_delivery", {
+    p_slot_id: slotId,
+    p_skip_date: skipDate,
+  });
+  if (error) throw new Error(error.message);
+}
+
+// 건너뛰기 되돌리기(건너뛸 배송일 전에만). 적립 없이 원상복구.
+export async function cancelSkip(slotId: number): Promise<void> {
+  const { error } = await getSupabase().rpc("cancel_skip", { p_slot_id: slotId });
+  if (error) throw new Error(error.message);
+}
+
+// '이번 주 건너뛰기' 가능 여부(순수 함수, 테스트 대상). UI 버튼 노출 판정의 단일 출처.
+//   조건: 활성·시작됨·정지 아님·이미 건너뛰는 중 아님·다음 배송일이 존재(미래).
+export function canSkipThisWeek(
+  sub: Pick<MySubscription, "status" | "paused" | "skipResumeOn">,
+  nextDate: string | null
+): boolean {
+  return (
+    sub.status === "활성" &&
+    !sub.paused &&
+    !sub.skipResumeOn &&
+    nextDate != null
+  );
 }

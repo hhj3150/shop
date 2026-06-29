@@ -12,6 +12,9 @@ import {
   getMySubscriptions,
   pauseSubscription,
   resumeSubscription,
+  skipNextDelivery,
+  cancelSkip,
+  canSkipThisWeek,
   cancelSubscription,
   cancelUnpaidOrder,
   requestRenewal,
@@ -202,6 +205,32 @@ export default function AccountPage() {
       reloadSubs();
     } catch (e) {
       alert(e instanceof Error ? e.message : "일시정지에 실패했습니다.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onSkip(slotId: number, skipDate: string) {
+    if (!confirm(`${fmtDate(skipDate)} 배송을 한 번 건너뛸까요?\n그 주만 쉬고 다음 주부터 정상 배송됩니다. 총 횟수는 그대로, 종료일이 한 주 뒤로 미뤄집니다.`))
+      return;
+    setBusy(slotId);
+    try {
+      await skipNextDelivery(slotId, skipDate);
+      reloadSubs();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "건너뛰기에 실패했습니다.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onCancelSkip(slotId: number) {
+    setBusy(slotId);
+    try {
+      await cancelSkip(slotId);
+      reloadSubs();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "되돌리기에 실패했습니다.");
     } finally {
       setBusy(null);
     }
@@ -431,7 +460,10 @@ export default function AccountPage() {
                 pausedAt: s.pausedAt,
                 pausedDays: s.pausedDays,
               });
+              const skipping = s.paused && !!s.skipResumeOn; // 이번 주 건너뛰는 중
+              const manualPaused = s.paused && !s.skipResumeOn; // 일반 일시정지
               const canPause = s.status === "활성" && !s.paused;
+              const canSkip = canSkipThisWeek(s, sch.nextDate);
               const canCancel = s.status === "활성" || s.status === "대기";
               const refund = refundAmount(s, sch.remaining);
               return (
@@ -453,7 +485,11 @@ export default function AccountPage() {
                         </p>
                       )}
                     </div>
-                    {s.paused ? (
+                    {skipping ? (
+                      <span className="shrink-0 rounded-full bg-gold/15 px-3 py-1 text-[12px] font-medium text-gold-deep">
+                        이번 주 건너뜀
+                      </span>
+                    ) : manualPaused ? (
                       <span className="shrink-0 rounded-full bg-gold/15 px-3 py-1 text-[12px] font-medium text-gold-deep">
                         일시정지 중
                       </span>
@@ -479,7 +515,7 @@ export default function AccountPage() {
                       <div>
                         <dt className="text-[12px] text-mute">다음 발송</dt>
                         <dd className="text-ink">
-                          {sch.paused ? "정지 중" : fmtDate(sch.nextDate)}
+                          {skipping ? "이번 주 건너뜀" : sch.paused ? "정지 중" : fmtDate(sch.nextDate)}
                         </dd>
                       </div>
                       <div>
@@ -495,27 +531,60 @@ export default function AccountPage() {
 
                   {(canPause || s.paused) && (
                     <div className="mt-5">
-                      {s.paused ? (
-                        <button
-                          onClick={() => onResume(s.slotId)}
-                          disabled={busy === s.slotId}
-                          className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
-                        >
-                          {busy === s.slotId ? "처리 중…" : "배송 재개"}
-                        </button>
+                      {skipping ? (
+                        <>
+                          <button
+                            onClick={() => onCancelSkip(s.slotId)}
+                            disabled={busy === s.slotId}
+                            className="rounded-full border border-line px-5 py-2.5 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold disabled:opacity-50"
+                          >
+                            {busy === s.slotId ? "처리 중…" : "건너뛰기 취소"}
+                          </button>
+                          <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                            이번 주 배송을 한 번 건너뜁니다. 다음 주부터 정상 배송되고, 종료
+                            예정일이 한 주 뒤로 미뤄집니다. 총 {sch.total}회는 모두 발송됩니다.
+                          </p>
+                        </>
+                      ) : manualPaused ? (
+                        <>
+                          <button
+                            onClick={() => onResume(s.slotId)}
+                            disabled={busy === s.slotId}
+                            className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
+                          >
+                            {busy === s.slotId ? "처리 중…" : "배송 재개"}
+                          </button>
+                          <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                            일시정지 기간은 배송 횟수에서 제외되며, 종료 예정일이 정지한
+                            기간만큼 미뤄집니다. 총 {sch.total}회는 모두 발송됩니다.
+                          </p>
+                        </>
                       ) : (
-                        <button
-                          onClick={() => onPause(s.slotId)}
-                          disabled={busy === s.slotId}
-                          className="rounded-full border border-line px-5 py-2.5 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold disabled:opacity-50"
-                        >
-                          {busy === s.slotId ? "처리 중…" : "일시정지"}
-                        </button>
+                        <>
+                          <div className="flex flex-wrap gap-2">
+                            {canSkip && (
+                              <button
+                                onClick={() => onSkip(s.slotId, sch.nextDate as string)}
+                                disabled={busy === s.slotId}
+                                className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
+                              >
+                                {busy === s.slotId ? "처리 중…" : "이번 주 건너뛰기"}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => onPause(s.slotId)}
+                              disabled={busy === s.slotId}
+                              className="rounded-full border border-line px-5 py-2.5 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold disabled:opacity-50"
+                            >
+                              {busy === s.slotId ? "처리 중…" : "일시정지"}
+                            </button>
+                          </div>
+                          <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                            우유가 너무 많이 남는 주엔 <span className="text-ink-soft">‘이번 주 건너뛰기’</span>로
+                            한 주만 쉬어가세요. 길게 쉬려면 일시정지. 총 {sch.total}회는 모두 발송됩니다.
+                          </p>
+                        </>
                       )}
-                      <p className="mt-2 text-[12px] leading-relaxed text-mute">
-                        일시정지 기간은 배송 횟수에서 제외되며, 종료 예정일이 정지한
-                        기간만큼 미뤄집니다. 총 {sch.total}회는 모두 발송됩니다.
-                      </p>
                     </div>
                   )}
 

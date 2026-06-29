@@ -39,6 +39,7 @@ function sub(partial: Partial<MySubscription>): MySubscription {
     paused: false,
     pausedAt: null,
     pausedDays: 0,
+    skipResumeOn: null,
     totalWeeks: 4,
     periodMonths: 1,
     orderNo: "S-1",

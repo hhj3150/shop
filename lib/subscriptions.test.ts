@@ -4,6 +4,7 @@ import {
   toMySubscriptions,
   refundAmount,
   requestRenewal,
+  canSkipThisWeek,
   type DayCounts,
 } from "./subscriptions";
 import { DELIVERY_DAYS, type DeliveryDay } from "./cart";
@@ -43,6 +44,25 @@ describe("totalRemainingSeats", () => {
   });
 });
 
+describe("canSkipThisWeek — 이번 주 건너뛰기 노출 판정", () => {
+  const base = { status: "활성", paused: false, skipResumeOn: null };
+  it("활성·시작됨(다음 배송 존재)·정지 아님·건너뛰는 중 아님 → 가능", () => {
+    expect(canSkipThisWeek(base, "2026-07-06")).toBe(true);
+  });
+  it("다음 배송이 없으면(완료/시작 전) 불가", () => {
+    expect(canSkipThisWeek(base, null)).toBe(false);
+  });
+  it("일시정지 중이면 불가", () => {
+    expect(canSkipThisWeek({ ...base, paused: true }, "2026-07-06")).toBe(false);
+  });
+  it("이미 이번 주 건너뛰는 중이면 불가", () => {
+    expect(canSkipThisWeek({ ...base, paused: true, skipResumeOn: "2026-07-07" }, "2026-07-06")).toBe(false);
+  });
+  it("해지/대기 등 비활성은 불가", () => {
+    expect(canSkipThisWeek({ ...base, status: "대기" }, "2026-07-06")).toBe(false);
+  });
+});
+
 // 환불 미리보기가 서버(cancel_subscription)와 동일 결과를 내려면
 // totalAmount = 원주문 + Σ(입금확인 연장주문), totalWeeks = block + extended 여야 한다.
 describe("toMySubscriptions — 연장분 합산", () => {
@@ -55,6 +75,7 @@ describe("toMySubscriptions — 연장분 합산", () => {
     paused: false,
     paused_at: null,
     paused_days: 0,
+    skip_resume_on: null,
     extended_weeks: 4, // 연장 입금확인 4회 누적
     orders: {
       block_weeks: 4,
