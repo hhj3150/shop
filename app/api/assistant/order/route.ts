@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { buildCustomerSystemPrompt } from "@/lib/assistant/knowledge";
+import { createClient } from "@supabase/supabase-js";
+import {
+  buildCustomerSystemPrompt,
+  buildMemberContextBlock,
+  type MemberSub,
+} from "@/lib/assistant/knowledge";
 import { clientIp, checkRateLimit } from "@/lib/assistant/ratelimit";
 import { PRODUCTS } from "@/lib/products";
 
@@ -35,6 +40,56 @@ function sanitizeAdd(raw: unknown): AddItem[] {
     merged.set(pid, Math.min(MAX_QTY, (merged.get(pid) ?? 0) + qty));
   }
   return [...merged.entries()].map(([productId, qty]) => ({ productId, qty }));
+}
+
+// 로그인 회원이면 토큰으로 본인 구독을 조회해 개인화 컨텍스트를 만든다(best-effort).
+//   - 토큰 검증(getUser) + RLS + 명시적 user_id 스코프로 '본인 것'만 본다(관리자 전체조회 차단).
+//   - 실패하면 빈 문자 반환 → 익명 상담으로 자연 폴백(개인화는 부가 기능, 본 응답을 막지 않음).
+async function fetchMemberContext(req: Request): Promise<string> {
+  try {
+    const auth = req.headers.get("authorization") ?? "";
+    const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
+    if (!token) return "";
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !anon) return "";
+
+    const sb = createClient(url, anon, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: authData, error: authErr } = await sb.auth.getUser();
+    if (authErr || !authData?.user) return "";
+    const uid = authData.user.id;
+
+    const [{ data: prof }, { data: slots }] = await Promise.all([
+      sb.from("profiles").select("name").eq("id", uid).maybeSingle(),
+      sb
+        .from("subscription_slots")
+        .select("delivery_day, status, paused, skip_resume_on, extended_weeks, orders(block_weeks)")
+        .eq("user_id", uid)
+        .neq("status", "해지"),
+    ]);
+
+    const rows = (slots ?? []) as unknown as {
+      delivery_day: string;
+      status: string;
+      paused: boolean | null;
+      skip_resume_on: string | null;
+      extended_weeks: number | null;
+      orders: { block_weeks: number | null } | null;
+    }[];
+    const subs: MemberSub[] = rows.map((s) => ({
+      deliveryDay: s.delivery_day,
+      weeks: (s.orders?.block_weeks ?? 0) + (s.extended_weeks ?? 0),
+      status: s.status,
+      paused: Boolean(s.paused),
+      skipping: Boolean(s.paused) && s.skip_resume_on != null,
+    }));
+    return buildMemberContextBlock((prof as { name?: string } | null)?.name ?? null, subs);
+  } catch {
+    return "";
+  }
 }
 
 export async function POST(req: Request) {
@@ -85,8 +140,10 @@ export async function POST(req: Request) {
     "담을 게 없으면 add는 빈 배열 []로 두세요.",
   ].join("\n");
 
+  // 로그인 회원이면 개인화 컨텍스트를 시스템 프롬프트에 덧붙인다(익명이면 빈 문자).
+  const memberBlock = await fetchMemberContext(req);
   const messages: ChatMessage[] = [
-    { role: "system", content: buildCustomerSystemPrompt() + "\n" + orderRule },
+    { role: "system", content: buildCustomerSystemPrompt() + memberBlock + "\n" + orderRule },
     ...cleanHistory,
   ];
 
