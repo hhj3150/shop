@@ -14,6 +14,7 @@ export type NotifyTemplateKey =
   | "PAYMENT_CONFIRMED" // 입금 확인
   | "WELCOME" // 회원가입 환영
   | "SHIPPED" // 발송 안내(송장 등록)
+  | "FIRST_SHIPPED" // 첫 배송 안내(1회차) — 브랜드필름 버튼 포함. 미등록 시 SHIPPED→LMS 폴백.
   | "DELIVERED" // 배송 완료 안내
   | "SUBSCRIPTION_CANCELLED" // 구독 해지 접수
   | "GIFT_RECIPIENT" // 선물 도착 안내(받는 분)
@@ -28,6 +29,7 @@ const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
   PAYMENT_CONFIRMED: "SOLAPI_TEMPLATE_PAYMENT_CONFIRMED",
   WELCOME: "SOLAPI_TEMPLATE_WELCOME",
   SHIPPED: "SOLAPI_TEMPLATE_SHIPPING",
+  FIRST_SHIPPED: "SOLAPI_TEMPLATE_FIRST_SHIPPING",
   DELIVERED: "SOLAPI_TEMPLATE_DELIVERED",
   SUBSCRIPTION_CANCELLED: "SOLAPI_TEMPLATE_SUBSCRIPTION_CANCEL",
   GIFT_RECIPIENT: "SOLAPI_TEMPLATE_GIFT_ARRIVAL",
@@ -42,6 +44,9 @@ const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
 //     (코드가 #{회차} 를 전달한다. 회차수가 없는 레거시 주문은 빈 값→자동 LMS 폴백되므로 안전.)
 //   - EXPIRE_SOON: 재구독 링크(https://shop.a2jerseymilk.com/account)는 변수가 아니라
 //     템플릿 본문의 고정 텍스트(또는 웹링크 버튼)로 등록한다 — URL 이 고정이라 변수 불필요.
+//   - FIRST_SHIPPED: SHIPPED 와 동일 변수 + 본문에 '왜 이 우유' 한 줄, 브랜드필름
+//     (https://youtu.be/bI5EmgK0i2A)은 변수가 아니라 '웹링크 버튼'으로 고정 등록한다.
+//     env(SOLAPI_TEMPLATE_FIRST_SHIPPING) 미설정이면 자동으로 LMS(첫배송 ritual 본문)로 폴백.
 export const TEMPLATE_VARS: Record<NotifyTemplateKey, readonly string[]> = {
   EXPIRE_SOON: ["#{고객명}", "#{만료일}"],
   PAYMENT_DEADLINE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{마감일}"],
@@ -49,6 +54,7 @@ export const TEMPLATE_VARS: Record<NotifyTemplateKey, readonly string[]> = {
   PAYMENT_CONFIRMED: ["#{고객명}", "#{주문번호}"],
   WELCOME: ["#{고객명}"],
   SHIPPED: ["#{고객명}", "#{주문번호}", "#{택배사}", "#{송장번호}"],
+  FIRST_SHIPPED: ["#{고객명}", "#{주문번호}", "#{택배사}", "#{송장번호}"],
   DELIVERED: ["#{고객명}", "#{주문번호}"],
   SUBSCRIPTION_CANCELLED: ["#{고객명}", "#{환불금액}"],
   GIFT_RECIPIENT: ["#{받는분}", "#{보내는분}", "#{제품요약}"],
