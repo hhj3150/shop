@@ -1400,6 +1400,9 @@ export default function AdminPage() {
           slots={slots}
           shippedKeys={shippedKeys}
           deliveredKeys={deliveredKeys}
+          blocksBySlot={blocksBySlot}
+          slotIdByOrder={slotIdByOrder}
+          slotById={slotById}
           onReload={load}
         />
       )}

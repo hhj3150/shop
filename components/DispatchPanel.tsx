@@ -16,6 +16,7 @@ import { matchLogen, type LogenMatchResult } from "@/lib/logen-match";
 import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
+import { activeBlockOrderForDate, type RawBlock } from "@/lib/subscription-timeline";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
 import { downloadXlsx } from "@/lib/xlsx-export";
 import { decideShipOut } from "@/lib/dispatch-shipout";
@@ -131,6 +132,9 @@ export function DispatchPanel({
   slots = [],
   shippedKeys = new Set(),
   deliveredKeys = new Set(),
+  blocksBySlot,
+  slotIdByOrder,
+  slotById,
   onReload,
 }: {
   orders: DispatchOrder[];
@@ -138,6 +142,11 @@ export function DispatchPanel({
   slots?: DispatchSlot[];
   shippedKeys?: Set<string>; // 이미 출고된 `${order_id}|${ship_date}` 키(재고 차감 완료)
   deliveredKeys?: Set<string>; // 이미 배송완료(도착확인)된 `${order_id}|${ship_date}` 키
+  // 연장(다중 블록) 슬롯의 활성 블록 게이팅용 — 기간별 명단(buildRosterForDate)과 동일 SSOT.
+  //   원주문+연장주문이 한 슬롯에 체인될 때, 발송일의 '활성 블록' 주문만 시트에 나오게 한다.
+  blocksBySlot?: ReadonlyMap<number, RawBlock[]>;
+  slotIdByOrder?: ReadonlyMap<string, number>; // 주문 id(원주문·연장주문) → 슬롯 id
+  slotById?: ReadonlyMap<number, DispatchSlot>; // 슬롯 id → 슬롯 상태
   onReload: () => Promise<void> | void;
 }) {
   const queueRef = useRef<HTMLDivElement>(null);
@@ -200,7 +209,7 @@ export function DispatchPanel({
     for (const o of orders) {
       if (!SHIPPABLE.includes(o.status)) continue;
       if (o.delivery_method === "방문수령") continue; // 방문수령은 발송 대상 아님 → 수량 집계 제외
-      if (o.renews_slot_id != null) continue;
+      // 연장주문도 자기 품목을 발송하므로 미매핑 경고 집계에 포함한다(과거: 유령행이라 제외).
       for (const it of itemsByOrder.get(o.id) ?? []) its.push(it);
     }
     return findUnmappedKeys(its);
@@ -215,8 +224,6 @@ export function DispatchPanel({
       if (!SHIPPABLE.includes(o.status)) continue;
       // 방문수령: 손님이 목장에서 직접 받음 → 택배 발송 대상 아님(발송명단 roster 와 동일 제외).
       if (o.delivery_method === "방문수령") continue;
-      // 연장 결제 주문: 품목 미생성·발송은 원주문 행에서 이어짐 → 유령행 제외.
-      if (o.renews_slot_id != null) continue;
 
       const items = itemsByOrder.get(o.id) ?? [];
       const q = [0, 0, 0, 0];
@@ -238,7 +245,32 @@ export function DispatchPanel({
       let round: number;
       let total: number;
       let remaining: number;
-      if (!isOnce && slot) {
+
+      // 연장(다중 블록) 슬롯의 활성 블록 게이팅 — 날짜 필터 모드에서만 적용한다.
+      //   원구독+연장이 한 슬롯에 체인되면, 발송일의 '활성 블록' 주문 1건만 시트에 나와야
+      //   한다(기간별 명단과 동일 SSOT). 게이팅이 없으면 원구독을 연장 구간까지 늘여 보여
+      //   연장분과 같은 날 중복 표시되고 품목까지 어긋난다(오포장). 단일 블록·레거시·단품은
+      //   기존 경로 그대로 — 일상 운영 동작 불변.
+      const blockSlotId = !isOnce ? slotIdByOrder?.get(o.id) : undefined;
+      const slotBlocks = blockSlotId != null ? blocksBySlot?.get(blockSlotId) : undefined;
+      const blockSlot = blockSlotId != null ? slotById?.get(blockSlotId) : undefined;
+      const gateByBlock =
+        useDateFilter && !!blockSlot && !!slotBlocks && slotBlocks.length > 1;
+
+      if (gateByBlock) {
+        // 이 발송일의 활성 블록 주문이 아니면 제외(원구독 구간↔연장 구간 정확 전환).
+        if (activeBlockOrderForDate(blockSlot!, slotBlocks!, shipISO) !== o.id) continue;
+        // 회차/총회차는 슬롯 단위(원구독 block_weeks 기준 + extended_weeks).
+        const origWeeks =
+          orderById.get(blockSlot!.order_id ?? "")?.block_weeks ?? o.block_weeks ?? 0;
+        const sch = dispatchScheduleForSlot(blockSlot!, origWeeks, shipISO);
+        round = sch.round;
+        total = sch.total;
+        remaining = sch.remaining;
+      } else if (o.renews_slot_id != null) {
+        // 연장 결제 주문(단일 블록/비-날짜필터): 발송은 원주문 행에서 이어짐 → 유령행 제외.
+        continue;
+      } else if (!isOnce && slot) {
         const sch = dispatchScheduleForSlot(slot, o.block_weeks ?? 0, shipISO);
         if (sch.excluded) continue; // 해지·일시정지·회차소진 → 큐에서 제외
         round = sch.round;
@@ -266,7 +298,17 @@ export function DispatchPanel({
       });
     }
     return rows;
-  }, [orders, itemsByOrder, slotByOrder, useDateFilter, date]);
+  }, [
+    orders,
+    itemsByOrder,
+    slotByOrder,
+    useDateFilter,
+    date,
+    slotIdByOrder,
+    blocksBySlot,
+    slotById,
+    orderById,
+  ]);
 
   // 날짜 → 검색 → 구분/요일/상태 필터 → 정렬. 모든 컬럼 정렬 가능.
   const queue = useMemo<DispatchRow[]>(() => {
