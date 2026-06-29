@@ -277,9 +277,11 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
   //   주의: 회차 표시는 LMS 본문에만 넣는다. SHIPPED 알림톡 변수에 회차를 강제하면
   //     회차가 없는 단품 발송까지 빈 값→LMS 폴백되어 단품 알림톡이 비활성화되므로 제외.
   let roundSuffix = "";
-  // 첫 배송(1회차)에만 '왜 이 우유인지' 브랜드필름 한 줄을 덧붙인다(첫인상 → 리텐션).
-  //   LMS 본문에만 싣는다(알림톡 채널로도 보내려면 별도 첫배송 템플릿 등록 필요 — 운영 단계).
+  // 첫 배송(1회차)에만 '왜 이 우유인지' 브랜드필름 한 줄을 덧붙이고(LMS 본문),
+  //   알림톡은 전용 FIRST_SHIPPED 템플릿(필름 버튼 포함)으로 보낸다. FIRST_SHIPPED 의
+  //   templateId(env) 가 아직 없으면 자동으로 LMS(이 ritual 본문)로 폴백된다.
   let firstNote = "";
+  let isFirstDelivery = false;
   if (o.order_type === "구독") {
     const shipISO =
       ((o.shipped_at as string | null) ?? (o.ship_date as string | null) ?? kstTodayISO()).slice(0, 10);
@@ -291,7 +293,10 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     if (slot) {
       const sch = dispatchScheduleForSlot(slot as DispatchSlotInfo, (o.block_weeks as number | null) ?? 0, shipISO);
       if (sch.total > 0) roundSuffix = ` (${sch.total}회 중 ${sch.round}번째)`;
-      if (sch.round === 1) firstNote = firstDeliveryRitualNote();
+      if (sch.round === 1) {
+        firstNote = firstDeliveryRitualNote();
+        isFirstDelivery = true;
+      }
     }
   }
 
@@ -302,7 +307,8 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     (url ? `\n배송조회 ${url}` : "") +
     firstNote;
   const alimtalk: AlimtalkSpec = {
-    templateKey: "SHIPPED",
+    // 첫 배송이면 전용 템플릿(브랜드필름 버튼). 미등록(env 없음)이면 sendInfo 가 LMS 로 폴백.
+    templateKey: isFirstDelivery ? "FIRST_SHIPPED" : "SHIPPED",
     variables: {
       "#{고객명}": name,
       "#{주문번호}": o.order_no as string,
