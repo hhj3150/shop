@@ -6,6 +6,7 @@ import { RegenerativeBand } from "@/components/RegenerativeBand";
 import { NewsBand } from "@/components/NewsBand";
 import { NewsRadarBand } from "@/components/NewsRadarBand";
 import { SubscriptionBand } from "@/components/SubscriptionBand";
+import { FaqSection } from "@/components/FaqSection";
 import { VisitStore } from "@/components/VisitStore";
 import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
@@ -25,6 +26,7 @@ export default function Home() {
       <NewsBand />
       <NewsRadarBand />
       <SubscriptionBand />
+      <FaqSection />
       <VisitStore />
       <Footer />
     </>
