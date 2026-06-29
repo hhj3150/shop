@@ -82,6 +82,34 @@ export function totalWeeks(blocks: RawBlock[]): number {
   return blocks.reduce((s, b) => s + Math.max(0, b.weeks), 0);
 }
 
+// 발송일의 '활성 블록 주문 id' — 해지·정지면 null. 발송 명단/배송 시트가 한 슬롯의 여러
+//   블록(원구독+연장) 중 그날 발송할 단 하나의 주문만 고르게 하는 게이팅 키.
+//   buildRosterForDate(기간별 명단)와 DispatchPanel(배송 시트)이 같은 SSOT 를 쓰도록 공유한다.
+export function activeBlockOrderForDate(
+  slot: {
+    status: string;
+    started_at: string | null;
+    paused: boolean;
+    paused_at: string | null;
+    paused_days: number;
+  },
+  blocks: RawBlock[],
+  dateISO: string
+): string | null {
+  if (slot.status === "해지" || slot.paused) return null;
+  const active = activeBlockForDate(
+    {
+      startedAt: slot.started_at,
+      paused: slot.paused,
+      pausedAt: slot.paused_at,
+      pausedDays: slot.paused_days,
+      blocks,
+    },
+    dateISO
+  );
+  return active?.orderId ?? null;
+}
+
 export function activeBlockForDate(
   input: TimelineInput,
   dateISO: string

@@ -3,6 +3,7 @@ import {
   normalizeBlocks,
   activeBlockForRound,
   activeBlockForDate,
+  activeBlockOrderForDate,
   renewalQuote,
   refundByBlocks,
   totalWeeks,
@@ -112,6 +113,38 @@ describe("activeBlockForDate", () => {
   });
   it("시작일 이전 날짜면 null", () => {
     expect(activeBlockForDate(input, "2026-01-05")).toBeNull();
+  });
+});
+
+describe("activeBlockOrderForDate (배송 시트·기간별 명단 공용 게이팅)", () => {
+  // 슬롯 시작 2026-06-08(월), 블록0=원구독 4회 월(o0), 블록1=연장 8회 월(o1). 같은 요일.
+  const slot = {
+    status: "활성",
+    started_at: "2026-06-08",
+    paused: false,
+    paused_at: null,
+    paused_days: 0,
+  };
+  const blocks: RawBlock[] = [
+    { orderId: "o0", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, items: [chicken] },
+    { orderId: "o1", weeks: 8, deliveryDay: "mon", shippingPerWeek: 4000, items: [beef] },
+  ];
+
+  it("원구독 구간(06-29, 4회차)엔 원구독 주문 id", () => {
+    expect(activeBlockOrderForDate(slot, blocks, "2026-06-29")).toBe("o0");
+  });
+  it("연장 구간(07-06, 5회차)엔 연장 주문 id — 같은 요일이어도 정확히 전환", () => {
+    expect(activeBlockOrderForDate(slot, blocks, "2026-07-06")).toBe("o1");
+  });
+  it("해지 슬롯은 null(둘 다 발송 안 함)", () => {
+    expect(activeBlockOrderForDate({ ...slot, status: "해지" }, blocks, "2026-07-06")).toBeNull();
+  });
+  it("정지 슬롯은 null", () => {
+    expect(activeBlockOrderForDate({ ...slot, paused: true, paused_at: "2026-06-20" }, blocks, "2026-07-06")).toBeNull();
+  });
+  it("소진 후(총 12회 지난) 날짜는 null", () => {
+    // 마지막 회차12 예정일 = 06-08 + 11*7 = 08-24(월). 그 다음 월요일 08-31.
+    expect(activeBlockOrderForDate(slot, blocks, "2026-08-31")).toBeNull();
   });
 });
 
