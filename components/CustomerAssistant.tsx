@@ -287,7 +287,7 @@ export function CustomerAssistant() {
 
       {/* 채팅 패널 */}
       {open && (
-        <div className="fixed bottom-[84px] right-5 z-40 flex h-[min(560px,72vh)] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-line bg-cream shadow-2xl md:bottom-6 md:right-6">
+        <div className="fixed inset-x-3 bottom-[84px] z-40 mx-auto flex h-[min(560px,72vh)] max-w-[380px] flex-col overflow-hidden rounded-2xl border border-line bg-cream shadow-2xl md:inset-x-auto md:right-6 md:bottom-6 md:mx-0 md:w-[380px]">
           <div className="flex items-center justify-between border-b border-line bg-ink px-4 py-3 text-cream">
             <div>
               <p className="text-[14px] font-medium">송영신목장 도우미</p>
@@ -343,7 +343,7 @@ export function CustomerAssistant() {
               messages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed ${
+                    className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed ${
                       m.role === "user" ? "bg-ink text-cream" : "border border-line bg-white text-ink"
                     }`}
                   >
