@@ -51,14 +51,17 @@ export function CustomerAssistant() {
     onError: (msg) => setError(msg),
   });
 
-  // 첫 방문(세션당 1회)에만 '물어보세요' 말풍선을 띄운다 — 매 페이지 따라다니지 않게.
+  // 메인화면(홈 '/')에 올 때마다 인사 넛지를 다시 띄운다 — 홈 진입·새로고침·다른 곳에서
+  //   홈으로 복귀할 때마다 매번. 그 외 페이지에서는 띄우지 않는다(따라다니지 않게).
+  //   nudgeReady 를 false 로 되돌려 등장 타이머(2.5초)를 매번 새로 무장한다.
   useEffect(() => {
-    try {
-      if (!sessionStorage.getItem("cs_nudge_seen")) setShowNudge(true);
-    } catch {
-      // 무시
+    if (pathname === "/") {
+      setShowNudge(true);
+      setNudgeReady(false);
+    } else {
+      setShowNudge(false);
     }
-  }, []);
+  }, [pathname]);
 
   // 제품 상세의 하단 담기 바 표시 신호를 듣고 겹침을 피한다(PurchasePanel이 발행).
   useEffect(() => {
@@ -103,13 +106,9 @@ export function CustomerAssistant() {
     };
   }, [showNudge, nudgeReady]);
 
+  // 이번 표시만 닫는다(영속 저장 안 함) — 홈으로 다시 오면 위 effect 가 또 띄운다.
   function dismissNudge() {
     setShowNudge(false);
-    try {
-      sessionStorage.setItem("cs_nudge_seen", "1");
-    } catch {
-      // 무시
-    }
   }
 
   // 넛지/예시 칩에서 채팅을 연다(필요하면 질문을 미리 채워 첫 마디 문턱을 낮춘다).
