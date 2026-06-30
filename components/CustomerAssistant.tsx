@@ -93,9 +93,9 @@ export function CustomerAssistant() {
       clearTimeout(timer);
     };
     const onScroll = () => {
-      if (window.scrollY > window.innerHeight * 0.6) reveal();
+      if (window.scrollY > window.innerHeight * 0.25) reveal();
     };
-    const timer = setTimeout(reveal, 6000);
+    const timer = setTimeout(reveal, 2500);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
@@ -110,6 +110,13 @@ export function CustomerAssistant() {
     } catch {
       // 무시
     }
+  }
+
+  // 넛지/예시 칩에서 채팅을 연다(필요하면 질문을 미리 채워 첫 마디 문턱을 낮춘다).
+  function openChat(prompt?: string) {
+    setOpen(true);
+    dismissNudge();
+    if (prompt) setInput(prompt);
   }
 
   // 관리자 화면에선 노출하지 않는다(관리자 전용 AI 비서가 따로 있음).
@@ -205,22 +212,52 @@ export function CustomerAssistant() {
 
   return (
     <>
-      {/* 첫 방문 넛지 말풍선 — 무엇이든 물어보세요 (첫 화면을 가리지 않도록 지연 등장) */}
+      {/* 첫 방문 인사 넛지 — 도우미가 먼저 말 거는 카드(얼굴+이름+예시 질문 칩).
+          빠르게(2.5초)·친근하게 등장해 우하단 FAB가 묻히는 문제를 보완한다. */}
       {!open && showNudge && nudgeReady && !addBarOpen && (
-        <div className="fixed bottom-[150px] right-5 z-40 flex max-w-[240px] items-start gap-2 rounded-2xl border border-line bg-cream px-4 py-3 shadow-xl animate-[rise_0.5s_var(--ease-soft)_both] md:bottom-[88px] md:right-6 no-print">
-          <p className="text-[13px] leading-snug text-ink">
-            궁금한 점, <span className="font-medium text-gold-deep">무엇이든 물어보세요</span> — A2·저지·헤이밀크 같은 제품 이야기부터 추천·구독·배송까지 바로 답해 드려요.
-          </p>
-          <button
-            type="button"
-            onClick={dismissNudge}
-            aria-label="안내 닫기"
-            className="-mr-1 -mt-1 shrink-0 text-mute hover:text-ink"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-            </svg>
-          </button>
+        <div className="fixed bottom-[150px] right-5 z-40 w-[min(280px,calc(100vw-2.5rem))] animate-[rise_0.5s_var(--ease-soft)_both] md:bottom-[88px] md:right-6 no-print">
+          <div className="relative rounded-2xl border border-gold/30 bg-cream px-3.5 py-3 shadow-xl">
+            <button
+              type="button"
+              onClick={dismissNudge}
+              aria-label="안내 닫기"
+              className="absolute right-2 top-2 text-mute hover:text-ink"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+              </svg>
+            </button>
+            <div className="flex items-start gap-2.5">
+              {/* 도우미 얼굴 — 식별성을 위해 작은 원형 아바타(채팅 아이콘) */}
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-cream">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.38 8.38 0 0 1 8.5 8.5z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              <div className="min-w-0 pr-3">
+                <p className="text-[12px] font-semibold text-gold-deep">송영신목장 도우미</p>
+                <p className="mt-0.5 text-[13px] leading-snug text-ink">
+                  안녕하세요! 어떤 우유가 맞을지, 무엇이든 편하게 물어보세요 🙂
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => openChat("어떤 우유가 저에게 맞을까요? 가족 수와 드시는 양으로 추천해 주세요.")}
+                    className="rounded-full border border-gold/40 bg-white px-2.5 py-1 text-[12px] font-medium text-gold-deep transition-colors hover:bg-gold/10"
+                  >
+                    어떤 우유가 맞을까요?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openChat()}
+                    className="rounded-full bg-ink px-2.5 py-1 text-[12px] font-medium text-cream transition-colors hover:bg-gold-deep"
+                  >
+                    대화 시작
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -228,13 +265,17 @@ export function CustomerAssistant() {
       {!open && !addBarOpen && (
         <button
           type="button"
-          onClick={() => {
-            setOpen(true);
-            dismissNudge();
-          }}
-          aria-label="도움말 채팅 열기"
+          onClick={() => openChat()}
+          aria-label="송영신목장 도우미 — 채팅 열기"
           className="fixed bottom-[84px] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-cream shadow-xl transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
         >
+          {/* 시선 끌기 — 첫 방문(넛지 활성) 동안만 잔잔한 펄스 링. 클릭 가로채지 않음. */}
+          {showNudge && nudgeReady && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-ink/40 animate-ping"
+            />
+          )}
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
             <path
               d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5 8.38 8.38 0 0 1 8.5 8.5z"
