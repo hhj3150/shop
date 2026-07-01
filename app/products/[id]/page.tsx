@@ -140,8 +140,9 @@ export default async function ProductPage({
         <div className="mx-auto max-w-xl px-5 sm:px-8 lg:max-w-7xl lg:pt-6">
           <div className="text-center lg:grid lg:grid-cols-2 lg:items-center lg:gap-16 lg:text-left">
             {/* 이미지 — 모바일에서 먼저(제품을 바로 보이게) / 데스크톱은 왼쪽 */}
+            {/*   모바일은 높이를 제한해 제품과 구매 버튼이 한 화면에 함께 보이게 한다. */}
             <div className="lg:order-first">
-              <div className="relative mx-auto aspect-[4/5] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:max-w-none">
+              <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:h-auto lg:aspect-[4/5] lg:max-w-none">
                 <Image
                   src={product.image}
                   alt={`${product.name} ${product.volume}`}
@@ -149,7 +150,7 @@ export default async function ProductPage({
                   height={1200}
                   priority
                   sizes="(max-width:1024px) 92vw, 46vw"
-                  className="h-full w-full object-contain p-8 sm:p-10"
+                  className="h-full w-full object-contain p-6 sm:p-10"
                 />
               </div>
             </div>
