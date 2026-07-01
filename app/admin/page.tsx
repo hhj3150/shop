@@ -27,6 +27,7 @@ import { payActionReasonLabel } from "@/lib/payaction-reason";
 import { AdminStats } from "@/components/AdminStats";
 import { BroadcastPanel } from "@/components/BroadcastPanel";
 import { ProductionPanel } from "@/components/ProductionPanel";
+import { ProductionPlanPeriod } from "@/components/ProductionPlanPeriod";
 import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
 import { Customer360Drawer } from "@/components/Customer360Drawer";
 import { AdminGlobalSearch } from "@/components/AdminGlobalSearch";
@@ -35,8 +36,9 @@ import { buildCustomer360, type C360OrderEvent, type C360Sms } from "@/lib/custo
 import { buildMemberSmsPayload } from "@/lib/member-sms";
 import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
-import { subscriptionShipAddressPatch } from "@/lib/profile";
+import { profileShipPatch } from "@/lib/profile";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
+import { ProfitabilityPanel } from "@/components/ProfitabilityPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
 import { PickupPanel } from "@/components/PickupPanel";
@@ -47,6 +49,8 @@ import { loadReturns, type OrderReturn } from "@/lib/returns";
 import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
 import { duplicateIds, normalizePhone } from "@/lib/duplicates";
 import { SettlementPanel } from "@/components/SettlementPanel";
+import { B2bSettlementPanel } from "@/components/B2bSettlementPanel";
+import { B2bReceivablesPanel } from "@/components/B2bReceivablesPanel";
 import { PrintButton } from "@/components/PrintButton";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
@@ -1106,10 +1110,13 @@ export default function AdminPage() {
       .eq("id", userId);
     if (error) throw new Error(error.message);
 
-    // 진행 중인 정기구독 배송지도 새 주소로 동기화 — 향후 배송이 옛 주소로 나가는 사고 방지.
-    //   선물 제외·취소 제외. 단품은 건드리지 않는다. RLS(orders_update_admin)로 관리자만 가능.
-    //   best-effort: 실패해도 프로필 저장은 유지(주문 동기화는 보조).
-    const shipPatch = subscriptionShipAddressPatch({
+    // 진행 중인 주문의 배송정보도 새 고객정보로 동기화 — 이름·연락처·주소를 모두 맞춰
+    //   '고객정보 ≠ 배송정보'로 옛 정보가 남는 사고를 막는다(향후 배송분에 반영).
+    //   구독·단품 모두 포함한다. 선물(받는 분 주소가 따로)·취소 주문은 제외한다.
+    //   RLS(orders_update_admin)로 관리자만 가능. best-effort: 실패해도 프로필 저장은 유지.
+    const shipPatch = profileShipPatch({
+      name: values.name,
+      phone: values.phone,
       postcode: values.postcode,
       address: values.address,
       addressDetail: values.address_detail,
@@ -1119,10 +1126,9 @@ export default function AdminPage() {
         .from("orders")
         .update(shipPatch)
         .eq("user_id", userId)
-        .eq("order_type", "구독")
         .eq("is_gift", false)
         .neq("status", "취소");
-      if (shipErr) console.error("구독 배송지 동기화 실패:", shipErr.message);
+      if (shipErr) console.error("배송정보 동기화 실패:", shipErr.message);
     }
     await load();
   }
@@ -1384,12 +1390,20 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {tab === "생산·재고" && <ProductionPanel onlineDemandForDate={onlineDemandForDate} />}
+      {tab === "생산·재고" && (
+        <>
+          <ProductionPlanPeriod onlineDemandForDate={onlineDemandForDate} />
+          <div className="my-8 border-t border-line" />
+          <ProductionPanel onlineDemandForDate={onlineDemandForDate} />
+        </>
+      )}
 
       {tab === "상품·재고" && (
         <>
           <ProductAdminPanel />
           <InventoryPanel />
+          <div className="my-8 border-t border-line" />
+          <ProfitabilityPanel onlineDemandForDate={onlineDemandForDate} />
         </>
       )}
 
@@ -1413,7 +1427,15 @@ export default function AdminPage() {
 
       {tab === "환불·교환" && <ReturnsPanel orders={orders} />}
 
-      {tab === "정산·세금" && <SettlementPanel orders={orders} />}
+      {tab === "정산·세금" && (
+        <>
+          <SettlementPanel orders={orders} />
+          <div className="my-8 border-t border-line" />
+          <B2bSettlementPanel />
+          <div className="my-8 border-t border-line" />
+          <B2bReceivablesPanel />
+        </>
+      )}
 
       {tab === "종합 관리" && (
         <>

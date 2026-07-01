@@ -1266,6 +1266,10 @@ create table if not exists public.b2b_demand (
 create index if not exists b2b_demand_date_idx
   on public.b2b_demand (demand_date);
 
+-- B2B 납품 출고 시각(재고 차감 멱등 기준). NULL = 미출고.
+alter table public.b2b_demand
+  add column if not exists shipped_at timestamptz;
+
 alter table public.b2b_demand enable row level security;
 
 drop policy if exists "b2b_select_admin" on public.b2b_demand;
@@ -1282,6 +1286,93 @@ create policy "b2b_update_admin" on public.b2b_demand
 
 drop policy if exists "b2b_delete_admin" on public.b2b_demand;
 create policy "b2b_delete_admin" on public.b2b_demand
+  for delete using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
+-- 11-b. 거래처별 제품 납품 단가 (B2B 매출·정산). (client_id, product_key) 유니크.
+--       b2b_demand(수량) × client_prices(단가) → 기간 납품 매출·거래명세서.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.client_prices (
+  id          uuid primary key default gen_random_uuid(),
+  client_id   uuid not null references public.clients (id) on delete cascade,
+  product_key text not null,
+  unit_price  integer not null default 0 check (unit_price >= 0),
+  updated_at  timestamptz not null default now(),
+  unique (client_id, product_key)
+);
+
+alter table public.client_prices enable row level security;
+
+drop policy if exists "client_prices_select_admin" on public.client_prices;
+create policy "client_prices_select_admin" on public.client_prices
+  for select using (public.is_admin());
+
+drop policy if exists "client_prices_insert_admin" on public.client_prices;
+create policy "client_prices_insert_admin" on public.client_prices
+  for insert with check (public.is_admin());
+
+drop policy if exists "client_prices_update_admin" on public.client_prices;
+create policy "client_prices_update_admin" on public.client_prices
+  for update using (public.is_admin());
+
+drop policy if exists "client_prices_delete_admin" on public.client_prices;
+create policy "client_prices_delete_admin" on public.client_prices
+  for delete using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
+-- 11-c. B2B 미수금·수금. 청구 스냅샷(client_invoices) − 입금(client_payments) = 미수.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.client_invoices (
+  id          uuid primary key default gen_random_uuid(),
+  client_id   uuid not null references public.clients (id) on delete cascade,
+  period_from date not null,
+  period_to   date not null,
+  supply      integer not null default 0 check (supply >= 0),
+  tax         integer not null default 0 check (tax >= 0),
+  total       integer not null default 0 check (total >= 0),
+  memo        text,
+  created_at  timestamptz not null default now(),
+  unique (client_id, period_from, period_to)
+);
+create index if not exists client_invoices_client_idx
+  on public.client_invoices (client_id, created_at desc);
+alter table public.client_invoices enable row level security;
+drop policy if exists "client_invoices_select_admin" on public.client_invoices;
+create policy "client_invoices_select_admin" on public.client_invoices
+  for select using (public.is_admin());
+drop policy if exists "client_invoices_insert_admin" on public.client_invoices;
+create policy "client_invoices_insert_admin" on public.client_invoices
+  for insert with check (public.is_admin());
+drop policy if exists "client_invoices_update_admin" on public.client_invoices;
+create policy "client_invoices_update_admin" on public.client_invoices
+  for update using (public.is_admin());
+drop policy if exists "client_invoices_delete_admin" on public.client_invoices;
+create policy "client_invoices_delete_admin" on public.client_invoices
+  for delete using (public.is_admin());
+
+create table if not exists public.client_payments (
+  id          uuid primary key default gen_random_uuid(),
+  client_id   uuid not null references public.clients (id) on delete cascade,
+  paid_on     date not null,
+  amount      integer not null check (amount >= 0),
+  method      text,
+  memo        text,
+  created_at  timestamptz not null default now()
+);
+create index if not exists client_payments_client_idx
+  on public.client_payments (client_id, paid_on desc);
+alter table public.client_payments enable row level security;
+drop policy if exists "client_payments_select_admin" on public.client_payments;
+create policy "client_payments_select_admin" on public.client_payments
+  for select using (public.is_admin());
+drop policy if exists "client_payments_insert_admin" on public.client_payments;
+create policy "client_payments_insert_admin" on public.client_payments
+  for insert with check (public.is_admin());
+drop policy if exists "client_payments_update_admin" on public.client_payments;
+create policy "client_payments_update_admin" on public.client_payments
+  for update using (public.is_admin());
+drop policy if exists "client_payments_delete_admin" on public.client_payments;
+create policy "client_payments_delete_admin" on public.client_payments
   for delete using (public.is_admin());
 
 -- ───────────────────────────────────────────────────────────

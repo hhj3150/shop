@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { profileBackfillPatch, subscriptionShipAddressPatch } from "./profile";
+import { profileBackfillPatch, profileShipPatch } from "./profile";
 
 const empty = { phone: "", postcode: null, address: null, address_detail: null };
 const ship = {
@@ -46,11 +46,19 @@ describe("profileBackfillPatch", () => {
   });
 });
 
-describe("subscriptionShipAddressPatch", () => {
-  it("주소가 있으면 ship_* 패치를 만든다(공백 정리·빈 상세는 null)", () => {
+describe("profileShipPatch", () => {
+  it("이름·연락처·주소를 모두 담는다(전화는 숫자만·공백 정리·빈 상세는 null)", () => {
     expect(
-      subscriptionShipAddressPatch({ postcode: "06236", address: " 서울 강남구 1 ", addressDetail: "" })
+      profileShipPatch({
+        name: " 윤화영 ",
+        phone: "010-1234-5678",
+        postcode: "06236",
+        address: " 서울 강남구 1 ",
+        addressDetail: "",
+      })
     ).toEqual({
+      ship_name: "윤화영",
+      ship_phone: "01012345678",
       ship_postcode: "06236",
       ship_address: "서울 강남구 1",
       ship_address_detail: null,
@@ -59,8 +67,16 @@ describe("subscriptionShipAddressPatch", () => {
 
   it("상세주소도 함께 담는다", () => {
     expect(
-      subscriptionShipAddressPatch({ postcode: "12345", address: "부산 해운대 2", addressDetail: "202호" })
+      profileShipPatch({
+        name: "홍길동",
+        phone: "01099998888",
+        postcode: "12345",
+        address: "부산 해운대 2",
+        addressDetail: "202호",
+      })
     ).toEqual({
+      ship_name: "홍길동",
+      ship_phone: "01099998888",
       ship_postcode: "12345",
       ship_address: "부산 해운대 2",
       ship_address_detail: "202호",
@@ -69,7 +85,13 @@ describe("subscriptionShipAddressPatch", () => {
 
   it("주소가 비면 null — 빈 주소로 기존 배송지를 덮어쓰지 않는다", () => {
     expect(
-      subscriptionShipAddressPatch({ postcode: "06236", address: "   ", addressDetail: "101호" })
+      profileShipPatch({
+        name: "윤화영",
+        phone: "01012345678",
+        postcode: "06236",
+        address: "   ",
+        addressDetail: "101호",
+      })
     ).toBeNull();
   });
 });
