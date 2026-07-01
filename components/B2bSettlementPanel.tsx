@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatKRW } from "@/lib/products";
 import { PRODUCTION_KEYS } from "@/lib/production";
+import { loadCatalog } from "@/lib/catalog";
 import {
   type Client,
   type B2bDemand,
@@ -49,6 +50,7 @@ export function B2bSettlementPanel() {
   const [to, setTo] = useState(monthEndISO());
   const [clients, setClients] = useState<Client[]>([]);
   const [priceDraft, setPriceDraft] = useState<Record<string, Record<string, number>>>({});
+  const [taxFree, setTaxFree] = useState<Record<string, boolean>>({});
   const [b2bRows, setB2bRows] = useState<B2bDemand[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -64,13 +66,18 @@ export function B2bSettlementPanel() {
     setErr(null);
     setMsg(null);
     try {
-      const [cs, prices, rows] = await Promise.all([
+      const [cs, prices, rows, catalog] = await Promise.all([
         loadClients(),
         loadClientPrices(),
         loadB2bDemandRange(from, endDate),
+        loadCatalog(),
       ]);
       setClients(cs);
       setB2bRows(rows);
+      // 제품키(이름 용량) → 면세 여부.
+      const tf: Record<string, boolean> = {};
+      for (const p of catalog) tf[`${p.name} ${p.volume}`] = p.tax_free;
+      setTaxFree(tf);
       // 단가 초안: 저장된 값으로 채우되, 없는 칸은 0.
       const draft: Record<string, Record<string, number>> = {};
       for (const c of cs) {
@@ -115,27 +122,28 @@ export function B2bSettlementPanel() {
     }
   }
 
-  // 거래처별 정산(순수 계산) — 소계·합계.
+  // 거래처별 정산(순수 계산) — 소계·합계(공급가·세액·합계).
   const settlements = useMemo(() => {
     const m: Record<string, ReturnType<typeof settleClient>> = {};
     for (const c of activeClients) {
-      m[c.id] = settleClient(PRODUCTION_KEYS, qtyByClient[c.id] ?? {}, priceDraft[c.id] ?? {});
+      m[c.id] = settleClient(PRODUCTION_KEYS, qtyByClient[c.id] ?? {}, priceDraft[c.id] ?? {}, taxFree);
     }
     return m;
-  }, [activeClients, qtyByClient, priceDraft]);
+  }, [activeClients, qtyByClient, priceDraft, taxFree]);
 
-  const grandTotal = useMemo(
-    () => activeClients.reduce((s, c) => s + (settlements[c.id]?.amountTotal ?? 0), 0),
-    [activeClients, settlements]
-  );
-  const grandQty = useMemo(
-    () => activeClients.reduce((s, c) => s + (settlements[c.id]?.qtyTotal ?? 0), 0),
-    [activeClients, settlements]
-  );
+  const grand = useMemo(() => {
+    let qty = 0, supply = 0, tax = 0, total = 0;
+    for (const c of activeClients) {
+      const s = settlements[c.id];
+      if (!s) continue;
+      qty += s.qtyTotal; supply += s.supplyTotal; tax += s.taxTotal; total += s.total;
+    }
+    return { qty, supply, tax, total };
+  }, [activeClients, settlements]);
 
   function exportCsv() {
     const rows: string[][] = [
-      ["거래처", "제품", "수량", "단가", "금액", "기간"],
+      ["거래처", "제품", "과세구분", "수량", "공급단가", "공급가액", "세액", "합계", "기간"],
     ];
     for (const c of activeClients) {
       const s = settlements[c.id];
@@ -144,15 +152,18 @@ export function B2bSettlementPanel() {
         rows.push([
           c.name,
           line.productKey,
+          line.taxFree ? "면세" : "과세",
           String(line.qty),
           String(line.unitPrice),
-          String(line.amount),
+          String(line.supply),
+          String(line.tax),
+          String(line.total),
           `${from}~${endDate}`,
         ]);
       }
-      rows.push([`${c.name} 소계`, "", String(s.qtyTotal), "", String(s.amountTotal), ""]);
+      rows.push([`${c.name} 소계`, "", "", String(s.qtyTotal), "", String(s.supplyTotal), String(s.taxTotal), String(s.total), ""]);
     }
-    rows.push(["전체 합계", "", String(grandQty), "", String(grandTotal), `${from}~${endDate}`]);
+    rows.push(["전체 합계", "", "", String(grand.qty), "", String(grand.supply), String(grand.tax), String(grand.total), `${from}~${endDate}`]);
     downloadCsv(`B2B거래명세_${from}_${endDate}.csv`, rows);
   }
 
@@ -191,14 +202,16 @@ export function B2bSettlementPanel() {
       </div>
 
       {/* 요약 */}
-      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="거래처(활성)" value={`${activeClients.length}곳`} />
-        <Stat label="납품 수량" value={`${grandQty.toLocaleString("ko-KR")}개`} />
-        <Stat label="기간 매출" value={formatKRW(grandTotal)} tone="gold" />
+        <Stat label="납품 수량" value={`${grand.qty.toLocaleString("ko-KR")}개`} />
+        <Stat label="공급가액" value={formatKRW(grand.supply)} />
+        <Stat label="세액" value={formatKRW(grand.tax)} />
+        <Stat label="합계(매출)" value={formatKRW(grand.total)} tone="gold" />
         <div className="flex items-end no-print">
           <button
             onClick={exportCsv}
-            disabled={loading || grandTotal === 0}
+            disabled={loading || grand.total === 0}
             className="w-full rounded-2xl border border-gold-deep px-4 py-3 text-[14px] font-medium text-gold-deep hover:bg-gold/10 disabled:opacity-40"
           >
             거래명세서 CSV
@@ -231,28 +244,38 @@ export function B2bSettlementPanel() {
                     {c.contact && <span className="ml-1 text-[12px] text-mute">· {c.contact}</span>}
                   </h3>
                   <span className="text-[14px] font-medium text-gold-deep">
-                    소계 {formatKRW(s?.amountTotal ?? 0)}
+                    합계 {formatKRW(s?.total ?? 0)}
                   </span>
                 </div>
                 <div className="mt-3 overflow-x-auto">
-                  <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[520px]">
+                  <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[640px]">
                     <thead>
                       <tr className="border-b border-line text-left text-mute">
                         <th className="py-2 font-normal">제품</th>
                         <th className="py-2 text-right font-normal">수량</th>
-                        <th className="py-2 text-right font-normal">단가(원)</th>
-                        <th className="py-2 text-right font-normal">금액</th>
+                        <th className="py-2 text-right font-normal">공급단가</th>
+                        <th className="py-2 text-right font-normal">공급가액</th>
+                        <th className="py-2 text-right font-normal">세액</th>
+                        <th className="py-2 text-right font-normal">합계</th>
                       </tr>
                     </thead>
                     <tbody>
                       {PRODUCTION_KEYS.map((key) => {
                         const q = qty[key] ?? 0;
                         const price = priceDraft[c.id]?.[key] ?? 0;
+                        const free = taxFree[key] ?? false;
+                        const supply = q * price;
+                        const tax = free ? 0 : Math.round(supply * 0.1);
                         return (
                           <tr key={key} className="border-b border-line/60 align-middle">
-                            <td data-label="제품" className="py-2.5 text-ink">{key}</td>
+                            <td data-label="제품" className="py-2.5 text-ink">
+                              {key}
+                              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] ${free ? "bg-ink/5 text-mute" : "bg-gold/15 text-gold-deep"}`}>
+                                {free ? "면세" : "과세"}
+                              </span>
+                            </td>
                             <td data-label="수량" className="py-2.5 text-right tabular-nums text-ink-soft">{q || "·"}</td>
-                            <td data-label="단가" className="py-2.5 text-right">
+                            <td data-label="공급단가" className="py-2.5 text-right">
                               <input
                                 type="number"
                                 min={0}
@@ -262,8 +285,14 @@ export function B2bSettlementPanel() {
                                 className="w-24 rounded-lg border border-line bg-paper px-2 py-1 text-right tabular-nums text-ink"
                               />
                             </td>
-                            <td data-label="금액" className="py-2.5 text-right font-medium tabular-nums text-ink">
-                              {q * price ? formatKRW(q * price) : "·"}
+                            <td data-label="공급가액" className="py-2.5 text-right tabular-nums text-ink-soft">
+                              {supply ? formatKRW(supply) : "·"}
+                            </td>
+                            <td data-label="세액" className="py-2.5 text-right tabular-nums text-ink-soft">
+                              {tax ? formatKRW(tax) : "·"}
+                            </td>
+                            <td data-label="합계" className="py-2.5 text-right font-medium tabular-nums text-ink">
+                              {supply + tax ? formatKRW(supply + tax) : "·"}
                             </td>
                           </tr>
                         );
@@ -271,7 +300,7 @@ export function B2bSettlementPanel() {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-3 flex items-center gap-3 no-print">
+                <div className="mt-3 flex flex-wrap items-center gap-3 no-print">
                   <button
                     onClick={() => handleSavePrices(c.id)}
                     disabled={savingId === c.id}
@@ -280,7 +309,7 @@ export function B2bSettlementPanel() {
                     {savingId === c.id ? "저장 중…" : "단가 저장"}
                   </button>
                   <span className="text-[12.5px] text-mute">
-                    수량 {s?.qtyTotal ?? 0}개 · 소계 {formatKRW(s?.amountTotal ?? 0)}
+                    공급가액 {formatKRW(s?.supplyTotal ?? 0)} · 세액 {formatKRW(s?.taxTotal ?? 0)} · 합계 {formatKRW(s?.total ?? 0)}
                   </span>
                 </div>
               </div>
@@ -290,8 +319,9 @@ export function B2bSettlementPanel() {
       </div>
 
       <p className="mt-6 text-[13px] text-mute">
-        매출 = Σ(거래처 납품 수량 × 단가). 수량은 ‘생산·재고’ 탭 B2B 섹션에 저장된 날짜별 필요량의
-        기간 합계입니다. 단가는 거래처·제품별로 저장됩니다(부가세 별도 여부는 운영 정책에 따름).
+        공급단가는 부가세 별도 기준입니다. 공급가액 = 수량 × 공급단가, 세액 = 과세품 공급가액의 10%(면세품 0),
+        합계 = 공급가액 + 세액. 면세/과세는 상품 설정(우유=면세, 요거트=과세)을 따릅니다. 수량은 ‘생산·재고’ 탭
+        B2B 섹션의 날짜별 필요량 기간 합계입니다.
       </p>
     </section>
   );
