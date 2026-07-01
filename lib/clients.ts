@@ -19,6 +19,7 @@ export type B2bDemand = {
   client_id: string;
   product_key: string;
   qty: number;
+  shipped_at?: string | null; // 재고 출고(차감) 완료 시각. null=미출고.
 };
 
 // 활성 거래처 목록을 이름순으로 조회.
@@ -82,7 +83,7 @@ export async function loadB2bDemand(date: string): Promise<B2bDemand[]> {
     const sb = getSupabase();
     const { data, error } = await sb
       .from("b2b_demand")
-      .select("id, demand_date, client_id, product_key, qty")
+      .select("id, demand_date, client_id, product_key, qty, shipped_at")
       .eq("demand_date", date);
     if (error) throw error;
     return (data as B2bDemand[]) ?? [];
@@ -153,6 +154,23 @@ export async function saveClientPrices(
   } catch (error) {
     console.error("거래처 단가 저장 실패:", error);
     throw new Error("거래처 단가 저장에 실패했습니다.");
+  }
+}
+
+// 한 날짜의 B2B 필요량을 재고에서 출고(차감)한다 — 멱등(이미 출고분은 건너뜀).
+//   security definer RPC(b2b_ship_out) 경유. 반환: 차감 품목 수·수량.
+export async function b2bShipOut(
+  date: string
+): Promise<{ products: number; qty: number }> {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb.rpc("b2b_ship_out", { p_demand_date: date });
+    if (error) throw error;
+    const r = (data as { products?: number; qty?: number }) ?? {};
+    return { products: r.products ?? 0, qty: r.qty ?? 0 };
+  } catch (error) {
+    console.error("B2B 출고 처리 실패:", error);
+    throw new Error(error instanceof Error ? error.message : "B2B 출고에 실패했습니다.");
   }
 }
 

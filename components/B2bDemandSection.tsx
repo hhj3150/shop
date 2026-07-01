@@ -10,6 +10,7 @@ import {
   setClientActive,
   loadB2bDemand,
   saveB2bDemand,
+  b2bShipOut,
 } from "@/lib/clients";
 
 // 거래처별 제품 수요 초안: clientId → (productKey → qty).
@@ -38,6 +39,8 @@ export function B2bDemandSection({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [shipping, setShipping] = useState(false);
+  const [shippedCount, setShippedCount] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -60,6 +63,7 @@ export function B2bDemandSection({
       }
       setClients(cs);
       setDraft(byClient);
+      setShippedCount(demand.filter((d) => d.shipped_at).length);
     } catch (error) {
       setErr(error instanceof Error ? error.message : "불러오기에 실패했습니다.");
     } finally {
@@ -149,6 +153,33 @@ export function B2bDemandSection({
       setErr(error instanceof Error ? error.message : "저장에 실패했습니다.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  // 이 날짜 B2B 필요량을 재고에서 출고(차감). 저장된 수량 기준·멱등(이미 출고분 제외).
+  async function handleShipOut() {
+    if (
+      !window.confirm(
+        `${date}의 거래처 필요량을 재고에서 출고(차감)할까요?\n저장된 수량 기준으로 재고가 줄고, 재고 원장에 '출고'로 기록됩니다. 이미 출고한 분은 다시 빠지지 않습니다.`
+      )
+    ) {
+      return;
+    }
+    setShipping(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const r = await b2bShipOut(date);
+      await load();
+      setMsg(
+        r.products > 0
+          ? `재고 출고 완료 — ${r.products}개 품목 · ${r.qty}개 차감했습니다.`
+          : "새로 출고할 항목이 없습니다(이미 출고했거나 재고 미관리 품목)."
+      );
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : "출고에 실패했습니다.");
+    } finally {
+      setShipping(false);
     }
   }
 
@@ -289,7 +320,22 @@ export function B2bDemandSection({
         >
           되돌리기
         </button>
+        <button
+          onClick={handleShipOut}
+          disabled={shipping || loading || saving}
+          className="rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium text-cream hover:bg-gold-deep disabled:opacity-50"
+          title="저장된 이 날짜 필요량을 재고에서 출고(차감)합니다."
+        >
+          {shipping ? "출고 중…" : "재고 출고(차감)"}
+        </button>
+        {shippedCount > 0 && (
+          <span className="text-[12.5px] text-gold-deep">이 날짜 출고 처리됨 · {shippedCount}건</span>
+        )}
       </div>
+      <p className="mt-2 text-[12.5px] text-mute">
+        먼저 ‘거래처 필요량 저장’ 후 ‘재고 출고’를 누르세요. 출고는 저장된 수량 기준으로 재고를 차감하고
+        원장에 기록합니다(무제한 재고 품목은 제외, 이미 출고분은 중복 차감 안 함).
+      </p>
     </section>
   );
 }

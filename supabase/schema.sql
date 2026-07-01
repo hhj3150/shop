@@ -1266,6 +1266,10 @@ create table if not exists public.b2b_demand (
 create index if not exists b2b_demand_date_idx
   on public.b2b_demand (demand_date);
 
+-- B2B 납품 출고 시각(재고 차감 멱등 기준). NULL = 미출고.
+alter table public.b2b_demand
+  add column if not exists shipped_at timestamptz;
+
 alter table public.b2b_demand enable row level security;
 
 drop policy if exists "b2b_select_admin" on public.b2b_demand;
