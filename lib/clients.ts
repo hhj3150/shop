@@ -92,6 +92,26 @@ export async function loadB2bDemand(date: string): Promise<B2bDemand[]> {
   }
 }
 
+// 기간(from~to)의 B2B 필요수량을 모두 조회 — 생산계획 기간 집계용.
+export async function loadB2bDemandRange(
+  from: string,
+  to: string
+): Promise<B2bDemand[]> {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("b2b_demand")
+      .select("id, demand_date, client_id, product_key, qty")
+      .gte("demand_date", from)
+      .lte("demand_date", to);
+    if (error) throw error;
+    return (data as B2bDemand[]) ?? [];
+  } catch (error) {
+    console.error("B2B 기간 필요수량 조회 실패:", error);
+    throw new Error("거래처 기간 필요수량을 불러오지 못했습니다.");
+  }
+}
+
 // 한 날짜의 B2B 필요수량 일괄 저장(upsert). (demand_date, client_id, product_key) 유니크 기준.
 //   수량 0은 저장하지 않고 기존 행이 있으면 삭제해 깔끔히 유지한다.
 export async function saveB2bDemand(

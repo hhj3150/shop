@@ -58,6 +58,20 @@ export function rawMilkLiters(
   return Math.round((base + Math.max(0, lossLiters)) * 10) / 10;
 }
 
+// 기간 생산계획용 — 기간 총 수량으로 필요한 원유(L)를 계산.
+//   = 순 원유량(제품 용량 합) + 회당 고정 로스 × 생산 횟수(runs).
+//   수량이 0이면 0. runs 는 그 기간에 생산을 몇 번 돌리는지(보통 배송일수).
+export function rawMilkForPeriod(
+  quantities: Readonly<Record<string, number>>,
+  lossLiters: number,
+  productionRuns: number
+): number {
+  const base = rawMilkBaseLiters(quantities);
+  if (base === 0) return 0;
+  const runs = Math.max(0, Math.floor(productionRuns));
+  return Math.round((base + Math.max(0, lossLiters) * runs) * 10) / 10;
+}
+
 // 특정 날짜의 생산 기록을 모두 조회 → 제품키로 인덱싱한 맵으로 반환.
 export async function loadProduction(
   date: string

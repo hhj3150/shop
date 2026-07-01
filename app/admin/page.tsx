@@ -27,6 +27,7 @@ import { payActionReasonLabel } from "@/lib/payaction-reason";
 import { AdminStats } from "@/components/AdminStats";
 import { BroadcastPanel } from "@/components/BroadcastPanel";
 import { ProductionPanel } from "@/components/ProductionPanel";
+import { ProductionPlanPeriod } from "@/components/ProductionPlanPeriod";
 import { WeeklyPlanTable } from "@/components/WeeklyPlanTable";
 import { Customer360Drawer } from "@/components/Customer360Drawer";
 import { AdminGlobalSearch } from "@/components/AdminGlobalSearch";
@@ -1386,7 +1387,13 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {tab === "생산·재고" && <ProductionPanel onlineDemandForDate={onlineDemandForDate} />}
+      {tab === "생산·재고" && (
+        <>
+          <ProductionPlanPeriod onlineDemandForDate={onlineDemandForDate} />
+          <div className="my-8 border-t border-line" />
+          <ProductionPanel onlineDemandForDate={onlineDemandForDate} />
+        </>
+      )}
 
       {tab === "상품·재고" && (
         <>
