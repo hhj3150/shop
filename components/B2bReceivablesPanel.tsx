@@ -69,10 +69,10 @@ export function B2bReceivablesPanel() {
   }, [balances, nameById]);
 
   const setPay = (id: string, patch: Partial<{ amount: string; paid_on: string; method: string }>) =>
-    setPayDraft((prev) => ({
-      ...prev,
-      [id]: { amount: "", paid_on: todayISO(), method: "", ...(prev[id] ?? {}), ...patch },
-    }));
+    setPayDraft((prev) => {
+      const base = prev[id] ?? { amount: "", paid_on: todayISO(), method: "" };
+      return { ...prev, [id]: { ...base, ...patch } };
+    });
 
   async function handleAddPayment(clientId: string) {
     const d = payDraft[clientId];
