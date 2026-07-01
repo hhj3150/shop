@@ -11,6 +11,7 @@ import {
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
+import { StickyBuyBar } from "@/components/StickyBuyBar";
 import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights";
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
@@ -170,7 +171,7 @@ export default async function ProductPage({
               {/* 브랜드 한 줄 — 0.01% 선언(태그라인 대체) */}
               <ProductKicker highlights={product.highlights} />
               <ProductHeroPrice product={product} maxRate={maxRate} />
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+              <div id="hero-cta" className="mt-4 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
                 <a
                   href="#configure"
                   className="inline-flex items-center gap-1.5 rounded-full bg-ink px-6 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
@@ -352,6 +353,9 @@ export default async function ProductPage({
       </section>
 
       <Footer />
+
+      {/* 모바일 전용 하단 구매 바 — 스크롤 시 나타나 언제든 한 탭 구매 */}
+      <StickyBuyBar product={product} maxRate={maxRate} />
     </SwipeNav>
   );
 }
