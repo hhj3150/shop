@@ -11,6 +11,7 @@ import {
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
+import { StickyBuyBar } from "@/components/StickyBuyBar";
 import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights";
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
@@ -170,7 +171,7 @@ export default async function ProductPage({
               {/* 브랜드 한 줄 — 0.01% 선언(태그라인 대체) */}
               <ProductKicker highlights={product.highlights} />
               <ProductHeroPrice product={product} maxRate={maxRate} />
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+              <div id="hero-cta" className="mt-4 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
                 <a
                   href="#configure"
                   className="inline-flex items-center gap-1.5 rounded-full bg-ink px-6 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
@@ -214,7 +215,7 @@ export default async function ProductPage({
           </div>
 
           {/* Specs — quick reference */}
-          <div className="mx-auto mt-12 max-w-xl px-5 sm:px-8 lg:mx-0 lg:mt-14 lg:max-w-none lg:px-0">
+          <div className="mx-auto mt-10 max-w-xl px-5 sm:px-8 lg:mx-0 lg:mt-12 lg:max-w-none lg:px-0">
             <p className="eyebrow text-gold-deep">Specification</p>
             <dl className="mt-5 divide-y divide-line border-t border-line">
               {product.specs.map((s) => (
@@ -230,7 +231,7 @@ export default async function ProductPage({
           <ProductReviews productId={product.id} />
 
           {/* 법정 제품표시사항 · 영양정보 — 기본 접힘으로 핵심 구매를 위로, 페이지를 짧게 */}
-          <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8 lg:mx-0 lg:max-w-none lg:px-0 lg:py-16">
+          <section className="mx-auto max-w-3xl px-5 py-14 sm:px-8 lg:mx-0 lg:max-w-none lg:px-0 lg:py-12">
         <Reveal>
           <p className="eyebrow text-gold-deep">Product Information</p>
         </Reveal>
@@ -316,7 +317,7 @@ export default async function ProductPage({
       </div>
 
       {/* Related */}
-      <section className="mx-auto max-w-7xl px-5 py-24 sm:px-8">
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
         <Reveal>
           <p className="eyebrow">More from the farm</p>
           <h2 className="mt-4 font-serif-kr text-2xl font-medium text-ink">함께 보면 좋은 제품</h2>
@@ -352,6 +353,9 @@ export default async function ProductPage({
       </section>
 
       <Footer />
+
+      {/* 모바일 전용 하단 구매 바 — 스크롤 시 나타나 언제든 한 탭 구매 */}
+      <StickyBuyBar product={product} maxRate={maxRate} />
     </SwipeNav>
   );
 }
