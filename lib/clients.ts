@@ -93,6 +93,125 @@ export async function loadB2bDemand(date: string): Promise<B2bDemand[]> {
   }
 }
 
+// 청구(거래명세 스냅샷) 1행. (client_id, period_from, period_to) 유니크.
+export type ClientInvoice = {
+  id?: string;
+  client_id: string;
+  period_from: string; // YYYY-MM-DD
+  period_to: string; // YYYY-MM-DD
+  supply: number;
+  tax: number;
+  total: number;
+  memo?: string | null;
+  created_at?: string;
+};
+
+// 입금 1행.
+export type ClientPayment = {
+  id?: string;
+  client_id: string;
+  paid_on: string; // YYYY-MM-DD
+  amount: number;
+  method?: string | null;
+  memo?: string | null;
+  created_at?: string;
+};
+
+// 전체 청구 이력 조회(최신순).
+export async function loadInvoices(): Promise<ClientInvoice[]> {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("client_invoices")
+      .select("id, client_id, period_from, period_to, supply, tax, total, memo, created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data as ClientInvoice[]) ?? [];
+  } catch (error) {
+    console.error("청구 이력 조회 실패:", error);
+    throw new Error("청구 이력을 불러오지 못했습니다.");
+  }
+}
+
+// 청구 스냅샷 일괄 확정(upsert). 같은 (거래처,기간)은 덮어쓴다 — 재확정 시 최신값 유지.
+export async function upsertInvoices(rows: ClientInvoice[]): Promise<void> {
+  const payload = rows.filter((r) => r.total > 0);
+  if (payload.length === 0) return;
+  try {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from("client_invoices")
+      .upsert(
+        payload.map((r) => ({
+          client_id: r.client_id,
+          period_from: r.period_from,
+          period_to: r.period_to,
+          supply: Math.max(0, Math.round(r.supply)),
+          tax: Math.max(0, Math.round(r.tax)),
+          total: Math.max(0, Math.round(r.total)),
+          memo: r.memo ?? null,
+        })),
+        { onConflict: "client_id,period_from,period_to" }
+      );
+    if (error) throw error;
+  } catch (error) {
+    console.error("청구 확정 실패:", error);
+    throw new Error("청구 확정에 실패했습니다.");
+  }
+}
+
+// 전체 입금 이력 조회(최신순).
+export async function loadPayments(): Promise<ClientPayment[]> {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("client_payments")
+      .select("id, client_id, paid_on, amount, method, memo, created_at")
+      .order("paid_on", { ascending: false });
+    if (error) throw error;
+    return (data as ClientPayment[]) ?? [];
+  } catch (error) {
+    console.error("입금 이력 조회 실패:", error);
+    throw new Error("입금 이력을 불러오지 못했습니다.");
+  }
+}
+
+// 입금 1건 기록.
+export async function addPayment(p: ClientPayment): Promise<ClientPayment> {
+  if (!(p.amount > 0)) throw new Error("입금액을 입력해 주세요.");
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("client_payments")
+      .insert({
+        client_id: p.client_id,
+        paid_on: p.paid_on,
+        amount: Math.max(0, Math.round(p.amount)),
+        method: p.method?.trim() || null,
+        memo: p.memo?.trim() || null,
+      })
+      .select("id, client_id, paid_on, amount, method, memo, created_at")
+      .single();
+    if (error) throw error;
+    return data as ClientPayment;
+  } catch (error) {
+    console.error("입금 기록 실패:", error);
+    throw new Error("입금 기록에 실패했습니다.");
+  }
+}
+
+// 입금 1건 삭제.
+export async function deletePayment(id: string): Promise<void> {
+  try {
+    const sb = getSupabase();
+    const { error } = await sb.from("client_payments").delete().eq("id", id);
+    if (error) throw error;
+  } catch (error) {
+    console.error("입금 삭제 실패:", error);
+    throw new Error("입금 삭제에 실패했습니다.");
+  }
+}
+
 // 거래처별 제품 납품 단가 (client_prices 1행).
 export type ClientPrice = {
   id?: string;

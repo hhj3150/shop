@@ -7,10 +7,12 @@ import { loadCatalog } from "@/lib/catalog";
 import {
   type Client,
   type B2bDemand,
+  type ClientInvoice,
   loadClients,
   loadClientPrices,
   saveClientPrices,
   loadB2bDemandRange,
+  upsertInvoices,
 } from "@/lib/clients";
 import {
   settleClient,
@@ -54,6 +56,7 @@ export function B2bSettlementPanel() {
   const [b2bRows, setB2bRows] = useState<B2bDemand[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [invoicing, setInvoicing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -141,6 +144,46 @@ export function B2bSettlementPanel() {
     return { qty, supply, tax, total };
   }, [activeClients, settlements]);
 
+  // 이 기간 거래처별 정산 합계를 청구로 확정(스냅샷). 같은 (거래처,기간)은 덮어쓴다.
+  //   미수금 관리(B2bReceivablesPanel)의 청구 근거가 된다.
+  async function handleConfirmInvoices() {
+    const rows: ClientInvoice[] = activeClients
+      .map((c) => {
+        const s = settlements[c.id];
+        return {
+          client_id: c.id,
+          period_from: from,
+          period_to: endDate,
+          supply: s?.supplyTotal ?? 0,
+          tax: s?.taxTotal ?? 0,
+          total: s?.total ?? 0,
+        };
+      })
+      .filter((r) => r.total > 0);
+    if (rows.length === 0) {
+      setErr("청구할 금액이 없습니다.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `${from}~${endDate} 기간의 거래처 ${rows.length}곳 청구를 확정할까요?\n같은 거래처·같은 기간은 최신 금액으로 덮어씁니다. (미수금 관리에 반영됩니다)`
+      )
+    ) {
+      return;
+    }
+    setInvoicing(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      await upsertInvoices(rows);
+      setMsg(`청구 확정 — ${rows.length}곳, 합계 ${formatKRW(grand.total)}. ‘미수금 관리’에서 확인하세요.`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "청구 확정에 실패했습니다.");
+    } finally {
+      setInvoicing(false);
+    }
+  }
+
   function exportCsv() {
     const rows: string[][] = [
       ["거래처", "제품", "과세구분", "수량", "공급단가", "공급가액", "세액", "합계", "기간"],
@@ -217,6 +260,18 @@ export function B2bSettlementPanel() {
             거래명세서 CSV
           </button>
         </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-3 no-print">
+        <button
+          onClick={handleConfirmInvoices}
+          disabled={loading || invoicing || grand.total === 0}
+          className="rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium text-cream hover:bg-gold-deep disabled:opacity-50"
+          title="이 기간 거래처별 합계를 청구로 확정합니다(미수금 관리에 반영)."
+        >
+          {invoicing ? "확정 중…" : "이 기간 청구 확정"}
+        </button>
+        <span className="text-[12.5px] text-mute">확정하면 아래 ‘미수금 관리’에 청구로 잡힙니다. 같은 거래처·기간은 덮어씁니다.</span>
       </div>
 
       {err && (

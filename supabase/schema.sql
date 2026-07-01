@@ -1320,6 +1320,62 @@ create policy "client_prices_delete_admin" on public.client_prices
   for delete using (public.is_admin());
 
 -- ───────────────────────────────────────────────────────────
+-- 11-c. B2B 미수금·수금. 청구 스냅샷(client_invoices) − 입금(client_payments) = 미수.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.client_invoices (
+  id          uuid primary key default gen_random_uuid(),
+  client_id   uuid not null references public.clients (id) on delete cascade,
+  period_from date not null,
+  period_to   date not null,
+  supply      integer not null default 0 check (supply >= 0),
+  tax         integer not null default 0 check (tax >= 0),
+  total       integer not null default 0 check (total >= 0),
+  memo        text,
+  created_at  timestamptz not null default now(),
+  unique (client_id, period_from, period_to)
+);
+create index if not exists client_invoices_client_idx
+  on public.client_invoices (client_id, created_at desc);
+alter table public.client_invoices enable row level security;
+drop policy if exists "client_invoices_select_admin" on public.client_invoices;
+create policy "client_invoices_select_admin" on public.client_invoices
+  for select using (public.is_admin());
+drop policy if exists "client_invoices_insert_admin" on public.client_invoices;
+create policy "client_invoices_insert_admin" on public.client_invoices
+  for insert with check (public.is_admin());
+drop policy if exists "client_invoices_update_admin" on public.client_invoices;
+create policy "client_invoices_update_admin" on public.client_invoices
+  for update using (public.is_admin());
+drop policy if exists "client_invoices_delete_admin" on public.client_invoices;
+create policy "client_invoices_delete_admin" on public.client_invoices
+  for delete using (public.is_admin());
+
+create table if not exists public.client_payments (
+  id          uuid primary key default gen_random_uuid(),
+  client_id   uuid not null references public.clients (id) on delete cascade,
+  paid_on     date not null,
+  amount      integer not null check (amount >= 0),
+  method      text,
+  memo        text,
+  created_at  timestamptz not null default now()
+);
+create index if not exists client_payments_client_idx
+  on public.client_payments (client_id, paid_on desc);
+alter table public.client_payments enable row level security;
+drop policy if exists "client_payments_select_admin" on public.client_payments;
+create policy "client_payments_select_admin" on public.client_payments
+  for select using (public.is_admin());
+drop policy if exists "client_payments_insert_admin" on public.client_payments;
+create policy "client_payments_insert_admin" on public.client_payments
+  for insert with check (public.is_admin());
+drop policy if exists "client_payments_update_admin" on public.client_payments;
+create policy "client_payments_update_admin" on public.client_payments
+  for update using (public.is_admin());
+drop policy if exists "client_payments_delete_admin" on public.client_payments;
+create policy "client_payments_delete_admin" on public.client_payments
+  for delete using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
 -- 12. 받는 사람 주소록 (선물하기). 회원이 자녀·손주 등 받는 분 주소를
 --     여러 개 저장해 두고, 정기구독·단품 주문 시 선택해 선물 발송한다.
 --     회원 본인만 자신의 주소록을 조회·작성·수정·삭제.

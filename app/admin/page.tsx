@@ -49,6 +49,7 @@ import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
 import { duplicateIds, normalizePhone } from "@/lib/duplicates";
 import { SettlementPanel } from "@/components/SettlementPanel";
 import { B2bSettlementPanel } from "@/components/B2bSettlementPanel";
+import { B2bReceivablesPanel } from "@/components/B2bReceivablesPanel";
 import { PrintButton } from "@/components/PrintButton";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
@@ -1428,6 +1429,8 @@ export default function AdminPage() {
           <SettlementPanel orders={orders} />
           <div className="my-8 border-t border-line" />
           <B2bSettlementPanel />
+          <div className="my-8 border-t border-line" />
+          <B2bReceivablesPanel />
         </>
       )}
 
