@@ -139,8 +139,22 @@ export default async function ProductPage({
       <section className="overflow-hidden pb-1 pt-2">
         <div className="mx-auto max-w-xl px-5 sm:px-8 lg:max-w-7xl lg:pt-6">
           <div className="text-center lg:grid lg:grid-cols-2 lg:items-center lg:gap-16 lg:text-left">
-            {/* 정보 — DOM 우선(모바일에서 먼저 보임) / 데스크톱은 오른쪽 */}
-            <div className="lg:order-last">
+            {/* 이미지 — 모바일에서 먼저(제품을 바로 보이게) / 데스크톱은 왼쪽 */}
+            <div className="lg:order-first">
+              <div className="relative mx-auto aspect-[4/5] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:max-w-none">
+                <Image
+                  src={product.image}
+                  alt={`${product.name} ${product.volume}`}
+                  width={1200}
+                  height={1200}
+                  priority
+                  sizes="(max-width:1024px) 92vw, 46vw"
+                  className="h-full w-full object-contain p-8 sm:p-10"
+                />
+              </div>
+            </div>
+            {/* 정보 — 모바일에선 이미지 아래(구매 CTA 먼저, 설명은 그 뒤) / 데스크톱은 오른쪽 */}
+            <div className="mt-8 lg:order-last lg:mt-0">
               {/* 영문 카테고리 */}
               <p className="text-[12px] font-medium uppercase tracking-[0.28em] text-gold-deep">
                 {product.nameEn}
@@ -171,20 +185,6 @@ export default async function ProductPage({
               </div>
               {/* 히어로 요약 — 0.01% 선언 + 무선 스펙시트(효능 표현 없이 사실만) */}
               <ProductHighlights highlights={product.highlights} />
-            </div>
-            {/* 이미지 — DOM 차순(모바일 정보 아래) / 데스크톱은 왼쪽 */}
-            <div className="mt-8 lg:order-first lg:mt-0">
-              <div className="relative mx-auto aspect-[4/5] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:max-w-none">
-                <Image
-                  src={product.image}
-                  alt={`${product.name} ${product.volume}`}
-                  width={1200}
-                  height={1200}
-                  priority
-                  sizes="(max-width:1024px) 92vw, 46vw"
-                  className="h-full w-full object-contain p-8 sm:p-10"
-                />
-              </div>
             </div>
           </div>
         </div>
