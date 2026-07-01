@@ -215,7 +215,7 @@ export default async function ProductPage({
           </div>
 
           {/* Specs — quick reference */}
-          <div className="mx-auto mt-12 max-w-xl px-5 sm:px-8 lg:mx-0 lg:mt-14 lg:max-w-none lg:px-0">
+          <div className="mx-auto mt-10 max-w-xl px-5 sm:px-8 lg:mx-0 lg:mt-12 lg:max-w-none lg:px-0">
             <p className="eyebrow text-gold-deep">Specification</p>
             <dl className="mt-5 divide-y divide-line border-t border-line">
               {product.specs.map((s) => (
@@ -231,7 +231,7 @@ export default async function ProductPage({
           <ProductReviews productId={product.id} />
 
           {/* 법정 제품표시사항 · 영양정보 — 기본 접힘으로 핵심 구매를 위로, 페이지를 짧게 */}
-          <section className="mx-auto max-w-3xl px-5 py-20 sm:px-8 lg:mx-0 lg:max-w-none lg:px-0 lg:py-16">
+          <section className="mx-auto max-w-3xl px-5 py-14 sm:px-8 lg:mx-0 lg:max-w-none lg:px-0 lg:py-12">
         <Reveal>
           <p className="eyebrow text-gold-deep">Product Information</p>
         </Reveal>
@@ -317,7 +317,7 @@ export default async function ProductPage({
       </div>
 
       {/* Related */}
-      <section className="mx-auto max-w-7xl px-5 py-24 sm:px-8">
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
         <Reveal>
           <p className="eyebrow">More from the farm</p>
           <h2 className="mt-4 font-serif-kr text-2xl font-medium text-ink">함께 보면 좋은 제품</h2>
