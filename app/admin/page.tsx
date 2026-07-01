@@ -38,6 +38,7 @@ import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { profileShipPatch } from "@/lib/profile";
 import { ProductAdminPanel } from "@/components/ProductAdminPanel";
+import { ProfitabilityPanel } from "@/components/ProfitabilityPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DispatchPanel } from "@/components/DispatchPanel";
 import { PickupPanel } from "@/components/PickupPanel";
@@ -1401,6 +1402,8 @@ export default function AdminPage() {
         <>
           <ProductAdminPanel />
           <InventoryPanel />
+          <div className="my-8 border-t border-line" />
+          <ProfitabilityPanel onlineDemandForDate={onlineDemandForDate} />
         </>
       )}
 
