@@ -1285,6 +1285,37 @@ create policy "b2b_delete_admin" on public.b2b_demand
   for delete using (public.is_admin());
 
 -- ───────────────────────────────────────────────────────────
+-- 11-b. 거래처별 제품 납품 단가 (B2B 매출·정산). (client_id, product_key) 유니크.
+--       b2b_demand(수량) × client_prices(단가) → 기간 납품 매출·거래명세서.
+-- ───────────────────────────────────────────────────────────
+create table if not exists public.client_prices (
+  id          uuid primary key default gen_random_uuid(),
+  client_id   uuid not null references public.clients (id) on delete cascade,
+  product_key text not null,
+  unit_price  integer not null default 0 check (unit_price >= 0),
+  updated_at  timestamptz not null default now(),
+  unique (client_id, product_key)
+);
+
+alter table public.client_prices enable row level security;
+
+drop policy if exists "client_prices_select_admin" on public.client_prices;
+create policy "client_prices_select_admin" on public.client_prices
+  for select using (public.is_admin());
+
+drop policy if exists "client_prices_insert_admin" on public.client_prices;
+create policy "client_prices_insert_admin" on public.client_prices
+  for insert with check (public.is_admin());
+
+drop policy if exists "client_prices_update_admin" on public.client_prices;
+create policy "client_prices_update_admin" on public.client_prices
+  for update using (public.is_admin());
+
+drop policy if exists "client_prices_delete_admin" on public.client_prices;
+create policy "client_prices_delete_admin" on public.client_prices
+  for delete using (public.is_admin());
+
+-- ───────────────────────────────────────────────────────────
 -- 12. 받는 사람 주소록 (선물하기). 회원이 자녀·손주 등 받는 분 주소를
 --     여러 개 저장해 두고, 정기구독·단품 주문 시 선택해 선물 발송한다.
 --     회원 본인만 자신의 주소록을 조회·작성·수정·삭제.

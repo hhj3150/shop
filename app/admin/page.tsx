@@ -48,6 +48,7 @@ import { loadReturns, type OrderReturn } from "@/lib/returns";
 import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
 import { duplicateIds, normalizePhone } from "@/lib/duplicates";
 import { SettlementPanel } from "@/components/SettlementPanel";
+import { B2bSettlementPanel } from "@/components/B2bSettlementPanel";
 import { PrintButton } from "@/components/PrintButton";
 
 // 역할 탭 — 단일 관리자 계정 안에서 업무별 작업화면을 나눈다.
@@ -1422,7 +1423,13 @@ export default function AdminPage() {
 
       {tab === "환불·교환" && <ReturnsPanel orders={orders} />}
 
-      {tab === "정산·세금" && <SettlementPanel orders={orders} />}
+      {tab === "정산·세금" && (
+        <>
+          <SettlementPanel orders={orders} />
+          <div className="my-8 border-t border-line" />
+          <B2bSettlementPanel />
+        </>
+      )}
 
       {tab === "종합 관리" && (
         <>

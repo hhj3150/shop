@@ -92,6 +92,70 @@ export async function loadB2bDemand(date: string): Promise<B2bDemand[]> {
   }
 }
 
+// 거래처별 제품 납품 단가 (client_prices 1행).
+export type ClientPrice = {
+  id?: string;
+  client_id: string;
+  product_key: string;
+  unit_price: number;
+};
+
+// 전체 거래처 단가를 조회 → client_id → (product_key → 단가) 맵.
+export async function loadClientPrices(): Promise<
+  Record<string, Record<string, number>>
+> {
+  try {
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from("client_prices")
+      .select("client_id, product_key, unit_price");
+    if (error) throw error;
+    const map: Record<string, Record<string, number>> = {};
+    for (const r of (data as ClientPrice[]) ?? []) {
+      (map[r.client_id] ??= {})[r.product_key] = r.unit_price;
+    }
+    return map;
+  } catch (error) {
+    console.error("거래처 단가 조회 실패:", error);
+    throw new Error("거래처 단가를 불러오지 못했습니다.");
+  }
+}
+
+// 한 거래처의 제품 단가 일괄 저장(upsert). (client_id, product_key) 유니크 기준.
+//   단가 0은 저장하지 않고 기존 행이 있으면 삭제해 깔끔히 유지한다.
+export async function saveClientPrices(
+  clientId: string,
+  prices: Readonly<Record<string, number>>
+): Promise<void> {
+  try {
+    const sb = getSupabase();
+    const payload: ClientPrice[] = [];
+    const zeroKeys: string[] = [];
+    for (const [product_key, raw] of Object.entries(prices)) {
+      const unit_price = Math.max(0, Math.round(raw || 0));
+      if (unit_price > 0) payload.push({ client_id: clientId, product_key, unit_price });
+      else zeroKeys.push(product_key);
+    }
+    if (payload.length > 0) {
+      const { error } = await sb
+        .from("client_prices")
+        .upsert(payload, { onConflict: "client_id,product_key" });
+      if (error) throw error;
+    }
+    for (const product_key of zeroKeys) {
+      const { error } = await sb
+        .from("client_prices")
+        .delete()
+        .eq("client_id", clientId)
+        .eq("product_key", product_key);
+      if (error) throw error;
+    }
+  } catch (error) {
+    console.error("거래처 단가 저장 실패:", error);
+    throw new Error("거래처 단가 저장에 실패했습니다.");
+  }
+}
+
 // 기간(from~to)의 B2B 필요수량을 모두 조회 — 생산계획 기간 집계용.
 export async function loadB2bDemandRange(
   from: string,
