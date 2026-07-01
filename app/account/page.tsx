@@ -335,16 +335,19 @@ export default function AccountPage() {
       .eq("id", user.id);
     if (error) throw new Error(error.message);
 
-    // 진행 중인 정기구독 배송지도 새 주소로 동기화 — 이사 후 옛 주소로 배송되는 사고 방지.
+    // 진행 중인 주문의 배송정보도 새 고객정보로 동기화 — 이름·연락처·주소를 모두 맞춰
+    //   '고객정보 ≠ 배송정보'로 옛 정보가 남는 사고를 막는다(단품·구독 모두, 선물·취소 제외).
     //   회원은 orders 를 직접 UPDATE 할 수 없어(RLS), 본인 주문만 갱신하는 RPC 로 처리한다.
-    //   향후 배송분에만 영향(이미 발송된 회차는 그대로). best-effort — 실패해도 프로필 저장은 유지.
+    //   향후 배송분에 반영. best-effort — 실패해도 프로필 저장은 유지.
     if (values.address.trim()) {
-      const { error: syncErr } = await getSupabase().rpc("sync_my_subscription_shipping", {
+      const { error: syncErr } = await getSupabase().rpc("sync_my_order_shipping", {
+        p_name: values.name,
+        p_phone: values.phone,
         p_postcode: values.postcode || null,
         p_address: values.address,
         p_address_detail: values.address_detail || null,
       });
-      if (syncErr) console.error("구독 배송지 동기화 실패:", syncErr.message);
+      if (syncErr) console.error("배송정보 동기화 실패:", syncErr.message);
     }
 
     await refreshProfile();

@@ -33,18 +33,31 @@ export function profileBackfillPatch(
   return patch;
 }
 
-// 정기구독 배송지 동기화용 — 프로필 주소를 orders.ship_* 스냅샷 패치로 변환(순수 함수, 테스트 대상).
-//   프로필 주소를 바꾸면 진행 중인 구독의 배송지도 새 주소로 따라오게 한다(향후 배송분).
+// 배송정보 동기화용 — 고객(회원) 기준 정보를 orders.ship_* 스냅샷 패치로 변환(순수 함수, 테스트 대상).
+//   '고객정보'를 바꾸면 그 회원의 진행 중인 주문 '배송정보'도 같은 값으로 맞춘다 —
+//   이름·연락처·주소를 모두 동기화해 두 화면이 어긋나지 않게 한다(이사·오기재 정정).
 //   주소가 비면 null 을 반환해 '동기화 안 함'을 알린다 — 빈 주소로 기존 배송지를 덮어써
-//   배송지를 지우는 사고를 막는다(이름·연락처 스냅샷은 의도적으로 건드리지 않는다).
-export type AddressFields = Pick<ShippingFields, "postcode" | "address" | "addressDetail">;
+//   배송지를 지우는 사고를 막는다. 선물 주문(받는 분 주소가 따로)은 호출 측에서 제외한다.
+export type ProfileShipFields = {
+  name: string;
+  phone: string;
+  postcode: string;
+  address: string;
+  addressDetail: string;
+};
 
-export function subscriptionShipAddressPatch(
-  fields: AddressFields
-): { ship_postcode: string | null; ship_address: string; ship_address_detail: string | null } | null {
+export function profileShipPatch(fields: ProfileShipFields): {
+  ship_name: string;
+  ship_phone: string;
+  ship_postcode: string | null;
+  ship_address: string;
+  ship_address_detail: string | null;
+} | null {
   const address = fields.address.trim();
   if (!address) return null;
   return {
+    ship_name: fields.name.trim(),
+    ship_phone: fields.phone.replace(/[^0-9]/g, ""),
     ship_postcode: fields.postcode.trim() || null,
     ship_address: address,
     ship_address_detail: fields.addressDetail.trim() || null,
