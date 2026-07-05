@@ -93,6 +93,24 @@ describe("buildReminderTargets", () => {
     expect(ids).toEqual(new Set(["A", "C"]));
   });
 
+  // 신일수 사례 회귀: 입금은 했지만 사정상 8월부터 시작하는 구독 —
+  //   관리자가 시작일을 미래로 연기(started_at 미래)하면 그 전엔 예고 문자가 나가면 안 된다.
+  it("시작일이 미래로 연기된 구독은 그 전 발송일의 예고 대상에서 제외된다", () => {
+    const orders: ReminderOrder[] = [sub("A"), sub("G")];
+    const slots: ReminderSlot[] = [
+      slot(1, "A"),
+      slot(6, "G", { started_at: "2026-08-03" }), // 6/24 시점엔 아직 시작 전
+    ];
+    const targets = buildReminderTargets({
+      dateISO: WED,
+      orders,
+      items: [wedItem("A"), wedItem("G")],
+      slots,
+      remindedOrderIds: new Set(),
+    });
+    expect(new Set(targets.map((t) => t.orderId))).toEqual(new Set(["A"]));
+  });
+
   it("이미 예고된 건이 없으면 활성 구독 + 단품이 모두 포함된다", () => {
     const orders: ReminderOrder[] = [
       sub("A"),

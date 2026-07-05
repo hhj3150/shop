@@ -2078,6 +2078,22 @@ export default function AdminPage() {
                         방문수령
                       </span>
                     )}
+                    {/* 시작일이 미래로 연기된 구독 — 접힌 행에서도 보이게 배지로 표시.
+                        (연기 설정은 행을 펼치면 나오는 '구독 시작일' 섹션에서) */}
+                    {(() => {
+                      const s = o.order_type === "구독" ? slotByOrder.get(o.id) : undefined;
+                      if (!s?.started_at || s.status === "해지" || s.started_at <= todayISO())
+                        return null;
+                      const [, mo, da] = s.started_at.split("-");
+                      return (
+                        <span
+                          title={`구독 시작일이 ${s.started_at} 로 연기되어 있습니다. 그 전에는 발송·예고 문자가 나가지 않습니다.`}
+                          className="ml-1.5 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700"
+                        >
+                          {Number(mo)}/{Number(da)} 시작예정
+                        </span>
+                      );
+                    })()}
                     {dupOrderIds.has(o.id) && (
                       <span
                         title="같은 회원의 발송 전 정기구독 주문이 2건 이상입니다. 중복 주문인지 확인하세요."
