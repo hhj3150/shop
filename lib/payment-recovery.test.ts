@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   decideAction,
   buildRecoveryMessage,
-  buildExpiryCancelMessage,
+  buildOverdueNoticeMessage,
   type RecoveryTarget,
 } from "./payment-recovery";
 import { DEPOSIT } from "./site";
@@ -39,9 +39,15 @@ describe("decideAction (KST 달력일 경과)", () => {
     const now = new Date("2026-06-03T00:30:00.000Z");
     expect(decideAction({ ...base, sentStages: ["D2"] }, now)).toBe("none");
   });
-  it("D+3 이상은 EXPIRE", () => {
+  it("D+3 이상은 자동취소가 아니라 관리자 확인요청(OVERDUE_NOTICE)", () => {
     const now = new Date("2026-06-04T00:30:00.000Z"); // 06-04 09:30 KST
-    expect(decideAction(base, now)).toBe("EXPIRE");
+    expect(decideAction(base, now)).toBe("OVERDUE_NOTICE");
+  });
+  it("D+3 이후에도 해결 전까지 매일 다시 OVERDUE_NOTICE (D1/D2 기록과 무관)", () => {
+    const now = new Date("2026-06-06T00:30:00.000Z"); // 06-06 09:30 KST (D+5)
+    expect(decideAction({ ...base, sentStages: ["D1", "D2"] }, now)).toBe(
+      "OVERDUE_NOTICE",
+    );
   });
   it("KST 자정 직후 경계: UTC로는 전날이어도 KST 달력일로 계산", () => {
     // created 06-01 10:00 KST. now = 06-02 00:10 KST (= 06-01T15:10Z)
@@ -76,14 +82,34 @@ describe("buildRecoveryMessage", () => {
       "#{마감일}": "6월 4일", // 06-01 + 3일 (KST)
     });
   });
+
+  it("D2 본문은 '자동 취소' 단정 대신 취소 가능성 + 입금자명 상이 문의 안내", () => {
+    const m = buildRecoveryMessage(base, "D2");
+    expect(m.text).not.toContain("자동 취소");
+    expect(m.text).toContain("취소될 수 있습니다");
+    expect(m.text).toContain("입금자명");
+  });
 });
 
-describe("buildExpiryCancelMessage", () => {
-  it("자동취소 안내 — 고객명·주문번호 포함, 미입금 자동취소 문구", () => {
-    const m = buildExpiryCancelMessage(base);
-    expect(m.subject).toContain("송영신목장");
-    expect(m.text).toContain("홍길동");
-    expect(m.text).toContain("20260601-0001");
-    expect(m.text).toContain("자동 취소");
+describe("buildOverdueNoticeMessage (관리자 확인요청)", () => {
+  it("주문별 이름·주문번호·금액·연락처 나열 + 건수", () => {
+    const other: RecoveryTarget = {
+      ...base,
+      orderNo: "20260601-0002",
+      shipName: "김철수",
+      totalAmount: 120000,
+      shipPhone: "",
+    };
+    const m = buildOverdueNoticeMessage([base, other]);
+    expect(m.subject).toContain("2건");
+    expect(m.text).toContain("홍길동 20260601-0001 39,000원 (01012345678)");
+    expect(m.text).toContain("김철수 20260601-0002 120,000원 (연락처없음)");
+  });
+
+  it("시스템이 임의로 취소하지 않음을 명시하고 입금확인/취소 처리를 안내", () => {
+    const m = buildOverdueNoticeMessage([base]);
+    expect(m.text).toContain("임의로 취소하지 않습니다");
+    expect(m.text).toContain("입금확인");
+    expect(m.text).toContain("입금자명");
   });
 });
