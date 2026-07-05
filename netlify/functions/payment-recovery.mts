@@ -4,9 +4,15 @@ import { isSolapiConfigured, sendInfo } from "../../lib/solapi";
 import {
   decideAction,
   buildRecoveryMessage,
-  buildExpiryCancelMessage,
+  buildOverdueNoticeMessage,
   type RecoveryTarget,
 } from "../../lib/payment-recovery";
+
+// 미입금 주문 처리 크론.
+//   D+1/D+2: 구매자에게 입금 리마인드.
+//   D+3~   : 관리자에게 '확인 필요' 문자만 발송(해결될 때까지 매일 한 통).
+// ⚠ 자동취소 없음: 취소와 고객 취소 안내 문자는 관리자가 관리자 페이지에서
+//   직접 '취소' 처리할 때만 나간다(입금자명 상이 등 미매칭 입금 오취소 방지).
 
 type TargetRow = {
   order_id: string;
@@ -39,7 +45,7 @@ export default async function handler(): Promise<Response> {
 
   const now = new Date();
   let sent = 0;
-  let expired = 0;
+  const overdue: RecoveryTarget[] = [];
 
   for (const row of (data ?? []) as TargetRow[]) {
     const t: RecoveryTarget = {
@@ -55,25 +61,8 @@ export default async function handler(): Promise<Response> {
     const action = decideAction(t, now);
     if (action === "none") continue;
 
-    if (action === "EXPIRE") {
-      const { data: cancelled, error: exErr } = await sb.rpc("apply_recovery_action", {
-        p_secret: secret,
-        p_order_id: t.orderId,
-        p_action: "expire",
-      });
-      if (exErr) {
-        console.error(`[payment-recovery] expire 실패 ${t.orderNo}:`, exErr.message);
-        continue;
-      }
-      // 실제로 취소된 경우(막판 입금 no-op 아님)에만 구매자에게 취소 안내 문자 발송.
-      if (cancelled === true) {
-        expired += 1;
-        if (t.shipPhone) {
-          const m = buildExpiryCancelMessage(t);
-          const result = await sendInfo(t.shipPhone, { text: m.text, subject: m.subject });
-          if (!result.ok) console.warn(`[payment-recovery] 취소문자 실패 ${t.orderNo}:`, result);
-        }
-      }
+    if (action === "OVERDUE_NOTICE") {
+      overdue.push(t);
       continue;
     }
 
@@ -103,8 +92,27 @@ export default async function handler(): Promise<Response> {
     sent += 1;
   }
 
-  console.log(`[payment-recovery] sent=${sent} expired=${expired}`);
-  return new Response(`ok sent=${sent} expired=${expired}`);
+  // D+3 경과분: 관리자에게 한 통으로 묶어 '확인 필요' 보고. 원장 기록 없이
+  //   '입금대기'로 남아 있는 한 매일 다시 올린다 — 잊혀서 방치되는 것을 막고,
+  //   관리자가 입금확인/취소 처리를 마치면 대상에서 빠져 알림도 멈춘다.
+  if (overdue.length > 0) {
+    const adminPhone = process.env.ADMIN_ALERT_PHONE;
+    if (!adminPhone) {
+      console.warn(
+        "[payment-recovery] ADMIN_ALERT_PHONE 미설정 — 미입금 확인요청 발송 불가:",
+        overdue.map((t) => t.orderNo).join(", "),
+      );
+    } else {
+      const m = buildOverdueNoticeMessage(overdue);
+      const result = await sendInfo(adminPhone, { text: m.text, subject: m.subject });
+      if (!result.ok) {
+        console.warn("[payment-recovery] 미입금 확인요청 발송 실패:", result);
+      }
+    }
+  }
+
+  console.log(`[payment-recovery] sent=${sent} overdue=${overdue.length}`);
+  return new Response(`ok sent=${sent} overdue=${overdue.length}`);
 }
 
 // 매일 00:00 UTC = 09:00 KST.

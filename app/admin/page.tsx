@@ -977,11 +977,17 @@ export default function AdminPage() {
 
   // ── 액션 ─────────────────────────────────────────────────
   async function updateStatus(order: OrderRow, status: string) {
-    // 실수 방지: '취소'는 되돌리기 어렵고 연결된 구독·환불이 자동 처리되지 않으므로 확인받는다.
+    // 실수 방지: '취소'는 되돌리기 어렵고 고객에게 취소 안내 문자가 즉시 나간다.
+    //   취소는 여기(관리자 수동)에서만 일어난다 — 크론은 미입금 주문을 자동취소하지 않고
+    //   '확인 필요' 문자만 보낸다. 입금자명이 달라 자동확인이 안 된 입금일 수 있으니
+    //   통장 입금내역을 먼저 확인하도록 안내한다.
     if (
       status === "취소" &&
       !window.confirm(
-        `${order.order_no} 주문을 '취소'로 변경할까요?\n되돌릴 수 없습니다. 정기구독 해지·환불은 별도로 처리해야 합니다.`
+        `${order.order_no} 주문을 '취소'로 변경할까요?\n` +
+          `고객에게 취소 안내 문자가 즉시 발송되며, 되돌릴 수 없습니다.\n` +
+          `입금자명이 달라 자동확인이 안 됐을 수 있으니 통장 입금내역을 먼저 확인해 주세요.\n` +
+          `미입금(신청·대기) 구독 자리는 자동 반환됩니다. 활성 구독 해지·환불은 별도로 처리해야 합니다.`
       )
     ) {
       return;
@@ -1087,8 +1093,25 @@ export default function AdminPage() {
     if (status === "배송완료") {
       void notify({ kind: "delivered", orderId: order.id });
     }
-    // 취소 → 고객(선물이면 보낸 분)에게 취소 안내 발송.
+    // 취소 → 미입금 구독 자리(신청·대기)를 반환한다. 과거엔 크론 자동취소가 하던 일 —
+    //   자동취소 폐지 후 수동 취소가 유일한 취소 경로라 여기서 자리를 되돌려야
+    //   선착순 좌석이 새지 않는다(활성 슬롯은 환불 절차가 있어 건드리지 않음).
     if (status === "취소") {
+      const { error: slotErr } = await sb
+        .from("subscription_slots")
+        .update({
+          status: "해지",
+          cancel_reason: "미입금 취소(관리자)",
+          cancelled_at: toISODate(new Date()),
+        })
+        .eq("order_id", order.id)
+        .in("status", ["신청", "대기"]);
+      if (slotErr) {
+        alert(
+          `구독 자리 반환 실패: ${slotErr.message}\n주문은 취소되었습니다. 구독 탭에서 자리를 직접 해지해 주세요.`
+        );
+      }
+      // 고객(선물이면 보낸 분)에게 취소 안내 발송.
       void notify({ kind: "order_cancelled", orderId: order.id });
     }
     await load();
