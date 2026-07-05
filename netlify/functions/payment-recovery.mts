@@ -4,7 +4,8 @@ import { isSolapiConfigured, sendInfo } from "../../lib/solapi";
 import {
   decideAction,
   buildRecoveryMessage,
-  buildExpiryCancelMessage,
+  buildExpireAdminAlertText,
+  kstDaysElapsed,
   type RecoveryTarget,
 } from "../../lib/payment-recovery";
 
@@ -39,7 +40,7 @@ export default async function handler(): Promise<Response> {
 
   const now = new Date();
   let sent = 0;
-  let expired = 0;
+  let notified = 0;
 
   for (const row of (data ?? []) as TargetRow[]) {
     const t: RecoveryTarget = {
@@ -55,24 +56,33 @@ export default async function handler(): Promise<Response> {
     const action = decideAction(t, now);
     if (action === "none") continue;
 
-    if (action === "EXPIRE") {
-      const { data: cancelled, error: exErr } = await sb.rpc("apply_recovery_action", {
+    // ★ D+3: 자동취소·고객 취소문자 폐지(2026-07-05 실사고 — 입금자명 불일치로 실제
+    //   입금한 고객이 자동취소 문자를 받음). 관리자에게 1회 알림만 보내고, 취소 여부는
+    //   관리자가 통장 사실확인 후 관리자 화면에서 직접 결정한다.
+    if (action === "EXPIRE_NOTIFY") {
+      const { data: inserted, error: exErr } = await sb.rpc("apply_recovery_action", {
         p_secret: secret,
         p_order_id: t.orderId,
-        p_action: "expire",
+        p_action: "EXPIRE_NOTIFY",
       });
       if (exErr) {
-        console.error(`[payment-recovery] expire 실패 ${t.orderNo}:`, exErr.message);
+        console.error(`[payment-recovery] EXPIRE_NOTIFY 기록 실패 ${t.orderNo}:`, exErr.message);
         continue;
       }
-      // 실제로 취소된 경우(막판 입금 no-op 아님)에만 구매자에게 취소 안내 문자 발송.
-      if (cancelled === true) {
-        expired += 1;
-        if (t.shipPhone) {
-          const m = buildExpiryCancelMessage(t);
-          const result = await sendInfo(t.shipPhone, { text: m.text, subject: m.subject });
-          if (!result.ok) console.warn(`[payment-recovery] 취소문자 실패 ${t.orderNo}:`, result);
+      // 신규 기록일 때만 관리자 알림(재실행·경합 시 중복 알림 방지).
+      if (inserted === true) {
+        const adminPhone = process.env.ADMIN_ALERT_PHONE;
+        if (!adminPhone) {
+          console.warn(`[payment-recovery] ADMIN_ALERT_PHONE 미설정 → 미입금 D+3 알림 생략 ${t.orderNo}`);
+          continue;
         }
+        const text = buildExpireAdminAlertText(t, kstDaysElapsed(t.createdAt, now));
+        const result = await sendInfo(adminPhone, {
+          text,
+          subject: "[송영신목장] 미입금 주문 확인 필요",
+        });
+        if (!result.ok) console.warn(`[payment-recovery] 관리자 알림 실패 ${t.orderNo}:`, result);
+        else notified += 1;
       }
       continue;
     }
@@ -95,7 +105,11 @@ export default async function handler(): Promise<Response> {
     const result = await sendInfo(t.shipPhone, {
       text: m.text,
       subject: m.subject,
-      alimtalk: { templateKey: m.templateKey, variables: m.variables },
+      // D2 는 알림톡 템플릿 없이 LMS 로만 — 구 템플릿에 '자동취소' 문구가 있어 쓰지 않는다.
+      alimtalk:
+        m.templateKey && m.variables
+          ? { templateKey: m.templateKey, variables: m.variables }
+          : undefined,
     });
     if (!result.ok) {
       console.warn(`[payment-recovery] 발송 실패 ${t.orderNo}:`, result);
@@ -103,8 +117,8 @@ export default async function handler(): Promise<Response> {
     sent += 1;
   }
 
-  console.log(`[payment-recovery] sent=${sent} expired=${expired}`);
-  return new Response(`ok sent=${sent} expired=${expired}`);
+  console.log(`[payment-recovery] sent=${sent} adminNotified=${notified}`);
+  return new Response(`ok sent=${sent} adminNotified=${notified}`);
 }
 
 // 매일 00:00 UTC = 09:00 KST.

@@ -17,6 +17,7 @@ import {
   type DeliveryDay,
 } from "@/lib/cart";
 import { firstSubscriptionDelivery, firstDeliveryOnOrAfter, toISODate } from "@/lib/ship-date";
+import { kstDaysElapsed } from "@/lib/payment-recovery";
 import { notify } from "@/lib/notify";
 import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
@@ -189,6 +190,11 @@ function todayISO(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// 주문 후 경과일(KST 달력일). 미입금 D+3 '확인 필요' 배지 판정에 쓴다.
+function unpaidDays(createdAt: string): number {
+  return kstDaysElapsed(createdAt, new Date());
 }
 
 // 구성품(제품·용량·수량)을 정렬해 만든 표준 문자열. 같은 구성이면 같은 값이 나와 포장 묶음을 만든다.
@@ -2076,6 +2082,16 @@ export default function AdminPage() {
                         className="ml-1.5 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700"
                       >
                         방문수령
+                      </span>
+                    )}
+                    {/* 미입금 D+3 이상 — 자동취소는 하지 않으므로(입금자명 불일치로 실제
+                        입금을 시스템이 모를 수 있음) 관리자가 통장 확인 후 직접 처리한다. */}
+                    {o.status === "입금대기" && unpaidDays(o.created_at) >= 3 && (
+                      <span
+                        title="입금 기한(3일)이 지났지만 자동취소하지 않습니다. 입금자명이 주문자와 다를 수 있으니 통장을 확인한 뒤, 입금됐으면 [입금확인], 정말 미입금이면 [취소]로 직접 처리해 주세요. 취소로 바꿀 때만 고객에게 취소 문자가 나갑니다."
+                        className="ml-1.5 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700"
+                      >
+                        미입금 D+{unpaidDays(o.created_at)} 확인필요
                       </span>
                     )}
                     {/* 시작일이 미래로 연기된 구독 — 접힌 행에서도 보이게 배지로 표시.
