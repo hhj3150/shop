@@ -18,7 +18,6 @@ export function printSection(el: HTMLElement | null): void {
   document.body.classList.add("printing-section");
 
   let done = false;
-  let timer: ReturnType<typeof setTimeout>;
   const cleanup = () => {
     if (done) return;
     done = true;
@@ -27,7 +26,7 @@ export function printSection(el: HTMLElement | null): void {
     window.removeEventListener("afterprint", cleanup);
     clearTimeout(timer);
   };
-  timer = setTimeout(cleanup, 1000);
+  const timer = setTimeout(cleanup, 1000);
   window.addEventListener("afterprint", cleanup, { once: true });
   window.print();
 }

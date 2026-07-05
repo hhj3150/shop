@@ -21,6 +21,8 @@ export function ReferralCard() {
   const { ready, user } = useAuth();
   const [code, setCode] = useState<string | null>(null);
   const [rewards, setRewards] = useState<Reward[]>([]);
+  // 만료·잔액 판정 기준 시각 — 렌더 중 Date.now() 호출(불순 함수) 대신 조회 시점에 고정한다.
+  const [asOfMs, setAsOfMs] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +40,7 @@ export function ReferralCard() {
       ]);
       if (typeof c === "string") setCode(c);
       setRewards((rw as Reward[]) ?? []);
+      setAsOfMs(Date.now());
     } catch {
       // 표시용 — 실패해도 카드 자체는 안내문으로 노출
     } finally {
@@ -53,7 +56,8 @@ export function ReferralCard() {
 
   const link = code ? referralLink(code, SITE_URL) : null;
   // 사용 가능 적립금 = 유효(earned·미만료) 잔액. 만료된 earned 는 제외.
-  const balance = usableBalance(rewards, new Date().toISOString());
+  //   (rewards 와 asOfMs 는 load() 에서 함께 세팅되므로 기준 시각이 항상 데이터와 짝을 이룬다)
+  const balance = usableBalance(rewards, new Date(asOfMs).toISOString());
   const applied = rewards
     .filter((r) => r.status === "applied")
     .reduce((s, r) => s + r.amount_krw, 0);
@@ -62,8 +66,8 @@ export function ReferralCard() {
     (r) =>
       r.status === "earned" &&
       r.expires_at !== null &&
-      new Date(r.expires_at).getTime() - Date.now() < 30 * 86_400_000 &&
-      new Date(r.expires_at).getTime() > Date.now()
+      new Date(r.expires_at).getTime() - asOfMs < 30 * 86_400_000 &&
+      new Date(r.expires_at).getTime() > asOfMs
   );
 
   async function onShare() {
