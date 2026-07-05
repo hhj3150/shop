@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type MouseEvent } from "react";
 import Link from "next/link";
 import { BRAND_FILM_ID, buildFilmEmbedUrl } from "@/lib/brand-film";
 import { useAuth } from "@/lib/auth";
@@ -15,6 +15,20 @@ export function SubscribeFilmCTA({ className }: { className?: string }) {
   const isMember = ready && !!user;
   const ctaHref = isMember ? "/#products" : "/signup";
   const ctaLabel = isMember ? "구독할 제품 고르기 →" : "정기구독 신청하기 →";
+
+  // 모달 CTA 클릭. 반드시 모달을 먼저 닫는다 — 안 닫으면 body 스크롤 잠금(overflow:hidden)
+  //   때문에 회원의 같은 페이지 해시 이동(/#products)이 아무 효과가 없어 '버튼이 죽은'
+  //   것처럼 보였다(실사용 클레임). 이 컴포넌트는 홈 히어로 전용이라 회원 CTA 는 항상
+  //   같은 페이지 이동 → 라우터 대신, 잠금 해제가 반영된 다음 프레임에 직접 스크롤한다.
+  function onCtaClick(e: MouseEvent<HTMLAnchorElement>) {
+    setOpen(false);
+    if (!isMember) return; // 비회원은 /signup 으로 Link 기본 내비게이션.
+    e.preventDefault();
+    window.requestAnimationFrame(() => {
+      document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.history.replaceState(null, "", "/#products");
+    });
+  }
 
   // 모달 열림 동안 Esc 닫기 + 바디 스크롤 잠금.
   useEffect(() => {
@@ -71,6 +85,7 @@ export function SubscribeFilmCTA({ className }: { className?: string }) {
             <div className="mt-4 flex justify-center">
               <Link
                 href={ctaHref}
+                onClick={onCtaClick}
                 className="rounded-full bg-cream px-9 py-4 text-center text-sm font-medium tracking-wide text-ink transition-transform duration-300 ease-[var(--ease-soft)] hover:scale-[1.02] active:scale-[0.98]"
               >
                 {ctaLabel}
