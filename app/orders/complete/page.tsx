@@ -152,8 +152,15 @@ function Complete() {
 
         {isGuest && (
           <p className="mt-6 text-[13px] leading-relaxed text-mute">
-            비회원으로 주문하셨습니다. 문의 시 위 <span className="tabular-nums text-ink-soft">주문번호</span>를
-            알려 주시면 빠르게 확인해 드립니다.
+            비회원으로 주문하셨습니다. 주문 상태는{" "}
+            <Link
+              href={`/orders/lookup?no=${encodeURIComponent(orderNo)}`}
+              className="text-gold-deep underline hover:text-gold"
+            >
+              비회원 주문조회
+            </Link>
+            에서 위 <span className="tabular-nums text-ink-soft">주문번호</span>와 휴대폰 번호로
+            언제든 확인하실 수 있어요.
           </p>
         )}
 

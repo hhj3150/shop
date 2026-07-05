@@ -14,6 +14,7 @@ import {
   discountForPeriod,
   periodWeeks,
   subShippingFee,
+  SUB_PERIODS,
   type SubPeriod,
 } from "./products";
 import { useStorefrontCatalog } from "./storefront";
@@ -55,6 +56,7 @@ type CartContextValue = {
   period: SubPeriod; // 구독 기간(개월) — 장바구니 전체에 하나
   weeks: number; // 기간 → 총 배송 회수(= 주분)
   perDelivery: number; // 1회(매주) 상품 합계 (기간 할인 적용)
+  perDeliveryList: number; // 1회(매주) 상품 합계 (정가) — 최소주문금액 판정 기준
   shipPerDelivery: number; // 1회(매주) 배송비
   shipTotal: number; // 전체 기간분 배송비
   periodTotal: number; // 전체 기간분 = 한 번에 입금할 금액 (상품 + 배송비)
@@ -81,6 +83,27 @@ function itemKey(i: Omit<CartItem, "key">): string {
   return `${i.productId}:${i.deliveryDay}`;
 }
 
+// localStorage 복원값 검증 — 손상·구버전 데이터가 존재하지 않는 기간(할인율 undefined)이나
+//   음수/문자열 수량으로 가격 계산을 조용히 망가뜨리지 않게 여기서 걸러낸다.
+function sanitizeStoredItems(raw: unknown): CartItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (i): i is CartItem =>
+        !!i &&
+        typeof i === "object" &&
+        typeof (i as CartItem).productId === "string" &&
+        DELIVERY_DAYS.includes((i as CartItem).deliveryDay) &&
+        Number.isInteger((i as CartItem).qty) &&
+        (i as CartItem).qty > 0
+    )
+    .map((i) => ({ ...i, key: itemKey(i) }));
+}
+
+function sanitizeStoredPeriod(raw: unknown): SubPeriod | null {
+  return SUB_PERIODS.includes(raw as SubPeriod) ? (raw as SubPeriod) : null;
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [period, setPeriodState] = useState<SubPeriod>(2); // 8주 기본('인기')
@@ -94,8 +117,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed: StoredCart = JSON.parse(raw);
-        if (Array.isArray(parsed.items)) setItems(parsed.items);
-        if (parsed.period) setPeriodState(parsed.period);
+        const items = sanitizeStoredItems(parsed.items);
+        if (items.length > 0) setItems(items);
+        const period = sanitizeStoredPeriod(parsed.period);
+        if (period) setPeriodState(period);
       }
     } catch {
       // ignore corrupt storage
@@ -122,13 +147,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const p = getProduct(productId);
       return p ? subscribePrice(mergeProduct(p, map.get(productId)).price, rate) : 0;
     };
+    const listPrice = (productId: string) => {
+      const p = getProduct(productId);
+      return p ? mergeProduct(p, map.get(productId)).price : 0;
+    };
     const count = items.reduce((n, i) => n + i.qty, 0);
     const perDelivery = items.reduce(
       (n, i) => n + i.qty * weeklyPrice(i.productId),
       0
     );
+    // 정가 회당 합계 — 최소주문금액(MIN_ORDER_KRW)은 단품과 동일하게 정가 기준으로 판정한다.
+    //   (할인가 기준이면 750mL 2병=정가 24,000원이 할인 후 21,600원이 되어 부당하게 차단됨)
+    const perDeliveryList = items.reduce(
+      (n, i) => n + i.qty * listPrice(i.productId),
+      0
+    );
     const weeks = periodWeeks(period);
-    const shipPerDelivery = subShippingFee(perDelivery);
+    const shipPerDelivery = subShippingFee(perDeliveryList);
 
     return {
       items,
@@ -137,6 +172,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       period,
       weeks,
       perDelivery,
+      perDeliveryList,
       shipPerDelivery,
       shipTotal: shipPerDelivery * weeks,
       periodTotal: (perDelivery + shipPerDelivery) * weeks,

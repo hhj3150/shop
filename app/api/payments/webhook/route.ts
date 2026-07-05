@@ -108,8 +108,19 @@ export async function POST(req: Request) {
 
   if (error || !result) {
     console.error("[payments/webhook] confirm_payment 실패:", error?.message);
-    // 금액 불일치/주문없음 등은 재시도해도 동일 → 200 으로 종료(무한 재시도 방지).
-    return NextResponse.json({ ok: false, reason: error?.message ?? "confirm_failed" });
+    // 결정적 거절(금액 불일치/주문없음/시크릿 불일치)은 재시도해도 동일 → 200 종료(무한 재시도 방지).
+    //   그 외(DB 일시 장애·네트워크 등)는 502 로 응답해 포트원 재전송을 받는다 — 200 으로 삼키면
+    //   카드가 이미 결제된 주문이 영영 '입금대기'로 남는다(payaction/webhook 과 동일 정책).
+    const msg = error?.message ?? "";
+    const deterministic =
+      msg === "forbidden" || msg === "order_not_found" || msg.startsWith("amount_mismatch");
+    if (error && !deterministic) {
+      return NextResponse.json(
+        { ok: false, reason: "confirm_failed_transient" },
+        { status: 502 }
+      );
+    }
+    return NextResponse.json({ ok: false, reason: msg || "confirm_failed" });
   }
 
   const r = result as {

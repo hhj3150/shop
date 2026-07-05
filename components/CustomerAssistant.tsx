@@ -14,6 +14,13 @@ type AddItem = { productId: string; qty: number };
 // 음성/채팅으로 담을 때 기본 배송 요일. 요일·기간은 장바구니/결제에서 변경 가능.
 const DEFAULT_DELIVERY_DAY = "mon" as const;
 
+// 상담 세션 식별자 — 이벤트 핸들러(send)에서 최초 1회만 생성한다.
+function makeSessionId(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 const SUGGESTIONS = [
   "A2 우유가 뭔가요?",
   "저지 우유는 뭐가 좋아요?",
@@ -140,10 +147,7 @@ export function CustomerAssistant() {
         // 세션 조회 실패 → 익명으로 진행
       }
       if (!sessionIdRef.current) {
-        sessionIdRef.current =
-          typeof crypto !== "undefined" && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        sessionIdRef.current = makeSessionId();
       }
       const res = await fetch("/api/assistant/order", {
         method: "POST",
@@ -337,7 +341,7 @@ export function CustomerAssistant() {
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
             {messages.length === 0 ? (
               <p className="text-[13px] leading-relaxed text-ink-soft">
-                안녕하세요! A2 우유·저지·헤이밀크·요거트 같은 제품 이야기와 추천부터 정기구독·배송·결제까지, 궁금한 점을 무엇이든 물어봐 주세요. (예: "A2 우유가 뭔가요?", "저지 우유 특징은?", "누구에게 좋나요?") 개별 주문·환불은 고객센터(031-674-3150)로 안내드립니다.
+                안녕하세요! A2 우유·저지·헤이밀크·요거트 같은 제품 이야기와 추천부터 정기구독·배송·결제까지, 궁금한 점을 무엇이든 물어봐 주세요. (예: “A2 우유가 뭔가요?”, “저지 우유 특징은?”, “누구에게 좋나요?”) 개별 주문·환불은 고객센터(031-674-3150)로 안내드립니다.
               </p>
             ) : (
               messages.map((m, i) => (

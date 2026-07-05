@@ -51,6 +51,7 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5 text-[14px] text-ink-soft">
               <li><Link href="/#subscribe" className="hover:text-gold">정기구독</Link></li>
               <li><a href={BRAND_HOME} target="_blank" rel="noopener noreferrer" className="hover:text-gold">목장 이야기</a></li>
+              <li><Link href="/orders/lookup" className="hover:text-gold">비회원 주문조회</Link></li>
               <li><Link href="/guide" className="hover:text-gold">배송 · 교환/환불 안내</Link></li>
               <li><Link href="/terms" className="hover:text-gold">이용약관</Link></li>
               <li><Link href="/privacy" className="hover:text-gold">개인정보처리방침</Link></li>

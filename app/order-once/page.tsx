@@ -321,7 +321,9 @@ function OrderOnce() {
         // PortOne 결제창 호출. 모바일은 redirectUrl 로 이동하므로 아래 분기는 PC에서만 도달.
         // 입금확인 문자는 웹훅이 보내므로 여기서 order_received 를 보내지 않는다.
         const firstName = getProduct(items[0].productId)?.name ?? "단품";
-        const orderName = count > 1 ? `${firstName} 외 ${count - 1}건` : firstName;
+        // '외 N건'은 품목 수 기준(총수량 아님) — 한 상품 3병이 '외 2건'으로 보이지 않게.
+        const orderName =
+          items.length > 1 ? `${firstName} 외 ${items.length - 1}건` : firstName;
         params.set("pay", "portone");
         const redirectUrl = `${window.location.origin}/orders/complete?${params.toString()}`;
         const result = await startPayment({

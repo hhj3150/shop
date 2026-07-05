@@ -34,10 +34,13 @@ import type { Recipient } from "@/lib/recipients";
 export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
-  const { items, period, weeks, perDelivery, weeklyPrice, clear } = useCart();
+  const { items, period, weeks, perDelivery, perDeliveryList, weeklyPrice, clear } = useCart();
   const { map, refresh } = useStorefrontCatalog();
   // 회당 상품 합계가 최소 주문금액 미만이면 신청 불가(버튼 비활성화 + 안내).
-  const belowMin = perDelivery < MIN_ORDER_KRW;
+  //   판정은 단품과 동일하게 '정가' 기준(서버 RPC와 동일) — 할인가 기준이면
+  //   750mL 2병(정가 24,000원)이 부당하게 차단된다.
+  const belowMin = perDeliveryList < MIN_ORDER_KRW;
+  const minShort = MIN_ORDER_KRW - perDeliveryList;
   // 정기구독은 한 주문에 한 배송 요일만 — 요일이 섞여 있으면 신청 불가(버튼 비활성화 + 안내).
   //   요일별로 회차 금액·배송비·배송 명단이 따로 잡혀야 하므로(다요일 합산 주문은 회차/배송 오류).
   //   서버(create_subscription_order)도 같은 규칙으로 막는다 — 여기선 결제 전 능동 안내.
@@ -203,8 +206,8 @@ export default function CheckoutPage() {
     e.preventDefault();
     setError(null);
     if (!user) return;
-    // 최소 상품금액 미달은 가장 먼저 안내한다(클레임: 죽은 버튼 → 능동 안내).
-    if (perDelivery < MIN_ORDER_KRW) {
+    // 최소 상품금액 미달은 가장 먼저 안내한다(클레임: 죽은 버튼 → 능동 안내). 정가 기준.
+    if (belowMin) {
       nudgeMinNotice();
       return;
     }
@@ -558,8 +561,8 @@ export default function CheckoutPage() {
               (minFlash ? " ring-2 ring-gold-deep ring-offset-1 ring-offset-cream" : "")
             }
           >
-            회당 최소 상품금액은 {formatKRW(MIN_ORDER_KRW)}입니다. 현재 회당{" "}
-            {formatKRW(perDelivery)}이라 {formatKRW(MIN_ORDER_KRW - perDelivery)} 더 담으셔야
+            회당 최소 상품금액은 정가 기준 {formatKRW(MIN_ORDER_KRW)}입니다. 현재 회당 정가{" "}
+            {formatKRW(perDeliveryList)}이라 {formatKRW(minShort)} 더 담으셔야
             신청할 수 있습니다. (배송비 별도)
           </p>
         )}

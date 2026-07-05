@@ -157,7 +157,6 @@ export function ProductionPlanPeriod({
   );
 
   const baseMilk = rawMilkBaseLiters(required);
-  const lossMilk = totalReqCount > 0 ? Math.round(lossL * productionDays * 10) / 10 : 0;
   const totalMilk = rawMilkForPeriod(required, lossL, productionDays);
 
   return (

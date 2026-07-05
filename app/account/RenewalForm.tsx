@@ -330,7 +330,7 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
       )}
       {hasItems && quote.belowMin && (
         <p className="mt-3 rounded-xl bg-gold/10 px-3 py-2.5 text-[12px] leading-relaxed text-gold-deep">
-          회당 상품 합계가 최소 {formatKRW(MIN_ORDER_KRW)} 이상이어야 신청할 수 있어요.
+          회당 상품 합계가 정가 기준 {formatKRW(MIN_ORDER_KRW)} 이상이어야 신청할 수 있어요.
           수량을 늘리거나 품목을 추가해 주세요.
         </p>
       )}

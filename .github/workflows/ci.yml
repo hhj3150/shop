@@ -34,8 +34,7 @@ jobs:
       - name: Test
         run: npm test
 
-      # ── 비차단(정보용) — 현재 lint 부채가 있어 차단하지 않는다.
-      #    부채 정리 후 continue-on-error 를 제거해 필수로 승격할 것.
-      - name: Lint (non-blocking)
+      # ── 필수 게이트 — lint 오류 부채를 0으로 정리해 차단 게이트로 승격.
+      #    (set-state-in-effect 는 외부 시스템 동기화 정당 패턴이라 warn 운영 — eslint.config.mjs 참고)
+      - name: Lint
         run: npm run lint
-        continue-on-error: true

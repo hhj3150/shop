@@ -16,7 +16,12 @@ export type RecoveryTarget = {
   sentStages: string[]; // 이미 발송한 단계 (예: ["D1"])
 };
 
-export type RecoveryAction = "D1" | "D2" | "EXPIRE" | "none";
+// ★ 자동취소 폐지(2026-07-05 실사고): 입금자명이 회원명과 달라 자동매칭이 안 된 주문이
+//   D+3 자동취소되며 '자동 취소되었습니다' 문자가 나가 클레임 발생 — 고객은 이미 입금한
+//   상태였다. 시스템이 모르는 입금(입금자명 불일치 등)이 있는 한 취소·취소 문자를 기계가
+//   결정하면 안 된다. D+3 은 관리자 알림(EXPIRE_NOTIFY)만 보내고, 취소는 관리자가
+//   사실확인 후 수동으로 한다(그때만 취소 문자 발송 — updateStatus → order_cancelled).
+export type RecoveryAction = "D1" | "D2" | "EXPIRE_NOTIFY" | "none";
 
 // 한 시각을 KST 달력일(UTC epoch로 정규화)로 변환. KST는 DST 없는 UTC+9.
 function kstDayEpoch(d: Date): number {
@@ -32,29 +37,23 @@ export function kstDaysElapsed(createdAtIso: string, now: Date): number {
 
 export function decideAction(t: RecoveryTarget, now: Date): RecoveryAction {
   const days = kstDaysElapsed(t.createdAt, now);
-  if (days >= 3) return "EXPIRE";
+  if (days >= 3) return t.sentStages.includes("EXPIRE_NOTIFY") ? "none" : "EXPIRE_NOTIFY";
   if (days === 2) return t.sentStages.includes("D2") ? "none" : "D2";
   if (days === 1) return t.sentStages.includes("D1") ? "none" : "D1";
   return "none";
 }
 
 export type RecoveryMessage = {
-  templateKey: "PAYMENT_GUIDE" | "PAYMENT_DEADLINE";
-  variables: Record<string, string>;
+  // 알림톡 템플릿. 없으면 LMS 로만 발송한다 — D2 는 구 템플릿(PAYMENT_DEADLINE)에
+  //   '자동취소' 문구가 들어 있어 쓰지 않는다(자동취소 폐지).
+  templateKey?: "PAYMENT_GUIDE";
+  variables?: Record<string, string>;
   subject: string;
-  text: string; // 알림톡 실패 시 LMS 폴백 본문
+  text: string; // 알림톡 실패(또는 미지정) 시 LMS 본문
 };
 
 function accountLine(): string {
   return `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
-}
-
-// created + 3일을 "M월 D일"(KST)로 포맷.
-function deadlineLabel(createdAtIso: string): string {
-  const k = new Date(
-    new Date(createdAtIso).getTime() + 9 * 60 * 60 * 1000 + 3 * 86_400_000,
-  );
-  return `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일`;
 }
 
 export function buildRecoveryMessage(
@@ -79,32 +78,26 @@ export function buildRecoveryMessage(
         `입금이 확인되면 바로 준비해 드리겠습니다.`,
     };
   }
-  const deadline = deadlineLabel(t.createdAt);
+  // D2: 자동취소 예고 대신 '입금자명 불일치' 케이스를 능동적으로 회수한다 —
+  //   가족 명의 입금 등으로 매칭이 안 된 고객이 스스로 알려올 수 있게.
   return {
-    templateKey: "PAYMENT_DEADLINE",
-    variables: {
-      "#{고객명}": t.shipName,
-      "#{주문번호}": t.orderNo,
-      "#{금액}": amount,
-      "#{마감일}": deadline,
-    },
-    subject: `[${SHOP}] 입금 마감 임박 안내`,
+    subject: `[${SHOP}] 입금 확인이 되지 않았습니다`,
     text:
       `[${SHOP}] ${t.shipName}님, 주문(${t.orderNo}) 입금이 아직 확인되지 않았습니다.\n` +
-      `${deadline}까지 입금이 없으면 자동 취소되어 자리가 반환됩니다.\n` +
-      `입금하실 금액 ${amount}원\n${account}`,
+      `입금하실 금액 ${amount}원\n${account}\n` +
+      `혹시 이미 입금하셨거나 주문자와 다른 이름으로 입금하셨다면, 입금자명을 회신해 주세요. 확인 후 바로 처리해 드리겠습니다. (고객센터 031-674-3150)`,
   };
 }
 
-// 입금 마감(D+3) 도달로 자동취소된 주문 안내. 알림톡 템플릿이 없어 LMS 본문만 구성한다.
-//   D2 에서 "마감일까지 미입금 시 자동취소"를 예고했고, 실제 취소되었음을 확정 통보한다.
-export function buildExpiryCancelMessage(
-  t: RecoveryTarget,
-): { subject: string; text: string } {
-  return {
-    subject: `[${SHOP}] 주문 자동 취소 안내`,
-    text:
-      `[${SHOP}] ${t.shipName}님, 입금이 확인되지 않아 주문(${t.orderNo})이 자동 취소되었습니다.\n` +
-      `다시 주문을 원하시면 언제든 새로 신청해 주세요. 도움이 필요하시면 문의해 주시면 빠르게 도와드리겠습니다.`,
-  };
+// D+3 도달 시 '관리자에게만' 보내는 알림 본문. 고객에게는 아무 문자도 보내지 않는다.
+//   취소 여부는 관리자가 통장·입금자명 사실확인 후 관리자 화면에서 직접 결정한다
+//   (취소 확정 시에만 기존 경로로 취소 문자가 나간다).
+export function buildExpireAdminAlertText(t: RecoveryTarget, daysElapsed: number): string {
+  const amount = depositAmountDigits(t.totalAmount);
+  return (
+    `[${SHOP}] ⏰ 미입금 D+${daysElapsed} 확인 필요\n` +
+    `주문 ${t.orderNo} · ${t.shipName} (${t.shipPhone || "연락처없음"})\n` +
+    `금액 ${amount}원 · ${t.hasSubscription ? "정기구독" : "단품"}\n` +
+    `입금자명이 다를 수 있으니 통장 확인 후, 관리자 화면에서 [입금확인] 또는 [취소]로 처리해 주세요. 자동취소·자동문자는 나가지 않습니다.`
+  );
 }
