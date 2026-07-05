@@ -142,7 +142,7 @@ export type RenewalQuote = {
   listTotalPerDelivery: number; // 정가 회당 합계(참고)
   shipping: number;
   total: number;
-  belowMin: boolean;            // 회당 < MIN_ORDER_KRW
+  belowMin: boolean;            // 회당 정가 합계 < MIN_ORDER_KRW (정가 기준 — 신규 구독·단품과 동일)
 };
 
 export function renewalQuote(
@@ -167,7 +167,7 @@ export function renewalQuote(
     listTotalPerDelivery: list,
     shipping,
     total: unit * weeks + shipping,
-    belowMin: unit < MIN_ORDER_KRW,
+    belowMin: list < MIN_ORDER_KRW,
   };
 }
 

@@ -30,6 +30,7 @@ export function CartDrawer() {
     period,
     weeks,
     perDelivery,
+    perDeliveryList,
     shipTotal,
     periodTotal,
     weeklyPrice,
@@ -55,7 +56,10 @@ export function CartDrawer() {
 
   // 회당(매주) 상품 합계가 최소 주문금액 미만이면 배송 불가 → 주문하기 차단 + 안내.
   //   (이전엔 미만이어도 checkout 으로 넘어가 거기서 막혀 '주문이 안된다' 클레임이 잦았음)
-  const belowMin = perDelivery < MIN_ORDER_KRW;
+  //   판정은 단품과 동일하게 '정가' 기준 — 할인가 기준이면 750mL 2병(정가 24,000원)이
+  //   할인 후 21,600원으로 계산돼 부당하게 차단된다(서버 RPC도 같은 기준).
+  const belowMin = perDeliveryList < MIN_ORDER_KRW;
+  const minShort = MIN_ORDER_KRW - perDeliveryList;
 
   // 정기구독은 한 주문에 한 배송 요일만 — 요일이 섞이면 주문 차단(요일별로 따로 신청).
   //   요일별로 회차 금액·배송비·배송 명단이 따로 잡혀야 하므로(다요일 합산 주문은 회차/배송 오류).
@@ -311,12 +315,10 @@ export function CartDrawer() {
                 role="alert"
                 className="mt-3 rounded-xl border border-gold/50 bg-gold/10 px-4 py-3 text-[13px] leading-relaxed text-gold-deep"
               >
-                회당(매주) 상품 금액이{" "}
+                회당(매주) 상품 금액이 정가 기준{" "}
                 <span className="font-semibold tabular-nums">{formatKRW(MIN_ORDER_KRW)}</span>{" "}
-                이상이어야 배송할 수 있어요. 현재 회당 {formatKRW(perDelivery)}이라{" "}
-                <span className="font-semibold tabular-nums">
-                  {formatKRW(MIN_ORDER_KRW - perDelivery)}
-                </span>{" "}
+                이상이어야 배송할 수 있어요. 현재 회당 정가 {formatKRW(perDeliveryList)}이라{" "}
+                <span className="font-semibold tabular-nums">{formatKRW(minShort)}</span>{" "}
                 더 담아 주세요.
               </div>
             ) : (
@@ -333,7 +335,7 @@ export function CartDrawer() {
               {multiDay
                 ? "한 요일만 남기고 주문 가능"
                 : belowMin
-                ? `${formatKRW(MIN_ORDER_KRW - perDelivery)} 더 담아야 주문 가능`
+                ? `${formatKRW(minShort)} 더 담아야 주문 가능`
                 : user
                 ? "주문하기 (무통장입금)"
                 : "로그인하고 주문하기"}

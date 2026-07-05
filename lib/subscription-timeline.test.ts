@@ -9,7 +9,6 @@ import {
   totalWeeks,
   type RawBlock,
 } from "./subscription-timeline";
-import { discountForPeriod } from "./products";
 
 const chicken = { productName: "닭가슴살", volume: "200g", qty: 2, unitPrice: 10800 };
 const beef    = { productName: "소고기",   volume: "150g", qty: 1, unitPrice: 30600 };
@@ -80,8 +79,15 @@ describe("renewalQuote", () => {
     expect(q.total).toBe(31680 * 8 + 32000);       // 285,440
     expect(q.belowMin).toBe(false);
   });
-  it("회당 25,000 미만이면 belowMin true", () => {
+  it("회당 정가 24,000 미만이면 belowMin true", () => {
     expect(renewalQuote([{ listPrice: 12000, qty: 1 }], 1, 4000).belowMin).toBe(true);
+  });
+  it("750mL 2병(정가 24,000)은 할인가와 무관하게 belowMin false — 정가 기준 판정", () => {
+    // 4주(10% 할인) 기준 할인가 회당 21,600원이지만, 판정은 정가 24,000원으로 통과해야 한다.
+    const q = renewalQuote([{ listPrice: 12000, qty: 2 }], 1, 4000);
+    expect(q.unitTotalPerDelivery).toBe(21600);
+    expect(q.listTotalPerDelivery).toBe(24000);
+    expect(q.belowMin).toBe(false);
   });
   it("허용 안 된 기간은 throw", () => {
     expect(() => renewalQuote(items, 5 as never, 4000)).toThrow();
