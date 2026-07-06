@@ -4,7 +4,13 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { useCart, cartDeliveryDays, DELIVERY_DAY_LABEL } from "@/lib/cart";
+import {
+  useCart,
+  cartDeliveryDays,
+  conflictingDeliveryDays,
+  DELIVERY_DAY_LABEL,
+  type DeliveryDay,
+} from "@/lib/cart";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
 import { isSpecialDeliveryPostcode } from "@/lib/regions";
 import { DEFAULT_DELIVERY_METHOD, isPickup, subShippingFor, type DeliveryMethod } from "@/lib/delivery-method";
@@ -46,6 +52,12 @@ export default function CheckoutPage() {
   //   서버(create_subscription_order)도 같은 규칙으로 막는다 — 여기선 결제 전 능동 안내.
   const deliveryDays = cartDeliveryDays(items);
   const multiDay = deliveryDays.length > 1;
+  // 이미 내 구독 슬롯(신청·활성·대기)이 점유한 요일 — 같은 요일 신규 신청은 서버가 막는다
+  //   (한 회원은 요일별 슬롯 하나). 여기선 제출 전에 감지해 연장/다른 요일을 능동 안내한다.
+  //   (실제 클레임: 만료 임박 재구매가 유니크 위반 원문 노출로 실패 → 결제 전 안내로 전환)
+  const [mySubDays, setMySubDays] = useState<DeliveryDay[]>([]);
+  const conflictDays = conflictingDeliveryDays(deliveryDays, mySubDays);
+  const dayConflict = conflictDays.length > 0;
   // 장바구니 항목 중 품절·판매중지가 하나라도 있으면 제출 차단(체크아웃 진입 재검증).
   const hasBlocked = items.some((it) => {
     const p = getProduct(it.productId);
@@ -121,6 +133,27 @@ export default function CheckoutPage() {
       depositorName: prev.depositorName || profile.name,
     }));
   }, [profile]);
+
+  // 내 구독 슬롯(비해지) 요일 조회 — 같은 요일 중복 신청의 결제 전 안내용.
+  //   조회 실패 시 빈 배열 그대로(안내만 못 할 뿐, 서버 가드가 최종 차단한다).
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getSupabase()
+      .from("subscription_slots")
+      .select("delivery_day")
+      .eq("user_id", user.id)
+      .neq("status", "해지")
+      .then(({ data }) => {
+        if (alive)
+          setMySubDays(
+            ((data as { delivery_day: DeliveryDay }[]) ?? []).map((r) => r.delivery_day)
+          );
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user]);
 
   // 추천 적립금 잔액 조회(표시·미리보기용). 실패해도 결제는 그대로 진행된다.
   useEffect(() => {
@@ -217,6 +250,15 @@ export default function CheckoutPage() {
         `정기구독은 한 번에 한 배송 요일만 신청할 수 있어요. 지금 ${deliveryDays
           .map((d) => DELIVERY_DAY_LABEL[d])
           .join("·")}이 함께 담겨 있습니다. 요일별로 따로 신청해 주세요.`
+      );
+      return;
+    }
+    // 같은 요일 기존 구독 차단 — 한 회원은 요일별 슬롯 하나. 서버도 동일하게 막는다.
+    if (dayConflict) {
+      setError(
+        `이미 ${conflictDays
+          .map((d) => DELIVERY_DAY_LABEL[d])
+          .join("·")}에 진행 중인 정기구독이 있어요. 구독을 이어가시려면 내 계정 → 구독 연장에서 신청해 주세요.`
       );
       return;
     }
@@ -547,6 +589,21 @@ export default function CheckoutPage() {
           </p>
         )}
 
+        {dayConflict && (
+          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+            이미{" "}
+            <span className="font-medium text-ink">
+              {conflictDays.map((d) => DELIVERY_DAY_LABEL[d]).join("·")}
+            </span>
+            에 진행 중인 정기구독이 있어요. 구독을 이어가시려면{" "}
+            <Link href="/account" className="font-medium text-ink underline underline-offset-2">
+              내 계정 → 구독 연장
+            </Link>
+            에서 신청해 주세요. 장바구니의 배송 요일을 다른 요일로 바꾸면 새로 신청할 수
+            있습니다. (한 계정은 요일마다 구독 하나만 가질 수 있어요.)
+          </p>
+        )}
+
         {error && (
           <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
             {error}
@@ -569,7 +626,7 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={busy || hasBlocked || multiDay || (!pickup && isSpecialRegion && !acceptFresh)}
+          disabled={busy || hasBlocked || multiDay || dayConflict || (!pickup && isSpecialRegion && !acceptFresh)}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy

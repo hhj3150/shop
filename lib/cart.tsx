@@ -42,6 +42,19 @@ export function cartDeliveryDays(
   return DELIVERY_DAYS.filter((d) => items.some((i) => i.deliveryDay === d));
 }
 
+// 장바구니 요일 중 이미 내 구독 슬롯(비해지)이 점유한 요일(월→금 정렬). 한 회원은 요일별
+//   슬롯 하나만 가질 수 있으므로(unique index subscription_slots_user_day_uniq), 겹치는
+//   요일이 있으면 신규 구독 신청 불가 — 연장(내 계정) 또는 다른 요일 안내 대상.
+//   서버(create_subscription_order)도 같은 규칙으로 막으며, 여기선 결제 전 능동 안내에 쓴다.
+export function conflictingDeliveryDays(
+  cartDays: ReadonlyArray<DeliveryDay>,
+  occupiedDays: ReadonlyArray<DeliveryDay>
+): DeliveryDay[] {
+  return DELIVERY_DAYS.filter(
+    (d) => cartDays.includes(d) && occupiedDays.includes(d)
+  );
+}
+
 export type CartItem = {
   key: string;
   productId: string;
