@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   cartDeliveryDays,
   conflictingDeliveryDays,
+  slotOnCartDay,
   type DeliveryDay,
 } from "./cart";
 
@@ -56,5 +57,39 @@ describe("conflictingDeliveryDays", () => {
       "mon",
       "fri",
     ]);
+  });
+});
+
+// 단일 요일 장바구니의 그 요일을 점유한 내 슬롯 찾기. 활성이면 체크아웃이 연장(재입금)으로
+//   접수하고(같은 요일 유지·구성품 변경·미리 신청 지원), 신청·대기면 상태 안내 후 차단한다.
+describe("slotOnCartDay", () => {
+  const slot = (id: number, delivery_day: DeliveryDay, status: string) => ({
+    id,
+    delivery_day,
+    status,
+  });
+
+  it("슬롯이 없으면 null", () => {
+    expect(slotOnCartDay(["mon"], [])).toBeNull();
+  });
+
+  it("같은 요일 슬롯을 반환(활성 → 연장 전환 대상)", () => {
+    expect(slotOnCartDay(["mon"], [slot(40, "mon", "활성")])).toEqual(
+      slot(40, "mon", "활성")
+    );
+  });
+
+  it("다른 요일 슬롯만 있으면 null(새 요일 신규 신청 허용)", () => {
+    expect(slotOnCartDay(["tue"], [slot(40, "mon", "활성")])).toBeNull();
+  });
+
+  it("다요일 장바구니는 null(multiDay 차단이 선행)", () => {
+    expect(slotOnCartDay(["mon", "tue"], [slot(40, "mon", "활성")])).toBeNull();
+  });
+
+  it("신청·대기 슬롯도 그대로 반환(호출부가 status 로 연장/차단 분기)", () => {
+    expect(slotOnCartDay(["wed"], [slot(7, "wed", "대기")])).toEqual(
+      slot(7, "wed", "대기")
+    );
   });
 });
