@@ -60,6 +60,10 @@ export type SubscriptionSlotLite = {
   id: number;
   delivery_day: DeliveryDay;
   status: string; // 신청 | 활성 | 대기 ('해지'는 조회에서 제외)
+  // 슬롯이 묶인 원 주문 — 연장 배송비 미리보기(수령방식·우편번호)와
+  //   미입금 신청 취소(주문 id)에 쓴다. 조회 실패 시 없을 수 있다(선택).
+  order_id?: string | null;
+  orders?: { delivery_method?: string | null; ship_postcode?: string | null } | null;
 };
 
 // 장바구니가 단일 요일일 때 그 요일을 점유한 내 슬롯(없으면 null).
