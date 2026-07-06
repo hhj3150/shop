@@ -34,6 +34,9 @@ function Complete() {
   const isPortOne = sp.get("pay") === "portone";
   // 비회원 주문: '내 주문 보기'(로그인 필요) 대신 주문번호 보관 안내를 노출한다.
   const isGuest = sp.get("guest") === "1";
+  // 구독 연장(재입금): 체크아웃에서 같은 요일 활성 구독이 감지돼 연장으로 접수된 경우.
+  //   새 슬롯·선착순 순번이 없고, 입금 확인 시 다음 회차 블록부터 이어진다.
+  const isRenew = sp.get("renew") === "1";
   // PortOne 리디렉션 실패 시 code/message 가 쿼리로 돌아온다.
   const failCode = sp.get("code");
   const failMessage = sp.get("message");
@@ -222,10 +225,20 @@ function Complete() {
         </svg>
       </div>
       <h1 className="mt-7 font-serif-kr text-[26px] font-medium leading-tight tracking-[-0.01em] text-ink">
-        {waitlisted ? "대기자로 등록되었습니다" : "구독 신청이 접수되었습니다"}
+        {waitlisted
+          ? "대기자로 등록되었습니다"
+          : isRenew
+            ? "구독 연장 신청이 접수되었습니다"
+            : "구독 신청이 접수되었습니다"}
       </h1>
       {orderNo && (
         <p className="mt-3 inline-block rounded-full border border-line bg-cream/80 px-3.5 py-1.5 text-[13px] tabular-nums text-mute">주문번호 {orderNo}</p>
+      )}
+      {isRenew && (
+        <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/10 px-5 py-4 text-[14px] leading-relaxed text-gold-deep">
+          입금이 확인되면 <span className="font-semibold">다음 회차 블록부터 연장</span>됩니다.
+          지금 진행 중인 회차는 그대로 배송되고, 남은 회차가 끝나면 끊김 없이 이어져요.
+        </div>
       )}
 
       {day && pos > 0 && (
@@ -279,12 +292,15 @@ function Complete() {
             위 계좌(예금주 {DEPOSIT.holder})로{" "}
             {amount > 0 ? (
               <>
-                선택하신 구독 기간분 <span className="font-semibold">{formatKRW(amount)}</span>을
+                {isRenew ? "연장 기간분" : "선택하신 구독 기간분"}{" "}
+                <span className="font-semibold">{formatKRW(amount)}</span>을
               </>
             ) : (
-              "선택하신 구독 기간분을"
+              <>{isRenew ? "연장 기간분을" : "선택하신 구독 기간분을"}</>
             )}{" "}
-            한 번에 입금해 주세요. 목장에서 입금을 확인한 뒤 발송을 준비하고, 등록하신 번호로 안내드립니다.
+            한 번에 입금해 주세요. 목장에서 입금을 확인한 뒤{" "}
+            {isRenew ? "다음 회차 블록부터 연장해 드리고" : "발송을 준비하고"}, 등록하신 번호로
+            안내드립니다.
           </p>
         </div>
       )}

@@ -42,6 +42,39 @@ export function cartDeliveryDays(
   return DELIVERY_DAYS.filter((d) => items.some((i) => i.deliveryDay === d));
 }
 
+// 장바구니 요일 중 이미 내 구독 슬롯(비해지)이 점유한 요일(월→금 정렬). 한 회원은 요일별
+//   슬롯 하나만 가질 수 있으므로(unique index subscription_slots_user_day_uniq), 겹치는
+//   요일에는 신규 구독을 만들 수 없다 — 활성 구독이면 연장(request_renewal)으로 접수하고,
+//   신청(입금 전)·대기면 상태 안내 대상. 서버(create_subscription_order)도 같은 규칙으로 막는다.
+export function conflictingDeliveryDays(
+  cartDays: ReadonlyArray<DeliveryDay>,
+  occupiedDays: ReadonlyArray<DeliveryDay>
+): DeliveryDay[] {
+  return DELIVERY_DAYS.filter(
+    (d) => cartDays.includes(d) && occupiedDays.includes(d)
+  );
+}
+
+// 내 구독 슬롯(비해지) 요약 — 체크아웃의 같은 요일 충돌 판정·연장 전환용.
+export type SubscriptionSlotLite = {
+  id: number;
+  delivery_day: DeliveryDay;
+  status: string; // 신청 | 활성 | 대기 ('해지'는 조회에서 제외)
+};
+
+// 장바구니가 단일 요일일 때 그 요일을 점유한 내 슬롯(없으면 null).
+//   활성 슬롯이면 체크아웃이 신규 주문 대신 연장(재입금)으로 접수한다 — 같은 요일 유지·
+//   구성품 변경·만료 전(미리) 신청 모두 request_renewal 이 지원한다.
+//   신청(입금 전)·대기 슬롯이면 연장 불가 → 상태 안내 후 제출 차단.
+//   (다요일 장바구니는 multiDay 차단이 선행되므로 여기선 null.)
+export function slotOnCartDay(
+  cartDays: ReadonlyArray<DeliveryDay>,
+  slots: ReadonlyArray<SubscriptionSlotLite>
+): SubscriptionSlotLite | null {
+  if (cartDays.length !== 1) return null;
+  return slots.find((s) => s.delivery_day === cartDays[0]) ?? null;
+}
+
 export type CartItem = {
   key: string;
   productId: string;

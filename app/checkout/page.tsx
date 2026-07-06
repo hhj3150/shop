@@ -4,7 +4,15 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { useCart, cartDeliveryDays, DELIVERY_DAY_LABEL } from "@/lib/cart";
+import {
+  useCart,
+  cartDeliveryDays,
+  conflictingDeliveryDays,
+  slotOnCartDay,
+  DELIVERY_DAY_LABEL,
+  type SubscriptionSlotLite,
+} from "@/lib/cart";
+import { requestRenewal } from "@/lib/subscriptions";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
 import { isSpecialDeliveryPostcode } from "@/lib/regions";
 import { DEFAULT_DELIVERY_METHOD, isPickup, subShippingFor, type DeliveryMethod } from "@/lib/delivery-method";
@@ -46,6 +54,21 @@ export default function CheckoutPage() {
   //   서버(create_subscription_order)도 같은 규칙으로 막는다 — 여기선 결제 전 능동 안내.
   const deliveryDays = cartDeliveryDays(items);
   const multiDay = deliveryDays.length > 1;
+  // 이미 내 구독 슬롯(신청·활성·대기)이 점유한 요일 — 같은 요일 신규 주문은 서버가 막는다
+  //   (한 회원은 요일별 슬롯 하나). 활성 구독이면 이 체크아웃을 연장(재입금)으로 접수한다:
+  //   같은 요일 유지·구성품 변경·만료 전(미리) 신청 모두 request_renewal 이 지원한다.
+  //   신청(입금 전)·대기 슬롯은 연장 대상이 아니므로 상태 안내 후 제출을 막는다.
+  //   (실제 클레임: 만료 임박 재구매가 유니크 위반 원문 노출로 실패 → 연장 접수로 전환)
+  const [mySlots, setMySlots] = useState<SubscriptionSlotLite[]>([]);
+  const conflictDays = conflictingDeliveryDays(
+    deliveryDays,
+    mySlots.map((s) => s.delivery_day)
+  );
+  const dayConflict = conflictDays.length > 0;
+  const conflictSlot = slotOnCartDay(deliveryDays, mySlots);
+  const renewalMode = conflictSlot?.status === "활성";
+  // 연장 불가 충돌(신청=입금 전 / 대기): 다요일 안내가 선행되는 경우는 제외.
+  const blockedConflict = !multiDay && dayConflict && !renewalMode;
   // 장바구니 항목 중 품절·판매중지가 하나라도 있으면 제출 차단(체크아웃 진입 재검증).
   const hasBlocked = items.some((it) => {
     const p = getProduct(it.productId);
@@ -92,15 +115,17 @@ export default function CheckoutPage() {
 
   // 추천 적립금 미리보기 — 서버(apply_referral_credit)와 동일 규칙으로 차감액을 계산해 표시한다.
   //   실제 차감은 서버 권위값. 토글을 끄면 차감 없이 전액 입금으로 보여준다.
+  //   연장(재입금)은 서버(request_renewal)가 적립금을 차감하지 않으므로 미리보기도 하지 않는다.
   const creditAvailable = usableBalance(rewards, new Date().toISOString());
-  const redeem = useReferralCredit
+  const redeem = useReferralCredit && !renewalMode
     ? redeemableCoupons({ availableCount: creditAvailable.count, orderTotal: periodTotal })
     : { useCount: 0, creditKrw: 0, payable: periodTotal };
   const finalPayable = periodTotal - redeem.creditKrw;
 
   // 카드·간편결제(PortOne)는 PortOne 설정 시에만, 또 선물이 아닐 때만 선택 가능하다.
   //   선물은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 무통장(PayAction) 흐름으로 고정한다.
-  const canPortOne = isPortOneConfigured && !isGift;
+  //   연장(재입금)도 무통장 고정 — 계정 페이지의 연장 흐름과 동일(PayAction 자동확인).
+  const canPortOne = isPortOneConfigured && !isGift && !renewalMode;
   // 실제 PortOne 결제는 무통장(BANK)이 아닌 결제수단을 골랐을 때만 사용한다.
   const usePortOne = canPortOne && method !== "BANK";
 
@@ -121,6 +146,24 @@ export default function CheckoutPage() {
       depositorName: prev.depositorName || profile.name,
     }));
   }, [profile]);
+
+  // 내 구독 슬롯(비해지) 조회 — 같은 요일 충돌 판정 + 활성이면 연장(재입금) 전환용.
+  //   조회 실패 시 빈 배열 그대로(연장 전환만 못 할 뿐, 서버 가드가 중복 생성을 최종 차단한다).
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getSupabase()
+      .from("subscription_slots")
+      .select("id,delivery_day,status")
+      .eq("user_id", user.id)
+      .neq("status", "해지")
+      .then(({ data }) => {
+        if (alive) setMySlots((data as SubscriptionSlotLite[]) ?? []);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [user]);
 
   // 추천 적립금 잔액 조회(표시·미리보기용). 실패해도 결제는 그대로 진행된다.
   useEffect(() => {
@@ -218,6 +261,40 @@ export default function CheckoutPage() {
           .map((d) => DELIVERY_DAY_LABEL[d])
           .join("·")}이 함께 담겨 있습니다. 요일별로 따로 신청해 주세요.`
       );
+      return;
+    }
+    // 같은 요일 신청(입금 전)·대기 슬롯 — 연장 대상이 아니므로 차단(배너와 동일 안내).
+    if (blockedConflict) {
+      setError(
+        conflictSlot?.status === "대기"
+          ? "이미 이 요일 대기자로 등록되어 있어요. 자리가 나면 가장 먼저 안내드립니다."
+          : "이미 이 요일에 입금 대기 중인 구독 신청이 있어요. 입금을 완료하시면 배송이 시작됩니다."
+      );
+      return;
+    }
+    // ★ 같은 요일 활성 구독 → 이 체크아웃을 연장(재입금)으로 접수한다.
+    //   장바구니 구성·기간이 다음 블록부터 적용되고, 배송지·입금자명은 기존 구독을 승계
+    //   (금액·좌석은 서버 request_renewal 이 권위 재계산). 계정 페이지 연장 흐름과 동일하게
+    //   PayAction 등록 + 연장 입금 안내 문자 후 완료 페이지로 넘어간다.
+    if (renewalMode && conflictSlot) {
+      setBusy(true);
+      try {
+        const res = await requestRenewal(conflictSlot.id, {
+          items: items.map((i) => ({ product_id: i.productId, qty: i.qty })),
+          period,
+          deliveryDay: conflictSlot.delivery_day,
+        });
+        await registerPayActionDeposit(res.orderNo, profile?.phone ?? ship.phone);
+        void notify({ kind: "renewal_guide", orderId: res.orderId });
+        clear();
+        router.push(
+          `/orders/complete?no=${encodeURIComponent(res.orderNo)}&amount=${res.total}&renew=1`
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "구독 연장 신청에 실패했습니다.");
+      } finally {
+        setBusy(false);
+      }
       return;
     }
     if (!ship.name.trim() || !ship.phone.trim() || (!pickup && !ship.address.trim())) {
@@ -355,10 +432,10 @@ export default function CheckoutPage() {
       <Track event="begin_checkout" once />
       <p className="eyebrow text-gold-deep">Checkout</p>
       <h1 className="mt-3 font-serif-kr text-[clamp(1.7rem,5vw,2.3rem)] font-medium text-ink">
-        {PERIOD_LABEL[period]} 정기구독 신청
+        {PERIOD_LABEL[period]} 정기구독 {renewalMode ? "연장" : "신청"}
       </h1>
       <p className="mt-3 text-[14px] leading-relaxed text-mute">
-        신청을 완료하면 다음 화면에서 <span className="text-ink-soft">{PERIOD_LABEL[period]}분({weeks}회)
+        {renewalMode ? "연장을" : "신청을"} 완료하면 다음 화면에서 <span className="text-ink-soft">{PERIOD_LABEL[period]}분({weeks}회)
         입금 금액·계좌</span>를 안내합니다. 입금 확인 후 발송하며, 준비되면 문자로 알려드립니다.
       </p>
 
@@ -402,7 +479,7 @@ export default function CheckoutPage() {
             {pickup ? "방문수령 — 배송비 무료" : formatKRW(shipTotal)}
           </span>
         </div>
-        {creditAvailable.count > 0 && (
+        {!renewalMode && creditAvailable.count > 0 && (
           <div className="mt-2 border-t border-gold/20 pt-2">
             <label className="flex cursor-pointer items-center justify-between gap-2">
               <span className="text-mute">
@@ -432,6 +509,12 @@ export default function CheckoutPage() {
             {formatKRW(finalPayable)}
           </span>
         </div>
+        {renewalMode && (
+          <p className="mt-2 border-t border-line pt-2 text-[12px] leading-relaxed text-mute">
+            연장은 기존 구독의 수령 방식·배송 지역 기준으로 배송비가 산출됩니다. 최종 입금
+            금액은 신청 완료 화면에서 안내드려요.
+          </p>
+        )}
       </div>
 
       {/* 결제수단: PortOne 설정 시 무통장/카드/간편결제 선택, 무통장(또는 선물·미설정) 시 계좌 안내 */}
@@ -459,76 +542,101 @@ export default function CheckoutPage() {
         )}
       </div>
 
-      {/* 배송지 */}
+      {/* 배송지 — 연장(재입금)은 기존 구독의 배송지·입금자명을 승계하므로 입력 칸을 생략한다. */}
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
-        <DeliveryMethodSelect value={deliveryMethod} onChange={changeDeliveryMethod} />
-        {!pickup && user && (
-          <GiftOptions
-            userId={user.id}
-            isGift={isGift}
-            giftMessage={giftMessage}
-            onModeChange={setGiftMode}
-            onMessageChange={setGiftMessage}
-            onSelectRecipient={applyRecipient}
-          />
-        )}
-        {!pickup && !isGift && (
-          <LoadMyInfoButton profile={profile} onLoad={fillFromProfile} disabled={busy} />
-        )}
-        <Field id="name" label={isGift ? "받는 분 (선물 받으실 분)" : "받는 분"} required value={ship.name} onChange={(e) => update("name", e.target.value)} />
-        <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." inputMode="numeric" required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
-        {!pickup && (
+        {renewalMode && conflictSlot ? (
+          <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+            <p>
+              이미{" "}
+              <span className="font-medium text-ink">
+                {DELIVERY_DAY_LABEL[conflictSlot.delivery_day]}
+              </span>{" "}
+              정기구독을 이용 중이라 이번 신청은{" "}
+              <span className="font-medium text-ink">구독 연장(재입금)</span>으로 접수돼요.
+              지금 담으신 구성과 {PERIOD_LABEL[period]} 기간이 다음 회차 블록부터 적용되고,
+              남은 회차가 끝나면 끊김 없이 이어서 배송됩니다. 미리 신청하셔도 남은 회차는
+              그대로 유지돼요.
+            </p>
+            <p className="mt-2 text-[13px] text-ink-soft">
+              배송지·연락처·입금자명은 기존 구독 정보를 그대로 사용합니다(변경은{" "}
+              <Link href="/account" className="font-medium text-ink underline underline-offset-2">
+                내 계정
+              </Link>
+              에서). 최종 입금 금액(배송비 포함)은 다음 화면에서 안내드려요.
+            </p>
+          </div>
+        ) : (
           <>
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <Field id="postcode" label="우편번호" inputMode="numeric" value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
-              </div>
-              <div className="pb-1">
-                <AddressSearch
-                  onSelect={(postcode, address) =>
-                    setShip((prev) => ({ ...prev, postcode, address }))
-                  }
-                />
-              </div>
-            </div>
-            <Field id="address" label="주소" required value={ship.address} onChange={(e) => update("address", e.target.value)} />
-            <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
-
-            {isSpecialRegion && (
-              <div className="rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
-                <p className="text-[14px] font-medium text-gold-deep">신선함이 생명입니다</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
-                  입력하신 지역(제주·도서산간 등)은 당일·익일 배송이 어려워 도착까지 하루 이상 걸릴 수
-                  있고, 그만큼 신선도가 떨어질 수 있습니다. 이 지역은 배송비가 회당 5,000원입니다.
-                </p>
-                <label className="mt-3 flex items-start gap-2 text-[13px] text-ink">
-                  <input
-                    type="checkbox"
-                    checked={acceptFresh}
-                    onChange={(e) => setAcceptFresh(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
-                  />
-                  <span>신선도 안내를 확인했고, 배송비 회당 5,000원에 동의합니다.</span>
-                </label>
-              </div>
+            <DeliveryMethodSelect value={deliveryMethod} onChange={changeDeliveryMethod} />
+            {!pickup && user && (
+              <GiftOptions
+                userId={user.id}
+                isGift={isGift}
+                giftMessage={giftMessage}
+                onModeChange={setGiftMode}
+                onMessageChange={setGiftMessage}
+                onSelectRecipient={applyRecipient}
+              />
             )}
+            {!pickup && !isGift && (
+              <LoadMyInfoButton profile={profile} onLoad={fillFromProfile} disabled={busy} />
+            )}
+            <Field id="name" label={isGift ? "받는 분 (선물 받으실 분)" : "받는 분"} required value={ship.name} onChange={(e) => update("name", e.target.value)} />
+            <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." inputMode="numeric" required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
+            {!pickup && (
+              <>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <Field id="postcode" label="우편번호" inputMode="numeric" value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
+                  </div>
+                  <div className="pb-1">
+                    <AddressSearch
+                      onSelect={(postcode, address) =>
+                        setShip((prev) => ({ ...prev, postcode, address }))
+                      }
+                    />
+                  </div>
+                </div>
+                <Field id="address" label="주소" required value={ship.address} onChange={(e) => update("address", e.target.value)} />
+                <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
+
+                {isSpecialRegion && (
+                  <div className="rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
+                    <p className="text-[14px] font-medium text-gold-deep">신선함이 생명입니다</p>
+                    <p className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+                      입력하신 지역(제주·도서산간 등)은 당일·익일 배송이 어려워 도착까지 하루 이상 걸릴 수
+                      있고, 그만큼 신선도가 떨어질 수 있습니다. 이 지역은 배송비가 회당 5,000원입니다.
+                    </p>
+                    <label className="mt-3 flex items-start gap-2 text-[13px] text-ink">
+                      <input
+                        type="checkbox"
+                        checked={acceptFresh}
+                        onChange={(e) => setAcceptFresh(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
+                      />
+                      <span>신선도 안내를 확인했고, 배송비 회당 5,000원에 동의합니다.</span>
+                    </label>
+                  </div>
+                )}
+              </>
+            )}
+
+            <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
+            <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
+
+            <CashReceiptFields
+              type={cashReceiptType}
+              id={cashReceiptId}
+              onTypeChange={setCashReceiptType}
+              onIdChange={setCashReceiptId}
+            />
+
+            <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+              선택한 요일에 매주 한 번. {PERIOD_LABEL[period]}분({weeks}회)을 한 번에 입금하면
+              확인 후 발송됩니다. 요일별 100명·전체 500명 한정.
+            </p>
           </>
         )}
-
-        <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
-        <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
-
-        <CashReceiptFields
-          type={cashReceiptType}
-          id={cashReceiptId}
-          onTypeChange={setCashReceiptType}
-          onIdChange={setCashReceiptId}
-        />
-
-        <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
-          선택한 요일에 매주 한 번. {PERIOD_LABEL[period]}분({weeks}회)을 한 번에 입금하면
-          확인 후 발송됩니다. 요일별 100명·전체 500명 한정.
-        </p>
 
         {hasBlocked && (
           <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] leading-relaxed text-red-700">
@@ -544,6 +652,25 @@ export default function CheckoutPage() {
             </span>
             이 함께 담겨 있습니다. 요일이 다른 항목은 장바구니에서 빼고, 그 요일은 따로 신청해
             주세요. (요일별로 회차 금액·배송이 각각 잡힙니다.)
+          </p>
+        )}
+
+        {blockedConflict && (
+          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+            이미{" "}
+            <span className="font-medium text-ink">
+              {conflictDays.map((d) => DELIVERY_DAY_LABEL[d]).join("·")}
+            </span>
+            에{" "}
+            {conflictSlot?.status === "대기"
+              ? "대기자로 등록되어 있어요. 자리가 나면 가장 먼저 안내드립니다."
+              : "입금 대기 중인 구독 신청이 있어요. 입금을 완료하시면 배송이 시작됩니다."}{" "}
+            신청 내역은{" "}
+            <Link href="/account" className="font-medium text-ink underline underline-offset-2">
+              내 계정
+            </Link>
+            에서 확인할 수 있어요. 장바구니의 배송 요일을 다른 요일로 바꾸면 새로 신청할 수
+            있습니다. (한 계정은 요일마다 구독 하나만 가질 수 있어요.)
           </p>
         )}
 
@@ -569,21 +696,31 @@ export default function CheckoutPage() {
 
         <button
           type="submit"
-          disabled={busy || hasBlocked || multiDay || (!pickup && isSpecialRegion && !acceptFresh)}
+          disabled={
+            busy ||
+            hasBlocked ||
+            multiDay ||
+            blockedConflict ||
+            (!renewalMode && !pickup && isSpecialRegion && !acceptFresh)
+          }
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy
             ? usePortOne
               ? "결제 진행 중…"
               : "신청 접수 중…"
-            : usePortOne
-              ? "구독 신청하고 결제하기"
-              : "구독 신청하고 입금 안내 받기"}
+            : renewalMode
+              ? "구독 연장하고 입금 안내 받기"
+              : usePortOne
+                ? "구독 신청하고 결제하기"
+                : "구독 신청하고 입금 안내 받기"}
         </button>
         <p className="text-center text-[12px] text-mute">
-          {usePortOne
-            ? "결제가 확인되면 발송이 시작됩니다."
-            : "입금이 확인되면 자동으로 발송해 드려요."}
+          {renewalMode
+            ? "입금이 확인되면 다음 회차 블록부터 연장돼요."
+            : usePortOne
+              ? "결제가 확인되면 발송이 시작됩니다."
+              : "입금이 확인되면 자동으로 발송해 드려요."}
         </p>
         <p className="mt-2 text-center text-[11.5px] leading-relaxed text-mute">
           신선식품 특성상 단순 변심에 의한 청약철회·교환·환불은 제한될 수 있습니다. 입금 후 발송 준비 전 취소는 전액 환불되며, 상품 하자·오배송은 교환·환불해 드립니다.
