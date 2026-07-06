@@ -14,6 +14,7 @@ import {
 } from "@/lib/products";
 import { isSpecialDeliveryPostcode } from "@/lib/regions";
 import { DEFAULT_DELIVERY_METHOD, isPickup, onceShippingFor, type DeliveryMethod } from "@/lib/delivery-method";
+import { normalizePhone } from "@/lib/phone";
 import {
   createOnceOrder,
   createGuestOnceOrder,
@@ -79,7 +80,13 @@ function OrderOnce() {
   //   주문이 완료(결제 성공·무통장 등록)되면 회전 → 다음 주문은 새 키를 쓴다.
   const idempotencyKeyRef = useRef<string | null>(null);
   // ?gift=1 로 들어오면 선물 모드로 시작(주문완료 화면의 '선물로 보내기' 유입 루프).
-  const [isGift, setIsGift] = useState(sp.get("gift") === "1");
+  //   회원에게만 적용한다 — 선물 토글(GiftOptions)은 회원 전용이라, 게스트가 이 쿼리로
+  //   들어오면 끌 수 없는 선물 모드에 갇히고(카드결제도 사라짐) 입금확인 문자가
+  //   받는 분에게 가는 문제가 있다. 게스트는 일반 주문으로 시작한다.
+  const [isGift, setIsGift] = useState(false);
+  useEffect(() => {
+    if (ready && user && sp.get("gift") === "1") setIsGift(true);
+  }, [ready, user, sp]);
   const [giftMessage, setGiftMessage] = useState("");
   // 수령방법: 택배(기본) | 방문수령. 방문수령은 배송비 0·주소/선물/특수지역 동의 숨김.
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(DEFAULT_DELIVERY_METHOD);
@@ -256,6 +263,12 @@ function OrderOnce() {
       setError(pickup ? "받는 분, 연락처를 입력해 주세요." : "받는 분, 연락처, 주소를 입력해 주세요.");
       return;
     }
+    // 연락처 자릿수 — 서버(숫자 10자리 이상)와 동일 기준으로 제출 전에 콕 집어 안내한다.
+    //   (없으면 서버의 일반 오류 문구만 떠서 어느 칸이 문제인지 알 수 없다)
+    if (normalizePhone(ship.phone).length < 10) {
+      setError("연락처를 확인해 주세요. 휴대폰 번호 숫자 10~11자리를 입력해야 발송 안내 문자를 받을 수 있어요.");
+      return;
+    }
     if (!pickup && isSpecialRegion && !acceptFresh) {
       setError("제주·도서산간 등 특수배송지역은 신선도 안내에 동의하셔야 주문할 수 있습니다.");
       return;
@@ -276,7 +289,7 @@ function OrderOnce() {
         .filter((p) => (qtys[p.id] ?? 0) > 0)
         .map((p) => ({ productId: p.id, qty: qtys[p.id], unitPrice: p.price }));
       // 회원은 createOnceOrder(로그인 필요), 비회원은 createGuestOnceOrder 로 분기.
-      // 게스트는 선물하기를 노출하지 않으므로 isGift 는 항상 false 다.
+      // 게스트는 선물 토글이 없고 ?gift=1 쿼리도 회원에게만 적용하므로 isGift 는 항상 false 다.
       const shipInfo = {
         ...ship,
         deliveryMethod,

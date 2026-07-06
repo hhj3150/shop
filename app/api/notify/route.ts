@@ -47,6 +47,43 @@ function userClient(token: string): SupabaseClient {
   });
 }
 
+// 1회성 알림(주문·가입당 한 번)의 서버측 중복발송 차단 대상.
+//   클라이언트는 1회만 호출하도록 설계됐지만 서버가 이를 강제하지 않아, 같은 orderId 로
+//   반복 POST 하면 임의 지정 가능한 수신번호(ship_phone)로 문자를 무제한 보낼 수 있었다
+//   (스팸 중계·비용 남용). sms_log 의 성공 기록을 근거로 재발송을 거른다.
+//   실패(ok=false) 기록은 재시도를 막지 않고, 판정 불가(시크릿 미설정 등) 시엔 발송을
+//   막지 않는다(best-effort — 정상 1회 발송이 우선).
+const ONCE_PER_ORDER_KINDS = new Set([
+  "order_received",
+  "gift_subscription",
+  "gift_once",
+  "renewal_guide",
+]);
+
+async function alreadySent(
+  kind: string,
+  ids: { orderId?: string | null; userId?: string | null }
+): Promise<boolean> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const secret = process.env.CONFIRM_PAYMENT_SECRET;
+  if (!url || !anon || !secret) return false;
+  try {
+    const sb = createClient(url, anon, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data } = await sb.rpc("sms_already_sent", {
+      p_secret: secret,
+      p_kind: kind,
+      p_order_id: ids.orderId ?? null,
+      p_user_id: ids.userId ?? null,
+    });
+    return data === true;
+  } catch {
+    return false;
+  }
+}
+
 // 발송 + 이력 적재(클레임 복기). 로그는 best-effort — 실패해도 발송/응답을 막지 않는다.
 async function sendAndLog(
   kind: string,
@@ -102,6 +139,18 @@ export async function POST(req: Request) {
     if (!prof?.is_admin) {
       return NextResponse.json({ ok: false, reason: "forbidden" }, { status: 403 });
     }
+  }
+
+  // 1회성 알림 중복발송 차단(서버 강제) — 위 ONCE_PER_ORDER_KINDS 주석 참고.
+  if (body.kind === "welcome" && (await alreadySent("welcome", { userId }))) {
+    return NextResponse.json({ ok: true, reason: "duplicate_skipped" });
+  }
+  if (
+    ONCE_PER_ORDER_KINDS.has(body.kind) &&
+    body.orderId &&
+    (await alreadySent(body.kind, { orderId: body.orderId }))
+  ) {
+    return NextResponse.json({ ok: true, reason: "duplicate_skipped" });
   }
 
   if (body.kind === "welcome") {

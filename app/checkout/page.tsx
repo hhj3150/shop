@@ -12,10 +12,17 @@ import {
   DELIVERY_DAY_LABEL,
   type SubscriptionSlotLite,
 } from "@/lib/cart";
-import { requestRenewal } from "@/lib/subscriptions";
+import { cancelUnpaidOrder, requestRenewal } from "@/lib/subscriptions";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
 import { isSpecialDeliveryPostcode } from "@/lib/regions";
-import { DEFAULT_DELIVERY_METHOD, isPickup, subShippingFor, type DeliveryMethod } from "@/lib/delivery-method";
+import {
+  DEFAULT_DELIVERY_METHOD,
+  isPickup,
+  parseDeliveryMethod,
+  subShippingFor,
+  type DeliveryMethod,
+} from "@/lib/delivery-method";
+import { normalizePhone } from "@/lib/phone";
 import { createOrder, registerPayActionDeposit, revokeReferralCredit } from "@/lib/orders";
 import { getSupabase } from "@/lib/supabase";
 import { usableBalance, redeemableCoupons, type RewardLite } from "@/lib/referral-credit";
@@ -108,9 +115,17 @@ export default function CheckoutPage() {
 
   // 배송지 우편번호로 배송비를 다시 계산한다. 특수배송지역은 회당 5,000원이며
   //   서버(RPC)가 청구하는 금액과 일치시킨다. cart의 기본값(4,000원)을 덮어쓴다.
+  //   연장(재입금)은 서버(request_renewal)가 '원 구독 주문'의 수령방식·우편번호로 배송비를
+  //   산정하므로, 미리보기도 같은 값(슬롯에 딸려 온 orders)으로 계산한다 — 방문수령 구독의
+  //   연장에 택배비가 표시되는 어긋남 방지. (조회 실패 시 입력값 기준 폴백 + 안내 문구)
   const isSpecialRegion = isSpecialDeliveryPostcode(ship.postcode);
   const pickup = isPickup(deliveryMethod);
-  const shipTotal = subShippingFor(deliveryMethod, perDelivery, ship.postcode, weeks);
+  const renewalSrc = renewalMode ? conflictSlot?.orders : null;
+  const displayMethod = renewalSrc ? parseDeliveryMethod(renewalSrc.delivery_method) : deliveryMethod;
+  const displayPostcode = renewalSrc ? (renewalSrc.ship_postcode ?? "") : ship.postcode;
+  const displayPickup = isPickup(displayMethod);
+  const displaySpecial = isSpecialDeliveryPostcode(displayPostcode);
+  const shipTotal = subShippingFor(displayMethod, perDelivery, displayPostcode, weeks);
   const periodTotal = perDelivery * weeks + shipTotal;
 
   // 추천 적립금 미리보기 — 서버(apply_referral_credit)와 동일 규칙으로 차감액을 계산해 표시한다.
@@ -154,11 +169,11 @@ export default function CheckoutPage() {
     let alive = true;
     getSupabase()
       .from("subscription_slots")
-      .select("id,delivery_day,status")
+      .select("id,delivery_day,status,order_id,orders(delivery_method,ship_postcode)")
       .eq("user_id", user.id)
       .neq("status", "해지")
       .then(({ data }) => {
-        if (alive) setMySlots((data as SubscriptionSlotLite[]) ?? []);
+        if (alive) setMySlots((data as unknown as SubscriptionSlotLite[]) ?? []);
       });
     return () => {
       alive = false;
@@ -238,6 +253,31 @@ export default function CheckoutPage() {
     }
   }
 
+  // 같은 요일에 남아 있는 '입금 전(신청)' 주문을 취소하고 새로 주문할 수 있게 한다.
+  //   전형적 상황: 카드결제 창을 취소해 입금대기 주문+슬롯만 남은 경우 — 이 슬롯이
+  //   체크아웃을 계속 막아 재주문 경로가 없었다. 서버(cancel_unpaid_order)는 입금대기
+  //   주문만 취소를 허용하고, 취소 트리거가 미시작 슬롯을 자리반환해 충돌이 즉시 풀린다.
+  async function cancelPendingOrder() {
+    const slot = conflictSlot;
+    if (!slot?.order_id) return;
+    if (
+      !window.confirm(
+        "기존 신청(입금 전)을 취소하고 새로 주문할까요?\n이미 입금하셨다면 취소하지 마세요 — 입금 확인 중일 수 있습니다."
+      )
+    )
+      return;
+    setBusy(true);
+    setError(null);
+    try {
+      await cancelUnpaidOrder(slot.order_id);
+      setMySlots((prev) => prev.filter((s) => s.id !== slot.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "기존 신청 취소에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // 최소주문 안내 배너로 스크롤 + 잠깐 강조(능동 피드백).
   function nudgeMinNotice() {
     minNoticeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -299,6 +339,12 @@ export default function CheckoutPage() {
     }
     if (!ship.name.trim() || !ship.phone.trim() || (!pickup && !ship.address.trim())) {
       setError(pickup ? "받는 분, 연락처를 입력해 주세요." : "받는 분, 연락처, 주소를 입력해 주세요.");
+      return;
+    }
+    // 연락처 자릿수 — 서버(숫자 10자리 이상)와 동일 기준으로 제출 전에 콕 집어 안내한다.
+    //   (없으면 서버의 일반 오류 문구만 떠서 어느 칸이 문제인지 알 수 없다)
+    if (normalizePhone(ship.phone).length < 10) {
+      setError("연락처를 확인해 주세요. 휴대폰 번호 숫자 10~11자리를 입력해야 발송 안내 문자를 받을 수 있어요.");
       return;
     }
     if (!pickup && isSpecialRegion && !acceptFresh) {
@@ -471,12 +517,12 @@ export default function CheckoutPage() {
         <div className="mt-1.5 flex justify-between">
           <span className="text-mute">
             배송비 ({weeks}회)
-            {!pickup && isSpecialRegion && (
+            {!displayPickup && displaySpecial && (
               <span className="ml-1.5 text-[12px] text-gold-deep">제주·도서산간 회당 5,000원</span>
             )}
           </span>
           <span className="tabular-nums text-ink-soft">
-            {pickup ? "방문수령 — 배송비 무료" : formatKRW(shipTotal)}
+            {displayPickup ? "방문수령 — 배송비 무료" : formatKRW(shipTotal)}
           </span>
         </div>
         {!renewalMode && creditAvailable.count > 0 && (
@@ -511,8 +557,9 @@ export default function CheckoutPage() {
         </div>
         {renewalMode && (
           <p className="mt-2 border-t border-line pt-2 text-[12px] leading-relaxed text-mute">
-            연장은 기존 구독의 수령 방식·배송 지역 기준으로 배송비가 산출됩니다. 최종 입금
-            금액은 신청 완료 화면에서 안내드려요.
+            연장 배송비는 기존 구독의 수령 방식·배송 지역 기준입니다
+            {displayPickup && " (방문수령 구독 — 배송비 없음)"}. 최종 입금 금액은 신청 완료
+            화면에서 다시 안내드려요.
           </p>
         )}
       </div>
@@ -656,22 +703,36 @@ export default function CheckoutPage() {
         )}
 
         {blockedConflict && (
-          <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
-            이미{" "}
-            <span className="font-medium text-ink">
-              {conflictDays.map((d) => DELIVERY_DAY_LABEL[d]).join("·")}
-            </span>
-            에{" "}
-            {conflictSlot?.status === "대기"
-              ? "대기자로 등록되어 있어요. 자리가 나면 가장 먼저 안내드립니다."
-              : "입금 대기 중인 구독 신청이 있어요. 입금을 완료하시면 배송이 시작됩니다."}{" "}
-            신청 내역은{" "}
-            <Link href="/account" className="font-medium text-ink underline underline-offset-2">
-              내 계정
-            </Link>
-            에서 확인할 수 있어요. 장바구니의 배송 요일을 다른 요일로 바꾸면 새로 신청할 수
-            있습니다. (한 계정은 요일마다 구독 하나만 가질 수 있어요.)
-          </p>
+          <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+            <p>
+              이미{" "}
+              <span className="font-medium text-ink">
+                {conflictDays.map((d) => DELIVERY_DAY_LABEL[d]).join("·")}
+              </span>
+              에{" "}
+              {conflictSlot?.status === "대기"
+                ? "대기자로 등록되어 있어요. 자리가 나면 가장 먼저 안내드립니다."
+                : "입금 대기 중인 구독 신청이 있어요. 입금을 완료하시면 배송이 시작됩니다."}{" "}
+              신청 내역은{" "}
+              <Link href="/account" className="font-medium text-ink underline underline-offset-2">
+                내 계정
+              </Link>
+              에서 확인할 수 있어요. 장바구니의 배송 요일을 다른 요일로 바꾸면 새로 신청할 수
+              있습니다. (한 계정은 요일마다 구독 하나만 가질 수 있어요.)
+            </p>
+            {conflictSlot?.status === "신청" && conflictSlot.order_id && (
+              // 카드결제 취소 등으로 입금 안내 없이 남은 신청 건의 회복 경로 —
+              //   여기서 기존 신청을 취소하면 자리가 반환되어 바로 다시 주문할 수 있다.
+              <button
+                type="button"
+                onClick={cancelPendingOrder}
+                disabled={busy}
+                className="mt-3 rounded-full border border-gold/60 px-4 py-2 text-[13px] font-medium text-gold-deep transition-colors hover:bg-gold/20 disabled:opacity-50"
+              >
+                입금 전이신가요? 기존 신청 취소하고 다시 주문하기
+              </button>
+            )}
+          </div>
         )}
 
         {error && (

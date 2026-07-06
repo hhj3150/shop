@@ -1,13 +1,13 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { track } from "@/lib/track";
 import { DepositAccount } from "@/components/DepositAccount";
 import { CopyAmount } from "@/components/CopyAmount";
 import { ReferralCard } from "@/components/ReferralCard";
-import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
+import { DELIVERY_DAY_LABEL, useCart, type DeliveryDay } from "@/lib/cart";
 import { formatKRW } from "@/lib/products";
 import { DEPOSIT } from "@/lib/site";
 
@@ -45,6 +45,20 @@ function Complete() {
   useEffect(() => {
     if (orderNo && !(isPortOne && failCode)) track("purchase", { once: true });
   }, [orderNo, isPortOne, failCode]);
+
+  // 모바일 PortOne 결제는 redirectUrl 로 페이지가 통째로 이동해 체크아웃의 clear() 에
+  //   도달하지 못한다 → 완료 페이지 도착(주문 접수 확정) 시 장바구니를 비운다.
+  //   데스크톱·무통장 경로는 이미 비워져 있어 no-op. 단품(type=once)은 영속 장바구니를
+  //   쓰지 않으므로 제외, 결제 실패 리디렉션도 제외. ref 가드로 1회만 실행(무한 루프 방지).
+  const { clear } = useCart();
+  const clearedRef = useRef(false);
+  useEffect(() => {
+    if (clearedRef.current) return;
+    if (orderNo && !isOnce && !(isPortOne && failCode)) {
+      clearedRef.current = true;
+      clear();
+    }
+  }, [orderNo, isOnce, isPortOne, failCode, clear]);
 
   // 유입 루프 — 막 주문한 peak 순간에 '선물(받는 분=신규 리드)' + '친구 추천(가입=신규 리드)'을
   //   권한다. 사장님 철학("물어물어 찾아옴")의 정공법: 광고가 아니라 만족한 고객이 데려온다.
