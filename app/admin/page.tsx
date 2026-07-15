@@ -2351,10 +2351,13 @@ function Stat({ label, value }: { label: string; value: string }) {
 // 현금영수증 발행 보조 — 이 주문의 면세금액·공급가액·부가세를 계산해 보여 준다.
 //   우유=면세, 요거트=과세(가격은 부가세 포함가). 관리자는 이 값을 페이액션
 //   현금영수증 '발행하기'(거래구분·식별번호·금액)에 그대로 입력하면 된다.
+//   구독 주문의 order_items 는 '회당' 수량이므로 block_weeks(주수)를 반드시 넘긴다 —
+//   총액은 전체 기간분이라 주수를 빼먹으면 면세/과세 분리가 크게 어긋난다.
 function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRow[] }) {
   const amt = computeCashReceiptAmounts(
     items.map((it) => ({ productId: it.product_id, unitPrice: it.unit_price, qty: it.qty })),
-    order.total_amount
+    order.total_amount,
+    { weeks: order.block_weeks ?? 1, shippingFee: order.shipping_fee ?? undefined }
   );
   const purpose = order.cash_receipt_type === "지출증빙" ? "지출증빙용" : "소득공제용";
   return (
