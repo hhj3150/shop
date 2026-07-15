@@ -9,6 +9,7 @@ import {
   discountForPeriod,
 } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
+import { WishlistButton } from "@/components/WishlistButton";
 import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
 import { StickyBuyBar } from "@/components/StickyBuyBar";
@@ -135,103 +136,105 @@ export default async function ProductPage({
         </nav>
       </div>
 
-      {/* 애플식 히어로 — 데스크톱은 이미지·정보 2단 구도, 모바일은 정보→이미지 1단.
-          이미지를 히어로로 끌어올려 와이드 화면의 빈 여백을 제품으로 채운다. */}
-      <section className="overflow-hidden pb-1 pt-2">
-        <div className="mx-auto max-w-xl px-5 sm:px-8 lg:max-w-7xl lg:pt-6">
-          <div className="text-center lg:grid lg:grid-cols-2 lg:items-center lg:gap-16 lg:text-left">
-            {/* 이미지 — 모바일에서 먼저(제품을 바로 보이게) / 데스크톱은 왼쪽 */}
-            {/*   모바일은 높이를 제한해 제품과 구매 버튼이 한 화면에 함께 보이게 한다. */}
-            <div className="lg:order-first">
-              <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:h-auto lg:aspect-[4/5] lg:max-w-none">
-                <Image
-                  src={product.image}
-                  alt={`${product.name} ${product.volume}`}
-                  width={1200}
-                  height={1200}
-                  priority
-                  sizes="(max-width:1024px) 92vw, 46vw"
-                  className="h-full w-full object-contain p-6 sm:p-10"
-                />
-              </div>
+      {/* 커머스 표준 상단 구도(네이버식) — 왼쪽 제품 이미지는 스크롤해도 고정(sticky),
+          오른쪽에 제품명·별점·가격·구매 패널. 상세 설명은 전부 이 섹션 아래 전체 폭으로 흐른다.
+          모바일은 이미지 → 제품명·가격 → 구매 순의 1단 흐름. */}
+      <section className="mx-auto max-w-7xl px-5 pt-2 sm:px-8 lg:pt-6">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-14">
+          {/* 이미지 — 데스크톱에선 왼편 고정: 구매 영역을 스크롤하는 동안 제품이 항상 보인다. */}
+          {/*   모바일은 높이를 제한해 제품과 구매 영역이 한 화면에 함께 보이게 한다. */}
+          <div className="lg:sticky lg:top-24">
+            <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:h-auto lg:aspect-[4/5] lg:max-w-none">
+              <Image
+                src={product.image}
+                alt={`${product.name} ${product.volume}`}
+                width={1200}
+                height={1200}
+                priority
+                sizes="(max-width:1024px) 92vw, 46vw"
+                className="h-full w-full object-contain p-6 sm:p-10"
+              />
             </div>
-            {/* 정보 — 모바일에선 이미지 아래(구매 CTA 먼저, 설명은 그 뒤) / 데스크톱은 오른쪽 */}
-            <div className="mt-8 lg:order-last lg:mt-0">
-              {/* 영문 카테고리 */}
-              <p className="text-[12px] font-medium uppercase tracking-[0.28em] text-gold-deep">
-                {product.nameEn}
-              </p>
-              {/* 제품명 — 핵심. 데스크톱에서 더 크게 화면을 장악. */}
-              <h1 className="mt-1.5 font-serif-kr text-[clamp(1.5rem,3.6vw,2.6rem)] font-medium leading-[1.16] tracking-[-0.01em] text-ink">
-                {product.name}
-                <span className="ml-2 align-baseline text-[0.62em] font-semibold tracking-tight text-gold-deep lining-nums tabular-nums">
-                  {product.volume}
-                </span>
-              </h1>
-              {/* 브랜드 한 줄 — 0.01% 선언(태그라인 대체) */}
-              <ProductKicker highlights={product.highlights} />
+          </div>
+
+          {/* 오른쪽 구매 컬럼 — 구매 결정에 필요한 것만(제품명·별점·가격·구매). 설명은 아래로. */}
+          <div className="mt-8 text-center lg:mt-0 lg:text-left">
+            {/* 영문 카테고리 */}
+            <p className="text-[12px] font-medium uppercase tracking-[0.28em] text-gold-deep">
+              {product.nameEn}
+            </p>
+            <h1 className="mt-1.5 font-serif-kr text-[clamp(1.5rem,3vw,2.1rem)] font-medium leading-[1.16] tracking-[-0.01em] text-ink">
+              {product.name}
+              <span className="ml-2 align-baseline text-[0.62em] font-semibold tracking-tight text-gold-deep lining-nums tabular-nums">
+                {product.volume}
+              </span>
+            </h1>
+            {/* 별점 · 리뷰 수 — 아래 구매평 섹션으로 바로 이동 */}
+            {rating.count > 0 && (
+              <a
+                href="#reviews"
+                className="mt-2 inline-flex items-center gap-1.5 text-[13.5px] text-ink-soft transition-colors hover:text-gold-deep"
+              >
+                <span className="text-gold" aria-hidden>★</span>
+                <span className="font-semibold tabular-nums text-ink">{rating.value.toFixed(1)}</span>
+                <span className="text-mute" aria-hidden>·</span>
+                <span className="underline underline-offset-2">{rating.count}건 리뷰</span>
+              </a>
+            )}
+            {/* 가격 블록 — StickyBuyBar(모바일)가 이 블록의 노출 여부로 표시를 판단한다(#hero-cta). */}
+            <div id="hero-cta">
               <ProductHeroPrice product={product} maxRate={maxRate} />
-              <div id="hero-cta" className="mt-4 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-                <a
-                  href="#configure"
-                  className="inline-flex items-center gap-1.5 rounded-full bg-ink px-6 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
-                >
-                  정기구독 신청 <span aria-hidden>↓</span>
-                </a>
-                <Link
-                  href={`/order-once?add=${product.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-ink/25 bg-cream px-6 py-3 text-sm font-medium tracking-wide text-ink transition-colors hover:border-gold hover:text-gold-deep"
-                >
-                  단품구매
-                </Link>
-              </div>
-              {/* 히어로 요약 — 0.01% 선언 + 무선 스펙시트(효능 표현 없이 사실만) */}
-              <ProductHighlights highlights={product.highlights} />
+            </div>
+
+            {/* 구매 패널 — data-swipe-ignore: 구매 중 좌우 스와이프가 제품 이동으로 잡혀
+                선택이 초기화되지 않도록 제외. */}
+            <div id="configure" data-swipe-ignore className="mt-6 scroll-mt-24 text-left">
+              <PurchasePanel product={product} />
+            </div>
+            {/* 단품 구매는 구매 패널의 '1회 구매' 탭으로 통합 — 여기는 찜하기만. */}
+            <div className="mt-4 flex justify-center">
+              <WishlistButton productId={product.id} />
             </div>
           </div>
         </div>
       </section>
 
+      {/* ───── 여기부터 상세 설명 — 전체 폭 세로 흐름 ───── */}
+
+      {/* 브랜드 선언 + 무선 스펙시트(효능 표현 없이 사실만) — 모바일 중앙·데스크톱 좌측(기존 히어로와 동일) */}
+      <section className="mx-auto max-w-3xl px-5 pt-16 text-center sm:px-8 lg:text-left">
+        <ProductKicker highlights={product.highlights} />
+        <ProductHighlights highlights={product.highlights} />
+      </section>
+
       {/* 시그니처 증명 — 제품별 대표 수치 하나를 크게(우유=오메가 2:1, 요거트=병당 유산균) */}
       <ProductSignature signature={product.signature} />
 
-      {/* 구매 — 데스크톱은 우측 스티키 구매카드 + 좌측 보조콘텐츠 2단, 모바일은 현행 세로 흐름 유지 */}
-      <div className="lg:mx-auto lg:grid lg:max-w-7xl lg:grid-cols-[1fr_400px] lg:items-start lg:gap-12 lg:px-8 lg:pt-12">
-        {/* 구매 카드 — DOM 앞(모바일 맨 위) / 데스크톱 우측 스티키.
-            data-swipe-ignore: 구매 중 좌우 스와이프가 제품 이동으로 잡혀 선택이 초기화되지 않도록 제외. */}
-        <div
-          id="configure"
-          data-swipe-ignore
-          className="mx-auto max-w-xl scroll-mt-24 px-5 pt-12 sm:px-8 lg:order-last lg:mx-0 lg:max-w-none lg:px-0 lg:pt-0 lg:sticky lg:top-24"
-        >
-          <PurchasePanel product={product} />
-        </div>
+      {/* 신뢰 단서 */}
+      <div className="mx-auto max-w-3xl px-5 sm:px-8">
+        <TrustBadges />
+      </div>
 
-        {/* 보조 콘텐츠 — DOM 뒤(모바일 구매카드 아래) / 데스크톱 좌측 스크롤 */}
-        <div className="lg:order-first lg:min-w-0">
-          {/* 신뢰 단서 — 구매 결정 지점(모바일에선 구매카드 바로 아래) */}
-          <div className="mx-auto mt-10 max-w-xl px-5 sm:px-8 lg:mx-0 lg:mt-0 lg:max-w-none lg:px-0">
-            <TrustBadges />
-          </div>
+      {/* Specs — quick reference */}
+      <div className="mx-auto mt-12 max-w-3xl px-5 sm:px-8">
+        <p className="eyebrow text-gold-deep">Specification</p>
+        <dl className="mt-5 divide-y divide-line border-t border-line">
+          {product.specs.map((s) => (
+            <div key={s.label} className="flex items-baseline justify-between gap-4 py-5">
+              <dt className="shrink-0 text-[11px] uppercase tracking-[0.22em] text-mute">{s.label}</dt>
+              <dd className="min-w-0 break-keep text-right font-serif-kr text-[15.5px] text-ink-soft">{s.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
 
-          {/* Specs — quick reference */}
-          <div className="mx-auto mt-10 max-w-xl px-5 sm:px-8 lg:mx-0 lg:mt-12 lg:max-w-none lg:px-0">
-            <p className="eyebrow text-gold-deep">Specification</p>
-            <dl className="mt-5 divide-y divide-line border-t border-line">
-              {product.specs.map((s) => (
-                <div key={s.label} className="flex items-baseline justify-between gap-4 py-5">
-                  <dt className="shrink-0 text-[11px] uppercase tracking-[0.22em] text-mute">{s.label}</dt>
-                  <dd className="min-w-0 break-keep text-right font-serif-kr text-[15.5px] text-ink-soft">{s.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+      {/* 구매평 — 별점 후기 (제품명 옆 별점 링크의 목적지) */}
+      <div id="reviews" className="scroll-mt-24">
+        <ProductReviews productId={product.id} />
+      </div>
 
-          {/* 구매평 — 별점 후기 */}
-          <ProductReviews productId={product.id} />
-
-          {/* 법정 제품표시사항 · 영양정보 — 기본 접힘으로 핵심 구매를 위로, 페이지를 짧게 */}
-          <section className="mx-auto max-w-3xl px-5 py-14 sm:px-8 lg:mx-0 lg:max-w-none lg:px-0 lg:py-12">
+      {/* 법정 제품표시사항 · 영양정보 — 기본 접힘으로 핵심 구매를 위로, 페이지를 짧게 */}
+      <section className="mx-auto max-w-3xl px-5 py-14 sm:px-8">
         <Reveal>
           <p className="eyebrow text-gold-deep">Product Information</p>
         </Reveal>
@@ -312,9 +315,7 @@ export default async function ProductPage({
           </div>
         </details>
         </div>
-          </section>
-        </div>
-      </div>
+      </section>
 
       {/* Related */}
       <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8">

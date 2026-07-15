@@ -19,6 +19,7 @@ type SettleOrder = {
   id: string;
   status: string;
   created_at: string;
+  block_weeks: number | null; // 구독 배송 회수 — order_items 는 '회당' 수량이라 매출 = 단가×수량×주수
 };
 
 type LineItem = {
@@ -81,15 +82,19 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
     return m;
   }, [catalog]);
 
-  // 선택 월의 확정 주문 id.
-  const monthOrderIds = useMemo(() => {
-    const s = new Set<string>();
+  // 선택 월의 확정 주문 id → 배송 회수(주수).
+  //   구독 주문의 order_items 는 '회당(매주)' 수량만 담기므로, 결제(입금) 기준 매출은
+  //   단가×수량×주수여야 한다 — 주수를 빼먹으면 8주 구독 매출이 1/8로 과소계상된다.
+  const monthOrderWeeks = useMemo(() => {
+    const m = new Map<string, number>();
     for (const o of orders) {
       if (!CONFIRMED.includes(o.status)) continue;
       // created_at 은 UTC timestamptz → KST 월로 환산해 버킷팅(월 경계 오귀속 방지).
-      if (kstYearMonth(o.created_at ?? "") === month) s.add(o.id);
+      if (kstYearMonth(o.created_at ?? "") === month) {
+        m.set(o.id, Math.max(1, o.block_weeks ?? 1));
+      }
     }
-    return s;
+    return m;
   }, [orders, month]);
 
   // 월 라인아이템 집계.
@@ -102,10 +107,13 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
       { name: string; volume: string; qty: number; revenue: number; cost: number }
     >();
     for (const it of items) {
-      if (!monthOrderIds.has(it.order_id)) continue;
+      const weeks = monthOrderWeeks.get(it.order_id);
+      if (!weeks) continue;
       const meta = catById.get(it.product_id);
-      const revenue = it.unit_price * it.qty;
-      const cost = (meta?.cost ?? 0) * it.qty;
+      // 구독은 회당 수량 × 주수 = 결제분 전체 수량(단품은 weeks=1).
+      const qty = it.qty * weeks;
+      const revenue = it.unit_price * qty;
+      const cost = (meta?.cost ?? 0) * qty;
       if (meta?.taxFree) taxFreeGross += revenue;
       else taxableGross += revenue;
       totalCost += cost;
@@ -117,7 +125,7 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
         revenue: 0,
         cost: 0,
       };
-      cur.qty += it.qty;
+      cur.qty += qty;
       cur.revenue += revenue;
       cur.cost += cost;
       byProduct.set(key, cur);
@@ -140,9 +148,9 @@ export function SettlementPanel({ orders }: { orders: SettleOrder[] }) {
       margin,
       marginRate,
       rows,
-      orderCount: monthOrderIds.size,
+      orderCount: monthOrderWeeks.size,
     };
-  }, [items, monthOrderIds, catById]);
+  }, [items, monthOrderWeeks, catById]);
 
   function exportCsv() {
     // 모든 행을 6칸으로 정렬(합계 금액을 매출/원가/마진 컬럼에) + 셀 이스케이프 + CRLF + BOM.

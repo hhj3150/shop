@@ -28,6 +28,7 @@ import { notify } from "@/lib/notify";
 import { DEPOSIT } from "@/lib/site";
 import { EmptyState } from "@/components/EmptyState";
 import { RecipientBook } from "@/components/RecipientBook";
+import { WishlistSection } from "@/components/WishlistSection";
 import { ReferralCard } from "@/components/ReferralCard";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { RenewalForm } from "./RenewalForm";
@@ -945,6 +946,8 @@ export default function AccountPage() {
           })}
         </ul>
       )}
+
+      <WishlistSection userId={user.id} />
 
       <RecipientBook userId={user.id} />
     </div>
