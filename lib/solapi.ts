@@ -9,6 +9,9 @@ const ENDPOINT = "https://api.solapi.com/messages/v4/send-many/detail";
 export type SmsResult = {
   ok: boolean;
   reason?: string;
+  // Solapi 발송 그룹 ID — ok=true 여도 '접수 성공'일 뿐 단말 도달 보장이 아니므로,
+  // 미수신 클레임 때 Solapi 콘솔에서 이 ID로 실제 전달 상태를 추적한다(sms_log.meta 저장).
+  groupId?: string;
 };
 
 function config() {
@@ -84,10 +87,11 @@ export async function sendSms(to: string, text: string, subject?: string): Promi
     }
     const groupInfo = data?.groupInfo as Record<string, unknown> | undefined;
     const count = (groupInfo?.count as Record<string, number> | undefined) ?? {};
+    const groupId = typeof groupInfo?._id === "string" ? groupInfo._id : undefined;
     if (Number(count.registeredFailed ?? 0) > 0) {
-      return { ok: false, reason: "발송 등록 실패" };
+      return { ok: false, reason: "발송 등록 실패", groupId };
     }
-    return { ok: true };
+    return { ok: true, groupId };
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : "네트워크 오류" };
   }
@@ -249,10 +253,11 @@ async function sendAlimtalk(
     }
     const groupInfo = data?.groupInfo as Record<string, unknown> | undefined;
     const count = (groupInfo?.count as Record<string, number> | undefined) ?? {};
+    const groupId = typeof groupInfo?._id === "string" ? groupInfo._id : undefined;
     if (Number(count.registeredFailed ?? 0) > 0) {
-      return { ok: false, reason: "발송 등록 실패" };
+      return { ok: false, reason: "발송 등록 실패", groupId };
     }
-    return { ok: true };
+    return { ok: true, groupId };
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : "네트워크 오류" };
   }
