@@ -9,7 +9,13 @@ import { useAuth } from "@/lib/auth";
 // 모달을 열고, 모달 안의 CTA로 실제 신청 흐름을 이어준다.
 //   - 비회원: 가입(/signup)으로.
 //   - 이미 로그인한 회원: 가입을 건너뛰고 제품 선택(/#products)으로 바로 안내한다.
-export function SubscribeFilmCTA({ className }: { className?: string }) {
+export function SubscribeFilmCTA({
+  className,
+  label = "정기구독 신청하기",
+}: {
+  className?: string;
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
   const { ready, user } = useAuth();
   const isMember = ready && !!user;
@@ -48,7 +54,7 @@ export function SubscribeFilmCTA({ className }: { className?: string }) {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className={className}>
-        정기구독 신청하기
+        {label}
       </button>
 
       {open && (

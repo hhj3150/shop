@@ -42,23 +42,33 @@ export function Hero() {
             <MembershipCounter />
           </div>
 
-          {/* CTA */}
+          {/* CTA — 구매 동선 우선: 주 버튼은 제품 섹션 직행(모달·외부 이탈 없음),
+              브랜드 필름·철학은 보조로 내린다(구매사이트 제1원칙). */}
           <div className="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:justify-center lg:justify-start">
-            <SubscribeFilmCTA className="w-full rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform duration-300 ease-[var(--ease-soft)] hover:scale-[1.02] active:scale-[0.98] sm:w-auto" />
             <a
-              href="https://www.a2jerseymilk.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="우리의 철학 보기 (새 창에서 열림)"
-              className="w-full rounded-full border border-ink/12 bg-cream px-9 py-4 text-center text-sm font-medium tracking-wide text-ink-soft transition-[transform,border-color,color] duration-300 ease-[var(--ease-soft)] hover:border-gold hover:text-gold-deep active:scale-[0.98] sm:w-auto"
+              href="#products"
+              className="w-full rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform duration-300 ease-[var(--ease-soft)] hover:scale-[1.02] active:scale-[0.98] sm:w-auto"
             >
-              우리의 철학 보기 →
+              제품 보러 가기 ↓
             </a>
+            <SubscribeFilmCTA
+              label="1분 브랜드 필름"
+              className="w-full rounded-full border border-ink/12 bg-cream px-9 py-4 text-center text-sm font-medium tracking-wide text-ink-soft transition-[transform,border-color,color] duration-300 ease-[var(--ease-soft)] hover:border-gold hover:text-gold-deep active:scale-[0.98] sm:w-auto"
+            />
           </div>
+          <a
+            href="https://www.a2jerseymilk.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="우리의 철학 보기 (새 창에서 열림)"
+            className="mt-5 text-[13px] tracking-wide text-mute underline underline-offset-4 transition-colors hover:text-gold-deep"
+          >
+            우리의 철학 보기 →
+          </a>
         </div>
 
-        {/* Product visual — 흰배경 정렬샷(1600×1195) */}
-        <div className="flex justify-center">
+        {/* Product visual — 흰배경 정렬샷(1600×1195). 클릭하면 제품 섹션으로(어디를 눌러도 구매 동선). */}
+        <a href="#products" className="flex justify-center" aria-label="제품 보러 가기">
           <Image
             src="/brand/hero-row-white.jpg"
             alt="송영신목장 A2 저지 헤이밀크 제품 라인업"
@@ -66,9 +76,9 @@ export function Hero() {
             height={1195}
             priority
             sizes="(max-width:1024px) 86vw, 50vw"
-            className="h-auto w-[86%] max-w-[520px] object-contain lg:w-full lg:max-w-[600px]"
+            className="h-auto w-[86%] max-w-[520px] object-contain transition-transform duration-500 hover:scale-[1.02] lg:w-full lg:max-w-[600px]"
           />
-        </div>
+        </a>
       </div>
     </section>
   );

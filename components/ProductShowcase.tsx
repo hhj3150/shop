@@ -131,7 +131,7 @@ export function ProductShowcase() {
                     href={`/products/${p.id}`}
                     className="block w-full rounded-full bg-ink px-6 py-3 text-center text-[15px] font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98]"
                   >
-                    구독 신청
+                    구매하기
                   </Link>
                 )}
               </div>

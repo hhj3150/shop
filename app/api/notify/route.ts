@@ -102,6 +102,8 @@ async function sendAndLog(
     failReason: r.ok ? null : (r.reason ?? null),
     userId: ids.userId ?? null,
     orderId: ids.orderId ?? null,
+    // Solapi 그룹 ID — 미수신 클레임 때 콘솔에서 실제 전달 상태(도달/스팸/실패)를 추적하는 열쇠.
+    meta: r.groupId ? { groupId: r.groupId } : null,
   });
   return r;
 }
