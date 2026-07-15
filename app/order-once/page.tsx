@@ -113,14 +113,17 @@ function OrderOnce() {
   // 단품 1회 구매는 비회원(게스트)도 가능하다 → 로그인 강제 리디렉션 없음.
   // 선물하기·정기구독 등 회원 전용 기능만 user 유무로 분기한다.
 
-  // ?add=<id> 로 들어오면 해당 제품을 최소 주문금액(24,000원)을 채우는 수량으로 미리 담는다.
-  //   1개로는 최소금액 미만이라 '주문하기'가 비활성화되므로, 바로 주문 가능한 수량을 채워 둔다.
+  // ?add=<id> 로 들어오면 해당 제품을 미리 담는다. ?qty=<n>(상품 상세 '1회 구매' 탭에서
+  //   고른 수량)이 있으면 그 수량을, 없으면 최소 주문금액(24,000원)을 채우는 수량을 쓴다
+  //   (1개로는 최소금액 미만이라 '주문하기'가 비활성화되므로).
   useEffect(() => {
     const add = sp.get("add");
     const p = add ? getProduct(add) : undefined;
     if (p) {
+      const qtyParam = Number.parseInt(sp.get("qty") ?? "", 10);
       const minQty = Math.max(1, Math.ceil(ONCE_MIN_KRW / p.price));
-      setQtys((prev) => (prev[p.id] ? prev : { ...prev, [p.id]: minQty }));
+      const preset = Number.isInteger(qtyParam) && qtyParam > 0 ? qtyParam : minQty;
+      setQtys((prev) => (prev[p.id] ? prev : { ...prev, [p.id]: preset }));
     }
   }, [sp]);
 

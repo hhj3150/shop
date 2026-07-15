@@ -9,6 +9,7 @@ import {
   discountForPeriod,
 } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
+import { WishlistButton } from "@/components/WishlistButton";
 import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
 import { StickyBuyBar } from "@/components/StickyBuyBar";
@@ -190,15 +191,10 @@ export default async function ProductPage({
             <div id="configure" data-swipe-ignore className="mt-6 scroll-mt-24 text-left">
               <PurchasePanel product={product} />
             </div>
-            <p className="mt-4 text-center text-[13px] text-mute">
-              구독 없이 한 번만 받아보고 싶다면{" "}
-              <Link
-                href={`/order-once?add=${product.id}`}
-                className="font-medium text-ink underline underline-offset-2 transition-colors hover:text-gold-deep"
-              >
-                단품(1회) 구매
-              </Link>
-            </p>
+            {/* 단품 구매는 구매 패널의 '1회 구매' 탭으로 통합 — 여기는 찜하기만. */}
+            <div className="mt-4 flex justify-center">
+              <WishlistButton productId={product.id} />
+            </div>
           </div>
         </div>
       </section>

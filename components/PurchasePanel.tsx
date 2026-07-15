@@ -12,6 +12,8 @@ import {
   PERIOD_LABEL,
   PERIOD_BADGE,
   MIN_ORDER_KRW,
+  ONCE_MIN_KRW,
+  ONCE_SHIPPING_KRW,
   formatKRW,
   subscribePrice,
   discountForPeriod,
@@ -21,7 +23,7 @@ import {
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/subscriptions";
-import { firstSubscriptionDelivery, formatDispatch } from "@/lib/ship-date";
+import { firstSubscriptionDelivery, formatDispatch, nextDispatchDate } from "@/lib/ship-date";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, visibleProducts } from "@/lib/storefront-merge";
 import { track } from "@/lib/track";
@@ -36,6 +38,12 @@ export function PurchasePanel({ product }: { product: Product }) {
   const [counts, setCounts] = useState<DayCounts | null>(null);
   // '함께 담기'는 기본 접힘 — 결정 단계를 줄여 핵심 구매 동선을 짧게 유지한다.
   const [extrasOpen, setExtrasOpen] = useState(false);
+  // 구매 방식: 정기구독(기본·할인) | 1회 구매(정가). 처음 온 분은 1회로 부담 없이 시작.
+  const [mode, setMode] = useState<"sub" | "once">("sub");
+  // 1회 구매 수량 — 최소 주문금액(정가 24,000원)을 채우는 수량으로 시작.
+  const [onceQty, setOnceQty] = useState(() =>
+    Math.max(1, Math.ceil(ONCE_MIN_KRW / product.price))
+  );
   // 사용자가 요일을 직접 고른 뒤에는 자동 추천이 선택을 덮어쓰지 않는다.
   const dayTouchedRef = useRef(false);
   // 모바일 하단 고정 '담기' 바 — 메인 담기 버튼이 화면 밖으로 나가면 노출한다.
@@ -72,6 +80,7 @@ export function PurchasePanel({ product }: { product: Product }) {
   }, [counts, cartDay]);
 
   // 메인 담기 버튼의 화면 노출 여부를 관찰 — 보이지 않을 때만 하단 바를 띄운다.
+  //   (1회 구매 모드에선 버튼이 언마운트되므로 mode 전환 시 재관찰; 바는 구독 모드 전용)
   useEffect(() => {
     const el = addBtnRef.current;
     if (!el || typeof IntersectionObserver === "undefined") return;
@@ -83,12 +92,15 @@ export function PurchasePanel({ product }: { product: Product }) {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [mode]);
 
   // 하단 담기 바가 떠 있는 동안엔 고객 채팅 FAB가 겹치지 않도록 신호를 보낸다.
+  //   (바는 구독 모드 전용 — 1회 구매 모드로 바꾸면 즉시 복구 신호)
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent("shop:addbar", { detail: showStickyBar }));
-  }, [showStickyBar]);
+    window.dispatchEvent(
+      new CustomEvent("shop:addbar", { detail: showStickyBar && mode === "sub" })
+    );
+  }, [showStickyBar, mode]);
   // 페이지 이탈(언마운트) 시 FAB를 반드시 복구.
   useEffect(
     () => () => {
@@ -168,6 +180,19 @@ export function PurchasePanel({ product }: { product: Product }) {
     router.push("/checkout");
   };
 
+  // ── 1회 구매(정가) 요약 — 서버(create_once_order)와 동일 규칙: 정가 합계 + 배송비.
+  const oncePrice = liveMain.price;
+  const onceSubtotal = oncePrice * onceQty;
+  const onceBelowMin = onceSubtotal < ONCE_MIN_KRW;
+  const onceShort = ONCE_MIN_KRW - onceSubtotal;
+  const onceTotal = onceSubtotal + ONCE_SHIPPING_KRW;
+  const onceDispatch = formatDispatch(nextDispatchDate());
+
+  // 1회 구매 — 수량을 실어 단품 주문 페이지로(배송지·결제는 그 화면에서).
+  const handleBuyOnce = () => {
+    router.push(`/order-once?add=${product.id}&qty=${onceQty}`);
+  };
+
   // 판매 중지(active=false) 상품은 구매 영역을 안내로 대체한다(스펙 §5.2).
   //   목록에서 이미 숨겨져 정상 동선에선 도달하지 않지만, 직접 링크 진입에 대비.
   //   로딩 중엔 hidden=false(정적 폴백)이라 패널이 먼저 그려진 뒤 전환된다.
@@ -186,7 +211,35 @@ export function PurchasePanel({ product }: { product: Product }) {
   return (
     <>
     <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
-      <div className="flex items-center justify-between">
+      {/* 구매 방식 탭 — 정기구독(할인) | 1회 구매(정가·비회원 가능) */}
+      <div className="grid grid-cols-2 gap-1 rounded-full bg-paper-2 p-1" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "sub"}
+          onClick={() => setMode("sub")}
+          className={`rounded-full py-2.5 text-[13.5px] font-medium transition-colors ${
+            mode === "sub" ? "bg-cream text-ink shadow-sm" : "text-mute hover:text-ink"
+          }`}
+        >
+          정기구독 <span className="text-gold-deep">−10~15%</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "once"}
+          onClick={() => setMode("once")}
+          className={`rounded-full py-2.5 text-[13.5px] font-medium transition-colors ${
+            mode === "once" ? "bg-cream text-ink shadow-sm" : "text-mute hover:text-ink"
+          }`}
+        >
+          1회 구매
+        </button>
+      </div>
+
+      {mode === "sub" && (
+      <>
+      <div className="mt-6 flex items-center justify-between">
         <p className="text-[13px] uppercase tracking-[0.2em] text-gold-deep">
           Members Only · 창립 500인 특권
         </p>
@@ -469,10 +522,83 @@ export function PurchasePanel({ product }: { product: Product }) {
           한 번에 무통장입금 확인 후 발송
         </p>
       </div>
+      </>
+      )}
+
+      {mode === "once" && (
+        <div>
+          {/* 1회 구매 — 구독 없이 지금 구성 그대로 한 번만. 결정은 수량 하나뿐. */}
+          <div className="mt-7 flex items-center justify-between">
+            <StepLabel n={1} title="수량" hint="구독 없이 한 번만 배송" />
+            <div className="flex items-center rounded-full border border-line">
+              <button
+                onClick={() => setOnceQty((q) => Math.max(1, q - 1))}
+                className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-[transform,colors] hover:text-ink active:scale-90"
+                aria-label="수량 감소"
+              >
+                −
+              </button>
+              <span className="min-w-8 text-center text-sm tabular-nums text-ink">{onceQty}</span>
+              <button
+                onClick={() => setOnceQty((q) => q + 1)}
+                className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-[transform,colors] hover:text-ink active:scale-90"
+                aria-label="수량 증가"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl bg-paper-2 px-4 py-3">
+            <div className="flex items-center justify-between text-[13px] text-ink-soft">
+              <span>
+                상품 (정가 {formatKRW(oncePrice)} × {onceQty})
+              </span>
+              <span className="tabular-nums">{formatKRW(onceSubtotal)}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-[13px] text-ink-soft">
+              <span>
+                배송비 <span className="text-[11.5px] text-mute">(제주·도서산간 5,000원)</span>
+              </span>
+              <span className="tabular-nums">{formatKRW(ONCE_SHIPPING_KRW)}</span>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5">
+              <span className="text-[13px] text-mute">합계</span>
+              <span className="font-serif-kr text-xl text-ink tabular-nums">
+                {formatKRW(onceTotal)}
+              </span>
+            </div>
+          </div>
+
+          <p className="mt-2 text-[12px] text-mute">
+            {product.taxFree ? "면세품 · 부가세 없음" : "과세품 · 부가세 포함 가격"} · 입금 확인
+            시 {onceDispatch} 발송
+          </p>
+
+          {onceBelowMin && (
+            <p className="mt-4 rounded-xl border border-gold/40 bg-gold/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-gold-deep">
+              단품 최소 주문금액은 {formatKRW(ONCE_MIN_KRW)}이에요. 수량을 올리거나, 다음
+              화면에서 다른 제품을 <span className="font-medium">{formatKRW(onceShort)}</span>어치
+              함께 담을 수 있어요.
+            </p>
+          )}
+
+          <button
+            onClick={handleBuyOnce}
+            disabled={catalogLoading || liveMain.soldOut}
+            className="mt-5 w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-ink"
+          >
+            {liveMain.soldOut ? "품절" : catalogLoading ? "확인 중…" : "1회 구매 계속하기"}
+          </button>
+          <p className="mt-4 text-center text-[11.5px] leading-relaxed text-mute">
+            다음 화면에서 배송지만 입력하면 완료 · 회원가입 없이도 구매 가능
+          </p>
+        </div>
+      )}
     </div>
 
-    {/* 모바일 하단 고정 담기 바 — 메인 버튼이 화면 밖일 때만. BottomNav(68px) 위에 스택. */}
-    {showStickyBar && !liveMain.hidden && (
+    {/* 모바일 하단 고정 담기 바 — 구독 모드에서 메인 버튼이 화면 밖일 때만. BottomNav(68px) 위. */}
+    {showStickyBar && mode === "sub" && !liveMain.hidden && (
       <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+68px)] z-30 border-t border-line bg-cream/95 px-5 py-2.5 backdrop-blur-sm md:hidden no-print">
         <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
           <div className="min-w-0">
