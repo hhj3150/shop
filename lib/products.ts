@@ -438,11 +438,11 @@ export const PRODUCTS: Product[] = [
     tagline: "튼튼한 뿌리를",
     taglineEm: "내려주렴.",
     shortDesc:
-      "식물 집사를 위한 살아 있는 흙(Living Soil) — 대한민국 1% 유기농 파우더. 한 번 사용으로 6개월.",
+      "A2 저지 헤이밀크를 만들고 남은 것들로 — 그래서 애프터밀크. 식물 집사를 위한 살아 있는 흙, 한 번 사용으로 6개월.",
     story: [
-      "우유가 끝이 아닙니다. 순환이 시작됩니다. 초지에서 자란 풀이 소를 먹이고, 소가 만든 우유는 사람에게 — 남은 것은 다시 대지로 돌아갑니다.",
+      "A2 저지 헤이밀크를 만들고 남은 것들로 만들어, 이름도 애프터밀크(After Milk)입니다. 우유가 끝이 아닙니다. 순환이 시작됩니다.",
       "화학 사료를 먹지 않은 소의 분뇨를 피트모스 베딩 시스템으로 발효한, 악취 대신 건강한 흙냄새(지오스민)가 나는 고품질 유기물 파우더입니다.",
-      "집 안 화분·실내정원의 모든 반려식물에 — 한 번 사용으로 6개월간 유기물과 양분을 공급합니다.",
+      "분뇨(Dung)를 다시 근원(Origin)으로 — 디투오(D2O · Dung to Origin)의 약속. 재생농업과 순환농업의 실천으로 흙을 되살립니다.",
     ],
     specs: [
       { label: "원료", value: "대한민국 1% Grassfed(목초먹인) 유기물" },
@@ -477,7 +477,7 @@ export const PRODUCTS: Product[] = [
       figure: "6",
       unit: "개월",
       caption: "제품 표기 기준 · 흙(상토) 9 : 파우더 1",
-      identity: "Living Soil · 냄새 없는 고품질 퇴비 · Zero Waste Cycle",
+      identity: "Living Soil · 냄새 없는 고품질 퇴비 · D2O — Dung to Origin",
     },
     price: 10000,
     taxFree: false,

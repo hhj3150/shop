@@ -132,10 +132,19 @@ export function AftermilkBand() {
           ))}
         </div>
 
+        {/* 이름의 이유 — A2 저지 헤이밀크 '다음'이라서 애프터밀크. D2O(Dung to Origin) 약속. */}
         <p className="mt-5 text-[15px] leading-relaxed text-ink-soft">
-          초지에서 자란 풀이 소를 먹이고, 소가 만든 우유는 사람에게 — 남은 것은 다시 대지로
-          돌아갑니다. 화학 사료를 먹지 않은 소의 분뇨를 피트모스 베딩 시스템으로 발효한, 퇴비
-          전문가들 사이에서 &lsquo;전설&rsquo;이라 불리는 고품질 유기물 파우더입니다.
+          <strong className="text-ink">A2 저지 헤이밀크를 만들고 남은 것들</strong>로
+          만들어, 이름도 <strong className="text-ink">애프터밀크(After Milk)</strong>입니다.
+          초지에서 자란 풀이 소를 먹이고, 소가 만든 우유는 사람에게 — 남은 분뇨는 피트모스
+          베딩 시스템으로 발효되어, 퇴비 전문가들 사이에서 &lsquo;전설&rsquo;이라 불리는
+          고품질 유기물 파우더가 되어 다시 땅으로 돌아갑니다.
+        </p>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-soft">
+          분뇨(Dung)를 다시 근원(Origin)으로 — 우리 회사 이름{" "}
+          <strong className="text-ink">디투오(D2O · Dung to Origin)</strong>에 담긴
+          약속입니다. 재생농업(Regenerative Agriculture)과 순환농업의 실천으로, 흙을 쓰는
+          것이 아니라 되살립니다.
         </p>
 
         {/* 천연 원료 — 화학성분 대신 원료를 앞세우는 글로벌 문법 */}
