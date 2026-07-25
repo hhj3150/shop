@@ -3,15 +3,92 @@ import { BRAND_HOME } from "@/lib/site";
 
 // 반려식물전용퇴비 애프터밀크 섹션(랜딩 후보).
 //   카피 출처: 홈페이지(www.a2jerseymilk.com) After Milk 섹션 + 제품 패키지.
-//   포지셔닝: 실내정원·집 안 화분의 반려식물 전용 퇴비(Zero Waste Cycle의 마지막).
-//   ※ 효능 단정 금지 원칙 준수 — M. vaccae는 일반 과학 개념 소개로만 다룬다
-//     (RegenerativeBand의 장–뇌 축 박스와 같은 패턴).
+//   포지셔닝: 글로벌 프리미엄 반려식물 브랜드 문법(COMPO·Bloomscape 등) 벤치마킹 —
+//     Plant Parent 감성 · Living Soil 네이밍 · 기능은 아이콘으로(Strong Roots,
+//     Balanced Moisture, Organic, Zero Waste) · 천연 원료 리스트 강조.
+//   ※ 효능 단정 금지 원칙 준수 — 식물 관련 기능은 패키지 표기 사실 범위,
+//     M. vaccae는 일반 과학 개념 소개로만 다룬다(장–뇌 축 박스와 같은 패턴).
+
+// 기능 아이콘 4종 — 글로벌 브랜드들의 아이콘 문법(💧🌱🌿♻)을 브랜드 선으로 그린다.
+const FEATURES: {
+  en: string;
+  ko: string;
+  desc: string;
+  color: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    en: "Strong Roots",
+    ko: "튼튼한 뿌리",
+    desc: "뿌리를 튼튼하게 하는 유익균과 유기물",
+    color: "var(--color-hey-green)",
+    icon: (
+      // 새싹 + 뿌리
+      <path
+        d="M12 11v9 M12 11c0-4 3-6.5 7-7-0.5 4-3 6.5-7 7Z M12 13c-.5-3-2.5-5-6-5.5.5 3.5 2.5 5 6 5.5Z M12 20c-2 0-3-1.5-5-1.5 M12 20c2 0 3-1.5 5-1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  {
+    en: "100% Organic",
+    ko: "천연 유기물",
+    desc: "화학비료 제로 · Grassfed 유기물",
+    color: "var(--color-hey-orange)",
+    icon: (
+      // 잎사귀
+      <path
+        d="M5 19C5 9 12 4 19 4c0 8-4 14-12 14 M5 19c3-4 6-7 10-9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  {
+    en: "Balanced Moisture",
+    ko: "천천히, 6개월",
+    desc: "물을 줄 때마다 양분이 서서히",
+    color: "var(--color-hey-blue)",
+    icon: (
+      // 물방울
+      <path
+        d="M12 3s6 6.5 6 10.5a6 6 0 1 1-12 0C6 9.5 12 3 12 3Z M9.5 13.5a2.8 2.8 0 0 0 2.5 3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  {
+    en: "Zero Waste",
+    ko: "순환의 흙",
+    desc: "버리는 것 제로, 목장의 순환에서",
+    color: "var(--color-hey-deep-orange)",
+    icon: (
+      // 순환 화살표
+      <path
+        d="M6 8a7 7 0 0 1 12-1.5 M18 3.5v3.5h-3.5 M18 16a7 7 0 0 1-12 1.5 M6 20.5V17h3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+];
+
+// 천연 원료 리스트 — 글로벌 브랜드의 Compost·Biochar·Coco Coir 나열 문법.
+const INGREDIENTS = [
+  "Grassfed Compost · 목초 사육 유기물",
+  "Beneficial Microbes · 유익균",
+  "Macro & Micro Elements · 대량·미량원소",
+  "Peat Moss Bedding · 피트모스 발효",
+];
+
 export function AftermilkBand() {
   return (
     <section className="w-full bg-paper-2">
       <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-28">
         <p className="font-display text-[13px] uppercase tracking-[0.32em] text-gold-deep sm:text-[14px]">
-          After Milk · Zero Waste Cycle
+          After Milk · Living Soil for Plant Parents
         </p>
         <h2 className="mt-4 font-serif-kr text-[clamp(1.9rem,5vw,2.6rem)] font-medium leading-[1.15] text-ink">
           반려식물전용퇴비 <span className="text-gold-deep">애프터밀크</span>
@@ -19,36 +96,59 @@ export function AftermilkBand() {
 
         <div className="mt-6 space-y-2.5 text-[clamp(1.05rem,2.4vw,1.3rem)] font-medium leading-relaxed text-ink-soft">
           <p>우유가 끝이 아닙니다. 순환이 시작됩니다.</p>
-          <p>실내정원, 집 안 화분의 모든 반려식물을 위한 전용 퇴비.</p>
+          <p>식물 집사의 실내정원, 집 안 화분의 모든 반려식물을 위한 살아 있는 흙.</p>
           <p className="text-ink">튼튼한 뿌리를 내려주렴 — After Milk.</p>
         </div>
 
-        {/* 특징 3가지 — HEY 액센트 포인트(재생농업 밴드와 동일 패턴) */}
-        <div className="mt-10 grid gap-3 sm:grid-cols-3">
-          {[
-            { line: "화학비료 제로, 버리는 것 제로.", color: "var(--color-hey-green)" },
-            { line: "악취 대신 건강한 흙냄새.", color: "var(--color-hey-orange)" },
-            { line: "한 번 사용으로 6개월.", color: "var(--color-hey-blue)" },
-          ].map(({ line, color }) => (
+        {/* 기능 4가지 — 아이콘 그리드(Strong Roots · Organic · Moisture · Zero Waste) */}
+        <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {FEATURES.map((f) => (
             <div
-              key={line}
-              style={{ borderLeftColor: color, borderLeftWidth: 3 }}
-              className="rounded-2xl border border-line bg-cream px-5 py-4 text-[15px] font-medium text-ink"
+              key={f.en}
+              className="rounded-2xl border border-line bg-cream px-4 py-5"
             >
               <span
-                aria-hidden
-                style={{ backgroundColor: color }}
-                className="mb-2.5 block h-2 w-2 rounded-full"
-              />
-              {line}
+                className="flex h-10 w-10 items-center justify-center rounded-full"
+                style={{ backgroundColor: `color-mix(in srgb, ${f.color} 14%, transparent)` }}
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={f.color}
+                  strokeWidth="1.6"
+                  aria-hidden
+                >
+                  {f.icon}
+                </svg>
+              </span>
+              <p className="mt-3 font-display text-[11px] uppercase tracking-[0.14em] text-gold-deep">
+                {f.en}
+              </p>
+              <p className="mt-1 text-[14.5px] font-medium leading-snug text-ink">{f.ko}</p>
+              <p className="mt-1 text-[12px] leading-snug text-mute">{f.desc}</p>
             </div>
           ))}
         </div>
-        <p className="mt-4 text-[15px] leading-relaxed text-ink-soft">
+
+        <p className="mt-5 text-[15px] leading-relaxed text-ink-soft">
           초지에서 자란 풀이 소를 먹이고, 소가 만든 우유는 사람에게 — 남은 것은 다시 대지로
           돌아갑니다. 화학 사료를 먹지 않은 소의 분뇨를 피트모스 베딩 시스템으로 발효한, 퇴비
           전문가들 사이에서 &lsquo;전설&rsquo;이라 불리는 고품질 유기물 파우더입니다.
         </p>
+
+        {/* 천연 원료 — 화학성분 대신 원료를 앞세우는 글로벌 문법 */}
+        <div className="mt-6 flex flex-wrap gap-2">
+          {INGREDIENTS.map((ing) => (
+            <span
+              key={ing}
+              className="rounded-full border border-line bg-cream px-3.5 py-1.5 text-[12.5px] text-ink-soft"
+            >
+              {ing}
+            </span>
+          ))}
+        </div>
 
         {/* 흙 속의 미생물 — Mycobacterium vaccae 소개(일반 과학 개념 + 효능 단정 금지) */}
         <div className="mt-8 rounded-2xl border border-gold/40 bg-gold/5 p-6">

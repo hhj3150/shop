@@ -433,12 +433,12 @@ export const PRODUCTS: Product[] = [
     nameEn: "After Milk",
     line: "aftermilk",
     volume: "1L",
-    badge: "Green",
+    badge: "Living Soil",
     kcal: 0,
     tagline: "튼튼한 뿌리를",
     taglineEm: "내려주렴.",
     shortDesc:
-      "초보 식집사를 위한 위대한 자연의 선물 — 대한민국 1% 유기농 파우더. 한 번 사용으로 6개월.",
+      "식물 집사를 위한 살아 있는 흙(Living Soil) — 대한민국 1% 유기농 파우더. 한 번 사용으로 6개월.",
     story: [
       "우유가 끝이 아닙니다. 순환이 시작됩니다. 초지에서 자란 풀이 소를 먹이고, 소가 만든 우유는 사람에게 — 남은 것은 다시 대지로 돌아갑니다.",
       "화학 사료를 먹지 않은 소의 분뇨를 피트모스 베딩 시스템으로 발효한, 악취 대신 건강한 흙냄새(지오스민)가 나는 고품질 유기물 파우더입니다.",
@@ -446,6 +446,7 @@ export const PRODUCTS: Product[] = [
     ],
     specs: [
       { label: "원료", value: "대한민국 1% Grassfed(목초먹인) 유기물" },
+      { label: "성분", value: "유기물 · 유익균 · 대량/미량원소" },
       { label: "대상", value: "실내정원 · 집 안 화분의 모든 반려식물" },
       { label: "사용", value: "흙(상토) 9 : 파우더 1 혼합 후 바로 식재" },
       { label: "지속", value: "한 번 사용으로 약 6개월 양분 공급" },
@@ -464,12 +465,9 @@ export const PRODUCTS: Product[] = [
     highlights: {
       kicker: "우유가 끝이 아닙니다.\n*순환*이 시작됩니다.",
       rows: [
-        { k: "원료", v: "*대한민국 1% Grassfed* 유기물 파우더." },
-        {
-          k: "지속",
-          v: "한 번 사용으로 ~6개월~ 양분 공급.",
-          em: "제품 표기 기준",
-        },
+        { k: "뿌리", v: "*Strong Roots* — 뿌리를 튼튼하게 하는 유익균과 유기물.", em: "제품 표기 기준" },
+        { k: "원료", v: "*대한민국 1% Grassfed* 유기물 · 화학비료 제로." },
+        { k: "지속", v: "물을 줄 때마다 천천히, ~6개월~ 양분 공급." },
         { k: "대상", v: "실내정원 · 화분의 *모든 반려식물*." },
       ],
       proof: "생산 송영신목장 · 판매 한미종묘",
@@ -479,7 +477,7 @@ export const PRODUCTS: Product[] = [
       figure: "6",
       unit: "개월",
       caption: "제품 표기 기준 · 흙(상토) 9 : 파우더 1",
-      identity: "냄새 없는 고품질 퇴비 · 피트모스 베딩 · Zero Waste Cycle",
+      identity: "Living Soil · 냄새 없는 고품질 퇴비 · Zero Waste Cycle",
     },
     price: 10000,
     taxFree: false,
