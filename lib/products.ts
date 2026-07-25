@@ -3,7 +3,7 @@ import {
   isSpecialDeliveryPostcode,
 } from "./regions";
 
-export type ProductLine = "milk" | "yogurt";
+export type ProductLine = "milk" | "yogurt" | "aftermilk";
 
 export type ProductSpec = {
   label: string;
@@ -75,11 +75,15 @@ export type Product = {
   story: string[];
   specs: ProductSpec[];
   label: ProductLabel;
-  nutrition: Nutrition;
+  // 식품이 아닌 라인(애프터밀크 퇴비)은 영양정보가 없다 — 미지정 시 상세 페이지에서 표를 숨긴다.
+  nutrition?: Nutrition;
   highlights?: ProductHighlights;
   signature?: ProductSignature;
   price: number;
   taxFree: boolean;
+  // 1회 구매 전용 — 정기구독 미제공(주 1회 배송이 무의미한 제품: 퇴비 등).
+  //   구매 패널·상세·쇼케이스가 구독 UI 대신 단품 동선만 노출한다.
+  onceOnly?: boolean;
   image: string;
   accent: string;
 };
@@ -419,6 +423,69 @@ export const PRODUCTS: Product[] = [
     taxFree: false,
     image: "/products/yogurt-500-pure.webp",
     accent: "#6f7d36",
+  },
+  {
+    // 반려식물전용퇴비 애프터밀크 — 우유 다음의 순환(Zero Waste Cycle) 제품.
+    //   식품이 아니므로 nutrition 없음, 6개월 지속 제품이라 주 1회 구독 대신 1회 구매 전용.
+    //   카피 출처: 제품 패키지 + 홈페이지(www.a2jerseymilk.com) After Milk 섹션.
+    id: "aftermilk-1l",
+    name: "반려식물전용퇴비 애프터밀크",
+    nameEn: "After Milk",
+    line: "aftermilk",
+    volume: "1L",
+    badge: "Green",
+    kcal: 0,
+    tagline: "튼튼한 뿌리를",
+    taglineEm: "내려주렴.",
+    shortDesc:
+      "초보 식집사를 위한 위대한 자연의 선물 — 대한민국 1% 유기농 파우더. 한 번 사용으로 6개월.",
+    story: [
+      "우유가 끝이 아닙니다. 순환이 시작됩니다. 초지에서 자란 풀이 소를 먹이고, 소가 만든 우유는 사람에게 — 남은 것은 다시 대지로 돌아갑니다.",
+      "화학 사료를 먹지 않은 소의 분뇨를 피트모스 베딩 시스템으로 발효한, 악취 대신 건강한 흙냄새(지오스민)가 나는 고품질 유기물 파우더입니다.",
+      "집 안 화분·실내정원의 모든 반려식물에 — 한 번 사용으로 6개월간 유기물과 양분을 공급합니다.",
+    ],
+    specs: [
+      { label: "원료", value: "대한민국 1% Grassfed(목초먹인) 유기물" },
+      { label: "대상", value: "실내정원 · 집 안 화분의 모든 반려식물" },
+      { label: "사용", value: "흙(상토) 9 : 파우더 1 혼합 후 바로 식재" },
+      { label: "지속", value: "한 번 사용으로 약 6개월 양분 공급" },
+      { label: "보관", value: "직사광선 피한 서늘한 곳 · 10년 이상" },
+      { label: "구분", value: "과세품 · 세금 포함가" },
+    ],
+    label: {
+      type: "유기물 파우더 (반려식물 전용 퇴비)",
+      ingredients: "국내산 유기물 100% (목초 사육 젖소 분뇨 발효 · 유익균 함유)",
+      content: "500g (1L 카톤)",
+      storage: "직사광선을 피해 서늘한 곳에 보관",
+      packaging: "종이팩",
+      maker: "생산자 송영신목장 · 판매원 한미종묘",
+      shelf: "서늘한 곳 보관 시 10년 이상 사용 가능",
+    },
+    highlights: {
+      kicker: "우유가 끝이 아닙니다.\n*순환*이 시작됩니다.",
+      rows: [
+        { k: "원료", v: "*대한민국 1% Grassfed* 유기물 파우더." },
+        {
+          k: "지속",
+          v: "한 번 사용으로 ~6개월~ 양분 공급.",
+          em: "제품 표기 기준",
+        },
+        { k: "대상", v: "실내정원 · 화분의 *모든 반려식물*." },
+      ],
+      proof: "생산 송영신목장 · 판매 한미종묘",
+    },
+    signature: {
+      topLabel: "한 번 사용, 양분 공급",
+      figure: "6",
+      unit: "개월",
+      caption: "제품 표기 기준 · 흙(상토) 9 : 파우더 1",
+      identity: "냄새 없는 고품질 퇴비 · 피트모스 베딩 · Zero Waste Cycle",
+    },
+    price: 10000,
+    taxFree: false,
+    onceOnly: true,
+    image: "/products/aftermilk-1l.webp",
+    accent: "#4f9d3d",
   },
 ];
 

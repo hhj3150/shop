@@ -15,14 +15,18 @@ export type ProductionLog = {
   note: string | null;
 };
 
-// 생산 계획에 쓰는 표준 제품 키 — 주문 여부와 무관하게 전 SKU를 노출.
-export const PRODUCTION_KEYS: readonly string[] = PRODUCTS.map(
+// 생산시트는 원유를 쓰는 유제품 SKU만 다룬다 — 애프터밀크(퇴비)는 원유(L) 환산
+//   대상이 아니므로 제외해 수요·생산 집계가 오염되지 않게 한다.
+const DAIRY_PRODUCTS = PRODUCTS.filter((p) => p.line !== "aftermilk");
+
+// 생산 계획에 쓰는 표준 제품 키 — 주문 여부와 무관하게 전 유제품 SKU를 노출.
+export const PRODUCTION_KEYS: readonly string[] = DAIRY_PRODUCTS.map(
   (p) => `${p.name} ${p.volume}`
 );
 
 // 제품 키 → 1개당 용량(mL). 용량 문자열("180mL")에서 숫자만 추출.
 const VOLUME_ML: Readonly<Record<string, number>> = Object.fromEntries(
-  PRODUCTS.map((p) => [`${p.name} ${p.volume}`, parseVolumeMl(p.volume)])
+  DAIRY_PRODUCTS.map((p) => [`${p.name} ${p.volume}`, parseVolumeMl(p.volume)])
 );
 
 function parseVolumeMl(volume: string): number {

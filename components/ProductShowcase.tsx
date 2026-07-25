@@ -16,6 +16,7 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "전체" },
   { key: "milk", label: "밀크" },
   { key: "yogurt", label: "요거트" },
+  { key: "aftermilk", label: "애프터밀크" },
 ];
 
 const PRODUCTS_CONFETTI: ConfettiItem[] = [
@@ -43,7 +44,7 @@ export function ProductShowcase() {
       <Reveal>
         <p className="eyebrow text-gold-deep">Collection</p>
         <h2 className="mt-3 font-serif-kr text-[clamp(1.9rem,4.5vw,3rem)] font-medium leading-[1.2] tracking-[-0.015em] text-ink">
-          단 네 가지.
+          단 다섯 가지.
           <br />
           <span className="text-mute">곁에 둘 가치가 있는 것만.</span>
         </h2>
@@ -110,13 +111,28 @@ export function ProductShowcase() {
                 </div>
               </Link>
 
-              <p className="mt-7 text-[clamp(1.35rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums">
-                {formatKRW(subscribePrice(p.price))}
-                <span className="ml-1.5 align-baseline text-[13px] font-normal text-mute">회원가</span>
-              </p>
-              <p className="mt-1.5 text-[12.5px] text-mute tabular-nums lining-nums">
-                정가 {formatKRW(p.price)} · {p.taxFree ? "면세품" : "부가세 포함"}
-              </p>
+              {/* 1회 구매 전용(애프터밀크)은 구독 회원가가 없으니 정가만 노출한다. */}
+              {p.onceOnly ? (
+                <>
+                  <p className="mt-7 text-[clamp(1.35rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums">
+                    {formatKRW(p.price)}
+                    <span className="ml-1.5 align-baseline text-[13px] font-normal text-mute">정가</span>
+                  </p>
+                  <p className="mt-1.5 text-[12.5px] text-mute tabular-nums lining-nums">
+                    1회 구매 전용 · {p.taxFree ? "면세품" : "부가세 포함"}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-7 text-[clamp(1.35rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums">
+                    {formatKRW(subscribePrice(p.price))}
+                    <span className="ml-1.5 align-baseline text-[13px] font-normal text-mute">회원가</span>
+                  </p>
+                  <p className="mt-1.5 text-[12.5px] text-mute tabular-nums lining-nums">
+                    정가 {formatKRW(p.price)} · {p.taxFree ? "면세품" : "부가세 포함"}
+                  </p>
+                </>
+              )}
 
               <div className="mt-7 w-full max-w-xs">
                 {p.soldOut ? (
@@ -131,7 +147,7 @@ export function ProductShowcase() {
                     href={`/products/${p.id}`}
                     className="block w-full rounded-full bg-ink px-6 py-3 text-center text-[15px] font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98]"
                   >
-                    구독 신청
+                    {p.onceOnly ? "구매하기" : "구독 신청"}
                   </Link>
                 )}
               </div>

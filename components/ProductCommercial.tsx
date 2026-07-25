@@ -11,6 +11,27 @@ export function ProductHeroPrice({ product, maxRate }: { product: Product; maxRa
   const live = mergeProduct(product, map.get(product.id));
   // 회원 최대 특권가(가장 긴 기간 기준) — 첫눈에 실제 가치를 인지하도록 정가와 함께 노출.
   const memberPrice = subscribePrice(live.price, maxRate / 100);
+
+  // 1회 구매 전용 제품 — 구독 회원가가 없으니 정가만 단정하게.
+  if (product.onceOnly) {
+    return (
+      <div className="mt-4">
+        <p className="text-[11px] tracking-wide text-mute">정가 · 1회 구매</p>
+        <div className="mt-1 flex items-baseline justify-center gap-2.5 lg:justify-start">
+          <p className="text-[clamp(1.5rem,4vw,1.9rem)] font-semibold leading-none text-ink lining-nums tabular-nums">
+            {formatKRW(live.price)}
+          </p>
+        </div>
+        <p className="mt-2 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+          <span className="inline-flex items-center rounded-full bg-hey-green/12 px-2.5 py-0.5 text-[12.5px] font-semibold text-hey-green lining-nums">
+            구독 없이 한 번만 · 회원가입 없이 구매 가능
+          </span>
+          {live.soldOut && <span className="text-[13px] text-mute">· 품절</span>}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-4">
       {/* 이 가격이 '정기구독' 회원가임을 명시 — 옆 단품구매 CTA와 혼동 방지 */}

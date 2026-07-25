@@ -39,7 +39,10 @@ export function PurchasePanel({ product }: { product: Product }) {
   // '함께 담기'는 기본 접힘 — 결정 단계를 줄여 핵심 구매 동선을 짧게 유지한다.
   const [extrasOpen, setExtrasOpen] = useState(false);
   // 구매 방식: 정기구독(기본·할인) | 1회 구매(정가). 처음 온 분은 1회로 부담 없이 시작.
-  const [mode, setMode] = useState<"sub" | "once">("sub");
+  //   1회 구매 전용 제품(애프터밀크 등)은 구독 UI 없이 once로 고정한다.
+  const [mode, setMode] = useState<"sub" | "once">(
+    product.onceOnly ? "once" : "sub"
+  );
   // 1회 구매 수량 — 최소 주문금액(정가 24,000원)을 채우는 수량으로 시작.
   const [onceQty, setOnceQty] = useState(() =>
     Math.max(1, Math.ceil(ONCE_MIN_KRW / product.price))
@@ -112,8 +115,11 @@ export function PurchasePanel({ product }: { product: Product }) {
   const { map, loading: catalogLoading } = useStorefrontCatalog();
   const liveMain = mergeProduct(product, map.get(product.id));
   // 함께 담을 수 있는 다른 제품들(같은 요일 배송). hidden 제외, 본품 제외.
+  //   1회 구매 전용 제품은 매주 반복 배송되는 구독 장바구니에 태울 수 없어 제외.
   //   이름을 addons로 유지해 가격합·담기·렌더 사용처가 한 번에 라이브로 갱신된다.
-  const addons = visibleProducts(PRODUCTS, map).filter((p) => p.id !== product.id);
+  const addons = visibleProducts(PRODUCTS, map).filter(
+    (p) => p.id !== product.id && !p.onceOnly
+  );
 
   const rate = discountForPeriod(period);
   const weeks = periodWeeks(period);
@@ -211,7 +217,13 @@ export function PurchasePanel({ product }: { product: Product }) {
   return (
     <>
     <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
-      {/* 구매 방식 탭 — 정기구독(할인) | 1회 구매(정가·비회원 가능) */}
+      {/* 구매 방식 탭 — 정기구독(할인) | 1회 구매(정가·비회원 가능).
+          1회 구매 전용 제품은 탭 대신 안내 헤더만 노출한다. */}
+      {product.onceOnly ? (
+        <div className="rounded-full bg-paper-2 px-5 py-2.5 text-center text-[13.5px] font-medium text-ink">
+          1회 구매 <span className="text-mute">· 구독 없이 부담 없이</span>
+        </div>
+      ) : (
       <div className="grid grid-cols-2 gap-1 rounded-full bg-paper-2 p-1" role="tablist">
         <button
           type="button"
@@ -236,6 +248,7 @@ export function PurchasePanel({ product }: { product: Product }) {
           1회 구매
         </button>
       </div>
+      )}
 
       {mode === "sub" && (
       <>

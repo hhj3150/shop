@@ -1,33 +1,34 @@
+import Link from "next/link";
 import { BRAND_HOME } from "@/lib/site";
 
-// 반려식물전용퇴비 aftermilk 섹션(랜딩 후보).
-//   - 홈페이지(www.a2jerseymilk.com)의 aftermilk 섹션과 같은 세계관: 목장의 순환
-//     (우유를 만들고 남은 것이 다시 흙으로) — RegenerativeBand의 서사를 잇는다.
-//   - 카피는 홈페이지 원문 대조 전 초안. 원문 확정 시 문구만 교체하면 된다.
-//   - ※ 비료 '효능' 단정은 쓰지 않는다(순환·원료·사용 경험 관점).
+// 반려식물전용퇴비 애프터밀크 섹션(랜딩 후보).
+//   카피 출처: 홈페이지(www.a2jerseymilk.com) After Milk 섹션 + 제품 패키지.
+//   포지셔닝: 실내정원·집 안 화분의 반려식물 전용 퇴비(Zero Waste Cycle의 마지막).
+//   ※ 효능 단정 금지 원칙 준수 — M. vaccae는 일반 과학 개념 소개로만 다룬다
+//     (RegenerativeBand의 장–뇌 축 박스와 같은 패턴).
 export function AftermilkBand() {
   return (
     <section className="w-full bg-paper-2">
       <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-28">
         <p className="font-display text-[13px] uppercase tracking-[0.32em] text-gold-deep sm:text-[14px]">
-          Aftermilk · From Milk to Soil
+          After Milk · Zero Waste Cycle
         </p>
         <h2 className="mt-4 font-serif-kr text-[clamp(1.9rem,5vw,2.6rem)] font-medium leading-[1.15] text-ink">
-          반려식물전용퇴비 <span className="text-gold-deep">aftermilk</span>
+          반려식물전용퇴비 <span className="text-gold-deep">애프터밀크</span>
         </h2>
 
         <div className="mt-6 space-y-2.5 text-[clamp(1.05rem,2.4vw,1.3rem)] font-medium leading-relaxed text-ink-soft">
-          <p>우유가 지나간 자리, 흙으로 돌아갑니다.</p>
-          <p>목장의 순환에서 온 반려식물 전용 퇴비.</p>
-          <p className="text-ink">우유에서 흙으로 — From Milk to Soil.</p>
+          <p>우유가 끝이 아닙니다. 순환이 시작됩니다.</p>
+          <p>실내정원, 집 안 화분의 모든 반려식물을 위한 전용 퇴비.</p>
+          <p className="text-ink">튼튼한 뿌리를 내려주렴 — After Milk.</p>
         </div>
 
         {/* 특징 3가지 — HEY 액센트 포인트(재생농업 밴드와 동일 패턴) */}
         <div className="mt-10 grid gap-3 sm:grid-cols-3">
           {[
-            { line: "저지 목장의 순환 원료.", color: "var(--color-hey-green)" },
-            { line: "발효와 숙성은 충분히.", color: "var(--color-hey-orange)" },
-            { line: "실내 반려식물에 맞게.", color: "var(--color-hey-blue)" },
+            { line: "화학비료 제로, 버리는 것 제로.", color: "var(--color-hey-green)" },
+            { line: "악취 대신 건강한 흙냄새.", color: "var(--color-hey-orange)" },
+            { line: "한 번 사용으로 6개월.", color: "var(--color-hey-blue)" },
           ].map(({ line, color }) => (
             <div
               key={line}
@@ -44,11 +45,12 @@ export function AftermilkBand() {
           ))}
         </div>
         <p className="mt-4 text-[15px] leading-relaxed text-ink-soft">
-          건강한 흙에서 우유가 나오고, 우유를 만들고 남은 것이 다시 흙이 됩니다. aftermilk는 그
-          순환의 마지막이자, 반려식물 화분에서 시작되는 새로운 처음입니다.
+          초지에서 자란 풀이 소를 먹이고, 소가 만든 우유는 사람에게 — 남은 것은 다시 대지로
+          돌아갑니다. 화학 사료를 먹지 않은 소의 분뇨를 피트모스 베딩 시스템으로 발효한, 퇴비
+          전문가들 사이에서 &lsquo;전설&rsquo;이라 불리는 고품질 유기물 파우더입니다.
         </p>
 
-        {/* 이렇게 쓰세요 — 사용 안내 */}
+        {/* 흙 속의 미생물 — Mycobacterium vaccae 소개(일반 과학 개념 + 효능 단정 금지) */}
         <div className="mt-8 rounded-2xl border border-gold/40 bg-gold/5 p-6">
           <p className="flex items-center gap-2 text-[13px] uppercase tracking-[0.18em] text-gold-deep">
             <span
@@ -56,41 +58,65 @@ export function AftermilkBand() {
               style={{ backgroundColor: "var(--color-hey-green)" }}
               className="h-1.5 w-1.5 rounded-full"
             />
-            이렇게 쓰세요
+            Mycobacterium vaccae · 흙 속의 미생물
           </p>
           <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
-            화분 흙 위에 얇게 얹어 주기만 하면 됩니다. 물을 줄 때마다 양분이 천천히 스며들어,
-            반려식물의 흙을 조금씩 살립니다.
+            건강한 흙에는 <em className="not-italic font-medium text-ink">M. vaccae</em> 같은
+            토양 미생물이 살고 있습니다. 흙을 만지고 식물을 돌보는 시간이 마음에 좋은 영향을
+            준다는 연구들에서 주목받아 온 미생물입니다. 화분 곁의 작은 정원이 곧 자연과의
+            연결 — 우리가 실내정원의 흙부터 돌보는 이유입니다.
           </p>
           <p className="mt-3 text-[11.5px] text-mute">
-            ※ 실내 화분용 소량 포장 기준의 안내이며, 자세한 사용법은 제품과 함께 보내 드립니다.
+            ※ 일반 과학 개념의 소개이며, 특정 성분의 함량이나 질병의 예방·치료 효능을 뜻하지
+            않습니다.
           </p>
         </div>
 
-        {/* 안내 + 홈페이지 링크 — 쇼핑몰 입점 전 소개 단계 */}
-        <div className="mt-10 rounded-2xl border border-line bg-cream p-6">
+        {/* 이렇게 쓰세요 — 패키지 STEP 안내 그대로 */}
+        <div className="mt-8 rounded-2xl border border-line bg-cream p-6">
           <p className="flex items-center gap-2 text-[13px] uppercase tracking-[0.18em] text-gold-deep">
             <span
               aria-hidden
-              style={{ backgroundColor: "var(--color-hey-orange)" }}
+              style={{ backgroundColor: "var(--color-hey-blue)" }}
               className="h-1.5 w-1.5 rounded-full"
             />
-            쇼핑몰 입점 준비 중
+            이렇게 쓰세요
           </p>
-          <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
-            <strong className="text-ink">aftermilk</strong>는 쇼핑몰 입점을 준비하고 있습니다.
-            지금은 목장 홈페이지에서 먼저 만나 보실 수 있습니다.
+          <ol className="mt-3 space-y-2 text-[14px] leading-relaxed text-ink-soft">
+            <li>
+              <strong className="text-ink">STEP 1.</strong> 흙(상토) 9 : 파우더 1 비율로 골고루
+              섞어 주세요.
+            </li>
+            <li>
+              <strong className="text-ink">STEP 2.</strong> 식물을 바로 심을 수 있습니다.
+              분갈이할 때도 같은 비율로.
+            </li>
+            <li>
+              <strong className="text-ink">STEP 3.</strong> 물을 주면 6개월간 유기물과 양분이
+              천천히 공급됩니다.
+            </li>
+          </ol>
+          <p className="mt-3 text-[11.5px] text-mute">
+            직사광선을 피해 서늘한 곳에 보관하면 10년 이상 사용할 수 있습니다.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <a
-              href={BRAND_HOME}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
-            >
-              홈페이지에서 aftermilk 보기 ↗
-            </a>
-          </div>
+        </div>
+
+        {/* CTA — 제품 상세로. 홈페이지 After Milk 이야기 링크도 함께. */}
+        <div className="mt-10 flex flex-wrap items-center gap-3">
+          <Link
+            href="/products/aftermilk-1l"
+            className="inline-flex items-center rounded-full bg-ink px-6 py-3 text-[14px] font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98]"
+          >
+            애프터밀크 구매하기
+          </Link>
+          <a
+            href={BRAND_HOME}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+          >
+            목장의 순환 이야기 보기 ↗
+          </a>
         </div>
       </div>
     </section>
