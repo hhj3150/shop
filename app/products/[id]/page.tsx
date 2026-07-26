@@ -16,6 +16,7 @@ import { StickyBuyBar } from "@/components/StickyBuyBar";
 import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights";
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
+import { AftermilkAssurance } from "@/components/AftermilkAssurance";
 import { ProductSignature } from "@/components/ProductSignature";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
@@ -210,12 +211,17 @@ export default async function ProductPage({
       {/* 시그니처 증명 — 제품별 대표 수치 하나를 크게(우유=오메가 2:1, 요거트=병당 유산균) */}
       <ProductSignature signature={product.signature} />
 
-      {/* 신뢰 단서 — 유제품 공통 배지(원유·콜드체인)라 비식품 라인(애프터밀크)에선 숨긴다. */}
-      {product.line !== "aftermilk" && (
-        <div className="mx-auto max-w-3xl px-5 sm:px-8">
+      {/* 신뢰 단서 — 유제품은 공통 배지(원유·콜드체인), 애프터밀크는 실내 안심 블록
+          (냄새·벌레 걱정 답변)으로 대체한다. */}
+      <div className="mx-auto max-w-3xl px-5 sm:px-8">
+        {product.line === "aftermilk" ? (
+          <div className="mt-12">
+            <AftermilkAssurance />
+          </div>
+        ) : (
           <TrustBadges />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Specs — quick reference */}
       <div className="mx-auto mt-12 max-w-3xl px-5 sm:px-8">

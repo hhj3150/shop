@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { AftermilkAssurance } from "@/components/AftermilkAssurance";
 import { BRAND_HOME } from "@/lib/site";
 
 // 반려식물전용퇴비 애프터밀크 섹션(랜딩 후보).
@@ -201,6 +202,11 @@ export function AftermilkBand() {
               {ing}
             </span>
           ))}
+        </div>
+
+        {/* 실내에서 안심 — 냄새·벌레 걱정에 정면으로 답한다(구매 장벽 해소) */}
+        <div className="mt-8">
+          <AftermilkAssurance />
         </div>
 
         {/* 흙 속의 미생물 — Mycobacterium vaccae 소개(일반 과학 개념 + 효능 단정 금지) */}
