@@ -44,8 +44,10 @@ export function PurchasePanel({ product }: { product: Product }) {
     product.onceOnly ? "once" : "sub"
   );
   // 1회 구매 수량 — 최소 주문금액(정가 24,000원)을 채우는 수량으로 시작.
+  //   1회 구매 전용 제품(애프터밀크)은 '우유와 함께 담기'가 기본 전략이라 1개로 시작
+  //   (수량으로 최소금액을 채우게 하지 않고, 아래 안내가 우유 페어링을 권한다).
   const [onceQty, setOnceQty] = useState(() =>
-    Math.max(1, Math.ceil(ONCE_MIN_KRW / product.price))
+    product.onceOnly ? 1 : Math.max(1, Math.ceil(ONCE_MIN_KRW / product.price))
   );
   // 사용자가 요일을 직접 고른 뒤에는 자동 추천이 선택을 덮어쓰지 않는다.
   const dayTouchedRef = useRef(false);
@@ -588,13 +590,21 @@ export function PurchasePanel({ product }: { product: Product }) {
             시 {onceDispatch} 발송
           </p>
 
-          {onceBelowMin && (
-            <p className="mt-4 rounded-xl border border-gold/40 bg-gold/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-gold-deep">
-              단품 최소 주문금액은 {formatKRW(ONCE_MIN_KRW)}이에요. 수량을 올리거나, 다음
-              화면에서 다른 제품을 <span className="font-medium">{formatKRW(onceShort)}</span>어치
-              함께 담을 수 있어요.
-            </p>
-          )}
+          {onceBelowMin &&
+            (product.onceOnly ? (
+              /* 애프터밀크 — 수량 채우기 대신 '우유와 함께'를 권한다(교차판매). */
+              <p className="mt-4 rounded-xl border border-gold/40 bg-gold/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-gold-deep">
+                단품 최소 주문금액은 {formatKRW(ONCE_MIN_KRW)}이에요.{" "}
+                <span className="font-medium">우유와 함께 담아 보세요</span> — 예를 들어
+                헤이밀크 750mL 2병과 함께면 채워져요. 다음 화면에서 함께 담을 수 있어요.
+              </p>
+            ) : (
+              <p className="mt-4 rounded-xl border border-gold/40 bg-gold/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-gold-deep">
+                단품 최소 주문금액은 {formatKRW(ONCE_MIN_KRW)}이에요. 수량을 올리거나, 다음
+                화면에서 다른 제품을 <span className="font-medium">{formatKRW(onceShort)}</span>어치
+                함께 담을 수 있어요.
+              </p>
+            ))}
 
           <button
             onClick={handleBuyOnce}

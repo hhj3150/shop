@@ -524,6 +524,12 @@ function OrderOnce() {
           <p className="mt-3 text-[13px] text-mute">
             상품 합계 {formatKRW(ONCE_MIN_KRW)} 이상부터 주문할 수 있습니다.
             {subtotal > 0 && ` (${formatKRW(ONCE_MIN_KRW - subtotal)} 더 담아 주세요)`}
+            {/* 1회 구매 전용(애프터밀크)이 담겨 있으면 '우유와 함께'를 권한다(교차판매). */}
+            {PRODUCTS.some((p) => p.onceOnly && (qtys[p.id] ?? 0) > 0) && (
+              <span className="mt-1 block text-gold-deep">
+                우유와 함께 담아 보세요 — 애프터밀크는 헤이밀크 750mL 2병과 함께면 채워져요.
+              </span>
+            )}
           </p>
         )}
       </div>
