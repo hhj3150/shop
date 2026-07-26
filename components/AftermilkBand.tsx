@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { BRAND_HOME } from "@/lib/site";
 
@@ -75,6 +76,19 @@ const FEATURES: {
   },
 ];
 
+// 목장 정원 실사진 — 글은 읽히지 않아도 사진은 읽힌다(소비자 우선).
+//   촬영: 송영신목장 정원. 원본은 메타데이터(GPS 등) 제거 후 webp 변환.
+const GALLERY_HERO = {
+  src: "/brand/aftermilk/garden-4.webp",
+  alt: "송영신목장 입구 화단 — 애프터밀크의 흙에서 핀 겹꽃과 초화들",
+};
+const GALLERY_TILES = [
+  { src: "/brand/aftermilk/garden-1.webp", alt: "노랗게 꽃이 핀 모종 팔레트" },
+  { src: "/brand/aftermilk/garden-2.webp", alt: "노란 겹꽃이 가득한 화분" },
+  { src: "/brand/aftermilk/garden-3.webp", alt: "파랑·보라·빨강 꽃이 어우러진 꽃밭" },
+  { src: "/brand/aftermilk/garden-5.webp", alt: "분홍 꽃송이 클로즈업" },
+];
+
 // 천연 원료 리스트 — 글로벌 브랜드의 Compost·Biochar·Coco Coir 나열 문법.
 const INGREDIENTS = [
   "Grassfed Compost · 목초 사육 유기물",
@@ -98,6 +112,36 @@ export function AftermilkBand() {
           <p>우유가 끝이 아닙니다. 순환이 시작됩니다.</p>
           <p>식물 집사의 실내정원, 집 안 화분의 모든 반려식물을 위한 살아 있는 흙.</p>
           <p className="text-ink">튼튼한 뿌리를 내려주렴 — After Milk.</p>
+        </div>
+
+        {/* 목장 정원 갤러리 — 사진이 먼저 말하게 한다(결과 증명 컷) */}
+        <div className="mt-10">
+          <div className="overflow-hidden rounded-2xl">
+            <Image
+              src={GALLERY_HERO.src}
+              alt={GALLERY_HERO.alt}
+              width={1024}
+              height={768}
+              sizes="(max-width:768px) 92vw, 704px"
+              className="h-auto w-full object-cover"
+            />
+          </div>
+          <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {GALLERY_TILES.map((g) => (
+              <div key={g.src} className="relative aspect-square overflow-hidden rounded-2xl">
+                <Image
+                  src={g.src}
+                  alt={g.alt}
+                  fill
+                  sizes="(max-width:640px) 46vw, 176px"
+                  className="object-cover transition-transform duration-700 hover:scale-[1.05]"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[12.5px] leading-relaxed text-mute">
+            송영신목장의 정원 — 애프터밀크가 돌아간 흙에서 자란 꽃들입니다.
+          </p>
         </div>
 
         {/* 기능 4가지 — 아이콘 그리드(Strong Roots · Organic · Moisture · Zero Waste) */}
