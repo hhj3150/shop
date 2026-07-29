@@ -85,6 +85,8 @@ export type Product = {
   //   구매 패널·상세·쇼케이스가 구독 UI 대신 단품 동선만 노출한다.
   onceOnly?: boolean;
   image: string;
+  // 상세 페이지 멀티 컷 갤러리(대표 이미지 포함, 순서대로). 미지정 시 단일 image.
+  gallery?: { src: string; label: string }[];
   accent: string;
 };
 
@@ -483,6 +485,12 @@ export const PRODUCTS: Product[] = [
     taxFree: false,
     onceOnly: true,
     image: "/products/aftermilk-1l.webp",
+    gallery: [
+      { src: "/products/aftermilk-1l.webp", label: "정면" },
+      { src: "/products/aftermilk-1l-side.webp", label: "브랜드 스토리" },
+      { src: "/products/aftermilk-1l-label.webp", label: "제품 정보" },
+      { src: "/products/aftermilk-1l-steps.webp", label: "사용법" },
+    ],
     accent: "#4f9d3d",
   },
 ];
