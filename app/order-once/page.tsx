@@ -34,6 +34,7 @@ import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSele
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { Track } from "@/components/Track";
+import { VacationNotice } from "@/components/VacationNotice";
 import { GiftOptions } from "@/components/GiftOptions";
 import { DeliveryMethodSelect } from "@/components/DeliveryMethodSelect";
 import { LoadMyInfoButton, type MyInfoFields } from "@/components/LoadMyInfo";
@@ -410,6 +411,8 @@ function OrderOnce() {
         평일(월–목) 자정 전 주문은 다음 날, 금·토·일 주문은 월요일 발송. (발송 월–금)
       </p>
 
+      <VacationNotice className="mt-5" />
+
       {/* 비회원도 주문 가능 — 회원이면 배송지 자동입력·주문내역 조회가 편리하다는 안내 */}
       {!user && (
         <div className="mt-6 rounded-2xl border border-gold/30 bg-gold/5 px-5 py-4 text-[14px] leading-relaxed text-ink-soft">
@@ -524,6 +527,12 @@ function OrderOnce() {
           <p className="mt-3 text-[13px] text-mute">
             상품 합계 {formatKRW(ONCE_MIN_KRW)} 이상부터 주문할 수 있습니다.
             {subtotal > 0 && ` (${formatKRW(ONCE_MIN_KRW - subtotal)} 더 담아 주세요)`}
+            {/* 1회 구매 전용(애프터밀크)이 담겨 있으면 '우유와 함께'를 권한다(교차판매). */}
+            {PRODUCTS.some((p) => p.onceOnly && (qtys[p.id] ?? 0) > 0) && (
+              <span className="mt-1 block text-gold-deep">
+                우유와 함께 담아 보세요 — 애프터밀크는 헤이밀크 750mL 2병과 함께면 채워져요.
+              </span>
+            )}
           </p>
         )}
       </div>

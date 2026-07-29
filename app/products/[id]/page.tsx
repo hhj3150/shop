@@ -16,6 +16,7 @@ import { StickyBuyBar } from "@/components/StickyBuyBar";
 import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights";
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
+import { AftermilkAssurance } from "@/components/AftermilkAssurance";
 import { ProductSignature } from "@/components/ProductSignature";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
@@ -210,9 +211,16 @@ export default async function ProductPage({
       {/* 시그니처 증명 — 제품별 대표 수치 하나를 크게(우유=오메가 2:1, 요거트=병당 유산균) */}
       <ProductSignature signature={product.signature} />
 
-      {/* 신뢰 단서 */}
+      {/* 신뢰 단서 — 유제품은 공통 배지(원유·콜드체인), 애프터밀크는 실내 안심 블록
+          (냄새·벌레 걱정 답변)으로 대체한다. */}
       <div className="mx-auto max-w-3xl px-5 sm:px-8">
-        <TrustBadges />
+        {product.line === "aftermilk" ? (
+          <div className="mt-12">
+            <AftermilkAssurance />
+          </div>
+        ) : (
+          <TrustBadges />
+        )}
       </div>
 
       {/* Specs — quick reference */}
@@ -248,15 +256,16 @@ export default async function ProductPage({
           </summary>
           <div className="pb-6">
         <dl className="divide-y divide-line border-y border-line text-[14px]">
+          {/* 비식품 라인(애프터밀크 퇴비)은 식품 표시 용어 대신 일반 표기를 쓴다. */}
           {(
             [
               ["제품명", `${product.name} ${product.volume}`],
-              ["식품유형", product.label.type],
+              [product.line === "aftermilk" ? "제품유형" : "식품유형", product.label.type],
               ["원재료명", product.label.ingredients],
               ["내용량", product.label.content],
               ["보관방법", product.label.storage],
               ["포장재질", product.label.packaging],
-              ["소비기한", product.label.shelf],
+              [product.line === "aftermilk" ? "사용기한" : "소비기한", product.label.shelf],
               ["제조원·판매원", product.label.maker],
               ["소비자상담", "031-674-3150 · 010-6642-5042"],
             ] as const
@@ -268,13 +277,15 @@ export default async function ProductPage({
           ))}
         </dl>
         <p className="mt-6 text-[11.5px] leading-relaxed text-mute">
-          ※ 본 제품은 식품의 표시기준에 따라 표시되었으며, 부정·불량식품 신고는 국번 없이 1399.
-          소비기한·중량 등 상세 표기는 수령하신 제품의 라벨을 따릅니다.
+          {product.line === "aftermilk"
+            ? "※ 본 제품은 식품이 아닌 원예용 제품입니다. 상세 표기는 수령하신 제품의 라벨을 따릅니다."
+            : "※ 본 제품은 식품의 표시기준에 따라 표시되었으며, 부정·불량식품 신고는 국번 없이 1399. 소비기한·중량 등 상세 표기는 수령하신 제품의 라벨을 따릅니다."}
         </p>
           </div>
         </details>
 
-        {/* 영양정보 */}
+        {/* 영양정보 — 식품 라인만(퇴비 등 비식품은 영양정보가 없다) */}
+        {product.nutrition && (
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center justify-between py-5 font-serif-kr text-xl font-medium text-ink [&::-webkit-details-marker]:hidden">
             <span>영양정보 <span className="text-[13px] font-normal text-mute">({product.nutrition.basis})</span></span>
@@ -314,6 +325,7 @@ export default async function ProductPage({
           </p>
           </div>
         </details>
+        )}
         </div>
       </section>
 

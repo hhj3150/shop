@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
+import { VacationNotice } from "@/components/VacationNotice";
 import {
   type Product,
   type SubPeriod,
@@ -23,7 +24,12 @@ import {
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/subscriptions";
-import { firstSubscriptionDelivery, formatDispatch, nextDispatchDate } from "@/lib/ship-date";
+import {
+  advanceToBusinessDay,
+  firstSubscriptionDelivery,
+  formatDispatch,
+  nextDispatchDate,
+} from "@/lib/ship-date";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, visibleProducts } from "@/lib/storefront-merge";
 import { track } from "@/lib/track";
@@ -39,10 +45,15 @@ export function PurchasePanel({ product }: { product: Product }) {
   // '함께 담기'는 기본 접힘 — 결정 단계를 줄여 핵심 구매 동선을 짧게 유지한다.
   const [extrasOpen, setExtrasOpen] = useState(false);
   // 구매 방식: 정기구독(기본·할인) | 1회 구매(정가). 처음 온 분은 1회로 부담 없이 시작.
-  const [mode, setMode] = useState<"sub" | "once">("sub");
+  //   1회 구매 전용 제품(애프터밀크 등)은 구독 UI 없이 once로 고정한다.
+  const [mode, setMode] = useState<"sub" | "once">(
+    product.onceOnly ? "once" : "sub"
+  );
   // 1회 구매 수량 — 최소 주문금액(정가 24,000원)을 채우는 수량으로 시작.
+  //   1회 구매 전용 제품(애프터밀크)은 '우유와 함께 담기'가 기본 전략이라 1개로 시작
+  //   (수량으로 최소금액을 채우게 하지 않고, 아래 안내가 우유 페어링을 권한다).
   const [onceQty, setOnceQty] = useState(() =>
-    Math.max(1, Math.ceil(ONCE_MIN_KRW / product.price))
+    product.onceOnly ? 1 : Math.max(1, Math.ceil(ONCE_MIN_KRW / product.price))
   );
   // 사용자가 요일을 직접 고른 뒤에는 자동 추천이 선택을 덮어쓰지 않는다.
   const dayTouchedRef = useRef(false);
@@ -112,8 +123,11 @@ export function PurchasePanel({ product }: { product: Product }) {
   const { map, loading: catalogLoading } = useStorefrontCatalog();
   const liveMain = mergeProduct(product, map.get(product.id));
   // 함께 담을 수 있는 다른 제품들(같은 요일 배송). hidden 제외, 본품 제외.
+  //   1회 구매 전용 제품은 매주 반복 배송되는 구독 장바구니에 태울 수 없어 제외.
   //   이름을 addons로 유지해 가격합·담기·렌더 사용처가 한 번에 라이브로 갱신된다.
-  const addons = visibleProducts(PRODUCTS, map).filter((p) => p.id !== product.id);
+  const addons = visibleProducts(PRODUCTS, map).filter(
+    (p) => p.id !== product.id && !p.onceOnly
+  );
 
   const rate = discountForPeriod(period);
   const weeks = periodWeeks(period);
@@ -155,7 +169,13 @@ export function PurchasePanel({ product }: { product: Product }) {
   const selected = counts?.[deliveryDay] ?? null;
   const selectedRemaining = selected ? remaining(selected) : null;
   const selectedFull = selected ? isWaitlisted(selected) : false;
-  const firstDelivery = firstSubscriptionDelivery(deliveryDay);
+  // 첫 배송 '표시'는 실제 발송일로 — 명목 요일이 공휴일·목장 휴무면 로스터가
+  //   다음 영업일로 시프트하므로(deliveryDayHitsDate ③), 같은 규칙으로 보여준다.
+  const firstDelivery = (() => {
+    const d = firstSubscriptionDelivery(deliveryDay);
+    advanceToBusinessDay(d);
+    return d;
+  })();
 
   const setExtraQty = (id: string, q: number) =>
     setExtras((prev) => ({ ...prev, [id]: Math.max(0, q) }));
@@ -211,7 +231,14 @@ export function PurchasePanel({ product }: { product: Product }) {
   return (
     <>
     <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
-      {/* 구매 방식 탭 — 정기구독(할인) | 1회 구매(정가·비회원 가능) */}
+      <VacationNotice className="mb-5" />
+      {/* 구매 방식 탭 — 정기구독(할인) | 1회 구매(정가·비회원 가능).
+          1회 구매 전용 제품은 탭 대신 안내 헤더만 노출한다. */}
+      {product.onceOnly ? (
+        <div className="rounded-full bg-paper-2 px-5 py-2.5 text-center text-[13.5px] font-medium text-ink">
+          1회 구매 <span className="text-mute">· 구독 없이 부담 없이</span>
+        </div>
+      ) : (
       <div className="grid grid-cols-2 gap-1 rounded-full bg-paper-2 p-1" role="tablist">
         <button
           type="button"
@@ -236,6 +263,7 @@ export function PurchasePanel({ product }: { product: Product }) {
           1회 구매
         </button>
       </div>
+      )}
 
       {mode === "sub" && (
       <>
@@ -575,13 +603,21 @@ export function PurchasePanel({ product }: { product: Product }) {
             시 {onceDispatch} 발송
           </p>
 
-          {onceBelowMin && (
-            <p className="mt-4 rounded-xl border border-gold/40 bg-gold/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-gold-deep">
-              단품 최소 주문금액은 {formatKRW(ONCE_MIN_KRW)}이에요. 수량을 올리거나, 다음
-              화면에서 다른 제품을 <span className="font-medium">{formatKRW(onceShort)}</span>어치
-              함께 담을 수 있어요.
-            </p>
-          )}
+          {onceBelowMin &&
+            (product.onceOnly ? (
+              /* 애프터밀크 — 수량 채우기 대신 '우유와 함께'를 권한다(교차판매). */
+              <p className="mt-4 rounded-xl border border-gold/40 bg-gold/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-gold-deep">
+                단품 최소 주문금액은 {formatKRW(ONCE_MIN_KRW)}이에요.{" "}
+                <span className="font-medium">우유와 함께 담아 보세요</span> — 예를 들어
+                헤이밀크 750mL 2병과 함께면 채워져요. 다음 화면에서 함께 담을 수 있어요.
+              </p>
+            ) : (
+              <p className="mt-4 rounded-xl border border-gold/40 bg-gold/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-gold-deep">
+                단품 최소 주문금액은 {formatKRW(ONCE_MIN_KRW)}이에요. 수량을 올리거나, 다음
+                화면에서 다른 제품을 <span className="font-medium">{formatKRW(onceShort)}</span>어치
+                함께 담을 수 있어요.
+              </p>
+            ))}
 
           <button
             onClick={handleBuyOnce}

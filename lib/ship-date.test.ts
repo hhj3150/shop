@@ -54,8 +54,8 @@ describe("nextDispatchDate — 금·토·일은 월요일 발송", () => {
     expect(toISODate(nextDispatchDate(d(2026, 8, 3)))).toBe("2026-08-04"); // 월→화
   });
   it("금 신청 → 다음 주 월", () => {
-    // 8/7(금) → 8/10(월)
-    expect(toISODate(nextDispatchDate(d(2026, 8, 7)))).toBe("2026-08-10");
+    // 8/21(금) → 8/24(월). (8월 둘째 주는 하절기 휴무라 다른 주로 검증)
+    expect(toISODate(nextDispatchDate(d(2026, 8, 21)))).toBe("2026-08-24");
   });
   it("토 신청 → 월", () => {
     expect(toISODate(nextDispatchDate(d(2026, 8, 1)))).toBe("2026-08-03"); // 토→월
@@ -77,5 +77,22 @@ describe("nextDispatchDate — 공휴일 스킵", () => {
   it("연휴가 길게 끼면 연휴 다음 첫 영업일까지 전진(설 연휴)", () => {
     // 2/13(금) → 토 → 주말 → 2/16~2/18(설 연휴) → 2/19(목)
     expect(toISODate(nextDispatchDate(d(2026, 2, 13)))).toBe("2026-02-19");
+  });
+});
+
+describe("nextDispatchDate — 2026 하절기 휴가(8/9~8/17, FARM_CLOSURES)", () => {
+  it("휴가 직전 목요일 자정까지 주문분은 금요일 정상 발송", () => {
+    // 8/6(목) → 8/7(금)
+    expect(toISODate(nextDispatchDate(d(2026, 8, 6)))).toBe("2026-08-07");
+  });
+  it("금(8/7) 신청은 휴무(8/10~14)·주말·광복절 대체(8/17)를 넘겨 8/18(화) 발송", () => {
+    expect(toISODate(nextDispatchDate(d(2026, 8, 7)))).toBe("2026-08-18");
+  });
+  it("휴가 기간 중 신청도 8/18(화) 발송", () => {
+    expect(toISODate(nextDispatchDate(d(2026, 8, 12)))).toBe("2026-08-18"); // 수요일 신청
+    expect(toISODate(nextDispatchDate(d(2026, 8, 16)))).toBe("2026-08-18"); // 일요일 신청
+  });
+  it("휴가 종료 후(8/18 화)엔 평소 규칙으로 복귀 — 익일 발송", () => {
+    expect(toISODate(nextDispatchDate(d(2026, 8, 18)))).toBe("2026-08-19");
   });
 });

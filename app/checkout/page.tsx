@@ -35,6 +35,7 @@ import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSele
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { Track } from "@/components/Track";
+import { VacationNotice } from "@/components/VacationNotice";
 import { GiftOptions } from "@/components/GiftOptions";
 import { DeliveryMethodSelect } from "@/components/DeliveryMethodSelect";
 import { LoadMyInfoButton, type MyInfoFields } from "@/components/LoadMyInfo";
@@ -484,6 +485,8 @@ export default function CheckoutPage() {
         {renewalMode ? "연장을" : "신청을"} 완료하면 다음 화면에서 <span className="text-ink-soft">{PERIOD_LABEL[period]}분({weeks}회)
         입금 금액·계좌</span>를 안내합니다. 입금 확인 후 발송하며, 준비되면 문자로 알려드립니다.
       </p>
+
+      <VacationNotice className="mt-5" />
 
       {/* 주문 요약 */}
       <div className="mt-8 rounded-2xl border border-line bg-cream p-5">

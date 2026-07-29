@@ -37,18 +37,23 @@ export function StickyBuyBar({ product, maxRate }: { product: Product; maxRate: 
     >
       {/* pr-20: 오른쪽 채팅 FAB 자리를 비워 버튼과 겹치지 않게 한다. */}
       <div className="mx-auto flex max-w-md items-center justify-between gap-3 border-t border-line bg-paper/95 px-5 py-2.5 pr-20 shadow-[0_-8px_24px_-16px_rgba(40,30,15,0.35)] backdrop-blur">
+        {/* 1회 구매 전용 제품은 구독 문구 대신 정가·단품 CTA로 바꾼다. */}
         <div className="min-w-0">
-          <p className="text-[11px] leading-none text-mute">정기구독 회원가</p>
+          <p className="text-[11px] leading-none text-mute">
+            {product.onceOnly ? "정가 · 1회 구매" : "정기구독 회원가"}
+          </p>
           <p className="mt-1 text-[15px] font-semibold leading-none text-ink tabular-nums">
-            {formatKRW(memberPrice)}
-            <span className="ml-1 text-[12px] font-normal text-mute">/ 회</span>
+            {formatKRW(product.onceOnly ? live.price : memberPrice)}
+            {!product.onceOnly && (
+              <span className="ml-1 text-[12px] font-normal text-mute">/ 회</span>
+            )}
           </p>
         </div>
         <a
           href="#configure"
           className="shrink-0 rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
         >
-          정기구독 신청
+          {product.onceOnly ? "구매하기" : "정기구독 신청"}
         </a>
       </div>
     </div>
