@@ -461,7 +461,7 @@ export const PRODUCTS: Product[] = [
       content: "500g (1L 카톤)",
       storage: "직사광선을 피해 서늘한 곳에 보관",
       packaging: "종이팩",
-      maker: "생산자 송영신목장 · 판매원 한미종묘",
+      maker: "송영신목장 (직접 생산·판매)",
       shelf: "서늘한 곳 보관 시 10년 이상 사용 가능",
     },
     highlights: {
@@ -472,7 +472,7 @@ export const PRODUCTS: Product[] = [
         { k: "지속", v: "물을 줄 때마다 천천히, ~6개월~ 양분 공급." },
         { k: "대상", v: "실내정원 · 화분의 *모든 반려식물*." },
       ],
-      proof: "생산 송영신목장 · 판매 한미종묘",
+      proof: "송영신목장 직접 생산 · 직접 판매",
     },
     signature: {
       topLabel: "한 번 사용, 양분 공급",
