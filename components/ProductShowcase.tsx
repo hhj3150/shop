@@ -29,11 +29,18 @@ const PRODUCTS_CONFETTI: ConfettiItem[] = [
   { shape: "tilde", color: HEY.rose, size: 34, bottom: "38%", left: "2%", rotate: -10, opacity: 0.45 },
 ];
 
+// 노출 제품 수 → 한글 수사. 판매중지(숨김)로 개수가 바뀌어도 제목이 어긋나지 않게.
+const COUNT_KR = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열"];
+
 export function ProductShowcase() {
   const [filter, setFilter] = useState<Filter>("all");
   const { map } = useStorefrontCatalog();
   const live = visibleProducts(PRODUCTS, map);
   const shown = filter === "all" ? live : live.filter((p) => p.line === filter);
+  // 숨김 제품만 있는 라인은 필터 칩도 숨긴다(눌러도 빈 목록만 나오는 칩 방지).
+  const filters = FILTERS.filter(
+    (f) => f.key === "all" || live.some((p) => p.line === f.key)
+  );
 
   return (
     <section id="products" className="relative scroll-mt-20 overflow-hidden">
@@ -44,7 +51,7 @@ export function ProductShowcase() {
       <Reveal>
         <p className="eyebrow text-gold-deep">Collection</p>
         <h2 className="mt-3 font-serif-kr text-[clamp(1.9rem,4.5vw,3rem)] font-medium leading-[1.2] tracking-[-0.015em] text-ink">
-          단 다섯 가지.
+          단 {COUNT_KR[live.length] ?? live.length} 가지.
           <br />
           <span className="text-mute">곁에 둘 가치가 있는 것만.</span>
         </h2>
@@ -57,7 +64,7 @@ export function ProductShowcase() {
       {/* Category chips */}
       <div className="mt-10 flex justify-center">
         <div className="inline-flex gap-1.5 rounded-full border border-line bg-cream/70 p-1.5 backdrop-blur-sm">
-          {FILTERS.map((f) => (
+          {filters.map((f) => (
             <button
               key={f.key}
               type="button"
