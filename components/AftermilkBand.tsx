@@ -105,13 +105,20 @@ export function AftermilkBand() {
         <p className="font-display text-[13px] uppercase tracking-[0.32em] text-gold-deep sm:text-[14px]">
           After Milk · Living Soil for Plant Parents
         </p>
-        <h2 className="mt-4 font-serif-kr text-[clamp(1.9rem,5vw,2.6rem)] font-medium leading-[1.15] text-ink">
-          반려식물전용퇴비 <span className="text-gold-deep">애프터밀크</span>
+        {/* 카테고리(반려식물 전용 퇴비)가 주인공 — 골드로 크게, 제품명은 받침 줄 */}
+        <h2 className="mt-4 font-serif-kr text-[clamp(1.9rem,5vw,2.6rem)] font-medium leading-[1.18] text-ink">
+          <span className="text-gold-deep">반려식물 전용 퇴비</span>
+          <br />
+          애프터밀크
         </h2>
 
         <div className="mt-6 space-y-2.5 text-[clamp(1.05rem,2.4vw,1.3rem)] font-medium leading-relaxed text-ink-soft">
           <p>우유가 끝이 아닙니다. 순환이 시작됩니다.</p>
-          <p>식물 집사의 실내정원, 집 안 화분의 모든 반려식물을 위한 살아 있는 흙.</p>
+          <p>
+            식물 집사의 실내정원, 집 안 화분 —{" "}
+            <strong className="font-medium text-ink">반려식물만을 위해 만든 전용 퇴비</strong>
+            입니다.
+          </p>
           <p className="text-ink">튼튼한 뿌리를 내려주렴 — After Milk.</p>
         </div>
 
