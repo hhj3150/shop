@@ -58,3 +58,23 @@ export const KR_HOLIDAYS: ReadonlySet<string> = new Set<string>([
 export function isHolidayISO(iso: string): boolean {
   return KR_HOLIDAYS.has(iso);
 }
+
+// ── 목장 자체 휴무일(발송 불가일) ──
+// 공휴일이 아닌 목장 휴무(하절기 휴가 등). 발송일 계산에서 공휴일과 동일하게 건너뛴다.
+// ⚠ SQL public.kr_holidays 테이블에도 같은 날짜를 넣어야 서버 발송일 계산과 일치한다
+//   (supabase/migration-summer-closure-2026.sql 참고).
+// 주말·공휴일과 겹치는 날은 기재하지 않는다(어차피 건너뜀) — 평일 휴무만 적는다.
+export const FARM_CLOSURES: ReadonlySet<string> = new Set<string>([
+  // 2026 하절기 휴가: 8/9(일)~8/17(월). 8/15(토)·8/16(일)·8/17(광복절 대체공휴일)은
+  // 기본 규칙으로 건너뛰므로 평일 휴무 8/10~8/14만 기재. 발송 재개는 8/18(화).
+  "2026-08-10",
+  "2026-08-11",
+  "2026-08-12",
+  "2026-08-13",
+  "2026-08-14",
+]);
+
+/** 발송 불가일인지 — 공휴일 또는 목장 휴무일. 발송일 계산은 이 함수를 쓴다. */
+export function isDispatchBlockedISO(iso: string): boolean {
+  return KR_HOLIDAYS.has(iso) || FARM_CLOSURES.has(iso);
+}

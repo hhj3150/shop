@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
+import { VacationNotice } from "@/components/VacationNotice";
 import {
   type Product,
   type SubPeriod,
@@ -23,7 +24,12 @@ import {
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/subscriptions";
-import { firstSubscriptionDelivery, formatDispatch, nextDispatchDate } from "@/lib/ship-date";
+import {
+  advanceToBusinessDay,
+  firstSubscriptionDelivery,
+  formatDispatch,
+  nextDispatchDate,
+} from "@/lib/ship-date";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, visibleProducts } from "@/lib/storefront-merge";
 import { track } from "@/lib/track";
@@ -163,7 +169,13 @@ export function PurchasePanel({ product }: { product: Product }) {
   const selected = counts?.[deliveryDay] ?? null;
   const selectedRemaining = selected ? remaining(selected) : null;
   const selectedFull = selected ? isWaitlisted(selected) : false;
-  const firstDelivery = firstSubscriptionDelivery(deliveryDay);
+  // 첫 배송 '표시'는 실제 발송일로 — 명목 요일이 공휴일·목장 휴무면 로스터가
+  //   다음 영업일로 시프트하므로(deliveryDayHitsDate ③), 같은 규칙으로 보여준다.
+  const firstDelivery = (() => {
+    const d = firstSubscriptionDelivery(deliveryDay);
+    advanceToBusinessDay(d);
+    return d;
+  })();
 
   const setExtraQty = (id: string, q: number) =>
     setExtras((prev) => ({ ...prev, [id]: Math.max(0, q) }));
@@ -219,6 +231,7 @@ export function PurchasePanel({ product }: { product: Product }) {
   return (
     <>
     <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
+      <VacationNotice className="mb-5" />
       {/* 구매 방식 탭 — 정기구독(할인) | 1회 구매(정가·비회원 가능).
           1회 구매 전용 제품은 탭 대신 안내 헤더만 노출한다. */}
       {product.onceOnly ? (

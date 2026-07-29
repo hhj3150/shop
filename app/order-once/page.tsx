@@ -34,6 +34,7 @@ import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSele
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { Track } from "@/components/Track";
+import { VacationNotice } from "@/components/VacationNotice";
 import { GiftOptions } from "@/components/GiftOptions";
 import { DeliveryMethodSelect } from "@/components/DeliveryMethodSelect";
 import { LoadMyInfoButton, type MyInfoFields } from "@/components/LoadMyInfo";
@@ -409,6 +410,8 @@ function OrderOnce() {
         <br className="hidden sm:block" />
         평일(월–목) 자정 전 주문은 다음 날, 금·토·일 주문은 월요일 발송. (발송 월–금)
       </p>
+
+      <VacationNotice className="mt-5" />
 
       {/* 비회원도 주문 가능 — 회원이면 배송지 자동입력·주문내역 조회가 편리하다는 안내 */}
       {!user && (

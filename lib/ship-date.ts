@@ -4,13 +4,13 @@
 //   - 금·토·일 신청 → 다음 영업일인 월요일 발송
 //   - 위로 정해진 발송일이 공휴일이면 다음 영업일로 미룬다(신선식품 — 공휴일 출고 시 상함).
 
-import { isHolidayISO } from "./holidays";
+import { isDispatchBlockedISO } from "./holidays";
 
 const WEEKDAY_KR = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
-/** 토·일·공휴일이면 다음 영업일(평일·비공휴일)까지 전진시킨다(d 를 직접 수정). */
+/** 토·일·공휴일·목장 휴무일이면 다음 영업일까지 전진시킨다(d 를 직접 수정). */
 export function advanceToBusinessDay(d: Date): void {
-  while (d.getDay() === 0 || d.getDay() === 6 || isHolidayISO(toISODate(d))) {
+  while (d.getDay() === 0 || d.getDay() === 6 || isDispatchBlockedISO(toISODate(d))) {
     d.setDate(d.getDate() + 1);
   }
 }
