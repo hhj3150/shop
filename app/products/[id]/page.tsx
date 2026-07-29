@@ -17,6 +17,7 @@ import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
 import { AftermilkAssurance } from "@/components/AftermilkAssurance";
+import { ProductGallery } from "@/components/ProductGallery";
 import { ProductSignature } from "@/components/ProductSignature";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
@@ -145,17 +146,25 @@ export default async function ProductPage({
           {/* 이미지 — 데스크톱에선 왼편 고정: 구매 영역을 스크롤하는 동안 제품이 항상 보인다. */}
           {/*   모바일은 높이를 제한해 제품과 구매 영역이 한 화면에 함께 보이게 한다. */}
           <div className="lg:sticky lg:top-24">
-            <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:h-auto lg:aspect-[4/5] lg:max-w-none">
-              <Image
-                src={product.image}
+            {/* 멀티 컷 제품(gallery)은 썸네일 갤러리, 그 외엔 단일 이미지 */}
+            {product.gallery ? (
+              <ProductGallery
+                images={product.gallery}
                 alt={`${product.name} ${product.volume}`}
-                width={1200}
-                height={1200}
-                priority
-                sizes="(max-width:1024px) 92vw, 46vw"
-                className="h-full w-full object-contain p-6 sm:p-10"
               />
-            </div>
+            ) : (
+              <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:h-auto lg:aspect-[4/5] lg:max-w-none">
+                <Image
+                  src={product.image}
+                  alt={`${product.name} ${product.volume}`}
+                  width={1200}
+                  height={1200}
+                  priority
+                  sizes="(max-width:1024px) 92vw, 46vw"
+                  className="h-full w-full object-contain p-6 sm:p-10"
+                />
+              </div>
+            )}
           </div>
 
           {/* 오른쪽 구매 컬럼 — 구매 결정에 필요한 것만(제품명·별점·가격·구매). 설명은 아래로. */}
