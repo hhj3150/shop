@@ -64,6 +64,11 @@ export function isHolidayISO(iso: string): boolean {
 // ⚠ SQL public.kr_holidays 테이블에도 같은 날짜를 넣어야 서버 발송일 계산과 일치한다
 //   (supabase/migration-summer-closure-2026.sql 참고).
 // 주말·공휴일과 겹치는 날은 기재하지 않는다(어차피 건너뜀) — 평일 휴무만 적는다.
+//
+// ★ 이 목록은 정기구독 '그 주 이월' 판정의 기준이다(ship-date.ts closureDefersWeek).
+//   휴무로 그 주에 발송할 날이 없으면 회차를 다음 주 같은 요일로 미룬다(총 회차 보존).
+//   공휴일(KR_HOLIDAYS)은 이월하지 않고 같은 주 다음 영업일에 발송한다 — 그래서
+//   공휴일과 겹치는 날은 여기에 넣지 않는다(넣으면 그 요일 회차가 한 주 밀려버린다).
 export const FARM_CLOSURES: ReadonlySet<string> = new Set<string>([
   // 2026 하절기 휴가: 8/9(일)~8/17(월). 8/15(토)·8/16(일)·8/17(광복절 대체공휴일)은
   // 기본 규칙으로 건너뛰므로 평일 휴무 8/10~8/14만 기재. 발송 재개는 8/18(화).
@@ -73,6 +78,11 @@ export const FARM_CLOSURES: ReadonlySet<string> = new Set<string>([
   "2026-08-13",
   "2026-08-14",
 ]);
+
+/** 목장 자체 휴무일인지(공휴일 제외). 정기구독 '그 주 이월' 판정에 쓴다. */
+export function isFarmClosureISO(iso: string): boolean {
+  return FARM_CLOSURES.has(iso);
+}
 
 /** 발송 불가일인지 — 공휴일 또는 목장 휴무일. 발송일 계산은 이 함수를 쓴다. */
 export function isDispatchBlockedISO(iso: string): boolean {

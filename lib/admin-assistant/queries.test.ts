@@ -262,3 +262,37 @@ describe("recruitmentStatus", () => {
     expect(r.waitlist).toBe(1);
   });
 });
+
+describe("deliveryRoster / productionDemand — 연장(재구독) 중복 배송 가드", () => {
+  // 슬롯 7: 원구독 4회(2026-06-03 수 시작) + 연장 4회(입금확인). 연장분은 5회차부터다.
+  // 블록 게이팅 없이 두 주문을 모두 명단에 넣으면 연장 입금확인 시점부터 매주 두 번 발송된다.
+  const orig = order({ id: "orig", block_weeks: 4, created_at: "2026-06-01T00:00:00" });
+  const renew = order({
+    id: "renew",
+    block_weeks: 4,
+    renews_slot_id: 7,
+    created_at: "2026-06-20T00:00:00",
+  });
+  // 연장 시 구성을 바꿨다(3병 → 5병) — 어느 블록이 잡혔는지 수량으로 구분한다.
+  const items = [item({ order_id: "orig", qty: 3 }), item({ order_id: "renew", qty: 5 })];
+  const slots: SlotLite[] = [
+    subSlot({ id: 7, order_id: "orig", delivery_day: "wed", started_at: "2026-06-03", extended_weeks: 4 }),
+  ];
+
+  it("원구독 구간(3회차 6/17)엔 원구독 구성 1건만", () => {
+    const days = deliveryRoster([orig, renew], items, slots, "2026-06-17", "2026-06-17");
+    expect(days[0].rows).toHaveLength(1);
+    expect(days[0].rows[0].products).toBe("헤이밀크 750mL×3");
+  });
+
+  it("연장 구간(5회차 7/1)엔 연장 구성 1건만 — 원구독과 겹치지 않는다", () => {
+    const days = deliveryRoster([orig, renew], items, slots, "2026-07-01", "2026-07-01");
+    expect(days[0].rows).toHaveLength(1);
+    expect(days[0].rows[0].products).toBe("헤이밀크 750mL×5");
+  });
+
+  it("생산수요도 회당 3병 — 연장 중복으로 6병이 되지 않는다", () => {
+    const r = productionDemand([orig, renew], items, slots, "2026-06-17", "2026-06-17");
+    expect(r.total["헤이밀크 750mL"]).toBe(3);
+  });
+});

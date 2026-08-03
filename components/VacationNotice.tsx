@@ -29,9 +29,14 @@ export function VacationNotice({ className = "" }: { className?: string }) {
       className={`rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3 text-[13px] leading-relaxed text-gold-deep ${className}`}
     >
       <strong className="font-medium">하절기 휴가 안내</strong> — 8월 9일(일)부터 8월
-      17일(월)까지 목장 발송이 쉬어갑니다. 이 기간에 걸린 주문·배송분은{" "}
+      17일(월)까지 목장 발송이 쉬어갑니다. 단품 주문은{" "}
       <strong className="font-medium">8월 18일(화) 발송 예정</strong>입니다. (8월 6일(목)
       자정까지 주문분은 8월 7일(금) 정상 발송)
+      <br />
+      정기구독은 휴무에 걸린 회차를 <strong className="font-medium">다음 주 같은 요일</strong>로
+      이어 보내드립니다 — 월요일 구독은 8월 17일이 광복절 대체공휴일이라 8월 18일(화)에 화요일
+      구독과 함께 발송되고, 수·목·금은 8월 19·20·21일입니다. 총 배송 회차는 그대로이며 종료일만
+      한 주 밀립니다.
     </div>
   );
 }

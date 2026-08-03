@@ -611,3 +611,40 @@ describe("compositionSignature", () => {
     expect(a).toBe(b); // 순서 달라도 동일 키
   });
 });
+
+describe("buildRosterForDate — 연장(재구독) 중복 배송 가드", () => {
+  // 원구독 4회(06-01 월 시작) + 연장 4회. 연장분은 5회차부터 시작해야 하며,
+  // 연장 입금확인 시점부터 원구독과 나란히 발송되면 매주 두 번 나간다(중복 배송).
+  const orig = order({ id: "orig", block_weeks: 4 });
+  const renew = order({ id: "renew", block_weeks: 4, renews_slot_id: 7 });
+  const items = [item({ order_id: "orig" }), item({ order_id: "renew" })];
+  const slots = new Map([["orig", slot({ extended_weeks: 4 })]]);
+
+  it("블록 데이터가 없으면 연장주문 행은 제외 — 원구독 행 1건만 발송", () => {
+    const r = build({ orders: [orig, renew], items, slots, dateISO: "2026-06-15" });
+    expect(r.map((e) => e.order.id)).toEqual(["orig"]);
+  });
+
+  it("블록 데이터가 있으면 원구독 구간엔 원구독, 연장 구간엔 연장 1건씩만", () => {
+    const blocksBySlot = new Map<number, RawBlock[]>([
+      [
+        7,
+        [
+          { orderId: "orig", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, items: [{ productName: "송영신우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
+          { orderId: "renew", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, items: [{ productName: "송영신우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
+        ],
+      ],
+    ]);
+    const maps = {
+      blocksBySlot,
+      slotIdByOrder: new Map([["orig", 7], ["renew", 7]]),
+      slotById: new Map([[7, slot({ extended_weeks: 4 })]]),
+    };
+    // 3회차(06-15) = 원구독 구간
+    expect(build({ orders: [orig, renew], items, slots, dateISO: "2026-06-15", ...maps }).map((e) => e.order.id))
+      .toEqual(["orig"]);
+    // 5회차(06-29) = 연장 구간
+    expect(build({ orders: [orig, renew], items, slots, dateISO: "2026-06-29", ...maps }).map((e) => e.order.id))
+      .toEqual(["renew"]);
+  });
+});

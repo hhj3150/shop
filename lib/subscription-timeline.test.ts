@@ -149,8 +149,11 @@ describe("activeBlockOrderForDate (배송 시트·기간별 명단 공용 게이
     expect(activeBlockOrderForDate({ ...slot, paused: true, paused_at: "2026-06-20" }, blocks, "2026-07-06")).toBeNull();
   });
   it("소진 후(총 12회 지난) 날짜는 null", () => {
-    // 마지막 회차12 예정일 = 06-08 + 11*7 = 08-24(월). 그 다음 월요일 08-31.
-    expect(activeBlockOrderForDate(slot, blocks, "2026-08-31")).toBeNull();
+    // 회차12 예정일 = 06-08 + 11*7 = 08-24(월)이지만, 8/10(월) 회차가 하계 휴무 주에 걸려
+    //   다음 주로 이월되면서 이후 회차가 모두 한 주씩 밀린다 → 마지막 회차는 08-31(월).
+    //   그 다음 월요일 09-07 이 소진 후 첫 날짜.
+    expect(activeBlockOrderForDate(slot, blocks, "2026-08-31")).toBe("o1");
+    expect(activeBlockOrderForDate(slot, blocks, "2026-09-07")).toBeNull();
   });
 });
 

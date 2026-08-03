@@ -96,3 +96,36 @@ describe("nextDispatchDate — 2026 하절기 휴가(8/9~8/17, FARM_CLOSURES)", 
     expect(toISODate(nextDispatchDate(d(2026, 8, 18)))).toBe("2026-08-19");
   });
 });
+
+describe("deliveryDayHitsDate — 2026 하절기 휴가(8/9~8/17) 정기구독 배송일", () => {
+  const days = ["mon", "tue", "wed", "thu", "fri"] as const;
+
+  it("휴무 주(8/10~8/14)에는 어느 요일도 배송하지 않는다", () => {
+    for (const iso of ["2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14"]) {
+      for (const day of days) {
+        expect(deliveryDayHitsDate(day, iso).hits, `${day} @ ${iso}`).toBe(false);
+      }
+    }
+  });
+
+  it("8/18(화)은 월·화만 — 8/17(광복절 대체) 월요일분이 8/18로 합류", () => {
+    expect(deliveryDayHitsDate("mon", "2026-08-18")).toEqual({ hits: true, shifted: true });
+    expect(deliveryDayHitsDate("tue", "2026-08-18")).toEqual({ hits: true, shifted: false });
+    // 휴무 주(8/12~8/14)분은 다음 주 같은 요일로 이월되므로 8/18에 몰리지 않는다.
+    expect(deliveryDayHitsDate("wed", "2026-08-18").hits).toBe(false);
+    expect(deliveryDayHitsDate("thu", "2026-08-18").hits).toBe(false);
+    expect(deliveryDayHitsDate("fri", "2026-08-18").hits).toBe(false);
+  });
+
+  it("수·목·금은 그 주 제 요일에 정상 발송(8/19·8/20·8/21)", () => {
+    expect(deliveryDayHitsDate("wed", "2026-08-19").hits).toBe(true);
+    expect(deliveryDayHitsDate("thu", "2026-08-20").hits).toBe(true);
+    expect(deliveryDayHitsDate("fri", "2026-08-21").hits).toBe(true);
+  });
+
+  it("공휴일 하루가 낀 주는 기존대로 같은 주 다음 영업일 발송(이월 아님)", () => {
+    // 5/5 어린이날(화) → 5/6(수) 도착. 주 이월 규칙이 공휴일까지 삼키지 않는지 확인.
+    expect(deliveryDayHitsDate("tue", "2026-05-05").hits).toBe(false);
+    expect(deliveryDayHitsDate("tue", "2026-05-06")).toEqual({ hits: true, shifted: true });
+  });
+});
