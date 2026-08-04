@@ -177,3 +177,52 @@ describe("2026 하절기 휴가(8/9~8/17) — 그 주 회차 이월", () => {
     }
   });
 });
+
+describe("회차 충돌 가드 — 예정일이 주말로 밀려도 회차가 사라지지 않는다", () => {
+  // 정지 적립이 7의 배수가 아니면 예정일이 앵커 요일에서 밀려 주말에 놓인다. 주말은 목장
+  // 휴무일이 아니라 '휴무 주 이월' 판정을 통과해버리고, advanceToBusinessDay 가 연속 두
+  // 회차를 휴무 주 너머 같은 영업일로 밀어 한 회차가 통째로 사라졌다.
+  //   실제 사례(슬롯 39): 화요일 앵커 2026-06-16 + 정지 11일 → 예정일이 전부 토요일.
+  //   7·8회차 예정일 8/8·8/15(토)가 둘 다 8/18 로 뭉개져 12회 중 11회만 남았다.
+  const dates = (input: Parameters<typeof computeSchedule>[0], n: number): string[] =>
+    Array.from({ length: n }, (_, i) =>
+      computeSchedule({ ...input, totalWeeks: i + 1 }, new Date("2030-01-01T00:00:00"))
+        .endDate as string
+    );
+
+  const drifted = {
+    startedAt: "2026-06-16", // 화
+    firstShipDate: null,
+    paused: false,
+    pausedAt: null,
+    pausedDays: 11, // 7의 배수가 아님 → 예정일이 토요일로 드리프트
+    totalWeeks: 12,
+  };
+
+  it("12회차가 모두 다른 날짜다(8/18 중복 없음)", () => {
+    const ds = dates(drifted, 12);
+    expect(new Set(ds).size, `중복 발송일: ${ds}`).toBe(12);
+    expect(ds.filter((d) => d === "2026-08-18")).toHaveLength(1);
+  });
+
+  it("배송일은 회차 순으로 단조 증가한다", () => {
+    const ds = dates(drifted, 12);
+    for (let i = 1; i < ds.length; i++) {
+      expect(ds[i] > ds[i - 1], `${ds[i - 1]} → ${ds[i]}`).toBe(true);
+    }
+  });
+
+  it("정지 적립이 주 단위(14일)면 가드는 발동하지 않고 화요일 cadence 가 유지된다", () => {
+    // 주 단위 적립이 정상 상태 — 앵커 요일이 보존되므로 로스터(요일 기준)와 같은 날짜가 나온다.
+    const ds = dates({ ...drifted, pausedDays: 14 }, 12);
+    expect(ds).toEqual([
+      "2026-06-30", "2026-07-07", "2026-07-14", "2026-07-21",
+      "2026-07-28", "2026-08-04", "2026-08-18", "2026-08-25",
+      "2026-09-01", "2026-09-08", "2026-09-15", "2026-09-22",
+    ]);
+    // 8/18(휴무 이월 도착일)을 뺀 나머지는 전부 화요일이어야 한다.
+    for (const d of ds) {
+      expect(new Date(`${d}T00:00:00`).getDay(), d).toBe(2);
+    }
+  });
+});
