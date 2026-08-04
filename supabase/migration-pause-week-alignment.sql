@@ -288,6 +288,64 @@ grant execute on function public.auto_resume_skips(text) to anon;
 
 
 -- ═════════════════════════════════════════════════════════════
+-- F) 임시 휴무일 등록 — 개인 사정·휴가로 그 날 발송을 못 할 때
+--
+--    사장님 사정으로 발송일이 바뀌는 일이 가끔 있다. 그냥 그날 안 보내면 시스템은 모른다:
+--      · 예고 문자는 그대로 나가고(고객은 온다고 알고 있다)
+--      · 회차는 '배송된 것'으로 세어져 종료일이 앞당겨진다(고객이 한 회차를 손해 본다)
+--    이미 만들어 둔 목장 휴무(is_farm_closure) 기제가 정확히 이 용도다 — 등록하면
+--    그 주 회차가 '다음 주 같은 요일'로 이월되고(총 회차 보존) 명단·예고문자·환불이 자동으로 따라온다.
+--
+--    ★ 반드시 '그 날이 오기 전에' 등록할 것. 지난 날짜를 뒤늦게 휴무로 등록하면 이미 나간
+--      배송의 회차 계산까지 소급해 흔들린다 → 아래 함수는 과거·당일 등록을 거부한다.
+--      예고 문자는 발송일 '전날' 나가므로, 늦어도 이틀 전에는 등록해야 잘못된 예고를 막는다.
+-- ═════════════════════════════════════════════════════════════
+create or replace function public.set_farm_closure(
+  p_dates date[],
+  p_on    boolean default true
+)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_today date := (now() at time zone 'Asia/Seoul')::date;
+  v_bad   date;
+  v_n     int := 0;
+begin
+  if not public.is_admin() then raise exception '관리자만 가능합니다.'; end if;
+  if p_dates is null or array_length(p_dates, 1) is null then
+    raise exception '날짜를 하나 이상 지정해 주세요.';
+  end if;
+
+  -- 과거·당일은 거부 — 이미 나간 배송의 회차 계산이 소급해 흔들린다.
+  select d into v_bad from unnest(p_dates) d where d <= v_today limit 1;
+  if v_bad is not null then
+    raise exception '지난 날짜(%)는 휴무로 등록할 수 없습니다. 발송일 전에 등록해 주세요.', v_bad;
+  end if;
+
+  if p_on then
+    insert into public.kr_holidays (d, is_farm_closure)
+      select d, true from unnest(p_dates) d
+    on conflict (d) do update set is_farm_closure = true;
+    get diagnostics v_n = row_count;
+  else
+    -- 해제는 목장 휴무로 등록한 행만 삭제한다. 법정공휴일(is_farm_closure=false)은 건드리지 않는다
+    --   — 지우면 그 날 발송 가능일이 되어 신선식품이 공휴일에 나간다.
+    delete from public.kr_holidays h
+     where h.d = any(p_dates) and h.is_farm_closure;
+    get diagnostics v_n = row_count;
+  end if;
+
+  return v_n;
+end;
+$$;
+
+grant execute on function public.set_farm_closure(date[], boolean) to authenticated;
+
+
+-- ═════════════════════════════════════════════════════════════
 -- D) 백필 — 드리프트한 기존 슬롯을 주 단위로 정렬
 --    슬롯 39(화요일 구독, 앵커 2026-06-16): 정지로 실제 거른 배송은 06-23·06-30 두 회차.
 --    shipment_log 로 확인 — 그 두 화요일에만 발송이 없고 07-07 부터 재개됐다.
@@ -355,3 +413,21 @@ commit;
 --   e) 계정·환불(computeSchedule)과 발송 명단·예고 문자가 같은 날짜를 내는지
 --      → lib/schedule-consistency.test.ts 가 전 요일 × 정지 0/7/14/28일에 대해 검증한다.
 --        (npx vitest run lib/schedule-consistency.test.ts)
+--
+--   f) [상시 점검] 앵커 요일과 배송 요일이 어긋난 슬롯 — 항상 0 이어야 한다.
+--      apply_renewal_slot_change 는 '요일 변경 연장' 시 slot.delivery_day 는 옮기지만
+--      앵커(started_at)는 그대로 둔다. 그러면 발송 명단·예고 문자는 새 요일로 가고
+--      계정 화면·환불은 옛 요일을 말한다 — 이 파일이 고친 것과 같은 종류의 어긋남이다.
+--      (2026-08-04 기준 해당 슬롯 0건 = 아직 발생 안 한 잠복 경로. 발생하면 아래가 잡는다.)
+--
+--      with m(day,dow) as (values ('mon',1),('tue',2),('wed',3),('thu',4),('fri',5))
+--      select s.id, s.started_at, to_char(s.started_at,'Dy') as 앵커요일, s.delivery_day as 배송요일
+--        from public.subscription_slots s join m on m.day = s.delivery_day
+--       where s.status in ('활성','대기')
+--         and extract(dow from s.started_at)::int <> m.dow;
+--      → 0 행. 행이 나오면 그 슬롯은 계정 화면과 실제 발송일이 갈린 상태다.
+--
+--   g) 고객 사정(휴가 등)으로 배송을 미룰 때 — 정지/건너뛰기 RPC 만 쓸 것.
+--      pause_subscription → resume_subscription, 또는 skip_next_delivery.
+--      둘 다 '거른 회차 수 × 7'로 적립되어 요일이 밀리지 않고 총 회차가 보존된다.
+--      DB 에서 paused_days 를 손으로 만지면 7의 배수가 아닌 값이 들어가 다시 어긋난다.
