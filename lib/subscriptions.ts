@@ -446,7 +446,10 @@ export async function resumeSubscription(slotId: number): Promise<void> {
 }
 
 // 이번 주(다음 배송 1회) 건너뛰기. skipDate = 건너뛸 다음 배송 예정일(computeSchedule 의 nextDate).
-//   서버가 그 날짜+1에 자동재개(7일 적립)하도록 예약 → 총 회차 보존, 종료일만 +7.
+//   서버가 그 날짜+1에 자동재개하도록 예약 → 총 회차 보존, 종료일만 밀림.
+//   적립은 고정 7일이 아니라 '정지 구간에 실제로 걸린 배송 요일 횟수 × 7'이다
+//   (missed_delivery_weeks). 신청 시점과 건너뛸 날 사이에 배송 요일이 두 번 들어가면
+//   두 회차가 빠지므로 14일이 적립된다 — 요일이 밀리지 않아 발송 명단·예고 문자와 어긋나지 않는다.
 export async function skipNextDelivery(slotId: number, skipDate: string): Promise<void> {
   const { error } = await getSupabase().rpc("skip_next_delivery", {
     p_slot_id: slotId,

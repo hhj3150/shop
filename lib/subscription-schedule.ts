@@ -88,20 +88,37 @@ export function computeSchedule(input: SubInput, now: Date = new Date()): SubSch
   //     한다 — 아니면 이월된 회차와 그 다음 회차가 같은 날로 겹쳐 한 회차가 사라진다.
   //     (예: 2026 하계휴무 — 월요일 구독의 8/10·8/17 회차가 둘 다 8/18 로 뭉개졌다.)
   //     총 회차는 보존되고 종료일만 이월한 주 수만큼 밀린다(일시정지·건너뛰기와 같은 원칙).
+  //
+  //   ★ 회차 충돌 가드: 위 휴무 판정은 '예정일이 휴무일일 때'만 걸린다. 예정일이 주말이면
+  //     (정지일수가 7의 배수가 아니어서 앵커 요일이 밀린 경우) 휴무일이 아니라 판정을 건너뛰고,
+  //     advanceToBusinessDay 가 연속 두 회차를 휴무 주 너머 같은 영업일로 밀어 한 회차가 사라진다.
+  //     → 최종 배송일이 직전 회차보다 뒤가 될 때까지 주 단위로 더 이월한다. 휴무 케이스도 이
+  //     규칙에 포섭되고, 배송일이 단조 증가하므로 반드시 종료한다.
+  //     (정지 적립이 주 단위로 정렬된 정상 상태에서는 발동하지 않는 안전망이다.)
   const dates: Date[] = [];
   let deferDays = 0;
   for (let k = 1; k <= total; k++) {
-    let base =
+    // 이 회차의 앵커 기준 예정일(누적 이월 전).
+    const scheduled =
       k === 1
-        ? addDays(firstBase, totalPausedDays + deferDays)
-        : addDays(anchor, (k - 1) * 7 + totalPausedDays + deferDays);
-    const add = closureDeferDays(toISO(base));
-    if (add > 0) {
-      deferDays += add;
-      base = addDays(base, add);
+        ? addDays(firstBase, totalPausedDays)
+        : addDays(anchor, (k - 1) * 7 + totalPausedDays);
+    const prev = dates[k - 2];
+    let extra = 0;
+    let ship: Date;
+    for (let guard = 0; ; guard++) {
+      const base = addDays(scheduled, deferDays + extra);
+      const closure = closureDeferDays(toISO(base));
+      ship = addDays(base, closure); // addDays 는 새 Date → 변이 안전
+      advanceToBusinessDay(ship);
+      if (!prev || ship.getTime() > prev.getTime() || guard >= 60) {
+        extra += closure;
+        break;
+      }
+      extra += 7; // 직전 회차와 겹친다 → 한 주 더 이월하고 다시 계산
     }
-    advanceToBusinessDay(base); // addDays 는 새 Date → 변이 안전
-    dates.push(base);
+    deferDays += extra;
+    dates.push(ship);
   }
   const deliveryDate = (k: number) => dates[k - 1];
 
