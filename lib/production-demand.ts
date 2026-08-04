@@ -5,6 +5,7 @@
 import type { DeliveryEntry } from "./delivery-roster";
 import type { DeliveryDay } from "./cart";
 import { activeBlockForDate, type RawBlock } from "./subscription-timeline";
+import { closureDefersWeek } from "./ship-date";
 
 // 집계에 필요한 품목 최소 필드.
 type DemandItem = { product_name: string; volume: string; qty: number };
@@ -87,6 +88,9 @@ export function buildWeeklyMatrix(
     // 활성 블록의 요일 칸에만 1회 계상. 주중 요일마다 평가하되, 활성 블록의 요일과 일치하는
     //   요일에서만 더해 중복을 막는다.
     for (const wd of WEEKDAYS) {
+      // 목장 휴무로 그 주 회차가 다음 주로 이월되면 이번 주엔 발송이 없다 → 생산도 없다.
+      //   (공휴일 하루가 낀 요일은 같은 주 다음 영업일에 나가므로 계상 유지 — 생산은 필요하다.)
+      if (closureDefersWeek(weekDates[wd])) continue;
       const active = activeBlockForDate(input, weekDates[wd]);
       if (!active || active.deliveryDay !== wd) continue;
       for (const it of active.items) {

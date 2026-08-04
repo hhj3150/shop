@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   deliveryDayHitsDate,
+  firstShipDateFor,
   firstDeliveryOnOrAfter,
   nextDispatchDate,
   toISODate,
@@ -94,5 +95,53 @@ describe("nextDispatchDate — 2026 하절기 휴가(8/9~8/17, FARM_CLOSURES)", 
   });
   it("휴가 종료 후(8/18 화)엔 평소 규칙으로 복귀 — 익일 발송", () => {
     expect(toISODate(nextDispatchDate(d(2026, 8, 18)))).toBe("2026-08-19");
+  });
+});
+
+describe("deliveryDayHitsDate — 2026 하절기 휴가(8/9~8/17) 정기구독 배송일", () => {
+  const days = ["mon", "tue", "wed", "thu", "fri"] as const;
+
+  it("휴무 주(8/10~8/14)에는 어느 요일도 배송하지 않는다", () => {
+    for (const iso of ["2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14"]) {
+      for (const day of days) {
+        expect(deliveryDayHitsDate(day, iso).hits, `${day} @ ${iso}`).toBe(false);
+      }
+    }
+  });
+
+  it("8/18(화)은 월·화만 — 8/17(광복절 대체) 월요일분이 8/18로 합류", () => {
+    expect(deliveryDayHitsDate("mon", "2026-08-18")).toEqual({ hits: true, shifted: true });
+    expect(deliveryDayHitsDate("tue", "2026-08-18")).toEqual({ hits: true, shifted: false });
+    // 휴무 주(8/12~8/14)분은 다음 주 같은 요일로 이월되므로 8/18에 몰리지 않는다.
+    expect(deliveryDayHitsDate("wed", "2026-08-18").hits).toBe(false);
+    expect(deliveryDayHitsDate("thu", "2026-08-18").hits).toBe(false);
+    expect(deliveryDayHitsDate("fri", "2026-08-18").hits).toBe(false);
+  });
+
+  it("수·목·금은 그 주 제 요일에 정상 발송(8/19·8/20·8/21)", () => {
+    expect(deliveryDayHitsDate("wed", "2026-08-19").hits).toBe(true);
+    expect(deliveryDayHitsDate("thu", "2026-08-20").hits).toBe(true);
+    expect(deliveryDayHitsDate("fri", "2026-08-21").hits).toBe(true);
+  });
+
+  it("공휴일 하루가 낀 주는 기존대로 같은 주 다음 영업일 발송(이월 아님)", () => {
+    // 5/5 어린이날(화) → 5/6(수) 도착. 주 이월 규칙이 공휴일까지 삼키지 않는지 확인.
+    expect(deliveryDayHitsDate("tue", "2026-05-05").hits).toBe(false);
+    expect(deliveryDayHitsDate("tue", "2026-05-06")).toEqual({ hits: true, shifted: true });
+  });
+});
+
+describe("firstShipDateFor — 신규 구독 첫 배송 안내(표시용)", () => {
+  it("평상시엔 선택 요일의 가장 가까운 날", () => {
+    // 2026-07-01(수) 기준 — 다음 월요일 07-06.
+    expect(firstShipDateFor("mon", d(2026, 7, 1))).toBe("2026-07-06");
+  });
+  it("휴무 직전(8/7 금) 신청 — 앵커가 휴무 주면 다음 주 같은 요일", () => {
+    expect(firstShipDateFor("wed", d(2026, 8, 7))).toBe("2026-08-19"); // 앵커 8/12 → 이월
+    expect(firstShipDateFor("mon", d(2026, 8, 7))).toBe("2026-08-18"); // 앵커 8/10 → 이월 8/17 → 대체공휴일 → 8/18
+  });
+  it("공휴일 하루는 이월 없이 다음 영업일", () => {
+    // 2026-05-01(금) 기준 — 다음 화요일 5/5 어린이날 → 5/6.
+    expect(firstShipDateFor("tue", d(2026, 5, 1))).toBe("2026-05-06");
   });
 });

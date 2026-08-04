@@ -5,6 +5,7 @@
 //     시작 전(started_at)·회차소진(종료일)·정지·해지·첫배송 공휴일 시프트를 일관 반영(과다집계 방지).
 import { kstYmd } from "../kst";
 import { buildRosterForDate } from "../delivery-roster";
+import { buildRosterMaps } from "../roster-maps";
 import type { DispatchSlotInfo } from "../dispatch-schedule";
 
 export type DeliveryDay = "mon" | "tue" | "wed" | "thu" | "fri";
@@ -35,6 +36,10 @@ export type OrderLite = {
   ship_address: string;
   ship_address_detail: string | null;
   created_at: string;
+  // 블록(원구독+연장) 게이팅용. 라우트는 select("*") 로 채운다 — 없으면 안전한 기본값.
+  shipping_fee?: number | null;
+  renews_slot_id?: number | null;
+  delivery_method?: string | null;
 };
 
 export type ItemLite = {
@@ -43,10 +48,12 @@ export type ItemLite = {
   volume: string;
   delivery_day: DeliveryDay | null;
   qty: number;
+  unit_price?: number | null; // 블록 조립용(금액 계산엔 미사용)
 };
 
 export type SlotLite = {
   order_id: string | null;
+  id?: number; // 슬롯 id — 연장주문을 원구독 슬롯에 잇는 키(라우트 select("*") 로 채워짐)
   delivery_day: DeliveryDay;
   status: string;
   paused: boolean;
@@ -141,16 +148,53 @@ export function slotInfoByOrder(slots: SlotLite[]): Map<string, DispatchSlotInfo
   return m;
 }
 
+// 블록(원구독+연장) 게이팅 입력 — 관리자 화면·발송예고와 동일한 SSOT(buildRosterMaps).
+//   연장주문은 원구독과 '같은 슬롯을 이어받는' 다음 블록이다. 이 맵이 없으면 연장 입금확인
+//   시점부터 원구독 행과 연장 행이 나란히 잡혀 매주 두 번 발송된다(중복 배송) → 반드시 넘긴다.
+//   날짜마다 다시 만들면 O(날짜×주문) 이므로 기간 조회는 한 번만 만들어 재사용한다.
+export type RosterBlockMaps = ReturnType<typeof rosterBlockMaps>;
+
+export function rosterBlockMaps(orders: OrderLite[], items: ItemLite[], slots: SlotLite[]) {
+  return buildRosterMaps(
+    orders.map((o) => ({
+      ...o,
+      block_weeks: o.block_weeks ?? 0,
+      shipping_fee: o.shipping_fee ?? 0,
+      renews_slot_id: o.renews_slot_id ?? null,
+      delivery_method: o.delivery_method ?? null,
+    })),
+    items.map((it) => ({
+      ...it,
+      delivery_day: (it.delivery_day ?? "mon") as DeliveryDay,
+      unit_price: it.unit_price ?? 0,
+    })),
+    // 슬롯 id 가 없는 호출자(레거시 픽스처)는 음수 합성 id — 연장 체인은 못 잇지만
+    //   원구독 게이팅은 그대로 동작하고, 연장주문은 delivery-roster 가드가 막는다.
+    slots.map((s, i) => ({
+      id: s.id ?? -1 - i,
+      order_id: s.order_id,
+      status: s.status,
+      started_at: s.started_at ?? null,
+      first_ship_date: s.first_ship_date ?? null,
+      paused: s.paused,
+      paused_at: s.paused_at ?? null,
+      paused_days: s.paused_days ?? 0,
+      extended_weeks: s.extended_weeks ?? null,
+    }))
+  );
+}
+
 // 권위 로스터(buildRosterForDate)에 위임해 한 날짜의 배송 건을 산출한다.
 //   단품 item 의 delivery_day(null)는 'mon' 으로 보정 — order_type 가드로 정기에 안 섞이고
-//   단품은 ship_date 로 매칭되므로 안전하다. 연장주문은 슬롯이 없어 보수적 포함(폴백).
+//   단품은 ship_date 로 매칭되므로 안전하다.
 function rosterEntriesForDate(
   d: string,
   orders: OrderLite[],
   items: ItemLite[],
   confirmed: Set<string>,
   paused: Set<string>,
-  slotByOrder: Map<string, DispatchSlotInfo>
+  slotByOrder: Map<string, DispatchSlotInfo>,
+  maps?: RosterBlockMaps
 ) {
   return buildRosterForDate({
     dateISO: d,
@@ -159,6 +203,9 @@ function rosterEntriesForDate(
     slotByOrder,
     confirmedOrderIds: confirmed,
     pausedOrderIds: paused,
+    blocksBySlot: maps?.blocksBySlot,
+    slotIdByOrder: maps?.slotIdByOrder,
+    slotById: maps?.slotById,
   });
 }
 
@@ -169,9 +216,10 @@ export function rosterForDate(
   items: ItemLite[],
   confirmed: Set<string>,
   paused: Set<string>,
-  slotByOrder: Map<string, DispatchSlotInfo> = new Map()
+  slotByOrder: Map<string, DispatchSlotInfo> = new Map(),
+  maps?: RosterBlockMaps
 ): RosterRow[] {
-  return rosterEntriesForDate(d, orders, items, confirmed, paused, slotByOrder).map((e) => ({
+  return rosterEntriesForDate(d, orders, items, confirmed, paused, slotByOrder, maps).map((e) => ({
     kind: e.kind,
     name: e.order.ship_name,
     phone: e.order.ship_phone,
@@ -192,11 +240,12 @@ export function deliveryRoster(
   const confirmed = confirmedIds(orders);
   const paused = pausedOrderIds(slots);
   const slotByOrder = slotInfoByOrder(slots);
+  const maps = rosterBlockMaps(orders, items, slots);
   return enumerateDates(fromISO, toISO)
     .map((d) => ({
       date: d,
       weekday: weekdayOf(d),
-      rows: rosterForDate(d, orders, items, confirmed, paused, slotByOrder),
+      rows: rosterForDate(d, orders, items, confirmed, paused, slotByOrder, maps),
     }))
     .filter((day) => day.rows.length > 0);
 }
@@ -212,11 +261,12 @@ export function productionDemand(
   const confirmed = confirmedIds(orders);
   const paused = pausedOrderIds(slots);
   const slotByOrder = slotInfoByOrder(slots);
+  const maps = rosterBlockMaps(orders, items, slots);
   const dates = enumerateDates(fromISO, toISO);
   const total: Record<string, number> = {};
   const byDate = dates.map((d) => {
     const dayTotal: Record<string, number> = {};
-    for (const e of rosterEntriesForDate(d, orders, items, confirmed, paused, slotByOrder)) {
+    for (const e of rosterEntriesForDate(d, orders, items, confirmed, paused, slotByOrder, maps)) {
       for (const it of e.items) {
         const key = `${it.product_name} ${it.volume}`;
         dayTotal[key] = (dayTotal[key] ?? 0) + it.qty;

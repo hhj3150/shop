@@ -16,6 +16,9 @@ export type RosterOrderFields = {
   ship_date: string | null; // 단품 발송 예정일(YYYY-MM-DD)
   ship_name: string;
   delivery_method?: string | null; // '택배' | '방문수령' — 방문수령은 발송 대상 제외(미정의/널=택배 취급)
+  // 연장(재구독) 주문이면 잇는 슬롯 id. 연장주문은 원구독과 같은 슬롯을 이어받으므로
+  //   '활성 블록'으로 확인됐을 때만 발송한다(미정의/널 = 일반 주문).
+  renews_slot_id?: number | null;
 };
 
 // 로스터 판정에 필요한 품목 최소 필드.
@@ -119,6 +122,13 @@ export function buildRosterForDate<
       entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
       continue;
     }
+
+    // ★ 연장주문은 블록 게이팅을 통과했을 때만 발송한다. 블록 데이터가 없어 여기까지 오면
+    //   '언제부터가 이 연장분 구간인지' 알 수 없다 — 포함하면 연장 입금확인 시점부터
+    //   원구독 행과 나란히 잡혀 매주 두 번 발송된다(중복 배송). 원구독 행이 슬롯의 배송을
+    //   이미 대표하므로(총회차 = block_weeks + extended_weeks) 여기선 제외가 안전하다.
+    //   DispatchPanel 의 `o.renews_slot_id != null → continue`(유령행 제외)와 같은 규칙.
+    if (order.renews_slot_id != null) continue;
 
     // 폴백: 해지·회차소진(·정지) 구독은 그 발송일 기준 배송 대상이 아니다 → 명단에서 제외.
     //   배송 탭(DispatchPanel)과 동일한 SSOT 로 과배송을 막는다. 슬롯이 없으면 보수적으로 포함.

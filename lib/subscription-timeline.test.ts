@@ -149,8 +149,11 @@ describe("activeBlockOrderForDate (배송 시트·기간별 명단 공용 게이
     expect(activeBlockOrderForDate({ ...slot, paused: true, paused_at: "2026-06-20" }, blocks, "2026-07-06")).toBeNull();
   });
   it("소진 후(총 12회 지난) 날짜는 null", () => {
-    // 마지막 회차12 예정일 = 06-08 + 11*7 = 08-24(월). 그 다음 월요일 08-31.
-    expect(activeBlockOrderForDate(slot, blocks, "2026-08-31")).toBeNull();
+    // 회차12 예정일 = 06-08 + 11*7 = 08-24(월)이지만, 8/10(월) 회차가 하계 휴무 주에 걸려
+    //   다음 주로 이월되면서 이후 회차가 모두 한 주씩 밀린다 → 마지막 회차는 08-31(월).
+    //   그 다음 월요일 09-07 이 소진 후 첫 날짜.
+    expect(activeBlockOrderForDate(slot, blocks, "2026-08-31")).toBe("o1");
+    expect(activeBlockOrderForDate(slot, blocks, "2026-09-07")).toBeNull();
   });
 });
 
@@ -197,5 +200,36 @@ describe("totalWeeks invariant", () => {
   });
   it("빈 배열은 0", () => {
     expect(totalWeeks([])).toBe(0);
+  });
+});
+
+describe("refundByBlocks — 하계 휴무 구간 (SQL cancel_subscription 과 동치)", () => {
+  // 2026-07-06(월) 시작, 원구독 4회(회당 30,000 + 배송 4,000) + 연장 8회(회당 36,000 + 배송 4,000).
+  // 실제 배송일: 07-06, 07-13, 07-20, 07-27, 08-03, 08-18, 08-24, 08-31, 09-07, 09-14, 09-21, 09-29.
+  // 이 값은 로컬 Postgres 에서 public.sub_delivery_dates / cancel_subscription 실행 결과와 대조했다.
+  const input = {
+    startedAt: "2026-07-06",
+    paused: false,
+    pausedAt: null,
+    pausedDays: 0,
+    blocks: [
+      { orderId: "o0", weeks: 4, deliveryDay: "mon" as const, shippingPerWeek: 4000,
+        items: [{ productName: "헤이밀크", volume: "750mL", qty: 3, unitPrice: 10000 }] },
+      { orderId: "o1", weeks: 8, deliveryDay: "mon" as const, shippingPerWeek: 4000,
+        items: [{ productName: "헤이밀크", volume: "750mL", qty: 3, unitPrice: 12000 }] },
+    ],
+  };
+
+  it("휴무 직전(08-04) 해지 — 5회 배송, 남은 7회 환불", () => {
+    expect(refundByBlocks(input, "2026-08-04")).toBe(7 * 40000); // 280,000
+  });
+
+  it("휴무 직후(08-18) 해지 — 6회 배송, 남은 6회 환불", () => {
+    // 구 SQL 산식(started_at + (k-1)*7)은 이 날 배송완료를 7회로 세어 1회분(40,000)을 덜 돌려줬다.
+    expect(refundByBlocks(input, "2026-08-18")).toBe(6 * 40000); // 240,000
+  });
+
+  it("08-24 해지 — 7회 배송, 남은 5회 환불", () => {
+    expect(refundByBlocks(input, "2026-08-24")).toBe(5 * 40000); // 200,000
   });
 });

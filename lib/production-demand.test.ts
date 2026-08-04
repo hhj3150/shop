@@ -181,3 +181,43 @@ describe("buildWeeklyMatrix", () => {
     expect(m["우유 180ml"]).toEqual(emptyRow());
   });
 });
+
+describe("buildWeeklyMatrix — 2026 하절기 휴가 주(8/10~8/14)", () => {
+  // 휴무 주에는 발송이 없다(회차는 다음 주로 이월) → 생산 계획도 0이어야 한다.
+  const CLOSED_WEEK: Record<DeliveryDay, string> = {
+    mon: "2026-08-10",
+    tue: "2026-08-11",
+    wed: "2026-08-12",
+    thu: "2026-08-13",
+    fri: "2026-08-14",
+  };
+  const RESUME_WEEK: Record<DeliveryDay, string> = {
+    mon: "2026-08-17",
+    tue: "2026-08-18",
+    wed: "2026-08-19",
+    thu: "2026-08-20",
+    fri: "2026-08-21",
+  };
+  // 2026-07-06(월) 시작, 12회 단일 블록 — 휴무 주를 관통한다.
+  const longMilk: RawBlock = { ...milk, weeks: 12 };
+  const slot = slotInput({ startedAt: "2026-07-06", blocks: [longMilk] });
+
+  it("휴무 주는 전 요일 0 — 안 나가는 물량을 생산하지 않는다", () => {
+    const m = buildWeeklyMatrix([slot], ["우유 180ml"], CLOSED_WEEK);
+    expect(m["우유 180ml"]).toEqual(emptyRow());
+  });
+
+  it("재개 주(8/17~)에는 정상 계상 — 월요일분은 8/18 발송이지만 생산은 필요하다", () => {
+    const m = buildWeeklyMatrix([slot], ["우유 180ml"], RESUME_WEEK);
+    expect(m["우유 180ml"]).toEqual({ ...emptyRow(), mon: 1 });
+  });
+
+  it("공휴일 하루가 낀 주는 종전대로 계상(같은 주 다음 영업일 발송)", () => {
+    // 2026-05-05 어린이날(화). 화요일분은 5/6 에 나가지만 그 주 생산은 필요하다.
+    const tueSlot = slotInput({ startedAt: "2026-05-05", blocks: [{ ...yogurt, weeks: 12 }] });
+    const m = buildWeeklyMatrix([tueSlot], ["요거트 85g"], {
+      mon: "2026-05-04", tue: "2026-05-05", wed: "2026-05-06", thu: "2026-05-07", fri: "2026-05-08",
+    });
+    expect(m["요거트 85g"]).toEqual({ ...emptyRow(), tue: 2 });
+  });
+});

@@ -16,7 +16,12 @@ import {
   DELIVERY_DAY_LABEL,
   type DeliveryDay,
 } from "@/lib/cart";
-import { firstSubscriptionDelivery, firstDeliveryOnOrAfter, toISODate } from "@/lib/ship-date";
+import {
+  firstSubscriptionDelivery,
+  firstDeliveryOnOrAfter,
+  subscriptionShipDate,
+  toISODate,
+} from "@/lib/ship-date";
 import { kstDaysElapsed } from "@/lib/payment-recovery";
 import { notify } from "@/lib/notify";
 import { usePolling } from "@/lib/usePolling";
@@ -2214,7 +2219,7 @@ export default function AdminPage() {
                                   </label>
                                   <span className="text-[12px] text-mute">
                                     → {startDeferDate
-                                      ? `${firstDeliveryOnOrAfter(slot.delivery_day, startDeferDate)} (${DELIVERY_DAY_LABEL[slot.delivery_day]}) 첫 발송`
+                                      ? `${subscriptionShipDate(firstDeliveryOnOrAfter(slot.delivery_day, startDeferDate))} (${DELIVERY_DAY_LABEL[slot.delivery_day]}) 첫 발송`
                                       : "날짜 선택 시 첫 발송일 미리보기"}
                                   </span>
                                   <button
