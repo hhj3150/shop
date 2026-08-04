@@ -2,7 +2,7 @@
 // 핵심: 총 배송 횟수(totalWeeks)는 보존하고, 일시정지한 일수만큼 모든 잔여 배송일이 뒤로 밀린다.
 // 정지 중에는 누적 정지일이 매일 늘어 다음 배송일도 같이 밀리므로 발송 완료 수가 자연히 멈춘다.
 
-import { advanceToBusinessDay, closureDefersWeek } from "./ship-date";
+import { advanceToBusinessDay, closureDeferDays } from "./ship-date";
 import { isFarmClosureISO } from "./holidays";
 
 const DAY_MS = 86_400_000;
@@ -95,10 +95,10 @@ export function computeSchedule(input: SubInput, now: Date = new Date()): SubSch
       k === 1
         ? addDays(firstBase, totalPausedDays + deferDays)
         : addDays(anchor, (k - 1) * 7 + totalPausedDays + deferDays);
-    // 연속 휴무 주에도 안전하도록 반복. guard 는 무한루프 방지용 상한.
-    for (let guard = 0; guard < 60 && closureDefersWeek(toISO(base)); guard++) {
-      deferDays += 7;
-      base = addDays(base, 7);
+    const add = closureDeferDays(toISO(base));
+    if (add > 0) {
+      deferDays += add;
+      base = addDays(base, add);
     }
     advanceToBusinessDay(base); // addDays 는 새 Date → 변이 안전
     dates.push(base);

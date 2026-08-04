@@ -24,12 +24,7 @@ import {
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { getDayCounts, remaining, isWaitlisted, type DayCounts } from "@/lib/subscriptions";
-import {
-  advanceToBusinessDay,
-  firstSubscriptionDelivery,
-  formatDispatch,
-  nextDispatchDate,
-} from "@/lib/ship-date";
+import { firstShipDateFor, formatDispatch, nextDispatchDate } from "@/lib/ship-date";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, visibleProducts } from "@/lib/storefront-merge";
 import { track } from "@/lib/track";
@@ -169,13 +164,9 @@ export function PurchasePanel({ product }: { product: Product }) {
   const selected = counts?.[deliveryDay] ?? null;
   const selectedRemaining = selected ? remaining(selected) : null;
   const selectedFull = selected ? isWaitlisted(selected) : false;
-  // 첫 배송 '표시'는 실제 발송일로 — 명목 요일이 공휴일·목장 휴무면 로스터가
-  //   다음 영업일로 시프트하므로(deliveryDayHitsDate ③), 같은 규칙으로 보여준다.
-  const firstDelivery = (() => {
-    const d = firstSubscriptionDelivery(deliveryDay);
-    advanceToBusinessDay(d);
-    return d;
-  })();
+  // 첫 배송 '표시'는 실제 발송일로 — 공휴일이면 다음 영업일, 목장 휴무로 그 주가 통째로
+  //   막히면 다음 주 같은 요일(computeSchedule 1회차·로스터와 동일 규칙).
+  const firstDelivery = new Date(`${firstShipDateFor(deliveryDay)}T00:00:00`);
 
   const setExtraQty = (id: string, q: number) =>
     setExtras((prev) => ({ ...prev, [id]: Math.max(0, q) }));

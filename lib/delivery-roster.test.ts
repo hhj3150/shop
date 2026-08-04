@@ -648,3 +648,66 @@ describe("buildRosterForDate — 연장(재구독) 중복 배송 가드", () => 
       .toEqual(["renew"]);
   });
 });
+
+describe("buildRosterForDate — 2026 하절기 휴가 전 구간 배송 명단(관리자 실전 시나리오)", () => {
+  // 월~금 각 1건, 2026-07-06 주 시작 12회 구독. 8/3 ~ 8/28(4주) 명단을 날짜별로 전개한다.
+  const ANCHOR: Record<string, string> = {
+    mon: "2026-07-06", tue: "2026-07-07", wed: "2026-07-08", thu: "2026-07-09", fri: "2026-07-10",
+  };
+  const DAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
+  const orders = DAYS.map((d) => order({ id: d, block_weeks: 12, ship_name: d }));
+  const items = DAYS.map((d) => item({ order_id: d, delivery_day: d }));
+  const slots = new Map(DAYS.map((d) => [d as string, slot({ started_at: ANCHOR[d], extended_weeks: 0 })]));
+
+  function daysOn(dateISO: string): string[] {
+    return build({ orders, items, slots, dateISO }).map((e) => e.order.id).sort();
+  }
+
+  function enumerate(fromISO: string, toISO: string): string[] {
+    const out: string[] = [];
+    const cur = new Date(`${fromISO}T00:00:00`);
+    const end = new Date(`${toISO}T00:00:00`);
+    while (cur <= end) {
+      out.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }
+
+  it("휴무 직전 주는 평소대로 요일별 1건", () => {
+    expect(daysOn("2026-08-03")).toEqual(["mon"]);
+    expect(daysOn("2026-08-04")).toEqual(["tue"]);
+    expect(daysOn("2026-08-05")).toEqual(["wed"]);
+    expect(daysOn("2026-08-06")).toEqual(["thu"]);
+    expect(daysOn("2026-08-07")).toEqual(["fri"]);
+  });
+
+  it("휴무(8/8~8/17) 전 날짜는 명단이 비어 있다", () => {
+    for (const d of enumerate("2026-08-08", "2026-08-17")) {
+      expect(daysOn(d), `${d} 에 발송 건이 잡혔다`).toEqual([]);
+    }
+  });
+
+  it("8/18(화)은 월·화 두 건만 — 나머지는 제 요일에", () => {
+    expect(daysOn("2026-08-18")).toEqual(["mon", "tue"]);
+    expect(daysOn("2026-08-19")).toEqual(["wed"]);
+    expect(daysOn("2026-08-20")).toEqual(["thu"]);
+    expect(daysOn("2026-08-21")).toEqual(["fri"]);
+  });
+
+  it("재개 다음 주부터 평소 리듬 복귀", () => {
+    expect(daysOn("2026-08-24")).toEqual(["mon"]);
+    expect(daysOn("2026-08-25")).toEqual(["tue"]);
+    expect(daysOn("2026-08-26")).toEqual(["wed"]);
+    expect(daysOn("2026-08-27")).toEqual(["thu"]);
+    expect(daysOn("2026-08-28")).toEqual(["fri"]);
+  });
+
+  it("4주 동안 각 구독은 정확히 3회 — 중복도 누락도 없다(휴무 1주만큼 뒤로 밀림)", () => {
+    const count: Record<string, number> = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0 };
+    for (const d of enumerate("2026-08-03", "2026-08-28")) {
+      for (const id of daysOn(d)) count[id] += 1;
+    }
+    expect(count).toEqual({ mon: 3, tue: 3, wed: 3, thu: 3, fri: 3 });
+  });
+});

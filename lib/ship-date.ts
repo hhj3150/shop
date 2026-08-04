@@ -42,6 +42,29 @@ export function closureDefersWeek(baseISO: string): boolean {
   return weekStartISO(shifted) > weekStartISO(base);
 }
 
+/**
+ * 회차 예정일(baseISO)에 더해야 할 이월 일수(7의 배수, 이월 없으면 0).
+ * 연속 휴무 주에도 안전하도록 반복하며, guard 로 무한루프를 막는다.
+ * computeSchedule 은 이 값을 '이후 회차 전체'에 누적해 회차끼리 날짜가 겹치지 않게 한다.
+ */
+export function closureDeferDays(baseISO: string): number {
+  let days = 0;
+  const d = new Date(`${baseISO}T00:00:00`);
+  for (let guard = 0; guard < 60 && closureDefersWeek(toISODate(d)); guard++) {
+    days += 7;
+    d.setDate(d.getDate() + 7);
+  }
+  return days;
+}
+
+/** 회차 예정일 → 실제 배송일. 휴무 주 이월 후 주말·공휴일이면 다음 영업일로 시프트. */
+export function subscriptionShipDate(baseISO: string): string {
+  const d = new Date(`${baseISO}T00:00:00`);
+  d.setDate(d.getDate() + closureDeferDays(baseISO));
+  advanceToBusinessDay(d);
+  return toISODate(d);
+}
+
 /** now(기본: 현재) 기준 발송 예정일을 Date(자정)로 반환. */
 export function nextDispatchDate(now: Date = new Date()): Date {
   const d = new Date(now);
@@ -96,6 +119,14 @@ export function firstSubscriptionDelivery(
   d.setDate(d.getDate() + 1); // 전날 자정 마감 → 최소 다음 날부터
   while (d.getDay() !== target) d.setDate(d.getDate() + 1);
   return d;
+}
+
+// 지금(또는 from) 신청하면 첫 배송이 실제로 언제인지 — 표시 전용.
+//   firstSubscriptionDelivery 는 '앵커(선택 요일)'만 찾는다. 앵커는 요일 cadence 의 기준이라
+//   공휴일·휴무 보정을 하지 않는다(보정하면 주기가 깨진다). 고객·관리자에게 보여줄 첫 배송일은
+//   computeSchedule 1회차와 같은 규칙(휴무 주 이월 → 다음 영업일)으로 계산해야 한다.
+export function firstShipDateFor(deliveryDay: string, from: Date = new Date()): string {
+  return subscriptionShipDate(toISODate(firstSubscriptionDelivery(deliveryDay, from)));
 }
 
 // 기준일(baseISO, 그날 포함) 이후 가장 가까운 해당 요일 배송일 ISO.

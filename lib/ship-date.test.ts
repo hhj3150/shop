@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   deliveryDayHitsDate,
+  firstShipDateFor,
   firstDeliveryOnOrAfter,
   nextDispatchDate,
   toISODate,
@@ -127,5 +128,20 @@ describe("deliveryDayHitsDate — 2026 하절기 휴가(8/9~8/17) 정기구독 �
     // 5/5 어린이날(화) → 5/6(수) 도착. 주 이월 규칙이 공휴일까지 삼키지 않는지 확인.
     expect(deliveryDayHitsDate("tue", "2026-05-05").hits).toBe(false);
     expect(deliveryDayHitsDate("tue", "2026-05-06")).toEqual({ hits: true, shifted: true });
+  });
+});
+
+describe("firstShipDateFor — 신규 구독 첫 배송 안내(표시용)", () => {
+  it("평상시엔 선택 요일의 가장 가까운 날", () => {
+    // 2026-07-01(수) 기준 — 다음 월요일 07-06.
+    expect(firstShipDateFor("mon", d(2026, 7, 1))).toBe("2026-07-06");
+  });
+  it("휴무 직전(8/7 금) 신청 — 앵커가 휴무 주면 다음 주 같은 요일", () => {
+    expect(firstShipDateFor("wed", d(2026, 8, 7))).toBe("2026-08-19"); // 앵커 8/12 → 이월
+    expect(firstShipDateFor("mon", d(2026, 8, 7))).toBe("2026-08-18"); // 앵커 8/10 → 이월 8/17 → 대체공휴일 → 8/18
+  });
+  it("공휴일 하루는 이월 없이 다음 영업일", () => {
+    // 2026-05-01(금) 기준 — 다음 화요일 5/5 어린이날 → 5/6.
+    expect(firstShipDateFor("tue", d(2026, 5, 1))).toBe("2026-05-06");
   });
 });
