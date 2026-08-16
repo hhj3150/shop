@@ -18,14 +18,17 @@ export type LiveProduct = Product & {
 };
 
 // 정적 상품에 카탈로그 row를 머지(불변, 새 객체). row 없으면 정적 가격 폴백.
+//   미공개(unpublished) 제품은 DB row의 active와 무관하게 항상 숨긴다 — 출시 전
+//   제품이 카탈로그 row 하나 때문에 손님 화면에 새는 것을 코드에서 막는다.
 export function mergeProduct(product: Product, row?: CommercialRow): LiveProduct {
+  const hidden = product.unpublished === true || (row ? !row.active : false);
   return {
     ...product,
     price: row?.price ?? product.price,
-    active: row ? row.active : true,
+    active: !hidden,
     stock: row?.stock ?? null,
     soldOut: row?.stock === 0,
-    hidden: row ? !row.active : false,
+    hidden,
   };
 }
 

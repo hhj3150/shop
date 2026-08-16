@@ -11,6 +11,10 @@ import {
   BASE_DISCOUNT,
   MIN_ORDER_KRW,
   ONCE_MIN_KRW,
+  PRODUCTS,
+  PUBLIC_PRODUCTS,
+  getProduct,
+  getPublicProduct,
   type SubPeriod,
 } from "./products";
 
@@ -24,6 +28,26 @@ describe("회당 최소 결제금액 정책", () => {
     const bottle = 12000;
     expect(bottle * 2 >= ONCE_MIN_KRW).toBe(true);
     expect(bottle * 1 >= ONCE_MIN_KRW).toBe(false);
+  });
+});
+
+describe("미공개(unpublished) 제품 노출 차단", () => {
+  it("애프터밀크는 출시 전이라 미공개", () => {
+    expect(getProduct("aftermilk-1l")?.unpublished).toBe(true);
+  });
+
+  it("PUBLIC_PRODUCTS에서 미공개 제품은 빠진다", () => {
+    expect(PUBLIC_PRODUCTS.every((p) => !p.unpublished)).toBe(true);
+    expect(PUBLIC_PRODUCTS.find((p) => p.id === "aftermilk-1l")).toBeUndefined();
+  });
+
+  it("PRODUCTS(관리자·ERP·과거주문 매칭용)에는 그대로 남는다", () => {
+    expect(PRODUCTS.find((p) => p.id === "aftermilk-1l")).toBeDefined();
+  });
+
+  it("getPublicProduct는 미공개 제품을 없는 것으로 취급(상세 404)", () => {
+    expect(getPublicProduct("aftermilk-1l")).toBeUndefined();
+    expect(getPublicProduct(PUBLIC_PRODUCTS[0].id)?.id).toBe(PUBLIC_PRODUCTS[0].id);
   });
 });
 

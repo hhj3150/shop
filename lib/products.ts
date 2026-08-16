@@ -84,6 +84,11 @@ export type Product = {
   // 1회 구매 전용 — 정기구독 미제공(주 1회 배송이 무의미한 제품: 퇴비 등).
   //   구매 패널·상세·쇼케이스가 구독 UI 대신 단품 동선만 노출한다.
   onceOnly?: boolean;
+  // 미공개(출시 전) — 카탈로그에는 있으나 손님에게는 아직 내보내지 않는다.
+  //   쇼케이스·단품·장바구니 목록에서 빠지고, 상세 페이지는 404, 사이트맵·도우미
+  //   카탈로그에서도 제외된다. 관리자/ERP는 PRODUCTS 전체를 계속 본다.
+  //   출시할 때 이 플래그만 지우면 된다.
+  unpublished?: boolean;
   image: string;
   // 상세 페이지 멀티 컷 갤러리(대표 이미지 포함, 순서대로). 미지정 시 단일 image.
   gallery?: { src: string; label: string }[];
@@ -484,6 +489,8 @@ export const PRODUCTS: Product[] = [
     price: 10000,
     taxFree: false,
     onceOnly: true,
+    // 출시 준비 중 — 손님 화면에는 아직 노출하지 않는다(출시 시 이 줄 삭제).
+    unpublished: true,
     image: "/products/aftermilk-1l.webp",
     gallery: [
       { src: "/products/aftermilk-1l.webp", label: "정면" },
@@ -495,8 +502,19 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
+// 손님에게 공개된 제품만 — 사이트맵·상세 라우트·도우미 카탈로그처럼 DB 카탈로그
+//   머지(visibleProducts)를 거치지 않는 표면에서 쓴다. 관리자·ERP·과거 주문 매칭은
+//   PRODUCTS(전체)를 그대로 쓴다(미공개 제품도 조회는 되어야 하므로).
+export const PUBLIC_PRODUCTS: Product[] = PRODUCTS.filter((p) => !p.unpublished);
+
 export function getProduct(id: string): Product | undefined {
   return PRODUCTS.find((p) => p.id === id);
+}
+
+// 손님 화면용 조회 — 미공개 제품은 없는 것으로 취급(상세 라우트가 404를 내도록).
+export function getPublicProduct(id: string): Product | undefined {
+  const product = getProduct(id);
+  return product && !product.unpublished ? product : undefined;
 }
 
 // 할인율을 적용한 1회(병당) 구독가. 10원 단위 반올림.

@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
-  PRODUCTS,
-  getProduct,
+  PUBLIC_PRODUCTS,
+  getPublicProduct,
   SUB_PERIODS,
   discountForPeriod,
 } from "@/lib/products";
@@ -58,8 +58,10 @@ async function fetchRatingSummary(
   }
 }
 
+// 미공개 제품은 프리렌더하지 않는다 — 출시 전 상세 페이지가 정적으로 배포되면
+//   링크 없이도 주소만 알면 열리므로.
 export function generateStaticParams() {
-  return PRODUCTS.map((p) => ({ id: p.id }));
+  return PUBLIC_PRODUCTS.map((p) => ({ id: p.id }));
 }
 
 // ISR: 정적 프리렌더(빠름) + 1시간마다 런타임 재생성. 새 리뷰의 별점(JSON-LD
@@ -73,7 +75,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const product = getProduct(id);
+  const product = getPublicProduct(id);
   if (!product) return { title: "제품을 찾을 수 없습니다" };
   const title = `${product.name} ${product.volume}`;
   const url = `/products/${product.id}`;
@@ -105,18 +107,19 @@ export default async function ProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = getProduct(id);
+  const product = getPublicProduct(id);
   if (!product) notFound();
 
   // 별점 집계(서버) + 가격 유효일(올해 말). buildProduct 는 순수 함수라 날짜를 여기서 계산해 주입한다.
   const rating = await fetchRatingSummary(product.id);
   const priceValidUntil = `${new Date().getFullYear()}-12-31`;
 
-  const related = PRODUCTS.filter((p) => p.id !== product.id);
+  const related = PUBLIC_PRODUCTS.filter((p) => p.id !== product.id);
 
-  const idx = PRODUCTS.findIndex((p) => p.id === product.id);
-  const prev = PRODUCTS[(idx - 1 + PRODUCTS.length) % PRODUCTS.length];
-  const next = PRODUCTS[(idx + 1) % PRODUCTS.length];
+  const idx = PUBLIC_PRODUCTS.findIndex((p) => p.id === product.id);
+  const prev =
+    PUBLIC_PRODUCTS[(idx - 1 + PUBLIC_PRODUCTS.length) % PUBLIC_PRODUCTS.length];
+  const next = PUBLIC_PRODUCTS[(idx + 1) % PUBLIC_PRODUCTS.length];
 
   // 정기구독 최대 회원 할인율(가장 긴 기간 기준) — 히어로 카피에 노출.
   const maxRate = Math.round(
