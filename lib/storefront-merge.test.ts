@@ -28,6 +28,12 @@ describe("mergeProduct", () => {
   it("active false → hidden", () => {
     expect(mergeProduct(base, row({ active: false })).hidden).toBe(true);
   });
+  it("미공개 제품은 DB가 active=true여도 hidden", () => {
+    const draft = { ...base, unpublished: true };
+    expect(mergeProduct(draft, row({ active: true })).hidden).toBe(true);
+    expect(mergeProduct(draft, row({ active: true })).active).toBe(false);
+    expect(mergeProduct(draft, undefined).hidden).toBe(true);
+  });
   it("원본 불변(새 객체)", () => {
     const m = mergeProduct(base, row({ price: 9999 }));
     expect(base.price).toBe(3500);
@@ -44,6 +50,10 @@ describe("visibleProducts", () => {
     const vis = visibleProducts(PRODUCTS, rows);
     expect(vis.find((p) => p.id === PRODUCTS[0].id)).toBeUndefined();
     expect(vis.find((p) => p.id === PRODUCTS[1].id)?.soldOut).toBe(true);
+  });
+  it("미공개 제품은 목록에서 제외 — 쇼케이스·단품·장바구니 공용 차단점", () => {
+    const vis = visibleProducts(PRODUCTS, new Map());
+    expect(vis.some((p) => p.unpublished)).toBe(false);
   });
 });
 

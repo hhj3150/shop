@@ -6,7 +6,7 @@ import {
   type MemberSub,
 } from "@/lib/assistant/knowledge";
 import { clientIp, checkRateLimit } from "@/lib/assistant/ratelimit";
-import { PRODUCTS } from "@/lib/products";
+import { PUBLIC_PRODUCTS } from "@/lib/products";
 
 // 고객 안내 도우미 + '담기 보조'. 기존 /api/assistant(FAQ 전용)에 더해,
 //   사용자가 특정 제품을 담아달라고 하면 add 배열로 의도를 돌려준다(결제는 절대 안 함).
@@ -24,7 +24,8 @@ const MAX_QTY = 20; // 음성 오인식·과도 담기 방지 상한
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string };
 type AddItem = { productId: string; qty: number };
 
-const VALID_IDS = new Set(PRODUCTS.map((p) => p.id));
+// 미공개 제품은 담기 대상에서 제외 — 도우미가 출시 전 제품을 권하거나 담지 못하게.
+const VALID_IDS = new Set(PUBLIC_PRODUCTS.map((p) => p.id));
 
 // 모델 출력에서 유효한 담기 항목만 추린다(허용 제품 + 수량 1~MAX_QTY).
 function sanitizeAdd(raw: unknown): AddItem[] {
@@ -157,7 +158,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "rate_limited" }, { status: 429 });
   }
 
-  const catalog = PRODUCTS.map((p) => `${p.id} = ${p.name} ${p.volume}`).join(", ");
+  const catalog = PUBLIC_PRODUCTS.map((p) => `${p.id} = ${p.name} ${p.volume}`).join(
+    ", "
+  );
   const orderRule = [
     "",
     "[담기 보조 — 중요]",
