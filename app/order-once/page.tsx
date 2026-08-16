@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import {
   PRODUCTS,
   getProduct,
+  getPublicProduct,
   formatKRW,
   ONCE_MIN_KRW,
   ONCE_SHIPPING_KRW,
@@ -119,7 +120,8 @@ function OrderOnce() {
   //   (1개로는 최소금액 미만이라 '주문하기'가 비활성화되므로).
   useEffect(() => {
     const add = sp.get("add");
-    const p = add ? getProduct(add) : undefined;
+    // 미공개 제품은 ?add= 딥링크로도 담기지 않는다(getPublicProduct).
+    const p = add ? getPublicProduct(add) : undefined;
     if (p) {
       const qtyParam = Number.parseInt(sp.get("qty") ?? "", 10);
       const minQty = Math.max(1, Math.ceil(ONCE_MIN_KRW / p.price));

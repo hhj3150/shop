@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { getProduct, formatKRW } from "@/lib/products";
+import { getPublicProduct, formatKRW } from "@/lib/products";
 import { fetchWishlist, removeWish } from "@/lib/wishlist";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct } from "@/lib/storefront-merge";
@@ -28,9 +28,9 @@ export function WishlistSection({ userId }: { userId: string }) {
     };
   }, [userId]);
 
-  // 카탈로그에서 사라진 id 는 걸러낸다(판매 종료 등).
+  // 카탈로그에서 사라진 id 는 걸러낸다(판매 종료 등). 미공개로 내린 제품도 제외.
   const products = ids
-    .map((id) => getProduct(id))
+    .map((id) => getPublicProduct(id))
     .filter((p): p is NonNullable<typeof p> => !!p);
   if (products.length === 0) return null;
 

@@ -122,6 +122,7 @@ function itemKey(i: Omit<CartItem, "key">): string {
 
 // localStorage 복원값 검증 — 손상·구버전 데이터가 존재하지 않는 기간(할인율 undefined)이나
 //   음수/문자열 수량으로 가격 계산을 조용히 망가뜨리지 않게 여기서 걸러낸다.
+//   미공개로 내린 제품이 예전에 담겨 있었다면 함께 버린다(장바구니·결제에 남아 보이지 않게).
 function sanitizeStoredItems(raw: unknown): CartItem[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -130,6 +131,7 @@ function sanitizeStoredItems(raw: unknown): CartItem[] {
         !!i &&
         typeof i === "object" &&
         typeof (i as CartItem).productId === "string" &&
+        getProduct((i as CartItem).productId)?.unpublished !== true &&
         DELIVERY_DAYS.includes((i as CartItem).deliveryDay) &&
         Number.isInteger((i as CartItem).qty) &&
         (i as CartItem).qty > 0
