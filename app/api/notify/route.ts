@@ -332,8 +332,24 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
   let firstNote = "";
   let isFirstDelivery = false;
   if (o.order_type === "구독") {
-    const shipISO =
-      ((o.shipped_at as string | null) ?? (o.ship_date as string | null) ?? kstTodayISO()).slice(0, 10);
+    // 이번에 나가는 회차의 발송일. orders.shipped_at 은 '최초 발송일'로 고정 보존되므로
+    //   (decideShipOut: shipped_at ?? shipISO) 그 값으로 회차를 세면 2회차부터 계속 같은
+    //   숫자가 찍힌다(실사고: "8회 중 2번째"가 5회 연속 발송). 회차별 권위값인
+    //   shipment_log 에서 '가장 최근에 출고한 회차'의 발송일을 쓴다.
+    const { data: lastShipment } = await sb
+      .from("shipment_log")
+      .select("ship_date, shipped_at")
+      .eq("order_id", orderId)
+      .not("shipped_at", "is", null)
+      .order("shipped_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const shipISO = (
+      (lastShipment?.ship_date as string | null) ??
+      (o.shipped_at as string | null) ??
+      (o.ship_date as string | null) ??
+      kstTodayISO()
+    ).slice(0, 10);
     const { data: slot } = await sb
       .from("subscription_slots")
       .select("status, started_at, first_ship_date, paused, paused_at, paused_days, extended_weeks")

@@ -24,6 +24,7 @@ import {
 } from "@/lib/ship-date";
 import { kstDaysElapsed } from "@/lib/payment-recovery";
 import { notify } from "@/lib/notify";
+import { shouldNotifyDelivered } from "@/lib/delivered-notice";
 import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
 import { AdminAssistant } from "@/components/AdminAssistant";
@@ -1095,8 +1096,19 @@ export default function AdminPage() {
       }
     }
     // 배송완료 → 고객에게 배송 완료 안내 발송.
+    //   단, 발송한 지 오래된 건(지난 기록 정리)은 상태만 바꾸고 문자는 보내지 않는다 —
+    //   몇 주 전에 이미 받은 배송에 '배송 완료' 문자가 뒤늦게 나가는 것을 막는다.
     if (status === "배송완료") {
-      void notify({ kind: "delivered", orderId: order.id });
+      // 발송일 판정은 단품에서만 한다 — 구독의 orders.shipped_at 은 '최초 발송일'로 고정
+      //   보존돼(회차별 값은 shipment_log) 여기서 쓰면 진행 중인 구독까지 문자가 막힌다.
+      //   회차별 판정이 가능한 배송판(DispatchPanel)은 정기·단품 모두 회차 발송일로 거른다.
+      const shipISO =
+        order.order_type === "단품"
+          ? ((order.shipped_at ?? order.ship_date ?? null)?.slice(0, 10) ?? null)
+          : null;
+      if (shouldNotifyDelivered(shipISO, toISODate(new Date()))) {
+        void notify({ kind: "delivered", orderId: order.id });
+      }
     }
     // 취소 → 고객(선물이면 보낸 분)에게 취소 안내 발송.
     if (status === "취소") {
