@@ -14,6 +14,7 @@ type Dataset = {
   items: ReminderItem[];
   slots: ReminderSlot[];
   reminded: string[];
+  dispatched: string[]; // 그 발송일분을 이미 출고(송장 기록)한 주문 — 예고 제외
 };
 
 // 한국시각(KST) 기준 '내일' 발송일(YYYY-MM-DD). 저녁에 돌면 다음 영업일분을 예고한다.
@@ -52,6 +53,8 @@ export default async function handler(): Promise<Response> {
     items: ds.items ?? [],
     slots: ds.slots ?? [],
     remindedOrderIds: new Set(ds.reminded ?? []),
+    // 이미 출고돼 '발송 안내' 문자가 나간 건에 예고를 또 보내지 않는다.
+    dispatchedOrderIds: new Set(ds.dispatched ?? []),
   });
 
   let sent = 0;

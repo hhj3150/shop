@@ -27,6 +27,8 @@ function sub(id: string, over: Partial<ReminderOrder> = {}): ReminderOrder {
     renews_slot_id: null,
     is_gift: false,
     gifter_name: null,
+    shipped_at: null,
+    tracking_no: null,
     ...over,
   };
 }
@@ -114,7 +116,8 @@ describe("buildReminderTargets", () => {
   it("이미 예고된 건이 없으면 활성 구독 + 단품이 모두 포함된다", () => {
     const orders: ReminderOrder[] = [
       sub("A"),
-      { ...sub("C"), order_type: "단품", block_weeks: null, ship_date: WED },
+      // 단품은 아직 미발송(입금확인) 상태여야 예고 대상 — 배송중이면 이미 발송된 건이다.
+      { ...sub("C"), order_type: "단품", status: "입금확인", block_weeks: null, ship_date: WED },
     ];
     const targets = buildReminderTargets({
       dateISO: WED,
@@ -148,5 +151,72 @@ describe("buildShipReminderMessage", () => {
     expect(m.text).toContain("우유 750ml 2개");
     expect(m.text).toContain("요거트 500ml");
     expect(m.subject).toContain("내일 발송");
+  });
+});
+
+
+describe("buildReminderTargets — 이미 발송된 건 제외(중복 예고 방지)", () => {
+  const once = (id: string, over: Partial<ReminderOrder> = {}): ReminderOrder => ({
+    ...sub(id),
+    order_type: "단품",
+    status: "입금확인",
+    block_weeks: null,
+    ship_date: WED,
+    ...over,
+  });
+
+  it("그 발송일분을 이미 출고한 주문(dispatchedOrderIds)은 예고하지 않는다", () => {
+    const targets = buildReminderTargets({
+      dateISO: WED,
+      orders: [sub("A"), once("C")],
+      items: [wedItem("A"), wedItem("C")],
+      slots: [slot(1, "A")],
+      remindedOrderIds: new Set(),
+      dispatchedOrderIds: new Set(["A", "C"]),
+    });
+    expect(targets).toEqual([]);
+  });
+
+  it("송장·발송일이 이미 찍힌 단품은 예고하지 않는다(회차 이력 없는 레거시 건)", () => {
+    const targets = buildReminderTargets({
+      dateISO: WED,
+      orders: [
+        once("C", { tracking_no: "123-456" }),
+        once("D", { shipped_at: WED }),
+        once("E", { status: "배송중" }),
+        once("F"), // 아직 미발송 → 포함
+      ],
+      items: [wedItem("C"), wedItem("D"), wedItem("E"), wedItem("F")],
+      slots: [],
+      remindedOrderIds: new Set(),
+    });
+    expect(targets.map((t) => t.orderId)).toEqual(["F"]);
+  });
+
+  it("주문 당일 저녁 예고는 접수 문자와 중복이라 보내지 않는다(단품만)", () => {
+    // 예고는 발송일 전날(6/23) 저녁에 나간다. 그날 들어온 단품 주문은 몇 시간 전
+    //   '주문 접수·입금 안내' 문자에서 이미 같은 발송일을 안내받았다.
+    const targets = buildReminderTargets({
+      dateISO: WED,
+      orders: [
+        once("C", { created_at: "2026-06-23T06:35:00Z" }), // KST 6/23 15:35 → 제외
+        once("D", { created_at: "2026-06-22T02:00:00Z" }), // KST 6/22 → 포함
+      ],
+      items: [wedItem("C"), wedItem("D")],
+      slots: [],
+      remindedOrderIds: new Set(),
+    });
+    expect(targets.map((t) => t.orderId)).toEqual(["D"]);
+  });
+
+  it("구독은 같은 주문 행이 회차마다 재출고되므로 당일 주문 규칙을 적용하지 않는다", () => {
+    const targets = buildReminderTargets({
+      dateISO: WED,
+      orders: [sub("A", { created_at: "2026-06-23T06:35:00Z", tracking_no: "999", shipped_at: "2026-06-17" })],
+      items: [wedItem("A")],
+      slots: [slot(1, "A")],
+      remindedOrderIds: new Set(),
+    });
+    expect(targets.map((t) => t.orderId)).toEqual(["A"]);
   });
 });

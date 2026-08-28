@@ -20,6 +20,7 @@ import { activeBlockOrderForDate, type RawBlock } from "@/lib/subscription-timel
 import { buildTotalsRow } from "@/lib/dispatch-csv";
 import { downloadXlsx } from "@/lib/xlsx-export";
 import { decideShipOut } from "@/lib/dispatch-shipout";
+import { shouldNotifyDelivered, DELIVERED_NOTICE_MAX_DAYS } from "@/lib/delivered-notice";
 import { isCarriedOver, overdueDays } from "@/lib/dispatch-overdue";
 import {
   BUCKET_ML,
@@ -651,7 +652,11 @@ export function DispatchPanel({
         const sb = getSupabase();
         const { error } = await sb.from("orders").update({ status: "배송완료" }).eq("id", o.id);
         if (error) throw error;
-        void notify({ kind: "delivered", orderId: o.id });
+        // 지난 회차를 뒤늦게 정리하는 경우엔 상태만 기록하고 문자는 보내지 않는다
+        //   (이미 몇 주 전에 받은 배송에 '배송 완료' 안내가 나가는 사고 방지).
+        if (shouldNotifyDelivered(r.shipISO, todayISO())) {
+          void notify({ kind: "delivered", orderId: o.id });
+        }
       }
       setJustDelivered((prev) => new Set(prev).add(k));
       await onReload();
@@ -794,8 +799,17 @@ export function DispatchPanel({
       setError("선택된 주문이 없습니다.");
       return;
     }
-    // 실수 방지: 일괄 상태 변경 건수를 확인받는다.
-    if (!window.confirm(`선택 ${targets.length}건을 '${status}'(으)로 변경할까요?`)) {
+    // 실수 방지: 일괄 상태 변경 건수를 확인받는다. 배송완료는 '문자가 나갈 건수'까지 함께 —
+    //   지난 회차 정리(백필)로 몇 주 전 배송에 완료 문자가 무더기로 나가던 사고를 막는다.
+    const notifyCount =
+      status === "배송완료"
+        ? rows.filter((r) => shouldNotifyDelivered(r.shipISO, todayISO())).length
+        : 0;
+    const notifyNote =
+      status === "배송완료"
+        ? `\n배송 완료 안내 문자: ${notifyCount}건 (발송 ${DELIVERED_NOTICE_MAX_DAYS}일 이내 건만, 나머지 ${targets.length - notifyCount}건은 문자 없이 기록만)`
+        : "";
+    if (!window.confirm(`선택 ${targets.length}건을 '${status}'(으)로 변경할까요?${notifyNote}`)) {
       return;
     }
     setBusy(true);
@@ -820,7 +834,10 @@ export function DispatchPanel({
             } catch (e) {
               console.error(`배송완료 기록 실패 ${r.o.order_no}:`, e);
             }
-            void notify({ kind: "delivered", orderId: r.o.id });
+            // 오래전 발송분의 일괄 정리는 문자 없이 상태만 기록한다(위 markDelivered 와 동일 규칙).
+            if (shouldNotifyDelivered(r.shipISO, todayISO())) {
+              void notify({ kind: "delivered", orderId: r.o.id });
+            }
           })
         );
       }

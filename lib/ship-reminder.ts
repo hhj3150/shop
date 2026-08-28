@@ -21,6 +21,8 @@ export type ReminderOrder = {
   renews_slot_id: number | null;
   is_gift: boolean;
   gifter_name: string | null;
+  shipped_at: string | null; // 주문 행의 발송일(단품은 그 주문의 실제 발송 여부)
+  tracking_no: string | null; // 송장이 있으면 이미 발송 처리된 건
 };
 export type ReminderItem = {
   order_id: string;
@@ -54,14 +56,30 @@ export type ReminderTarget = {
   kind: "정기" | "단품";
 };
 
+// 발송일 하루 전(예고를 보내는 날) — dateISO 의 전날. KST 달력일 문자열 연산.
+function eveOf(dateISO: string): string {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
+// timestamptz(ISO) → KST 달력일 'YYYY-MM-DD'. KST는 DST 없는 UTC+9.
+function kstDate(ts: string): string {
+  return new Date(new Date(ts).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 // 특정 발송일(dateISO)에 배송될 건 중 아직 예고하지 않은 대상만 추린다.
-//   remindedOrderIds = 그 발송일에 이미 예고 보낸 주문(중복 예고 방지).
+//   remindedOrderIds  = 그 발송일에 이미 예고 보낸 주문(중복 예고 방지).
+//   dispatchedOrderIds = 그 발송일분을 이미 출고(송장 기록)한 주문 — 예고 대상에서 뺀다.
+//     ★ 관리자는 발송일보다 며칠 앞서 송장을 등록하기도 한다(예: 8/31 발송분을 8/28 처리).
+//       그러면 손님은 이미 '상품이 발송되었습니다 + 송장번호' 문자를 받은 뒤인데, 전날 저녁에
+//       "내일 발송 예정입니다" 예고가 또 나간다(실제 사고 SY20260809-5830: 8/14 발송 → 8/17 예고).
 export function buildReminderTargets(input: {
   dateISO: string;
   orders: ReminderOrder[];
   items: ReminderItem[];
   slots: ReminderSlot[];
   remindedOrderIds: ReadonlySet<string>;
+  dispatchedOrderIds?: ReadonlySet<string>;
 }): ReminderTarget[] {
   const maps = buildRosterMaps(input.orders, input.items, input.slots);
   const entries = buildRosterForDate({
@@ -76,10 +94,22 @@ export function buildReminderTargets(input: {
     slotById: maps.slotById,
   });
 
+  const eveISO = eveOf(input.dateISO);
   const out: ReminderTarget[] = [];
   for (const e of entries) {
     if (input.remindedOrderIds.has(e.order.id)) continue;
     if (!e.order.ship_phone) continue; // 전화번호 없으면 보낼 수 없음
+    // 이미 출고된 회차 — 발송 안내 문자가 나간 뒤라 예고는 중복·모순이다.
+    if (input.dispatchedOrderIds?.has(e.order.id)) continue;
+    if (e.kind === "단품") {
+      // 단품은 주문 1건 = 발송 1회다. 송장이 있거나 이미 배송중/배송완료면 발송이 끝난 것
+      //   (회차 이력이 없어 dispatchedOrderIds 로 못 잡는 레거시 건까지 덮는다).
+      if (e.order.tracking_no || e.order.shipped_at) continue;
+      if (e.order.status === "배송중" || e.order.status === "배송완료") continue;
+      // 주문 당일 저녁의 예고는 몇 시간 전 '주문 접수·입금 안내' 문자가 이미 같은 발송일을
+      //   알린 뒤라 중복이다(예: 15:35 접수 문자 → 18:08 예고). 그날 주문분은 건너뛴다.
+      if (kstDate(e.order.created_at) === eveISO) continue;
+    }
     out.push({
       orderId: e.order.id,
       orderNo: e.order.order_no,
