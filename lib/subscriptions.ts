@@ -456,6 +456,42 @@ export async function skipNextDelivery(slotId: number, skipDate: string): Promis
 }
 
 // 건너뛰기 되돌리기(건너뛸 배송일 전에만). 적립 없이 원상복구.
+// 배송요일 변경. 새 앵커(started_at)는 planDeliveryDayChange 가 계산해 넘기고,
+//   서버가 요일 일치·회차 보존을 다시 검증한 뒤 좌석·품목 요일까지 함께 옮긴다.
+export type DayChangeApplied = {
+  delivery_day: DeliveryDay;
+  started_at: string | null;
+  next_date: string | null;
+  end_date: string | null;
+  total_rounds: number;
+};
+
+export async function changeDeliveryDay(
+  slotId: number,
+  newDay: DeliveryDay,
+  newStartedAt: string | null
+): Promise<DayChangeApplied> {
+  const { data, error } = await getSupabase().rpc("change_delivery_day", {
+    p_slot_id: slotId,
+    p_new_day: newDay,
+    p_new_started_at: newStartedAt,
+  });
+  if (error) throw new Error(error.message);
+  return data as DayChangeApplied;
+}
+
+// 관리자 대행 일시정지·재개(전화 요청 등). 정지·재개 수학은 회원 경로와 동일.
+export async function adminSetSubscriptionPaused(
+  slotId: number,
+  paused: boolean
+): Promise<void> {
+  const { error } = await getSupabase().rpc("admin_set_subscription_paused", {
+    p_slot_id: slotId,
+    p_paused: paused,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function cancelSkip(slotId: number): Promise<void> {
   const { error } = await getSupabase().rpc("cancel_skip", { p_slot_id: slotId });
   if (error) throw new Error(error.message);

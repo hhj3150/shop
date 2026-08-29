@@ -25,6 +25,8 @@ import {
 import { kstDaysElapsed } from "@/lib/payment-recovery";
 import { notify } from "@/lib/notify";
 import { isNoticeFresh } from "@/lib/notice-freshness";
+import { changeDeliveryDay, adminSetSubscriptionPaused } from "@/lib/subscriptions";
+import { planDeliveryDayChange } from "@/lib/delivery-day-change";
 import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
 import { AdminAssistant } from "@/components/AdminAssistant";
@@ -250,6 +252,8 @@ export default function AdminPage() {
   const [editingShipOrder, setEditingShipOrder] = useState<string | null>(null);
   // 구독 시작일 연기 폼이 열린 주문 id + 입력된 기준일.
   const [startDeferOrder, setStartDeferOrder] = useState<string | null>(null);
+  // 배송요일 변경 패널을 연 주문(구독 슬롯 1개 기준).
+  const [dayEditOrder, setDayEditOrder] = useState<string | null>(null);
   const [startDeferDate, setStartDeferDate] = useState<string>("");
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
   // 기간별 배송 명단은 길어서 기본 접힘 — 포장/명단 확인이 필요할 때만 펼친다.
@@ -1226,6 +1230,55 @@ export default function AdminPage() {
     setStartDeferOrder(null);
     setStartDeferDate("");
     await load();
+  }
+
+  // 구독 배송요일 변경(관리자 대행). 손님이 전화로 요일을 옮겨 달라고 할 때 쓴다.
+  //   앵커(started_at)까지 함께 옮겨야 회차가 어긋나지 않는다 — 계산은 planDeliveryDayChange,
+  //   요일 일치·회차 보존 재검증과 좌석 이동은 서버(change_delivery_day)가 한다.
+  async function changeSlotDay(slot: SlotRow, order: OrderRow, newDay: DeliveryDay) {
+    const plan = planDeliveryDayChange(
+      {
+        deliveryDay: slot.delivery_day,
+        startedAt: slot.started_at,
+        firstShipDate: slot.first_ship_date,
+        paused: slot.paused,
+        pausedAt: slot.paused_at,
+        pausedDays: slot.paused_days ?? 0,
+        totalWeeks: Math.max((order.block_weeks ?? 0) + (slot.extended_weeks ?? 0), 1),
+      },
+      newDay,
+      todayDateISO
+    );
+    if (!plan.ok) {
+      alert(plan.reason);
+      return;
+    }
+    if (
+      !confirm(
+        `${order.ship_name} 님 구독을 ${DELIVERY_DAY_LABEL[slot.delivery_day]}요일 → ${DELIVERY_DAY_LABEL[newDay]}요일로 옮길까요?\n` +
+          `다음 배송 ${plan.nextDate ?? "—"} · 남은 ${plan.remaining}회 유지 · 종료 예정 ${plan.endDate ?? "—"}`
+      )
+    )
+      return;
+    try {
+      await changeDeliveryDay(slot.id, newDay, plan.newStartedAt);
+      setDayEditOrder(null);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "요일 변경 실패");
+    }
+  }
+
+  // 구독 일시정지·재개(관리자 대행). 정지한 일수만큼 종료일이 밀리고 총 회차는 보존된다.
+  async function setSlotPaused(slot: SlotRow, order: OrderRow, paused: boolean) {
+    const label = paused ? "일시정지" : "배송 재개";
+    if (!confirm(`${order.ship_name} 님 구독을 ${label} 처리할까요?`)) return;
+    try {
+      await adminSetSubscriptionPaused(slot.id, paused);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : `${label} 실패`);
+    }
   }
 
   // 현금영수증 수기 발행 완료/대기 토글. 홈택스에서 발행한 뒤 표시용으로 기록한다.
@@ -2269,6 +2322,53 @@ export default function AdminPage() {
                                   >
                                     시작일 변경
                                   </button>
+                                </div>
+                              )}
+
+                              {/* 요일 변경 · 일시정지/재개 (관리자 대행) —
+                                  손님이 전화로 요청할 때 마이페이지 대신 여기서 처리한다. */}
+                              {slot.status === "활성" && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line/40 pt-2">
+                                  {dayEditOrder === o.id ? (
+                                    <>
+                                      <span className="text-[12.5px] text-mute">옮길 요일</span>
+                                      {DELIVERY_DAYS.filter((d) => d !== slot.delivery_day).map((d) => (
+                                        <button
+                                          key={d}
+                                          onClick={() => changeSlotDay(slot, o, d)}
+                                          className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+                                        >
+                                          {DELIVERY_DAY_LABEL[d]}
+                                        </button>
+                                      ))}
+                                      <button
+                                        onClick={() => setDayEditOrder(null)}
+                                        className="rounded-full px-3 py-1.5 text-[13px] text-mute hover:text-ink"
+                                      >
+                                        취소
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => setDayEditOrder(o.id)}
+                                        className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+                                      >
+                                        요일 변경
+                                      </button>
+                                      <button
+                                        onClick={() => setSlotPaused(slot, o, !slot.paused)}
+                                        className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+                                      >
+                                        {slot.paused ? "배송 재개" : "일시정지"}
+                                      </button>
+                                      {slot.paused && (
+                                        <span className="rounded-full bg-gold/15 px-2.5 py-1 text-[12px] font-medium text-gold-deep">
+                                          정지 중{slot.paused_at ? ` (${slot.paused_at}~)` : ""}
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
                                 </div>
                               )}
                             </div>
