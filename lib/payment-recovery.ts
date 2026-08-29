@@ -35,11 +35,30 @@ export function kstDaysElapsed(createdAtIso: string, now: Date): number {
   return Math.round((today - created) / 86_400_000);
 }
 
+// 주문 후 실제 경과 시간(시간 단위).
+function hoursElapsed(createdAtIso: string, now: Date): number {
+  return (now.getTime() - new Date(createdAtIso).getTime()) / 3_600_000;
+}
+
+// ★ 독촉 시점을 '달력일'이 아니라 '경과 시간'으로 잰다.
+//   달력일 기준이면 밤늦게 들어온 주문이 다음 날 아침 크론에 걸려 9시간 만에 독촉을 받았다
+//   (실사례: 21:04 주문 → 다음날 09:08 D1). 최소 12시간은 기다린다.
+//   단계 간격은 종전과 같은 하루(24시간)를 유지한다 — 12h 이후 D1, 36h 이후 D2, 60h 이후 관리자 알림.
+//   크론이 하루 한 번(09:00 KST) 도므로, 밤 9시 이후 주문만 하루씩 밀리고 나머지는 종전과 같다.
+export const RECOVERY_MIN_HOURS = 12;
+const STAGE_GAP_HOURS = 24;
+
 export function decideAction(t: RecoveryTarget, now: Date): RecoveryAction {
-  const days = kstDaysElapsed(t.createdAt, now);
-  if (days >= 3) return t.sentStages.includes("EXPIRE_NOTIFY") ? "none" : "EXPIRE_NOTIFY";
-  if (days === 2) return t.sentStages.includes("D2") ? "none" : "D2";
-  if (days === 1) return t.sentStages.includes("D1") ? "none" : "D1";
+  const h = hoursElapsed(t.createdAt, now);
+  if (h >= RECOVERY_MIN_HOURS + STAGE_GAP_HOURS * 2) {
+    return t.sentStages.includes("EXPIRE_NOTIFY") ? "none" : "EXPIRE_NOTIFY";
+  }
+  if (h >= RECOVERY_MIN_HOURS + STAGE_GAP_HOURS) {
+    return t.sentStages.includes("D2") ? "none" : "D2";
+  }
+  if (h >= RECOVERY_MIN_HOURS) {
+    return t.sentStages.includes("D1") ? "none" : "D1";
+  }
   return "none";
 }
 
