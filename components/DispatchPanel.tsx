@@ -20,7 +20,7 @@ import { activeBlockOrderForDate, type RawBlock } from "@/lib/subscription-timel
 import { buildTotalsRow } from "@/lib/dispatch-csv";
 import { downloadXlsx } from "@/lib/xlsx-export";
 import { decideShipOut } from "@/lib/dispatch-shipout";
-import { shouldNotifyDelivered, DELIVERED_NOTICE_MAX_DAYS } from "@/lib/delivered-notice";
+import { isNoticeFresh, NOTICE_MAX_DAYS } from "@/lib/notice-freshness";
 import { isCarriedOver, overdueDays } from "@/lib/dispatch-overdue";
 import {
   BUCKET_ML,
@@ -131,7 +131,7 @@ export function DispatchPanel({
   orders,
   itemsByOrder,
   slots = [],
-  shippedKeys = new Set(),
+  shippedKeys = new Map(),
   deliveredKeys = new Set(),
   blocksBySlot,
   slotIdByOrder,
@@ -141,7 +141,9 @@ export function DispatchPanel({
   orders: DispatchOrder[];
   itemsByOrder: Map<string, DispatchItem[]>;
   slots?: DispatchSlot[];
-  shippedKeys?: Set<string>; // 이미 출고된 `${order_id}|${ship_date}` 키(재고 차감 완료)
+  // 이미 출고된 `${order_id}|${ship_date}` → 실제 출고 시각(재고 차감 완료).
+  //   값(출고 시각)으로 '지난 배송' 안내 문자 차단을 판정한다.
+  shippedKeys?: Map<string, string | null>;
   deliveredKeys?: Set<string>; // 이미 배송완료(도착확인)된 `${order_id}|${ship_date}` 키
   // 연장(다중 블록) 슬롯의 활성 블록 게이팅용 — 기간별 명단(buildRosterForDate)과 동일 SSOT.
   //   원주문+연장주문이 한 슬롯에 체인될 때, 발송일의 '활성 블록' 주문만 시트에 나오게 한다.
@@ -549,6 +551,12 @@ export function DispatchPanel({
   }
 
   // 배송 행 = (주문, 발송일) 단위. 재고 차감·이중차감 판정의 키.
+  // 이 회차가 실제로 나간 시각(없으면 예정 발송일). 지난 배송 안내 차단 판정의 기준 —
+  //   서버 /api/notify 와 같은 값을 보고 판단해, 화면에 안내한 건수와 실제 발송이 어긋나지 않는다.
+  function dispatchedAtOf(r: DispatchRow): string | null {
+    return shippedKeys.get(shipKey(r)) ?? r.shipISO;
+  }
+
   function shipKey(r: DispatchRow): string {
     return `${r.o.id}|${r.shipISO}`;
   }
@@ -593,7 +601,7 @@ export function DispatchPanel({
         if (error) throw error;
         // 회차별 배송 레코드(shipment_log)에도 그 회차 송장을 기록 — 회차 이력·고객 추적의 권위값.
         await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
-        if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
+        if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id, shipDate: r.shipISO });
       }
       setJustShipped((prev) => new Set(prev).add(k));
       await onReload();
@@ -628,7 +636,7 @@ export function DispatchPanel({
       const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
       if (error) throw error;
       await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
-      if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
+      if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id, shipDate: r.shipISO });
       await onReload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "송장 저장 실패");
@@ -654,8 +662,9 @@ export function DispatchPanel({
         if (error) throw error;
         // 지난 회차를 뒤늦게 정리하는 경우엔 상태만 기록하고 문자는 보내지 않는다
         //   (이미 몇 주 전에 받은 배송에 '배송 완료' 안내가 나가는 사고 방지).
-        if (shouldNotifyDelivered(r.shipISO, todayISO())) {
-          void notify({ kind: "delivered", orderId: o.id });
+        //   서버(/api/notify)도 같은 규칙으로 한 번 더 막는다 — 여기 판정은 화면 안내용.
+        if (isNoticeFresh(dispatchedAtOf(r), todayISO())) {
+          void notify({ kind: "delivered", orderId: o.id, shipDate: r.shipISO });
         }
       }
       setJustDelivered((prev) => new Set(prev).add(k));
@@ -767,16 +776,21 @@ export function DispatchPanel({
               if (error) throw error;
               await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
             }
-            return { o, decision, error: null as { message?: string } | null };
+            return { o, decision, shipISO: r.shipISO, error: null as { message?: string } | null };
           } catch (e) {
-            return { o, decision, error: { message: e instanceof Error ? e.message : "처리 실패" } };
+            return {
+              o,
+              decision,
+              shipISO: r.shipISO,
+              error: { message: e instanceof Error ? e.message : "처리 실패" },
+            };
           }
         })
       );
       // 업데이트 성공 + 새로 '배송중'으로 전환된 건에만 발송 문자를 보낸다.
       //   (조용한 실패 시 오발송 방지 / 이미 배송중인 건 중복 발송 방지)
-      for (const { o, decision, error } of results) {
-        if (!error && decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id });
+      for (const { o, decision, shipISO, error } of results) {
+        if (!error && decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id, shipDate: shipISO });
       }
       setSelected(new Set());
       const failed = results.filter((r) => r.error);
@@ -803,11 +817,11 @@ export function DispatchPanel({
     //   지난 회차 정리(백필)로 몇 주 전 배송에 완료 문자가 무더기로 나가던 사고를 막는다.
     const notifyCount =
       status === "배송완료"
-        ? rows.filter((r) => shouldNotifyDelivered(r.shipISO, todayISO())).length
+        ? rows.filter((r) => isNoticeFresh(dispatchedAtOf(r), todayISO())).length
         : 0;
     const notifyNote =
       status === "배송완료"
-        ? `\n배송 완료 안내 문자: ${notifyCount}건 (발송 ${DELIVERED_NOTICE_MAX_DAYS}일 이내 건만, 나머지 ${targets.length - notifyCount}건은 문자 없이 기록만)`
+        ? `\n배송 완료 안내 문자: ${notifyCount}건 (출고 ${NOTICE_MAX_DAYS}일 이내 건만, 나머지 ${targets.length - notifyCount}건은 문자 없이 기록만)`
         : "";
     if (!window.confirm(`선택 ${targets.length}건을 '${status}'(으)로 변경할까요?${notifyNote}`)) {
       return;
@@ -835,8 +849,8 @@ export function DispatchPanel({
               console.error(`배송완료 기록 실패 ${r.o.order_no}:`, e);
             }
             // 오래전 발송분의 일괄 정리는 문자 없이 상태만 기록한다(위 markDelivered 와 동일 규칙).
-            if (shouldNotifyDelivered(r.shipISO, todayISO())) {
-              void notify({ kind: "delivered", orderId: r.o.id });
+            if (isNoticeFresh(dispatchedAtOf(r), todayISO())) {
+              void notify({ kind: "delivered", orderId: r.o.id, shipDate: r.shipISO });
             }
           })
         );

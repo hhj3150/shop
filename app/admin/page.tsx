@@ -24,7 +24,7 @@ import {
 } from "@/lib/ship-date";
 import { kstDaysElapsed } from "@/lib/payment-recovery";
 import { notify } from "@/lib/notify";
-import { shouldNotifyDelivered } from "@/lib/delivered-notice";
+import { isNoticeFresh } from "@/lib/notice-freshness";
 import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
 import { AdminAssistant } from "@/components/AdminAssistant";
@@ -232,7 +232,8 @@ export default function AdminPage() {
   //   계산엔 페이지 레벨에서 한 번 더 필요하다(설계: 중복 fetch 1회 허용).
   const [returns, setReturns] = useState<OrderReturn[]>([]);
   // 이미 출고된 (주문|발송일) 키 — 배송 행 [출고 확정] 비활성용(이중차감 방지).
-  const [shippedKeys, setShippedKeys] = useState<Set<string>>(new Set());
+  // 출고된 회차 → 실제 출고 시각. 배송판이 '지난 배송' 문자 차단 판정에 쓴다.
+  const [shippedKeys, setShippedKeys] = useState<Map<string, string | null>>(new Map());
   const [deliveredKeys, setDeliveredKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
@@ -362,7 +363,7 @@ export default function AdminPage() {
           .order("id", { ascending: true })
           .range(from, to)
       ),
-      loadShippedKeys().catch(() => new Set<string>()),
+      loadShippedKeys().catch(() => new Map<string, string | null>()),
       loadDeliveredKeys().catch(() => new Set<string>()),
       loadReturns().catch(() => [] as OrderReturn[]),
     ]);
@@ -1099,14 +1100,15 @@ export default function AdminPage() {
     //   단, 발송한 지 오래된 건(지난 기록 정리)은 상태만 바꾸고 문자는 보내지 않는다 —
     //   몇 주 전에 이미 받은 배송에 '배송 완료' 문자가 뒤늦게 나가는 것을 막는다.
     if (status === "배송완료") {
-      // 발송일 판정은 단품에서만 한다 — 구독의 orders.shipped_at 은 '최초 발송일'로 고정
-      //   보존돼(회차별 값은 shipment_log) 여기서 쓰면 진행 중인 구독까지 문자가 막힌다.
-      //   회차별 판정이 가능한 배송판(DispatchPanel)은 정기·단품 모두 회차 발송일로 거른다.
-      const shipISO =
+      // 여기선 회차를 특정할 수 없으므로(주문목록은 회차 개념이 없다) 회차 발송일을 넘기지
+      //   않는다 — 서버가 '가장 최근 출고 회차'의 실제 출고 시각으로 신선도를 판정한다.
+      //   화면 쪽 사전 판정은 단품만 한다: 구독의 orders.shipped_at 은 '최초 발송일'로
+      //   고정 보존돼(회차별 값은 shipment_log) 여기서 쓰면 진행 중인 구독까지 막힌다.
+      const onceShipISO =
         order.order_type === "단품"
           ? ((order.shipped_at ?? order.ship_date ?? null)?.slice(0, 10) ?? null)
           : null;
-      if (shouldNotifyDelivered(shipISO, toISODate(new Date()))) {
+      if (isNoticeFresh(onceShipISO, toISODate(new Date()))) {
         void notify({ kind: "delivered", orderId: order.id });
       }
     }

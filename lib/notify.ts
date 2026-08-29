@@ -8,8 +8,10 @@ type NotifyPayload =
   | { kind: "welcome" }
   | { kind: "order_received"; orderId: string }
   | { kind: "payment_confirmed"; orderId: string }
-  | { kind: "shipped"; orderId: string }
-  | { kind: "delivered"; orderId: string }
+  // shipDate = 처리한 회차의 발송일(배송판). 서버가 '지금 처리한 회차'를 정확히 집어
+  //   지난 배송 차단·회차 표기를 판정한다. resend = 관리자가 이력 화면에서 직접 누른 재발송.
+  | { kind: "shipped"; orderId: string; shipDate?: string; resend?: true }
+  | { kind: "delivered"; orderId: string; shipDate?: string; resend?: true }
   | { kind: "order_cancelled"; orderId: string }
   | { kind: "gift_subscription"; orderId: string }
   | { kind: "gift_once"; orderId: string }

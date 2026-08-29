@@ -18,7 +18,7 @@ const base: RecoveryTarget = {
   sentStages: [],
 };
 
-describe("decideAction (KST 달력일 경과)", () => {
+describe("decideAction (주문 후 경과 시간)", () => {
   it("D+0 당일은 none", () => {
     const now = new Date("2026-06-01T05:00:00.000Z"); // 같은 날 14:00 KST
     expect(decideAction(base, now)).toBe("none");
@@ -48,10 +48,33 @@ describe("decideAction (KST 달력일 경과)", () => {
     const now = new Date("2026-06-05T00:30:00.000Z"); // D+4
     expect(decideAction({ ...base, sentStages: ["D1", "D2", "EXPIRE_NOTIFY"] }, now)).toBe("none");
   });
-  it("KST 자정 직후 경계: UTC로는 전날이어도 KST 달력일로 계산", () => {
+  it("KST 자정 직후 경계: UTC로는 전날이어도 경과 14시간이라 D1", () => {
     // created 06-01 10:00 KST. now = 06-02 00:10 KST (= 06-01T15:10Z)
     const now = new Date("2026-06-01T15:10:00.000Z");
     expect(decideAction(base, now)).toBe("D1");
+  });
+
+  // ★ 12시간 최소 대기(2026-08-28): 달력일 기준일 땐 밤늦은 주문이 9시간 만에 독촉을
+  //   받았다(실사례 SY20260716-8167: 21:04 주문 → 다음날 09:08 D1).
+  it("밤 11시 50분 주문은 다음날 아침 크론(9시간 경과)에 독촉하지 않는다", () => {
+    const late = { ...base, createdAt: "2026-06-01T14:50:00.000Z" }; // 06-01 23:50 KST
+    const cron = new Date("2026-06-02T00:00:00.000Z"); // 06-02 09:00 KST — 9.2시간 경과
+    expect(decideAction(late, cron)).toBe("none");
+  });
+  it("그 주문은 그 다음날 크론(33시간 경과)에 D2 가 아니라 D1 부터 나간다", () => {
+    const late = { ...base, createdAt: "2026-06-01T14:50:00.000Z" };
+    const cron = new Date("2026-06-03T00:00:00.000Z"); // 33.2시간 경과
+    expect(decideAction(late, cron)).toBe("D1");
+    expect(decideAction({ ...late, sentStages: ["D1"] }, new Date("2026-06-04T00:00:00.000Z")))
+      .toBe("D2"); // 57.2시간 → 다음 단계
+  });
+  it("정확히 12시간 지나면 D1", () => {
+    const now = new Date("2026-06-01T13:00:00.000Z"); // created 06-01T01:00Z + 12h
+    expect(decideAction(base, now)).toBe("D1");
+  });
+  it("11시간 59분이면 아직 보내지 않는다", () => {
+    const now = new Date("2026-06-01T12:59:00.000Z");
+    expect(decideAction(base, now)).toBe("none");
   });
 });
 

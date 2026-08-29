@@ -36,7 +36,8 @@ export function SmsHistoryModal({ order, onClose }: { order: SmsOrder; onClose: 
   async function resend(kind: "shipped" | "delivered") {
     setResending(kind);
     try {
-      await notify({ kind, orderId: order.id });
+      // 관리자가 직접 누른 재발송 — 지난 배송 차단(신선도 규칙)을 의도적으로 건너뛴다.
+      await notify({ kind, orderId: order.id, resend: true });
       await load(); // 새 발송 결과(성공/실패)가 sms_log 에 적재됨 → 갱신
     } finally {
       setResending(null);
