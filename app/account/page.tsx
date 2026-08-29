@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW, PERIOD_LABEL, periodWeeks, type SubPeriod } from "@/lib/products";
-import { DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
+import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { registerPayActionDeposit } from "@/lib/orders";
 import {
   getMySubscriptions,
@@ -19,8 +19,13 @@ import {
   cancelUnpaidOrder,
   requestRenewal,
   refundAmount,
+  changeDeliveryDay,
+  getDayCounts,
+  remaining as seatsLeft,
+  type DayCounts,
   type MySubscription,
 } from "@/lib/subscriptions";
+import { planDeliveryDayChange } from "@/lib/delivery-day-change";
 import { computeSchedule } from "@/lib/subscription-schedule";
 import { speak } from "@/lib/speech";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
@@ -60,6 +65,13 @@ type OrderItemRow = {
   unit_price: number;
   delivery_day: DeliveryDay | null;
 };
+
+// 오늘(KST 달력일). 요일 변경 계획을 세울 때 '이미 나간 회차' 기준이 된다.
+function todayISO(): string {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -198,6 +210,58 @@ export default function AccountPage() {
     if (!user) return;
     reloadSubs();
   }, [user]);
+
+  // 배송요일 변경 — 어느 요일로 바꿀지 고르는 중인 구독과 선택값.
+  const [dayEdit, setDayEdit] = useState<number | null>(null);
+  const [dayPick, setDayPick] = useState<DeliveryDay | null>(null);
+  const [dayCounts, setDayCounts] = useState<DayCounts | null>(null);
+
+  // 요일별 남은 자리 — 마감된 요일은 고를 수 없게 표시한다.
+  useEffect(() => {
+    if (dayEdit == null || dayCounts) return;
+    void getDayCounts()
+      .then(setDayCounts)
+      .catch(() => setDayCounts(null)); // 조회 실패는 안내만 생략(변경 자체는 서버가 재검사)
+  }, [dayEdit, dayCounts]);
+
+  async function onChangeDay(sub: MySubscription, newDay: DeliveryDay) {
+    const plan = planDeliveryDayChange(
+      {
+        deliveryDay: sub.deliveryDay,
+        startedAt: sub.startedAt,
+        firstShipDate: sub.firstShipDate,
+        paused: sub.paused,
+        pausedAt: sub.pausedAt,
+        pausedDays: sub.pausedDays,
+        totalWeeks: sub.totalWeeks,
+      },
+      newDay,
+      todayISO()
+    );
+    if (!plan.ok) {
+      alert(plan.reason);
+      return;
+    }
+    const nextLine = plan.nextDate ? `\n다음 배송: ${fmtDate(plan.nextDate)}` : "";
+    if (
+      !confirm(
+        `배송 요일을 ${DELIVERY_DAY_LABEL[sub.deliveryDay]}요일 → ${DELIVERY_DAY_LABEL[newDay]}요일로 바꿀까요?${nextLine}\n남은 ${plan.remaining}회는 그대로 모두 받으십니다.`
+      )
+    )
+      return;
+    setBusy(sub.slotId);
+    try {
+      await changeDeliveryDay(sub.slotId, newDay, plan.newStartedAt);
+      setDayEdit(null);
+      setDayPick(null);
+      setDayCounts(null); // 좌석이 바뀌었으니 다시 조회
+      reloadSubs();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "요일 변경에 실패했습니다.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function onPause(slotId: number) {
     setBusy(slotId);
@@ -588,6 +652,107 @@ export default function AccountPage() {
                             한 주만 쉬어가세요. 길게 쉬려면 일시정지. 총 {sch.total}회는 모두 발송됩니다.
                           </p>
                         </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 배송 요일 변경 — 장기 휴가·생활 패턴 변화로 받는 날을 옮길 때.
+                      남은 회차는 그대로 보존되고, 다음 배송부터 새 요일로 나간다. */}
+                  {s.status === "활성" && (
+                    <div className="mt-4 border-t border-line/60 pt-4">
+                      {dayEdit === s.slotId ? (
+                        <div>
+                          <p className="text-[13px] font-medium text-ink">받는 요일 바꾸기</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {DELIVERY_DAYS.map((d) => {
+                              const isCurrent = d === s.deliveryDay;
+                              const left = dayCounts ? seatsLeft(dayCounts[d]) : null;
+                              const full = left != null && left <= 0 && !isCurrent;
+                              return (
+                                <button
+                                  key={d}
+                                  type="button"
+                                  disabled={isCurrent || full || busy === s.slotId}
+                                  onClick={() => setDayPick(d)}
+                                  className={`rounded-full border px-4 py-2 text-[13px] transition-colors disabled:opacity-40 ${
+                                    dayPick === d
+                                      ? "border-gold bg-gold/10 text-gold-deep"
+                                      : "border-line text-ink-soft enabled:hover:border-gold"
+                                  }`}
+                                >
+                                  {DELIVERY_DAY_LABEL[d]}
+                                  {isCurrent ? " (현재)" : full ? " (마감)" : ""}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {(() => {
+                            if (!dayPick || dayPick === s.deliveryDay) return null;
+                            const plan = planDeliveryDayChange(
+                              {
+                                deliveryDay: s.deliveryDay,
+                                startedAt: s.startedAt,
+                                firstShipDate: s.firstShipDate,
+                                paused: s.paused,
+                                pausedAt: s.pausedAt,
+                                pausedDays: s.pausedDays,
+                                totalWeeks: s.totalWeeks,
+                              },
+                              dayPick,
+                              todayISO()
+                            );
+                            return (
+                              <p className="mt-2 text-[12px] leading-relaxed text-mute">
+                                {plan.ok ? (
+                                  <>
+                                    다음 배송이{" "}
+                                    <span className="text-ink-soft">
+                                      {fmtDate(plan.nextDate)}
+                                    </span>
+                                    로 바뀝니다. 남은 {plan.remaining}회는 그대로 모두 받으시고,
+                                    종료 예정일은 {fmtDate(plan.endDate)}입니다.
+                                  </>
+                                ) : (
+                                  plan.reason
+                                )}
+                              </p>
+                            );
+                          })()}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              onClick={() => dayPick && onChangeDay(s, dayPick)}
+                              disabled={!dayPick || dayPick === s.deliveryDay || busy === s.slotId}
+                              className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-40"
+                            >
+                              {busy === s.slotId ? "처리 중…" : "요일 변경"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDayEdit(null);
+                                setDayPick(null);
+                              }}
+                              className="rounded-full px-4 py-2.5 text-[14px] text-mute transition-colors hover:text-ink"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-[13px] text-ink-soft">
+                            <span className="text-mute">받는 요일 · </span>
+                            매주 {DELIVERY_DAY_LABEL[s.deliveryDay]}요일
+                          </p>
+                          <button
+                            onClick={() => {
+                              setDayEdit(s.slotId);
+                              setDayPick(null);
+                            }}
+                            className="shrink-0 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+                          >
+                            요일 변경
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
