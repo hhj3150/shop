@@ -87,17 +87,22 @@ export async function loadExpiries(): Promise<Map<string, string[]>> {
   }
 }
 
-// 이미 출고된 (order_id, ship_date) 키 집합 — DispatchPanel 버튼 비활성용.
+// 이미 출고된 (order_id, ship_date) → 실제 출고 시각 맵. 키 집합 — DispatchPanel 버튼 비활성용.
 //   키 형식: `${order_id}|${ship_date}`.
-export async function loadShippedKeys(): Promise<Set<string>> {
+export async function loadShippedKeys(): Promise<Map<string, string | null>> {
   try {
     const sb = getSupabase();
     const { data, error } = await sb
       .from("shipment_log")
-      .select("order_id, ship_date");
+      .select("order_id, ship_date, shipped_at");
     if (error) throw error;
-    return new Set(
-      (data ?? []).map((r) => `${r.order_id}|${r.ship_date}`)
+    // 값은 '실제 출고 시각'(송장을 기록한 순간). 지난 배송에 안내 문자가 나가지 않도록
+    //   배송판이 이 값으로 신선도를 판정한다(서버 /api/notify 와 같은 기준).
+    return new Map(
+      (data ?? []).map((r) => [
+        `${r.order_id}|${r.ship_date}`,
+        (r.shipped_at as string | null) ?? null,
+      ])
     );
   } catch (error) {
     console.error("출고 이력 조회 실패:", error);

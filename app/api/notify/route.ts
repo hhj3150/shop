@@ -7,6 +7,7 @@ import { formatKRW } from "@/lib/products";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { dispatchScheduleForSlot, type DispatchSlotInfo } from "@/lib/dispatch-schedule";
 import { firstDeliveryRitualNote } from "@/lib/first-delivery";
+import { isNoticeFresh, NOTICE_MAX_DAYS } from "@/lib/notice-freshness";
 
 // 정보성 문자 자동 발송. 클라이언트가 세션 토큰과 함께 호출하면 서버에서
 // 토큰을 검증하고, DB의 권위 있는 값으로 수신번호·문구를 구성해 발송한다.
@@ -21,7 +22,38 @@ type Body = {
   kind: OrderKind | GiftKind | RenewalKind | "subscription_cancelled" | "welcome";
   orderId?: string;
   slotId?: number;
+  // 관리자가 문자 이력 화면에서 '재발송'을 직접 누른 경우에만 true.
+  //   지난 배송 차단(신선도 규칙)을 건너뛴다 — 자동 경로에서는 절대 켜지지 않는다.
+  resend?: boolean;
+  // 발송·배송완료 안내가 가리키는 회차의 발송일('YYYY-MM-DD'). 배송판이 처리한 그 행.
+  //   구독은 한 주문이 회차마다 재출고되므로, 이 값이 있어야 '지금 처리한 회차'를 정확히
+  //   집어 신선도·회차 표기를 판정한다. 없으면 가장 최근 출고 회차로 본다.
+  shipDate?: string;
 };
+
+// 발송·배송완료 안내를 보내도 되는 회차인지(신선도). 기준은 '실제 출고 시각'.
+//   회차별 권위값인 shipment_log.shipped_at → 없으면 주문 행의 shipped_at/ship_date 순.
+//   ★ 이 판정이 서버에 있어야 어떤 경로(행 처리·일괄 정리·주문목록·향후 신규 코드)로
+//     들어와도 '지난 배송 문자'가 새 나가지 않는다. 화면 쪽 판정은 미리보기일 뿐이다.
+async function lastDispatchOf(
+  sb: SupabaseClient,
+  orderId: string,
+  shipDate?: string
+): Promise<{ shipDate: string | null; shippedAt: string | null }> {
+  // 회차를 지정했으면 그 회차 행을, 아니면 가장 최근에 출고한 회차를 본다.
+  const q = sb.from("shipment_log").select("ship_date, shipped_at").eq("order_id", orderId);
+  const { data } = shipDate
+    ? await q.eq("ship_date", shipDate).maybeSingle()
+    : await q
+        .not("shipped_at", "is", null)
+        .order("shipped_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+  return {
+    shipDate: (data?.ship_date as string | null) ?? null,
+    shippedAt: (data?.shipped_at as string | null) ?? null,
+  };
+}
 
 const SHOP = "송영신목장";
 
@@ -165,7 +197,7 @@ export async function POST(req: Request) {
   if (body.kind === "renewal_guide" || body.kind === "renewal_confirmed") {
     return handleRenewal(sb, body.kind, body.orderId);
   }
-  return handleOrder(sb, body.kind, body.orderId);
+  return handleOrder(sb, body.kind, body.orderId, body.resend === true, body.shipDate);
 }
 
 // 회원가입 환영 문자. 수신번호·이름은 본인 프로필에서 가져온다(임의 발송 방지).
@@ -192,7 +224,13 @@ async function handleWelcome(sb: SupabaseClient, userId: string) {
   return NextResponse.json(r);
 }
 
-async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string) {
+async function handleOrder(
+  sb: SupabaseClient,
+  kind: OrderKind,
+  orderId?: string,
+  resend = false,
+  shipDate?: string
+) {
   if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
   const { data: o } = await sb
     .from("orders")
@@ -203,6 +241,27 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
 
   const name = (o.ship_name as string) || "고객";
   const account = `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
+
+  // ── 지난 배송 차단(서버 강제) ──
+  //   발송·배송완료 안내는 '그 물건이 실제로 나간 시점'이 최근일 때만 보낸다.
+  //   밀린 배송 기록을 한꺼번에 정리(백필)해도 지나간 문자가 새 나가지 않게 하는 마지막 관문.
+  //   회차 발송일(shipment_log)을 여기서 한 번만 조회해 아래 회차 표기에도 재사용한다.
+  //   관리자가 문자 이력 화면에서 직접 누른 재발송(resend)만 이 규칙을 건너뛴다.
+  let lastDispatch: { shipDate: string | null; shippedAt: string | null } | null = null;
+  if (kind === "shipped" || kind === "delivered") {
+    lastDispatch = await lastDispatchOf(sb, orderId, shipDate);
+    const dispatchedAt =
+      lastDispatch.shippedAt ?? (o.shipped_at as string | null) ?? (o.ship_date as string | null);
+    if (!resend && !isNoticeFresh(dispatchedAt, kstTodayISO())) {
+      // 발송하지 않으므로 sms_log 에도 남기지 않는다(보낸 적 없는 문자를 이력에 만들지 않는다).
+      return NextResponse.json({
+        ok: true,
+        reason: "stale_skipped",
+        dispatchedAt,
+        maxDays: NOTICE_MAX_DAYS,
+      });
+    }
+  }
 
   if (kind === "order_cancelled") {
     // 주문 취소 안내. 선물 주문이면 받는 분이 아니라 보낸 분(주문자)에게 보낸다.
@@ -336,16 +395,8 @@ async function handleOrder(sb: SupabaseClient, kind: OrderKind, orderId?: string
     //   (decideShipOut: shipped_at ?? shipISO) 그 값으로 회차를 세면 2회차부터 계속 같은
     //   숫자가 찍힌다(실사고: "8회 중 2번째"가 5회 연속 발송). 회차별 권위값인
     //   shipment_log 에서 '가장 최근에 출고한 회차'의 발송일을 쓴다.
-    const { data: lastShipment } = await sb
-      .from("shipment_log")
-      .select("ship_date, shipped_at")
-      .eq("order_id", orderId)
-      .not("shipped_at", "is", null)
-      .order("shipped_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
     const shipISO = (
-      (lastShipment?.ship_date as string | null) ??
+      lastDispatch?.shipDate ??
       (o.shipped_at as string | null) ??
       (o.ship_date as string | null) ??
       kstTodayISO()
