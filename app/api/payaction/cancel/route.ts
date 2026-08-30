@@ -55,7 +55,29 @@ export async function POST(req: Request) {
   }
 
   const r = await cancelOrder(orderNo);
-  if (!r.ok) console.warn("[payaction/cancel] 통지 실패:", orderNo, r.reason);
-  else console.log("[payaction/cancel] 통지 완료:", orderNo);
+  if (!r.ok) {
+    console.warn("[payaction/cancel] 통지 실패:", orderNo, r.reason);
+    return NextResponse.json(r);
+  }
+  console.log("[payaction/cancel] 통지 완료:", orderNo, "cashbill:", r.cashbill?.status ?? "없음");
+
+  // 주문취소에 딸려 현금영수증도 취소됐다면 우리 DB 에도 남긴다 —
+  //   안 남기면 취소된 주문이 관리자 화면에 '자동발행 완료'로 계속 보인다.
+  const cancelled =
+    r.cashbill?.status === "cancelled" || r.cashbill?.status === "partially_cancelled";
+  const secret = process.env.CONFIRM_PAYMENT_SECRET;
+  if (cancelled && secret) {
+    const admin = createClient(url, anon, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { error } = await admin.rpc("record_cash_receipt_auto", {
+      p_secret: secret,
+      p_order_no: orderNo,
+      p_bill_id: r.cashbill?.id ?? null,
+      p_status: "cancelled",
+      p_error: null,
+    });
+    if (error) console.error("[payaction/cancel] 현금영수증 취소 기록 실패:", orderNo, error.message);
+  }
   return NextResponse.json(r);
 }

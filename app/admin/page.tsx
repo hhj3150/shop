@@ -141,6 +141,7 @@ type OrderRow = {
   cash_receipt_source?: string | null; // 'payaction'=자동발행, 'manual'=수기
   cash_receipt_bill_id?: number | null; // PayAction 현금영수증 ID
   cash_receipt_error?: string | null; // 자동발행 실패 사유
+  cash_receipt_cancelled_at?: string | null; // 주문취소로 현금영수증이 취소된 시각
   paid_at: string | null; // 입금/결제 확인 시각 (수동·자동 공통)
   pay_method: string | null; // 무통장 | 카드 등
   created_at: string;
@@ -2228,13 +2229,15 @@ export default function AdminPage() {
                               : "border border-line text-mute hover:border-gold hover:text-gold-deep"
                           }`}
                         >
-                          {o.cash_receipt_issued
-                            ? o.cash_receipt_source === "payaction"
-                              ? "자동발행"
-                              : "발행완료"
-                            : o.cash_receipt_source === "payaction"
-                              ? "자동발행 실패"
-                              : "발행대기"}
+                          {o.cash_receipt_cancelled_at
+                            ? "발행취소"
+                            : o.cash_receipt_issued
+                              ? o.cash_receipt_source === "payaction"
+                                ? "자동발행"
+                                : "발행완료"
+                              : o.cash_receipt_source === "payaction"
+                                ? "자동발행 실패"
+                                : "발행대기"}
                         </button>
                       </div>
                     ) : (
@@ -2492,8 +2495,11 @@ function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRo
   );
   const purpose = order.cash_receipt_type === "지출증빙" ? "지출증빙용" : "소득공제용";
   // 자동발행(페이액션) 여부 — 이게 참이면 사람이 손대면 안 된다.
-  const auto = order.cash_receipt_source === "payaction" && order.cash_receipt_issued === true;
-  const failed = order.cash_receipt_source === "payaction" && order.cash_receipt_issued !== true;
+  const cancelled = Boolean(order.cash_receipt_cancelled_at);
+  const auto =
+    !cancelled && order.cash_receipt_source === "payaction" && order.cash_receipt_issued === true;
+  const failed =
+    !cancelled && order.cash_receipt_source === "payaction" && order.cash_receipt_issued !== true;
   return (
     <div className="mt-3 rounded-xl border border-line/60 bg-cream/60 px-3 py-2.5">
       <p className="text-[13px] font-medium text-ink">
@@ -2508,6 +2514,11 @@ function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRo
             자동발행 실패 — 수기 발행 필요
           </span>
         )}
+        {cancelled && (
+          <span className="ml-1.5 rounded-full bg-line/60 px-2 py-0.5 text-[11px] font-normal text-mute">
+            발행취소됨
+          </span>
+        )}
       </p>
       <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink-soft">
         <span>거래구분 <span className="font-medium text-ink">{purpose}</span></span>
@@ -2519,7 +2530,11 @@ function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRo
         <span>부가세 <span className="font-medium text-ink">{formatKRW(amt.vat)}</span></span>
         <span>합계 <span className="font-medium text-gold-deep">{formatKRW(amt.total)}</span></span>
       </div>
-      {auto ? (
+      {cancelled ? (
+        <p className="mt-1.5 text-[12px] text-mute">
+          ※ 주문취소와 함께 현금영수증도 취소됐습니다. 따로 하실 일은 없습니다.
+        </p>
+      ) : auto ? (
         <p className="mt-1.5 text-[12px] text-mute">
           ※ 페이액션이 <span className="text-ink-soft">입금 확인과 동시에 자동 발행</span>했습니다
           {order.cash_receipt_bill_id ? ` (영수증 ID ${order.cash_receipt_bill_id})` : ""}.

@@ -40,7 +40,11 @@ export function verifyWebhookAuth(
 //   (2026-08 개발자문서 개정으로 정식 API 가 생겼다: POST /orders/{order_number}/cancel.
 //    구 /order-exclude 는 DEPRECATED — 종료 예정이라 쓰지 않는다.)
 //   이걸 안 부르면 취소한 주문에 뒤늦게 입금이 들어와 '고아입금'으로 남는다.
-export type CancelOrderResult = { ok: true } | { ok: false; reason: string };
+//   응답에는 연결된 현금영수증의 취소 결과(cashbill)가 함께 온다 — 현금영수증이 없으면 생략된다.
+//   그 값을 호출측이 우리 DB 에 남겨, 취소된 주문이 '발행완료'로 계속 보이지 않게 한다.
+export type CancelOrderResult =
+  | { ok: true; cashbill?: { id?: number; status?: string } }
+  | { ok: false; reason: string };
 
 export async function cancelOrder(orderNumber: string): Promise<CancelOrderResult> {
   if (!isPayActionConfigured()) return { ok: false, reason: "not_configured" };
@@ -58,9 +62,16 @@ export async function cancelOrder(orderNumber: string): Promise<CancelOrderResul
       },
     });
     const data = (await res.json().catch(() => null)) as
-      | { status?: string; response?: { message?: string }; error?: { message?: string } }
+      | {
+          status?: string;
+          response?: { message?: string };
+          error?: { message?: string };
+          cashbill?: { id?: number; status?: string };
+        }
       | null;
-    if (res.ok && data?.status === "success") return { ok: true };
+    if (res.ok && data?.status === "success") {
+      return { ok: true, cashbill: data.cashbill };
+    }
     const reason = data?.error?.message || data?.response?.message || `http_${res.status}`;
     return { ok: false, reason };
   } catch (error) {

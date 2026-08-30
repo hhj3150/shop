@@ -16,11 +16,13 @@ alter table public.orders
   add column if not exists cash_receipt_bill_id bigint,
   add column if not exists cash_receipt_source text
     check (cash_receipt_source is null or cash_receipt_source in ('payaction', 'manual')),
-  add column if not exists cash_receipt_error text;
+  add column if not exists cash_receipt_error text,
+  add column if not exists cash_receipt_cancelled_at timestamptz;
 
 comment on column public.orders.cash_receipt_bill_id is 'PayAction 현금영수증 ID(취소 API의 cashbill_id)';
 comment on column public.orders.cash_receipt_source is '발행 경로: payaction=자동발행, manual=관리자 수기';
 comment on column public.orders.cash_receipt_error is '자동발행 실패 메시지(issue_failed)';
+comment on column public.orders.cash_receipt_cancelled_at is '현금영수증이 취소된 시각(주문취소에 딸려 취소됨)';
 
 -- 2) 주문 등록용 페이로드 확장 — 자동발행에 필요한 값까지 한 번에 내려준다.
 --    면세/과세 분리는 앱(lib/cash-receipt-tax.ts)이 단일 출처로 계산하므로,
@@ -147,13 +149,27 @@ begin
 
   if p_status = 'issued' then
     update public.orders
-       set cash_receipt_issued    = true,
-           cash_receipt_issued_at = coalesce(cash_receipt_issued_at, now()),
-           cash_receipt_bill_id   = p_bill_id,
-           cash_receipt_source    = 'payaction',
-           cash_receipt_error     = null
+       set cash_receipt_issued       = true,
+           cash_receipt_issued_at    = coalesce(cash_receipt_issued_at, now()),
+           cash_receipt_bill_id      = p_bill_id,
+           cash_receipt_source       = 'payaction',
+           cash_receipt_error        = null,
+           cash_receipt_cancelled_at = null
      where id = v_id;
     return jsonb_build_object('ok', true, 'status', 'issued', 'was_issued', coalesce(v_prev, false));
+  end if;
+
+  -- 주문취소에 딸려 현금영수증이 취소된 경우: 발행완료 표시를 내리고 취소 시각을 남긴다.
+  --   (주문취소 API 응답의 cashbill.status = 'cancelled' | 'partially_cancelled')
+  if p_status = 'cancelled' then
+    update public.orders
+       set cash_receipt_issued       = false,
+           cash_receipt_cancelled_at = now(),
+           cash_receipt_bill_id      = coalesce(p_bill_id, cash_receipt_bill_id),
+           cash_receipt_source       = 'payaction',
+           cash_receipt_error        = null
+     where id = v_id;
+    return jsonb_build_object('ok', true, 'status', 'cancelled');
   end if;
 
   update public.orders
