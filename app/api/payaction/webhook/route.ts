@@ -13,10 +13,12 @@ import { buildPaymentConfirmedMessage } from "@/lib/payment-confirmed-message";
 //   2) DB 입금확인은 SECURITY DEFINER RPC(payaction_confirm)가 수행하며,
 //      Vault 공유 시크릿(CONFIRM_PAYMENT_SECRET)으로 호출자를 한 번 더 검증한다(service_role 미사용).
 //   3) x-trace-id 를 PK 로 저장해 동일 웹훅 재전송을 멱등 처리한다.
-//   4) 입금이 이 웹훅으로 '처음' 확인된 건에는 입금확인 안내 문자를 보낸다.
-//      (2026-08 점검: PayAction 은 손님에게 문자를 보내지 않는다. 관리자가 화면에서 직접
-//       누른 건만 문자가 나가, 7~8월 입금완료 69건 중 4건만 안내를 받았다.)
-//      중복 방지는 sms_already_sent(주문당 1회) 로 서버가 강제한다.
+//   4) 입금확인 안내 문자는 기본적으로 보내지 않는다.
+//      PayAction 대시보드의 '구매자 결제완료 알림(알림톡)'이 켜져 있고, 우리가 주문 등록 시
+//      orderer_phone_number 를 실어 보내므로 손님은 페이액션 알림톡을 이미 받는다
+//      (2026-08-30 설정 화면으로 확인). 우리가 또 보내면 두 통이 된다.
+//      PAYACTION_CONFIRM_SMS=on 으로만 켠다 — 페이액션 구매자 알림을 끄는 날 이 값을 켜면 된다.
+//      중복 방지는 sms_already_sent(주문당 1회) 로 서버가 한 번 더 강제한다.
 //
 // 응답 규약: 검증 통과 시 항상 200 {status:"success"} 를 반환한다(주문없음/중복 등 비-재시도 사유 포함).
 //   일시적 DB 오류만 5xx 로 응답해 PayAction 재전송(최대 3회)을 받는다.
@@ -148,9 +150,10 @@ export async function POST(req: Request) {
   }
   // 입금이 이번 웹훅으로 처음 확인된 건에만 입금확인 안내를 보낸다.
   //   changed=false(중복·이미 확인됨)면 보내지 않는다 — 재전송으로 같은 문자가 또 나가지 않게.
-  //   PAYACTION_CONFIRM_SMS=off 로 즉시 끌 수 있다 — PayAction 대시보드의 구매자 알림
-  //   (결제완료 알림톡)을 켜서 손님이 두 통 받게 되면 배포 없이 바로 멈추기 위한 스위치다.
-  if (r.changed === true && process.env.PAYACTION_CONFIRM_SMS !== "off") {
+  //   ★ 기본값은 '보내지 않음'이다. 페이액션이 구매자 결제완료 알림톡을 이미 보내고 있어
+  //   (대시보드 > 기능설정 > 구매자 결제완료 알림: 알림톡·이메일 사용), 우리까지 보내면
+  //   손님이 같은 안내를 두 번 받는다. 페이액션 쪽을 끄는 날 PAYACTION_CONFIRM_SMS=on 으로 켠다.
+  if (r.changed === true && process.env.PAYACTION_CONFIRM_SMS === "on") {
     await sendPaymentConfirmedSms(orderNo, supabaseUrl, supabaseAnon, confirmSecret);
   }
 
