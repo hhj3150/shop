@@ -164,7 +164,13 @@ export async function registerOrder(
     );
   }
 
-  try {
+  // 새로 추가한 선택 필드(현금영수증 자동발행용). 서버가 아직 이 필드를 모르면
+  //   등록 자체가 실패할 수 있는데, 등록 실패는 곧 '자동 입금확인 불가'라 치명적이다.
+  //   → 1차 시도가 실패하면 이 필드들을 빼고 한 번 더 시도한다(자동 입금확인이 우선).
+  const OPTIONAL_KEYS = ["tax_free_amount", "trade_usage", "identity_number"] as const;
+  const hasOptional = OPTIONAL_KEYS.some((k) => k in body);
+
+  const post = async (payload: Record<string, unknown>) => {
     const res = await fetch(`${base}/order`, {
       method: "POST",
       headers: {
@@ -172,16 +178,37 @@ export async function registerOrder(
         "x-api-key": process.env.PAYACTION_API_KEY as string,
         "x-mall-id": process.env.PAYACTION_MALL_ID as string,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
-
     const data = (await res.json().catch(() => null)) as
       | { status?: string; response?: { message?: string } }
       | null;
+    const ok = res.ok && data?.status === "success";
+    return { ok, reason: data?.response?.message || `http_${res.status}` };
+  };
 
-    if (res.ok && data?.status === "success") return { ok: true };
-    const reason = data?.response?.message || `http_${res.status}`;
-    return { ok: false, reason };
+  try {
+    const first = await post(body);
+    if (first.ok) return { ok: true };
+
+    if (hasOptional) {
+      const fallback: Record<string, unknown> = { ...body };
+      for (const k of OPTIONAL_KEYS) delete fallback[k];
+      const second = await post(fallback);
+      if (second.ok) {
+        // 등록은 살렸지만 현금영수증 자동발행 정보는 못 실었다 — 반드시 드러나게 남긴다.
+        console.warn(
+          "[payaction] 현금영수증 필드 없이 재등록 성공 —",
+          "자동발행이 안 될 수 있습니다. 1차 실패 사유:",
+          first.reason,
+          "주문:",
+          input.orderNumber
+        );
+        return { ok: true };
+      }
+      return { ok: false, reason: second.reason };
+    }
+    return { ok: false, reason: first.reason };
   } catch (error) {
     const reason = error instanceof Error ? error.message : "request_failed";
     return { ok: false, reason };
