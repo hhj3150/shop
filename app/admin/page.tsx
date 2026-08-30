@@ -2428,7 +2428,7 @@ export default function AdminPage() {
                       </div>
                       {/* 현금영수증 과세/면세 분리 — 페이액션 ‘발행하기’에 그대로 입력 */}
                       {o.cash_receipt_type && o.cash_receipt_type !== "발행안함" && (
-                        <CashReceiptBreakdown order={o} items={orderItems} />
+                        <CashReceiptBreakdown order={o} items={orderItems} onReloaded={load} />
                       )}
                     </td>
                   </tr>
@@ -2487,7 +2487,41 @@ function Stat({ label, value }: { label: string; value: string }) {
 //   현금영수증 '발행하기'(거래구분·식별번호·금액)에 그대로 입력하면 된다.
 //   구독 주문의 order_items 는 '회당' 수량이므로 block_weeks(주수)를 반드시 넘긴다 —
 //   총액은 전체 기간분이라 주수를 빼먹으면 면세/과세 분리가 크게 어긋난다.
-function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRow[] }) {
+function CashReceiptBreakdown({
+  order,
+  items,
+  onReloaded,
+}: {
+  order: OrderRow;
+  items: ItemRow[];
+  onReloaded?: () => void;
+}) {
+  const [reissuing, setReissuing] = useState(false);
+  const [reissueMsg, setReissueMsg] = useState("");
+
+  // 자동발행 실패 건 재발행. 서버가 '이미 발행됨'을 거절하므로 이중발행 위험은 없다.
+  async function onReissue() {
+    setReissuing(true);
+    setReissueMsg("");
+    try {
+      const { data } = await getSupabase().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("로그인이 필요합니다.");
+      const res = await fetch("/api/payaction/cashbill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orderNo: order.order_no }),
+      });
+      const r = (await res.json()) as { ok?: boolean; reason?: string };
+      setReissueMsg(r.ok ? "발행되었습니다." : `실패: ${r.reason ?? "알 수 없음"}`);
+      if (r.ok) onReloaded?.();
+    } catch (e) {
+      setReissueMsg(e instanceof Error ? e.message : "재발행에 실패했습니다.");
+    } finally {
+      setReissuing(false);
+    }
+  }
+
   const amt = computeCashReceiptAmounts(
     items.map((it) => ({ productId: it.product_id, unitPrice: it.unit_price, qty: it.qty })),
     order.total_amount,
@@ -2541,10 +2575,21 @@ function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRo
           <span className="text-ink-soft"> 대시보드에서 다시 발행하지 마세요 — 이중발행됩니다.</span>
         </p>
       ) : failed ? (
-        <p className="mt-1.5 text-[12px] text-red-700">
-          ※ 자동발행이 실패했습니다{order.cash_receipt_error ? `: ${order.cash_receipt_error}` : ""}.
-          페이액션 ‘현금영수증 → 발행하기’에서 위 금액으로 직접 발행한 뒤 ‘발행완료’로 표시해 주세요.
-        </p>
+        <div className="mt-1.5">
+          <p className="text-[12px] text-red-700">
+            ※ 자동발행이 실패했습니다{order.cash_receipt_error ? `: ${order.cash_receipt_error}` : ""}.
+            아래 ‘재발행’을 누르면 위 금액 그대로 다시 시도합니다.
+          </p>
+          <button
+            type="button"
+            onClick={onReissue}
+            disabled={reissuing}
+            className="mt-1.5 rounded-lg border border-line px-2.5 py-1 text-[12px] text-ink-soft hover:bg-cream/60 disabled:opacity-50"
+          >
+            {reissuing ? "재발행 중…" : "현금영수증 재발행"}
+          </button>
+          {reissueMsg && <span className="ml-2 text-[12px] text-mute">{reissueMsg}</span>}
+        </div>
       ) : (
         <p className="mt-1.5 text-[12px] text-mute">
           ※ 입금이 확인되면 <span className="text-ink-soft">페이액션이 자동 발행</span>합니다. 손으로 발행하지 마세요.

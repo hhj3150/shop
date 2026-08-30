@@ -43,3 +43,28 @@ describe("현금영수증 자동발행 — 면세금액 산출", () => {
     expect(amt.taxFreeAmount + amt.supplyAmount + amt.vat).toBe(21500);
   });
 });
+
+// 페이액션 주문등록 body 규칙(문서 대조) — 잘못 보내면 손님 영수증이 틀리거나 발행이 안 된다.
+//   · tax_free_amount: 0=전액 과세, 주문금액과 같으면 전액 면세, 그 사이는 혼합
+//   · trade_usage·identity_number 는 쌍으로만 — 하나만 보내면 자동발행도 자진발급도 안 된다
+describe("주문등록 body 규칙", () => {
+  it("면세금액은 결제액을 넘지 않는다", () => {
+    const amt = computeCashReceiptAmounts(
+      [{ productId: "milk-950", unitPrice: 9500, qty: 2 }],
+      19000,
+      { weeks: 1, shippingFee: 0 }
+    );
+    expect(amt.taxFreeAmount).toBeLessThanOrEqual(19000);
+    expect(amt.taxFreeAmount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("과세 품목만이면 면세금액 0 — 전액 과세로 발행돼야 한다", () => {
+    const amt = computeCashReceiptAmounts(
+      [{ productId: "yogurt-450", unitPrice: 8000, qty: 1 }],
+      8000,
+      { weeks: 1, shippingFee: 0 }
+    );
+    expect(amt.taxFreeAmount).toBe(0);
+    expect(amt.supplyAmount + amt.vat).toBe(8000);
+  });
+});
