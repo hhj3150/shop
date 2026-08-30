@@ -9,6 +9,7 @@
 
 export type NotifyTemplateKey =
   | "EXPIRE_SOON" // 구독 만료 임박 (D-7) — 트리거(cron) 별도 작업
+  | "SUBSCRIPTION_ENDED" // 구독 종료 안내(만료 다음날) — 트리거(cron). 미등록이면 LMS 폴백.
   | "PAYMENT_DEADLINE" // 미입금 마감 임박 — 트리거(cron) 별도 작업
   | "PAYMENT_GUIDE" // 주문 접수 + 입금 안내
   | "PAYMENT_CONFIRMED" // 입금 확인
@@ -24,6 +25,7 @@ export type NotifyTemplateKey =
 // 키 → templateId 를 담는 환경변수 이름.
 const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
   EXPIRE_SOON: "SOLAPI_TEMPLATE_EXPIRE_SOON",
+  SUBSCRIPTION_ENDED: "SOLAPI_TEMPLATE_SUBSCRIPTION_ENDED",
   PAYMENT_DEADLINE: "SOLAPI_TEMPLATE_PAYMENT_DEADLINE",
   PAYMENT_GUIDE: "SOLAPI_TEMPLATE_PAYMENT_GUIDE",
   PAYMENT_CONFIRMED: "SOLAPI_TEMPLATE_PAYMENT_CONFIRMED",
@@ -49,6 +51,7 @@ const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
 //     env(SOLAPI_TEMPLATE_FIRST_SHIPPING) 미설정이면 자동으로 LMS(첫배송 ritual 본문)로 폴백.
 export const TEMPLATE_VARS: Record<NotifyTemplateKey, readonly string[]> = {
   EXPIRE_SOON: ["#{고객명}", "#{만료일}"],
+  SUBSCRIPTION_ENDED: ["#{고객명}", "#{만료일}"],
   PAYMENT_DEADLINE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{마감일}"],
   PAYMENT_GUIDE: ["#{고객명}", "#{주문번호}", "#{금액}", "#{입금계좌}"],
   PAYMENT_CONFIRMED: ["#{고객명}", "#{주문번호}"],

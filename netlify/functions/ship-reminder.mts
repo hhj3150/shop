@@ -8,6 +8,7 @@ import {
   type ReminderItem,
   type ReminderSlot,
 } from "../../lib/ship-reminder";
+import { logSms } from "../../lib/sms-log";
 
 type Dataset = {
   orders: ReminderOrder[];
@@ -72,6 +73,17 @@ export default async function handler(): Promise<Response> {
     }
     const m = buildShipReminderMessage(t);
     const result = await sendInfo(t.shipPhone, { text: m.text, subject: m.subject });
+    // 관리자 문자 이력(sms_log)에도 남긴다 — 예고 문자가 이력에서 빠져 있었다.
+    await logSms({
+      kind: "ship_reminder",
+      toPhone: t.shipPhone,
+      body: m.text,
+      channel: "info",
+      ok: result.ok,
+      failReason: result.ok ? null : (result.reason ?? null),
+      orderId: t.orderId,
+      meta: { shipDate: t.shipDate },
+    });
     if (!result.ok) {
       console.warn(`[ship-reminder] 발송 실패 ${t.orderNo}:`, result);
       continue;

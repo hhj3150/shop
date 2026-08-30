@@ -5,9 +5,15 @@ import { logSms } from "@/lib/sms-log";
 import { DEPOSIT } from "@/lib/site";
 import { formatKRW } from "@/lib/products";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
-import { dispatchScheduleForSlot, type DispatchSlotInfo } from "@/lib/dispatch-schedule";
+import {
+  dispatchScheduleForSlot,
+  pickSlotForShipDate,
+  type DispatchSlotInfo,
+} from "@/lib/dispatch-schedule";
 import { firstDeliveryRitualNote } from "@/lib/first-delivery";
 import { isNoticeFresh, NOTICE_MAX_DAYS } from "@/lib/notice-freshness";
+import { buildPaymentConfirmedMessage } from "@/lib/payment-confirmed-message";
+import { buildOrderReceivedMessage } from "@/lib/order-received-message";
 
 // 정보성 문자 자동 발송. 클라이언트가 세션 토큰과 함께 호출하면 서버에서
 // 토큰을 검증하고, DB의 권위 있는 값으로 수신번호·문구를 구성해 발송한다.
@@ -234,7 +240,7 @@ async function handleOrder(
   if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
   const { data: o } = await sb
     .from("orders")
-    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no, is_gift, gifter_name, ship_date, delivery_method, user_id, order_type, block_weeks, shipped_at")
+    .select("order_no, total_amount, ship_name, ship_phone, courier, tracking_no, is_gift, gifter_name, ship_date, delivery_method, user_id, order_type, block_weeks, shipped_at, renews_slot_id")
     .eq("id", orderId)
     .single();
   if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
@@ -293,32 +299,22 @@ async function handleOrder(
 
   if (kind === "order_received") {
     // 주문 접수 + 입금 안내 (알림톡 PAYMENT_GUIDE, 미승인 시 LMS 폴백).
-    // 발송 예정일은 ship_date(서버 산출, KST)를 'M월 D일'로 안내. 값 없으면 기존 문구 유지.
-    const [, mo, da] = (o.ship_date as string | null)?.split("-") ?? [];
-    const dispatchLine =
-      mo && da
-        ? o.delivery_method === "방문수령"
-          ? `입금이 확인되면 ${Number(mo)}월 ${Number(da)}일부터 목장에서 수령하실 수 있습니다.`
-          : `입금이 확인되면 ${Number(mo)}월 ${Number(da)}일에 발송해 드립니다.`
-        : `입금이 확인되면 다시 안내드리겠습니다.`;
-    const text =
-      `[${SHOP}] ${name}님, 주문이 접수되었습니다.\n` +
-      `주문번호 ${o.order_no}\n` +
-      `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
-      `${account}\n` +
-      dispatchLine;
+    //   문구는 비회원 경로(/api/notify/guest)와 같은 조립기를 쓴다.
+    const m = buildOrderReceivedMessage({
+      shipName: o.ship_name as string | null,
+      orderNo: o.order_no as string,
+      amountLabel: formatKRW(o.total_amount as number),
+      account,
+      shipDate: o.ship_date as string | null,
+      deliveryMethod: o.delivery_method as string | null,
+    });
     const alimtalk: AlimtalkSpec = {
       templateKey: "PAYMENT_GUIDE",
-      variables: {
-        "#{고객명}": name,
-        "#{주문번호}": o.order_no as string,
-        "#{금액}": formatKRW(o.total_amount as number),
-        "#{입금계좌}": account,
-      },
+      variables: m.variables,
     };
     const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
-      text,
-      subject: `[${SHOP}] 주문 접수`,
+      text: m.text,
+      subject: m.subject,
       alimtalk,
     });
     return NextResponse.json(r);
@@ -326,28 +322,21 @@ async function handleOrder(
 
   if (kind === "payment_confirmed") {
     // 입금 확인 (알림톡 PAYMENT_CONFIRMED, 미승인 시 LMS 폴백).
-    // 발송 예정일(ship_date, 서버 산출 KST)을 'M월 D일'로 안내. 값 없으면 기존 문구 유지.
-    const [, mo, da] = (o.ship_date as string | null)?.split("-") ?? [];
-    const dispatchLine =
-      mo && da
-        ? o.delivery_method === "방문수령"
-          ? `${Number(mo)}월 ${Number(da)}일부터 목장에서 수령하실 수 있습니다.`
-          : `${Number(mo)}월 ${Number(da)}일에 발송해 드립니다.`
-        : `신선하게 준비하여 순차 발송해 드리겠습니다.`;
-    const text =
-      `[${SHOP}] ${name}님, 입금이 확인되었습니다.\n` +
-      `주문번호 ${o.order_no}\n` +
-      dispatchLine;
+    //   문구는 PayAction 웹훅(자동 입금확인) 경로와 같은 조립기를 쓴다 — 두 경로가
+    //   서로 다른 말을 하지 않도록.
+    const m = buildPaymentConfirmedMessage({
+      shipName: o.ship_name as string | null,
+      orderNo: o.order_no as string,
+      shipDate: o.ship_date as string | null,
+      deliveryMethod: o.delivery_method as string | null,
+    });
     const alimtalk: AlimtalkSpec = {
       templateKey: "PAYMENT_CONFIRMED",
-      variables: {
-        "#{고객명}": name,
-        "#{주문번호}": o.order_no as string,
-      },
+      variables: m.variables,
     };
     const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
-      text,
-      subject: `[${SHOP}] 입금 확인`,
+      text: m.text,
+      subject: m.subject,
       alimtalk,
     });
     return NextResponse.json(r);
@@ -380,7 +369,6 @@ async function handleOrder(
   const url = trackingUrl(o.courier as string | null, tracking);
 
   // 구독 발송이면 "총 N회 중 M번째"를 본문에 덧붙인다(서버 권위 재계산).
-  //   발송은 항상 원주문 행에서 나가므로(연장주문은 유령행) slot.order_id = 이 주문.
   //   회차는 발송일(shipped_at, 없으면 ship_date/오늘) 기준으로 산출 — DispatchPanel 과 동일 SSOT.
   //   주의: 회차 표시는 LMS 본문에만 넣는다. SHIPPED 알림톡 변수에 회차를 강제하면
   //     회차가 없는 단품 발송까지 빈 값→LMS 폴백되어 단품 알림톡이 비활성화되므로 제외.
@@ -401,14 +389,45 @@ async function handleOrder(
       (o.ship_date as string | null) ??
       kstTodayISO()
     ).slice(0, 10);
-    const { data: slot } = await sb
-      .from("subscription_slots")
-      .select("status, started_at, first_ship_date, paused, paused_at, paused_days, extended_weeks")
-      .eq("order_id", orderId)
-      .maybeSingle();
-    if (slot) {
-      const sch = dispatchScheduleForSlot(slot as DispatchSlotInfo, (o.block_weeks as number | null) ?? 0, shipISO);
-      if (sch.total > 0) roundSuffix = ` (${sch.total}회 중 ${sch.round}번째)`;
+    // 이 발송이 '어느 구독(슬롯)의 몇 회차'인지 찾는다.
+    //   · 원주문 발송: 슬롯이 이 주문에 붙어 있다(subscription_slots.order_id).
+    //     한 주문에 요일이 둘이면 슬롯도 둘 → 그 날짜에 배송이 놓인 슬롯을 고른다.
+    //   · 연장(재구독) 주문 발송: 슬롯은 원주문에 그대로 있고, 이 주문이 orders.renews_slot_id
+    //     로 그 슬롯을 가리킨다. 예전엔 order_id 로만 찾아 슬롯을 못 만나 회차 표기가
+    //     통째로 빠졌다(실사고: 연장 구독자 15명의 발송 문자에 회차가 없었다).
+    //   · 총 회차는 '슬롯 기준'(원주문 block_weeks + extended_weeks)이라야 마이페이지·배송판과
+    //     같은 숫자가 나온다. 연장주문의 block_weeks 는 이번 연장분일 뿐이라 총회차가 아니다.
+    const SLOT_FIELDS =
+      "order_id, status, started_at, first_ship_date, paused, paused_at, paused_days, extended_weeks";
+    const renewsSlotId = (o as { renews_slot_id?: number | null }).renews_slot_id ?? null;
+    const { data: slotRows } = renewsSlotId
+      ? await sb.from("subscription_slots").select(SLOT_FIELDS).eq("id", renewsSlotId)
+      : await sb.from("subscription_slots").select(SLOT_FIELDS).eq("order_id", orderId);
+    const slots = (slotRows ?? []) as (DispatchSlotInfo & { order_id: string | null })[];
+
+    let baseWeeks = (o.block_weeks as number | null) ?? 0;
+    if (renewsSlotId && slots[0]?.order_id) {
+      const { data: root } = await sb
+        .from("orders")
+        .select("block_weeks")
+        .eq("id", slots[0].order_id)
+        .maybeSingle();
+      baseWeeks = (root?.block_weeks as number | null) ?? baseWeeks;
+    }
+
+    const picked = pickSlotForShipDate(
+      slots.map((slot) => ({ slot, blockWeeks: baseWeeks })),
+      shipISO
+    );
+    if (picked) {
+      const sch = dispatchScheduleForSlot(picked.slot, picked.blockWeeks, shipISO);
+      if (sch.total > 0) {
+        // 마지막 회차는 그렇게 알린다 — 손님이 '언제 끝나는지'를 문자로 알 수 있게.
+        roundSuffix =
+          sch.round >= sch.total
+            ? ` (${sch.total}회 중 마지막 ${sch.round}번째)`
+            : ` (${sch.total}회 중 ${sch.round}번째)`;
+      }
       if (sch.round === 1) {
         firstNote = firstDeliveryRitualNote();
         isFirstDelivery = true;

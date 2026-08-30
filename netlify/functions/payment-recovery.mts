@@ -8,6 +8,7 @@ import {
   kstDaysElapsed,
   type RecoveryTarget,
 } from "../../lib/payment-recovery";
+import { logSms } from "../../lib/sms-log";
 
 type TargetRow = {
   order_id: string;
@@ -81,6 +82,16 @@ export default async function handler(): Promise<Response> {
           text,
           subject: "[송영신목장] 미입금 주문 확인 필요",
         });
+        await logSms({
+          kind: "orphan_alert",
+          toPhone: adminPhone,
+          body: text,
+          channel: "admin_alert",
+          ok: result.ok,
+          failReason: result.ok ? null : (result.reason ?? null),
+          orderId: t.orderId,
+          meta: { stage: "EXPIRE_NOTIFY" },
+        });
         if (!result.ok) console.warn(`[payment-recovery] 관리자 알림 실패 ${t.orderNo}:`, result);
         else notified += 1;
       }
@@ -110,6 +121,18 @@ export default async function handler(): Promise<Response> {
         m.templateKey && m.variables
           ? { templateKey: m.templateKey, variables: m.variables }
           : undefined,
+    });
+    // 관리자 문자 이력(sms_log)에도 남긴다 — 독촉 문자가 이력에서 빠져 있었다.
+    await logSms({
+      kind: "payment_recovery",
+      toPhone: t.shipPhone,
+      body: m.text,
+      templateKey: m.templateKey ?? null,
+      channel: "info",
+      ok: result.ok,
+      failReason: result.ok ? null : (result.reason ?? null),
+      orderId: t.orderId,
+      meta: { stage: action },
     });
     if (!result.ok) {
       console.warn(`[payment-recovery] 발송 실패 ${t.orderNo}:`, result);

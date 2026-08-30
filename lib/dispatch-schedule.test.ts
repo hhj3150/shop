@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { dispatchScheduleForSlot, type DispatchSlotInfo } from "./dispatch-schedule";
+import {
+  dispatchScheduleForSlot,
+  slotShipsOn,
+  pickSlotForShipDate,
+  type DispatchSlotInfo,
+} from "./dispatch-schedule";
 
 // 4주(주1회) 구독, 시작 2026-06-01(월). 정지·연장 없음의 기준 슬롯.
 function baseSlot(over: Partial<DispatchSlotInfo> = {}): DispatchSlotInfo {
@@ -101,5 +106,31 @@ describe("dispatchScheduleForSlot", () => {
   it("지정한 시작일 당일은 발송한다(제외 안 됨)", () => {
     const r = dispatchScheduleForSlot(baseSlot({ started_at: "2026-06-08" }), 4, "2026-06-08");
     expect(r.excluded).toBe(false);
+  });
+});
+
+describe("slotShipsOn / pickSlotForShipDate", () => {
+  it("배송일 당일이면 true, 배송 없는 날이면 false", () => {
+    const s = baseSlot(); // 06-01 시작, 매주 월요일 4회
+    expect(slotShipsOn(s, 4, "2026-06-01")).toBe(true);
+    expect(slotShipsOn(s, 4, "2026-06-08")).toBe(true);
+    expect(slotShipsOn(s, 4, "2026-06-09")).toBe(false);
+    expect(slotShipsOn(s, 4, "2026-06-29")).toBe(false); // 회차 소진 이후
+  });
+
+  it("한 주문에 요일이 다른 슬롯 둘 → 그 날짜에 배송이 놓인 슬롯을 고른다", () => {
+    const mon = { slot: baseSlot({ started_at: "2026-06-01" }), blockWeeks: 4 }; // 월
+    const wed = { slot: baseSlot({ started_at: "2026-06-03" }), blockWeeks: 4 }; // 수
+    expect(pickSlotForShipDate([mon, wed], "2026-06-10")).toBe(wed);
+    expect(pickSlotForShipDate([mon, wed], "2026-06-15")).toBe(mon);
+  });
+
+  it("후보가 하나면 그대로 쓴다(날짜가 어긋나도 회차 표기는 유지)", () => {
+    const only = { slot: baseSlot(), blockWeeks: 4 };
+    expect(pickSlotForShipDate([only], "2026-06-03")).toBe(only);
+  });
+
+  it("후보 없음이면 null", () => {
+    expect(pickSlotForShipDate([], "2026-06-01")).toBeNull();
   });
 });

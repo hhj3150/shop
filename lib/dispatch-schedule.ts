@@ -55,3 +55,36 @@ export function dispatchScheduleForSlot(
 
   return { excluded, round, total, remaining };
 }
+
+// shipISO 가 이 슬롯의 '실제 배송일 중 하루'인가(그 날짜에 회차가 놓이는가).
+//   전날 대비 배송완료 수가 늘었으면 그 날이 곧 한 회차의 배송일이다.
+//   한 주문에 슬롯이 여러 개(요일 2개 이상)일 때 '이번 출고가 어느 슬롯의 회차인지' 고르는 데 쓴다.
+export function slotShipsOn(slot: DispatchSlotInfo, blockWeeks: number, shipISO: string): boolean {
+  const [y, m, d] = shipISO.split("-").map(Number);
+  if (!y || !m || !d) return false;
+  const prev = new Date(y, m - 1, d - 1);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const prevISO = `${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-${pad(prev.getDate())}`;
+  const at = dispatchScheduleForSlot(slot, blockWeeks, shipISO);
+  const before = dispatchScheduleForSlot(slot, blockWeeks, prevISO);
+  // round 는 최소 1로 클램프되므로 '시작일 당일'은 delivered 비교 대신 시작일 일치로 본다.
+  if (slot.started_at === shipISO || slot.first_ship_date === shipISO) return true;
+  return at.round > before.round;
+}
+
+// 한 주문에 묶인 슬롯 후보 중 이번 출고(shipISO)에 해당하는 슬롯을 고른다.
+//   1순위: 그 날짜에 실제로 회차가 놓이는 슬롯. 2순위: 배송 대상(제외 아님)인 슬롯. 3순위: 첫 슬롯.
+//   후보가 하나뿐이면 그대로 쓴다(대다수 주문).
+export function pickSlotForShipDate<T extends { slot: DispatchSlotInfo; blockWeeks: number }>(
+  candidates: readonly T[],
+  shipISO: string
+): T | null {
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+  const exact = candidates.find((c) => slotShipsOn(c.slot, c.blockWeeks, shipISO));
+  if (exact) return exact;
+  const active = candidates.find(
+    (c) => !dispatchScheduleForSlot(c.slot, c.blockWeeks, shipISO).excluded
+  );
+  return active ?? candidates[0];
+}

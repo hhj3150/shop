@@ -36,3 +36,18 @@ export async function notify(payload: NotifyPayload): Promise<void> {
     // 문자 발송 실패는 사용자 흐름에 영향을 주지 않는다.
   }
 }
+
+// 비회원(게스트) 주문의 주문접수·입금안내 문자. 세션 토큰이 없으므로 전용 라우트를 쓴다.
+//   수신번호·문구·중복 방지는 모두 서버가 DB 권위값으로 판정한다(app/api/notify/guest).
+//   best-effort — 실패해도 주문 흐름을 막지 않는다.
+export async function notifyGuestOrder(orderNo: string): Promise<void> {
+  try {
+    await fetch("/api/notify/guest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderNo }),
+    });
+  } catch {
+    // 문자 발송 실패는 사용자 흐름에 영향을 주지 않는다.
+  }
+}
