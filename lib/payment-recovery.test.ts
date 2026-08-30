@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   decideAction,
-  buildRecoveryMessage,
-  buildExpireAdminAlertText,
+  buildUnpaidDigest,
+  elapsedHours,
+  type UnpaidItem,
   type RecoveryTarget,
 } from "./payment-recovery";
-import { DEPOSIT } from "./site";
 
 const base: RecoveryTarget = {
   orderId: "o1",
@@ -78,40 +78,66 @@ describe("decideAction (주문 후 경과 시간)", () => {
   });
 });
 
-describe("buildRecoveryMessage", () => {
-  const account = `${DEPOSIT.bank} ${DEPOSIT.account} (예금주 ${DEPOSIT.holder})`;
-
-  it("D1은 PAYMENT_GUIDE 템플릿 + 정확한 변수", () => {
-    const m = buildRecoveryMessage(base, "D1");
-    expect(m.templateKey).toBe("PAYMENT_GUIDE");
-    expect(m.variables).toEqual({
-      "#{고객명}": "홍길동",
-      "#{주문번호}": "20260601-0001",
-      "#{금액}": "39000",
-      "#{입금계좌}": account,
-    });
-    expect(m.text).toContain("39000");
-    expect(m.text).toContain(account);
+describe("buildUnpaidDigest (관리자 확인 요약)", () => {
+  const t = (over: Partial<RecoveryTarget> = {}): RecoveryTarget => ({
+    ...base,
+    ...over,
+  });
+  const item = (over: Partial<RecoveryTarget>, hours: number): UnpaidItem => ({
+    target: t(over),
+    hoursElapsed: hours,
   });
 
-  it("D2는 알림톡 없이 LMS만 — 자동취소 예고 대신 입금자명 회신을 안내", () => {
-    const m = buildRecoveryMessage(base, "D2");
-    expect(m.templateKey).toBeUndefined(); // 구 템플릿(PAYMENT_DEADLINE)엔 자동취소 문구가 있어 미사용
-    expect(m.text).toContain("홍길동");
-    expect(m.text).toContain("20260601-0001");
-    expect(m.text).toContain("입금자명");
-    expect(m.text).not.toContain("자동 취소");
-    expect(m.text).not.toContain("자동취소");
+  it("알릴 게 없으면 문자도 없다(null)", () => {
+    expect(buildUnpaidDigest([], 0)).toBeNull();
+  });
+
+  it("건수·주문번호·이름·금액·경과시간을 한 통에 담는다", () => {
+    const d = buildUnpaidDigest(
+      [
+        item({ orderNo: "SY20260829-9912", shipName: "김손님", totalAmount: 24500 }, 13),
+        item({ orderNo: "SY20260828-1695", shipName: "이손님", totalAmount: 30300 }, 37),
+      ],
+      2
+    );
+    expect(d).not.toBeNull();
+    expect(d!.text).toContain("미입금 확인 필요 2건");
+    expect(d!.text).toContain("SY20260829-9912 김손님 24,500원 · 13시간 경과");
+    expect(d!.text).toContain("SY20260828-1695 이손님 30,300원 · 37시간 경과");
+  });
+
+  it("손님에게 독촉이 나가지 않는다는 사실을 본문에 못박는다", () => {
+    const d = buildUnpaidDigest([item({}, 13)], 1);
+    expect(d!.text).toContain("손님에게는 독촉 문자가 나가지 않습니다");
+  });
+
+  it("48시간이 넘으면 일 단위로 적는다", () => {
+    const d = buildUnpaidDigest([item({}, 61)], 1);
+    expect(d!.text).toContain("2일 경과");
+  });
+
+  it("정기구독은 (정기) 로 구분한다", () => {
+    const d = buildUnpaidDigest([item({ hasSubscription: true }, 13)], 1);
+    expect(d!.text).toContain("(정기)");
+  });
+
+  it("15건을 넘으면 '외 N건'으로 접는다", () => {
+    const many = Array.from({ length: 18 }, (_, i) =>
+      item({ orderNo: `SY-${i}` }, 13)
+    );
+    const d = buildUnpaidDigest(many, 18);
+    expect(d!.text).toContain("· 외 3건");
+  });
+
+  it("이번에 걸린 건 외에 대기 중인 주문이 더 있으면 전체 건수도 알린다", () => {
+    const d = buildUnpaidDigest([item({}, 13)], 5);
+    expect(d!.text).toContain("현재 입금대기 전체 5건");
   });
 });
 
-describe("buildExpireAdminAlertText", () => {
-  it("관리자 알림 — 주문정보 포함, 수동 처리 안내, 고객 취소문구 없음", () => {
-    const text = buildExpireAdminAlertText(base, 3);
-    expect(text).toContain("D+3");
-    expect(text).toContain("20260601-0001");
-    expect(text).toContain("홍길동");
-    expect(text).toContain("입금확인");
-    expect(text).toContain("자동취소·자동문자는 나가지 않습니다");
+describe("elapsedHours", () => {
+  it("주문 시각으로부터 경과 시간을 잰다", () => {
+    const now = new Date("2026-08-30T02:00:00.000Z");
+    expect(elapsedHours("2026-08-29T14:00:00.000Z", now)).toBe(12);
   });
 });

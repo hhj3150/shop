@@ -1,4 +1,5 @@
 import { getSupabase } from "./supabase";
+import { cancelPayActionDeposit } from "./orders";
 import { SUB_DAY_CAP, SUB_PERIODS, type SubPeriod } from "./products";
 import { DELIVERY_DAYS, type DeliveryDay } from "./cart";
 import {
@@ -370,10 +371,19 @@ export async function cancelSubscription(
 // 입금 전(입금대기) 주문을 회원이 스스로 취소. 환불 없음.
 // 연결된 미시작 슬롯은 서버에서 '해지' 처리되어 선착순 자리가 반환된다.
 export async function cancelUnpaidOrder(orderId: string): Promise<void> {
-  const { error } = await getSupabase().rpc("cancel_unpaid_order", {
-    p_order_id: orderId,
-  });
+  const sb = getSupabase();
+  const { error } = await sb.rpc("cancel_unpaid_order", { p_order_id: orderId });
   if (error) throw new Error(error.message);
+
+  // 취소를 PayAction 에도 알린다 — 안 알리면 취소한 주문에 뒤늦게 입금이 들어와
+  //   '고아입금'으로 남는다. 실패해도 취소 자체는 이미 반영됐으므로 흡수한다.
+  try {
+    const { data } = await sb.from("orders").select("order_no").eq("id", orderId).maybeSingle();
+    const orderNo = data?.order_no as string | undefined;
+    if (orderNo) await cancelPayActionDeposit(orderNo);
+  } catch {
+    // 통지 실패는 사용자 흐름에 영향을 주지 않는다.
+  }
 }
 
 export type RenewalResult = {

@@ -36,13 +36,49 @@ export function verifyWebhookAuth(
   return webhookKey === expectedKey && mallId === expectedMall;
 }
 
+// 주문취소 통지. PayAction 이 그 주문번호로 더는 입금을 매칭하지 않게 한다.
+//   (2026-08 개발자문서 개정으로 정식 API 가 생겼다: POST /orders/{order_number}/cancel.
+//    구 /order-exclude 는 DEPRECATED — 종료 예정이라 쓰지 않는다.)
+//   이걸 안 부르면 취소한 주문에 뒤늦게 입금이 들어와 '고아입금'으로 남는다.
+export type CancelOrderResult = { ok: true } | { ok: false; reason: string };
+
+export async function cancelOrder(orderNumber: string): Promise<CancelOrderResult> {
+  if (!isPayActionConfigured()) return { ok: false, reason: "not_configured" };
+  const orderNo = orderNumber.trim();
+  if (!validateOrderNumber(orderNo)) return { ok: false, reason: "invalid_order_number" };
+
+  const base = process.env.PAYACTION_API_BASE || DEFAULT_BASE;
+  try {
+    // 금액을 넘기지 않으면 남은 금액 전체취소다(부분취소는 쓰지 않는다).
+    const res = await fetch(`${base}/orders/${encodeURIComponent(orderNo)}/cancel`, {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.PAYACTION_API_KEY as string,
+        "x-mall-id": process.env.PAYACTION_MALL_ID as string,
+      },
+    });
+    const data = (await res.json().catch(() => null)) as
+      | { status?: string; response?: { message?: string }; error?: { message?: string } }
+      | null;
+    if (res.ok && data?.status === "success") return { ok: true };
+    const reason = data?.error?.message || data?.response?.message || `http_${res.status}`;
+    return { ok: false, reason };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "request_failed";
+    return { ok: false, reason };
+  }
+}
+
 export type RegisterOrderInput = {
   orderNumber: string;
   orderAmount: number;
   orderDate: string; // ISO 8601 (+09:00). 호출측(RPC)에서 KST 로 포맷해 전달.
   billingName: string; // 입금자명 — 자동매칭 기준
   ordererName: string;
-  ordererPhone?: string; // 입금확인 문자 발송용(PayAction 직접 발송)
+  // ★ 이 필드를 넣으면 PayAction 이 입금확인 알림톡을 손님에게 보낼 수 있다
+  //   (문서: "주문자에게 결제완료 알림 메시지 발송을 원하는 경우 주문자 전화번호를 포함").
+  //   실제 발송 여부는 PayAction 대시보드의 구매자 알림 설정에 달렸다.
+  ordererPhone?: string;
   ordererEmail?: string;
 };
 

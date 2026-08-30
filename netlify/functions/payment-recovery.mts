@@ -3,10 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { isSolapiConfigured, sendInfo } from "../../lib/solapi";
 import {
   decideAction,
-  buildRecoveryMessage,
-  buildExpireAdminAlertText,
-  kstDaysElapsed,
+  buildUnpaidDigest,
+  elapsedHours,
   type RecoveryTarget,
+  type UnpaidItem,
 } from "../../lib/payment-recovery";
 import { logSms } from "../../lib/sms-log";
 
@@ -40,10 +40,12 @@ export default async function handler(): Promise<Response> {
   }
 
   const now = new Date();
-  let sent = 0;
-  let notified = 0;
+  const rows = (data ?? []) as TargetRow[];
 
-  for (const row of (data ?? []) as TargetRow[]) {
+  // ★ 손님에게는 아무 문자도 보내지 않는다(독촉 폐지). 이번에 새로 단계에 걸린 건만 모아
+  //   관리자에게 '확인 필요' 목록 한 통으로 보낸다. 통장 확인·처리는 사람이 한다.
+  const items: UnpaidItem[] = [];
+  for (const row of rows) {
     const t: RecoveryTarget = {
       orderId: row.order_id,
       createdAt: row.created_at,
@@ -57,49 +59,8 @@ export default async function handler(): Promise<Response> {
     const action = decideAction(t, now);
     if (action === "none") continue;
 
-    // ★ D+3: 자동취소·고객 취소문자 폐지(2026-07-05 실사고 — 입금자명 불일치로 실제
-    //   입금한 고객이 자동취소 문자를 받음). 관리자에게 1회 알림만 보내고, 취소 여부는
-    //   관리자가 통장 사실확인 후 관리자 화면에서 직접 결정한다.
-    if (action === "EXPIRE_NOTIFY") {
-      const { data: inserted, error: exErr } = await sb.rpc("apply_recovery_action", {
-        p_secret: secret,
-        p_order_id: t.orderId,
-        p_action: "EXPIRE_NOTIFY",
-      });
-      if (exErr) {
-        console.error(`[payment-recovery] EXPIRE_NOTIFY 기록 실패 ${t.orderNo}:`, exErr.message);
-        continue;
-      }
-      // 신규 기록일 때만 관리자 알림(재실행·경합 시 중복 알림 방지).
-      if (inserted === true) {
-        const adminPhone = process.env.ADMIN_ALERT_PHONE;
-        if (!adminPhone) {
-          console.warn(`[payment-recovery] ADMIN_ALERT_PHONE 미설정 → 미입금 D+3 알림 생략 ${t.orderNo}`);
-          continue;
-        }
-        const text = buildExpireAdminAlertText(t, kstDaysElapsed(t.createdAt, now));
-        const result = await sendInfo(adminPhone, {
-          text,
-          subject: "[송영신목장] 미입금 주문 확인 필요",
-        });
-        await logSms({
-          kind: "orphan_alert",
-          toPhone: adminPhone,
-          body: text,
-          channel: "admin_alert",
-          ok: result.ok,
-          failReason: result.ok ? null : (result.reason ?? null),
-          orderId: t.orderId,
-          meta: { stage: "EXPIRE_NOTIFY" },
-        });
-        if (!result.ok) console.warn(`[payment-recovery] 관리자 알림 실패 ${t.orderNo}:`, result);
-        else notified += 1;
-      }
-      continue;
-    }
-
-    // D1/D2: 발송 전 원장 기록(확정 정책 — 누락 < 중복).
-    const { error: recErr } = await sb.rpc("apply_recovery_action", {
+    // 원장 기록이 곧 중복 방지다 — 같은 주문이 같은 단계로 두 번 목록에 오르지 않는다.
+    const { data: inserted, error: recErr } = await sb.rpc("apply_recovery_action", {
       p_secret: secret,
       p_order_id: t.orderId,
       p_action: action,
@@ -108,40 +69,43 @@ export default async function handler(): Promise<Response> {
       console.error(`[payment-recovery] 원장 기록 실패 ${t.orderNo}:`, recErr.message);
       continue;
     }
-    if (!t.shipPhone) {
-      console.warn(`[payment-recovery] 전화번호 없음 ${t.orderNo}`);
-      continue;
-    }
-    const m = buildRecoveryMessage(t, action);
-    const result = await sendInfo(t.shipPhone, {
-      text: m.text,
-      subject: m.subject,
-      // D2 는 알림톡 템플릿 없이 LMS 로만 — 구 템플릿에 '자동취소' 문구가 있어 쓰지 않는다.
-      alimtalk:
-        m.templateKey && m.variables
-          ? { templateKey: m.templateKey, variables: m.variables }
-          : undefined,
-    });
-    // 관리자 문자 이력(sms_log)에도 남긴다 — 독촉 문자가 이력에서 빠져 있었다.
-    await logSms({
-      kind: "payment_recovery",
-      toPhone: t.shipPhone,
-      body: m.text,
-      templateKey: m.templateKey ?? null,
-      channel: "info",
-      ok: result.ok,
-      failReason: result.ok ? null : (result.reason ?? null),
-      orderId: t.orderId,
-      meta: { stage: action },
-    });
-    if (!result.ok) {
-      console.warn(`[payment-recovery] 발송 실패 ${t.orderNo}:`, result);
-    }
-    sent += 1;
+    // EXPIRE_NOTIFY 는 신규 기록일 때만(재실행·경합 시 중복 방지). 나머지 단계는
+    //   sentStages 로 이미 걸러졌다.
+    if (action === "EXPIRE_NOTIFY" && inserted !== true) continue;
+
+    items.push({ target: t, hoursElapsed: elapsedHours(t.createdAt, now) });
   }
 
-  console.log(`[payment-recovery] sent=${sent} adminNotified=${notified}`);
-  return new Response(`ok sent=${sent} adminNotified=${notified}`);
+  const digest = buildUnpaidDigest(items, rows.length);
+  if (!digest) {
+    console.log("[payment-recovery] 새로 알릴 미입금 건 없음");
+    return new Response("ok notified=0");
+  }
+
+  const adminPhone = process.env.ADMIN_ALERT_PHONE;
+  if (!adminPhone) {
+    console.warn("[payment-recovery] ADMIN_ALERT_PHONE 미설정 → 알림 생략", items.length, "건");
+    return new Response("skip: no admin phone");
+  }
+
+  const result = await sendInfo(adminPhone, { text: digest.text, subject: digest.subject });
+  await logSms({
+    kind: "unpaid_digest",
+    toPhone: adminPhone,
+    body: digest.text,
+    channel: "admin_alert",
+    ok: result.ok,
+    failReason: result.ok ? null : (result.reason ?? null),
+    meta: {
+      count: items.length,
+      totalPending: rows.length,
+      orderNos: items.map((i) => i.target.orderNo),
+    },
+  });
+  if (!result.ok) console.warn("[payment-recovery] 관리자 알림 실패:", result);
+
+  console.log(`[payment-recovery] 관리자 알림 ${items.length}건 (입금대기 전체 ${rows.length}건)`);
+  return new Response(`ok notified=${items.length}`);
 }
 
 // 매일 00:00 UTC = 09:00 KST.

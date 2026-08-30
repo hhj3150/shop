@@ -24,6 +24,7 @@ import {
 } from "@/lib/ship-date";
 import { kstDaysElapsed } from "@/lib/payment-recovery";
 import { notify } from "@/lib/notify";
+import { cancelPayActionDeposit } from "@/lib/orders";
 import { isNoticeFresh } from "@/lib/notice-freshness";
 import { changeDeliveryDay, adminSetSubscriptionPaused } from "@/lib/subscriptions";
 import { planDeliveryDayChange } from "@/lib/delivery-day-change";
@@ -1116,9 +1117,11 @@ export default function AdminPage() {
         void notify({ kind: "delivered", orderId: order.id });
       }
     }
-    // 취소 → 고객(선물이면 보낸 분)에게 취소 안내 발송.
+    // 취소 → 고객(선물이면 보낸 분)에게 취소 안내 발송 + PayAction 매칭 중지.
+    //   PayAction 에 알리지 않으면 취소한 주문에 뒤늦게 입금이 들어와 고아입금이 된다.
     if (status === "취소") {
       void notify({ kind: "order_cancelled", orderId: order.id });
+      void cancelPayActionDeposit(order.order_no);
     }
     await load();
   }

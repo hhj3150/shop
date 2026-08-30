@@ -55,6 +55,14 @@ export async function POST(req: Request) {
     order_number?: string;
     order_status?: string;
     processing_date?: string;
+    // 현금영수증 자동발행을 쓰는 주문에만 실려 온다(2026-08 문서 개정으로 추가된 필드).
+    //   우리는 현금영수증을 홈택스에서 수기 발행하므로 지금은 오지 않지만, 나중에
+    //   자동발행을 켜면 이 결과로 실패를 즉시 알 수 있다.
+    cashbill?: {
+      id?: number;
+      status?: string; // 'issued' | 'issue_failed'
+      error?: { code?: string; message?: string };
+    };
   } & Record<string, unknown>;
   try {
     payload = await req.json();
@@ -62,10 +70,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "success" });
   }
 
-  // PayAction 규격 변경 감지: 지금까지 받은 필드는 order_number·order_status·processing_date
-  //   셋뿐이다(2026-06-13~08-29 수신분 96건 전수 확인). 새 필드가 붙으면 즉시 로그로 드러나
-  //   대응 시점을 놓치지 않는다. 원문은 payaction_webhook_events.raw_body 에 그대로 적재된다.
-  const KNOWN_KEYS = new Set(["order_number", "order_status", "processing_date"]);
+  // 현금영수증 자동발행 결과(문서 개정으로 추가). 실패는 돈·세금 문제라 바로 남긴다.
+  if (payload.cashbill?.status === "issue_failed") {
+    console.error(
+      "[payaction/webhook] 현금영수증 자동발행 실패 order_no:",
+      payload.order_number,
+      "code:", payload.cashbill.error?.code,
+      "message:", payload.cashbill.error?.message
+    );
+  }
+
+  // PayAction 규격 변경 감지: 지금 아는 필드는 아래 넷이다(수신분 96건 전수 확인 기준
+  //   셋 + 문서에 새로 생긴 cashbill). 모르는 필드가 붙으면 즉시 로그로 드러나 대응
+  //   시점을 놓치지 않는다. 원문은 payaction_webhook_events.raw_body 에 그대로 적재된다.
+  const KNOWN_KEYS = new Set([
+    "order_number",
+    "order_status",
+    "processing_date",
+    "cashbill",
+  ]);
   const unknownKeys = Object.keys(payload as Record<string, unknown>).filter(
     (k) => !KNOWN_KEYS.has(k)
   );
@@ -136,7 +159,9 @@ export async function POST(req: Request) {
   }
   // 입금이 이번 웹훅으로 처음 확인된 건에만 입금확인 안내를 보낸다.
   //   changed=false(중복·이미 확인됨)면 보내지 않는다 — 재전송으로 같은 문자가 또 나가지 않게.
-  if (r.changed === true) {
+  //   PAYACTION_CONFIRM_SMS=off 로 즉시 끌 수 있다 — PayAction 대시보드의 구매자 알림
+  //   (결제완료 알림톡)을 켜서 손님이 두 통 받게 되면 배포 없이 바로 멈추기 위한 스위치다.
+  if (r.changed === true && process.env.PAYACTION_CONFIRM_SMS !== "off") {
     await sendPaymentConfirmedSms(orderNo, supabaseUrl, supabaseAnon, confirmSecret);
   }
 

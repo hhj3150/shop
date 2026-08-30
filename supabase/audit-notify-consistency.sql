@@ -6,6 +6,11 @@
 --  쓰는 법: Supabase SQL Editor 에 통째로 붙여넣고 실행.
 --    · 건수 0 = 정상. 0이 아니면 그 항목의 '자세히 보기' 쿼리를 아래에서 찾아 돌린다.
 --    · 주 1회(예: 월요일 아침)면 충분하다.
+--
+--  ★ 숫자를 읽는 법: 최근 90일 '누적'이다. 고친 날 이전 건이 그대로 들어 있으므로,
+--    고친 직후엔 숫자가 크게 나온다. 중요한 건 절대값이 아니라 '오늘 새로 늘었는가'다.
+--    2026-08-30 수정 시점 기준값(이보다 늘면 새 문제):
+--      ① 63  ② 134  ③ 0  ④ 0  ⑤ 71  ⑥ 66  ⑦ 1  ⑧ 93
 
 with
 -- 점검 대상 기간: 최근 90일
@@ -63,8 +68,10 @@ e as (
           and s2.shipped_at <= s.sent_at
      )
 ),
--- ⑥ 예정일이 지났는데 출고 기록이 없는 구독 회차 (방문수령·취소 제외)
+-- ⑥ 예정일이 지났는데 그 주에 출고 기록이 없는 구독 회차 (방문수령·취소 제외)
 --    화면(고객 마이페이지)은 '배송됨'으로 세는데 실제 기록이 없는 상태 = 불일치.
+--    ★ 앞뒤 3일은 같은 회차로 본다 — 휴무·공휴일로 하루이틀 당겨/미뤄 보내는 일이 잦아
+--      '정확히 그날'로 재면 정상 운영까지 잔뜩 걸린다(그 기준으로는 98건 중 32건이 그런 건이었다).
 chain as (
   select s.id slot_id, o.id order_id from public.subscription_slots s
     join public.orders o on o.id = s.order_id where s.status = '활성'
@@ -93,7 +100,11 @@ f as (
     from planned p
    where p.ship_date <= (now() at time zone 'Asia/Seoul')::date
      and p.ship_date >= (now() at time zone 'Asia/Seoul')::date - 90
-     and not exists (select 1 from actual a where a.slot_id = p.slot_id and a.ship_date = p.ship_date)
+     and not exists (
+       select 1 from actual a
+        where a.slot_id = p.slot_id
+          and a.ship_date between p.ship_date - 3 and p.ship_date + 3
+     )
 ),
 -- ⑦ 주문은 취소인데 구독 슬롯이 아직 '활성'
 g as (
@@ -135,12 +146,13 @@ select * from (
 --                     and s.kind in ('order_received','gift_subscription','gift_once','renewal_guide') and s.ok)
 --  order by o.created_at desc;
 
--- ⑥ 예정일이 지났는데 출고 기록이 없는 회차
+-- ⑥ 예정일이 지났는데 그 주에 출고 기록이 없는 회차
 -- (위 with 절 chain·actual·planned 를 그대로 앞에 붙이고 아래를 실행)
 -- select p.slot_id, p.ship_date
 --   from planned p
 --  where p.ship_date <= (now() at time zone 'Asia/Seoul')::date
---    and not exists (select 1 from actual a where a.slot_id=p.slot_id and a.ship_date=p.ship_date)
+--    and not exists (select 1 from actual a where a.slot_id=p.slot_id
+--                     and a.ship_date between p.ship_date - 3 and p.ship_date + 3)
 --  order by p.ship_date desc, p.slot_id;
 
 -- ⑧ 회차 표기가 빠진 구독 발송 문자
