@@ -10,7 +10,7 @@
 --  ★ 숫자를 읽는 법: 최근 90일 '누적'이다. 고친 날 이전 건이 그대로 들어 있으므로,
 --    고친 직후엔 숫자가 크게 나온다. 중요한 건 절대값이 아니라 '오늘 새로 늘었는가'다.
 --    2026-08-30 수정 시점 기준값(이보다 늘면 새 문제):
---      ① 63  ② 134  ③ 0  ④ 0  ⑤ 71  ⑥ 66  ⑦ 1  ⑧ 93  ⑨ 101  ⑩ 0
+--      ① 63  ② 134  ③ 0  ④ 0  ⑤ 71  ⑥ 66  ⑦ 1  ⑧ 93  ⑨ 101  ⑩ 0  ⑪ 0
 --    ⑨ 101 = 자동발행 전환 이전에 쌓인 미표시분(대시보드에서 손으로 발행했어도 우리 쪽
 --    기록이 없어 잡힌다). 전환 후 새 주문은 0 으로 수렴해야 한다.
 
@@ -138,6 +138,13 @@ j as (
      and o.cash_receipt_source = 'payaction'
      and o.cash_receipt_issued = true
      and (o.cash_receipt_bill_id is null or o.cash_receipt_error is not null)
+),
+-- ⑪ 페이액션 웹훅 인증 실패 — 0 이 아니면 입금확인이 멈춰 있을 수 있다(긴급)
+--    키가 어긋나면 정상 웹훅이 전부 401 로 떨어지고, 실패가 쌓이면 페이액션이
+--    서비스 이용을 제한할 수 있다. 환경변수부터 확인한다.
+k as (
+  select count(*) n from public.sms_log s, params p
+   where s.sent_at >= p.since and s.kind = 'payaction_auth_fail'
 )
 select * from (
   values
@@ -150,7 +157,8 @@ select * from (
     ('⑦ 주문 취소인데 슬롯 활성',      (select n from g)),
     ('⑧ 구독 발송문자에 회차 표기 없음', (select n from h)),
     ('⑨ 현금영수증 신청·입금완료인데 미발행', (select n from i)),
-    ('⑩ 현금영수증 이중발행 의심',           (select n from j))
+    ('⑩ 현금영수증 이중발행 의심',           (select n from j)),
+    ('⑪ 페이액션 웹훅 인증 실패(긴급)',      (select n from k))
 ) as t(점검항목, 건수);
 
 

@@ -48,6 +48,16 @@ export async function POST(req: Request) {
       "x-mall-id 존재:",
       Boolean(mallId)
     );
+    // ★ 이력에 남긴다. 키가 어긋나면 정상 웹훅이 전부 401 로 떨어져 입금확인이 통째로 멈추고,
+    //   문서상 "실패 처리된 웹훅이 지속적으로 일정 수준 이상 발생하면 서비스 이용이 제한"된다.
+    //   조용히 흘려보내면 안 되는 사고라, 주간 점검(⑪)에서 바로 드러나게 한다.
+    await logSms({
+      kind: "payaction_auth_fail",
+      channel: "admin_alert",
+      ok: false,
+      failReason: `x-webhook-key ${webhookKey ? "불일치" : "없음"} / x-mall-id ${mallId ? "불일치" : "없음"}`,
+      body: "[페이액션] 웹훅 인증 실패 — 입금확인이 멈출 수 있습니다. 환경변수(PAYACTION_WEBHOOK_KEY·PAYACTION_MALL_ID)를 확인하세요.",
+    });
     return NextResponse.json({ status: "error", reason: "unauthorized" }, { status: 401 });
   }
 
