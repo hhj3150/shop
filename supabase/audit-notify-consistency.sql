@@ -10,7 +10,9 @@
 --  ★ 숫자를 읽는 법: 최근 90일 '누적'이다. 고친 날 이전 건이 그대로 들어 있으므로,
 --    고친 직후엔 숫자가 크게 나온다. 중요한 건 절대값이 아니라 '오늘 새로 늘었는가'다.
 --    2026-08-30 수정 시점 기준값(이보다 늘면 새 문제):
---      ① 63  ② 134  ③ 0  ④ 0  ⑤ 71  ⑥ 66  ⑦ 1  ⑧ 93
+--      ① 63  ② 134  ③ 0  ④ 0  ⑤ 71  ⑥ 66  ⑦ 1  ⑧ 93  ⑨ 101  ⑩ 0
+--    ⑨ 101 = 자동발행 전환 이전에 쌓인 미표시분(대시보드에서 손으로 발행했어도 우리 쪽
+--    기록이 없어 잡힌다). 전환 후 새 주문은 0 으로 수렴해야 한다.
 
 with
 -- 점검 대상 기간: 최근 90일
@@ -119,6 +121,23 @@ h as (
    where s.sent_at >= p.since and s.kind = 'shipped' and s.ok
      and o.order_type = '구독'
      and s.body !~ '회 중 '
+),
+-- ⑨ 현금영수증을 신청했고 입금도 됐는데 아직 발행 안 된 주문
+--    (자동발행 전환 후에는 0 이어야 한다. 자동발행 실패 건도 여기 잡힌다.)
+i as (
+  select count(*) n from public.orders o, params p
+   where o.created_at >= p.since
+     and coalesce(o.cash_receipt_type,'발행안함') in ('소득공제','지출증빙')
+     and coalesce(o.status,'') in ('입금확인','배송중','배송완료')
+     and coalesce(o.cash_receipt_issued, false) = false
+),
+-- ⑩ 이중발행 의심 — 자동발행됐는데 실패 사유도 남아 있거나, 영수증 ID 없이 자동발행 표시
+j as (
+  select count(*) n from public.orders o, params p
+   where o.created_at >= p.since
+     and o.cash_receipt_source = 'payaction'
+     and o.cash_receipt_issued = true
+     and (o.cash_receipt_bill_id is null or o.cash_receipt_error is not null)
 )
 select * from (
   values
@@ -129,7 +148,9 @@ select * from (
     ('⑤ 지난 배송 문자(출고 8일 이상)', (select n from e)),
     ('⑥ 예정일 지났는데 출고기록 없음', (select n from f)),
     ('⑦ 주문 취소인데 슬롯 활성',      (select n from g)),
-    ('⑧ 구독 발송문자에 회차 표기 없음', (select n from h))
+    ('⑧ 구독 발송문자에 회차 표기 없음', (select n from h)),
+    ('⑨ 현금영수증 신청·입금완료인데 미발행', (select n from i)),
+    ('⑩ 현금영수증 이중발행 의심',           (select n from j))
 ) as t(점검항목, 건수);
 
 
@@ -160,3 +181,13 @@ select * from (
 --   from public.sms_log s join public.orders o on o.id = s.order_id
 --  where s.kind='shipped' and s.ok and o.order_type='구독' and s.body !~ '회 중 '
 --  order by s.sent_at desc;
+
+-- ⑨ 현금영수증이 아직 안 나간 주문 (신청했고 입금도 된 건)
+-- select o.order_no, o.created_at::date, o.cash_receipt_type, o.cash_receipt_id,
+--        o.cash_receipt_source, o.cash_receipt_error, o.total_amount
+--   from public.orders o
+--  where o.created_at >= now() - interval '90 days'
+--    and coalesce(o.cash_receipt_type,'발행안함') in ('소득공제','지출증빙')
+--    and coalesce(o.status,'') in ('입금확인','배송중','배송완료')
+--    and coalesce(o.cash_receipt_issued, false) = false
+--  order by o.created_at desc;

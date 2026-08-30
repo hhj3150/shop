@@ -80,6 +80,14 @@ export type RegisterOrderInput = {
   //   실제 발송 여부는 PayAction 대시보드의 구매자 알림 설정에 달렸다.
   ordererPhone?: string;
   ordererEmail?: string;
+  // ── 현금영수증 자동발행(2026-08 전환) ──
+  //   셋을 함께 보내면 입금이 매칭될 때 PayAction 이 현금영수증을 자동 발행하고,
+  //   결과를 매칭완료 웹훅의 cashbill 필드로 돌려준다. 관리자가 대시보드에서 손으로
+  //   발행하던 단계를 없애 이중발행·누락을 구조로 막는다.
+  //   ★ tax_free_amount 를 빼면 전액 과세로 발행된다 — 우유(면세)가 대부분이라 반드시 넣는다.
+  taxFreeAmount?: number; // 면세금액(원). 0 이면 전액 과세, 주문금액과 같으면 전액 면세.
+  tradeUsage?: "소득공제용" | "지출증빙용";
+  identityNumber?: string; // 소득공제용=휴대폰번호, 지출증빙용=사업자번호 (숫자만)
 };
 
 export type RegisterOrderResult = { ok: true } | { ok: false; reason: string };
@@ -114,6 +122,18 @@ export async function registerOrder(
     if (phone) body.orderer_phone_number = phone;
   }
   if (input.ordererEmail) body.orderer_email = input.ordererEmail.trim();
+
+  // 면세금액은 0 도 의미가 있다(전액 과세) → undefined 일 때만 생략한다.
+  if (typeof input.taxFreeAmount === "number" && Number.isFinite(input.taxFreeAmount)) {
+    body.tax_free_amount = Math.max(0, Math.round(input.taxFreeAmount));
+  }
+  // 거래구분·식별번호는 '둘 다' 있어야 자동발행된다. 하나만 보내면 자진발급도 막히므로
+  //   (문서: 둘 중 하나라도 있으면 자진발급되지 않음) 쌍으로만 싣는다.
+  const identity = (input.identityNumber ?? "").replace(/[^0-9]/g, "");
+  if (input.tradeUsage && identity) {
+    body.trade_usage = input.tradeUsage;
+    body.identity_number = identity;
+  }
 
   try {
     const res = await fetch(`${base}/order`, {

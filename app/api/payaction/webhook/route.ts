@@ -55,9 +55,8 @@ export async function POST(req: Request) {
     order_number?: string;
     order_status?: string;
     processing_date?: string;
-    // 현금영수증 자동발행을 쓰는 주문에만 실려 온다(2026-08 문서 개정으로 추가된 필드).
-    //   우리는 현금영수증을 홈택스에서 수기 발행하므로 지금은 오지 않지만, 나중에
-    //   자동발행을 켜면 이 결과로 실패를 즉시 알 수 있다.
+    // 현금영수증 자동발행 결과(2026-08 전환). 주문 등록 시 거래구분·식별번호를 실어
+    //   보낸 주문에만 온다.
     cashbill?: {
       id?: number;
       status?: string; // 'issued' | 'issue_failed'
@@ -68,16 +67,6 @@ export async function POST(req: Request) {
     payload = await req.json();
   } catch {
     return NextResponse.json({ status: "success" });
-  }
-
-  // 현금영수증 자동발행 결과(문서 개정으로 추가). 실패는 돈·세금 문제라 바로 남긴다.
-  if (payload.cashbill?.status === "issue_failed") {
-    console.error(
-      "[payaction/webhook] 현금영수증 자동발행 실패 order_no:",
-      payload.order_number,
-      "code:", payload.cashbill.error?.code,
-      "message:", payload.cashbill.error?.message
-    );
   }
 
   // PayAction 규격 변경 감지: 지금 아는 필드는 아래 넷이다(수신분 96건 전수 확인 기준
@@ -165,6 +154,12 @@ export async function POST(req: Request) {
     await sendPaymentConfirmedSms(orderNo, supabaseUrl, supabaseAnon, confirmSecret);
   }
 
+  // 현금영수증 자동발행 결과를 우리 DB 에 남긴다 — 관리자 화면이 '자동발행 완료'를 보고
+  //   대시보드에서 또 발행하지 않게 하는 것이 목적이다(이중발행 방지).
+  if (payload.cashbill) {
+    await recordCashReceipt(orderNo, payload.cashbill, supabaseUrl, supabaseAnon, confirmSecret);
+  }
+
   if (r.error) {
     // 주문없음 등 재시도해도 동일한 사유 → 로깅 후 200 으로 종료(발송중단 방지).
     console.warn("[payaction/webhook] 처리 불가:", r.error, "order_no:", orderNo);
@@ -248,5 +243,50 @@ async function sendPaymentConfirmedSms(
     if (!r.ok) console.warn("[payaction/webhook] 입금확인 문자 실패:", orderNo, r.reason);
   } catch (e) {
     console.error("[payaction/webhook] 입금확인 문자 예외:", e);
+  }
+}
+
+// 현금영수증 자동발행 결과 기록. best-effort — 실패해도 웹훅 응답을 막지 않는다.
+async function recordCashReceipt(
+  orderNo: string,
+  cashbill: { id?: number; status?: string; error?: { code?: string; message?: string } },
+  supabaseUrl: string,
+  supabaseAnon: string,
+  secret: string
+): Promise<void> {
+  const status = cashbill.status === "issued" ? "issued" : "issue_failed";
+  if (status === "issue_failed") {
+    // 돈·세금 문제라 로그에 분명히 남긴다. 관리자 화면에도 실패 사유가 뜬다.
+    console.error(
+      "[payaction/webhook] 현금영수증 자동발행 실패 order_no:", orderNo,
+      "code:", cashbill.error?.code,
+      "message:", cashbill.error?.message
+    );
+  }
+  try {
+    const sb = createClient(supabaseUrl, supabaseAnon, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await sb.rpc("record_cash_receipt_auto", {
+      p_secret: secret,
+      p_order_no: orderNo,
+      p_bill_id: cashbill.id ?? null,
+      p_status: status,
+      p_error: cashbill.error?.message ?? null,
+    });
+    if (error) {
+      console.error("[payaction/webhook] 현금영수증 기록 실패:", orderNo, error.message);
+      return;
+    }
+    const r = (data ?? {}) as { was_issued?: boolean };
+    // 이미 '발행완료'로 표시돼 있던 주문이 자동발행까지 됐다면 이중발행 의심 — 즉시 드러나게 한다.
+    if (r.was_issued === true) {
+      console.error(
+        "[payaction/webhook] ⚠ 이중발행 의심 — 수기 발행완료 표시가 있던 주문에 자동발행됨:",
+        orderNo
+      );
+    }
+  } catch (e) {
+    console.error("[payaction/webhook] 현금영수증 기록 예외:", e);
   }
 }

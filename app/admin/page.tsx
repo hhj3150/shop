@@ -137,7 +137,10 @@ type OrderRow = {
   renews_slot_id: number | null; // 연장 주문이면 잇는 슬롯 id, 아니면 null
   cash_receipt_type: string | null; // 소득공제 | 지출증빙 | 발행안함
   cash_receipt_id: string | null; // 소득공제: 휴대폰, 지출증빙: 사업자번호
-  cash_receipt_issued: boolean | null; // 관리자 수기 발행 완료 여부
+  cash_receipt_issued: boolean | null; // 발행 완료 여부(자동·수기 공통)
+  cash_receipt_source?: string | null; // 'payaction'=자동발행, 'manual'=수기
+  cash_receipt_bill_id?: number | null; // PayAction 현금영수증 ID
+  cash_receipt_error?: string | null; // 자동발행 실패 사유
   paid_at: string | null; // 입금/결제 확인 시각 (수동·자동 공통)
   pay_method: string | null; // 무통장 | 카드 등
   created_at: string;
@@ -2225,7 +2228,13 @@ export default function AdminPage() {
                               : "border border-line text-mute hover:border-gold hover:text-gold-deep"
                           }`}
                         >
-                          {o.cash_receipt_issued ? "발행완료" : "발행대기"}
+                          {o.cash_receipt_issued
+                            ? o.cash_receipt_source === "payaction"
+                              ? "자동발행"
+                              : "발행완료"
+                            : o.cash_receipt_source === "payaction"
+                              ? "자동발행 실패"
+                              : "발행대기"}
                         </button>
                       </div>
                     ) : (
@@ -2482,13 +2491,21 @@ function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRo
     { weeks: order.block_weeks ?? 1, shippingFee: order.shipping_fee ?? undefined }
   );
   const purpose = order.cash_receipt_type === "지출증빙" ? "지출증빙용" : "소득공제용";
+  // 자동발행(페이액션) 여부 — 이게 참이면 사람이 손대면 안 된다.
+  const auto = order.cash_receipt_source === "payaction" && order.cash_receipt_issued === true;
+  const failed = order.cash_receipt_source === "payaction" && order.cash_receipt_issued !== true;
   return (
     <div className="mt-3 rounded-xl border border-line/60 bg-cream/60 px-3 py-2.5">
       <p className="text-[13px] font-medium text-ink">
         현금영수증 발행 정보
         {order.cash_receipt_issued && (
           <span className="ml-1.5 rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-normal text-gold-deep">
-            발행완료 표시됨
+            {auto ? "자동발행 완료" : "발행완료 표시됨"}
+          </span>
+        )}
+        {failed && (
+          <span className="ml-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-normal text-red-700">
+            자동발행 실패 — 수기 발행 필요
           </span>
         )}
       </p>
@@ -2502,9 +2519,23 @@ function CashReceiptBreakdown({ order, items }: { order: OrderRow; items: ItemRo
         <span>부가세 <span className="font-medium text-ink">{formatKRW(amt.vat)}</span></span>
         <span>합계 <span className="font-medium text-gold-deep">{formatKRW(amt.total)}</span></span>
       </div>
-      <p className="mt-1.5 text-[12px] text-mute">
-        ※ 실제 발행은 <span className="text-ink-soft">페이액션 ‘현금영수증 → 발행하기’</span>에서 하세요. 우리 시스템은 발행하지 않습니다(중복발행 방지).
-      </p>
+      {auto ? (
+        <p className="mt-1.5 text-[12px] text-mute">
+          ※ 페이액션이 <span className="text-ink-soft">입금 확인과 동시에 자동 발행</span>했습니다
+          {order.cash_receipt_bill_id ? ` (영수증 ID ${order.cash_receipt_bill_id})` : ""}.
+          <span className="text-ink-soft"> 대시보드에서 다시 발행하지 마세요 — 이중발행됩니다.</span>
+        </p>
+      ) : failed ? (
+        <p className="mt-1.5 text-[12px] text-red-700">
+          ※ 자동발행이 실패했습니다{order.cash_receipt_error ? `: ${order.cash_receipt_error}` : ""}.
+          페이액션 ‘현금영수증 → 발행하기’에서 위 금액으로 직접 발행한 뒤 ‘발행완료’로 표시해 주세요.
+        </p>
+      ) : (
+        <p className="mt-1.5 text-[12px] text-mute">
+          ※ 입금이 확인되면 <span className="text-ink-soft">페이액션이 자동 발행</span>합니다. 손으로 발행하지 마세요.
+          입금 후에도 이 표시가 그대로면 자동발행이 안 된 것이니 그때만 직접 발행합니다.
+        </p>
+      )}
     </div>
   );
 }
