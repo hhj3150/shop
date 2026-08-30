@@ -6,6 +6,7 @@ import {
   buildRenewalMessage,
   type RenewalTarget,
 } from "../../lib/renewal-retention";
+import { logSms } from "../../lib/sms-log";
 
 type TargetRow = {
   slot_id: number;
@@ -62,11 +63,23 @@ export default async function handler(): Promise<Response> {
       console.warn(`[renewal-retention] 전화번호 없음 slot=${t.slotId}`);
       continue;
     }
-    const m = buildRenewalMessage(t);
+    const m = buildRenewalMessage(t, stage);
     const result = await sendInfo(t.phone, {
       text: m.text,
       subject: m.subject,
       alimtalk: { templateKey: m.templateKey, variables: m.variables },
+    });
+    // 관리자 문자 이력(sms_log)에도 남긴다 — 크론 발송이 이력에서 빠지면
+    //   화면이 '보낸 적 없다'고 말하는 셈이라 CS 때 사실 확인이 안 된다.
+    await logSms({
+      kind: stage === "END" ? "subscription_ended" : "expire_soon",
+      toPhone: t.phone,
+      body: m.text,
+      templateKey: m.templateKey,
+      channel: "info",
+      ok: result.ok,
+      failReason: result.ok ? null : (result.reason ?? null),
+      meta: { slotId: t.slotId, stage, expiryDate: t.expiryDate },
     });
     if (!result.ok) {
       console.warn(`[renewal-retention] 발송 실패 slot=${t.slotId}:`, result);

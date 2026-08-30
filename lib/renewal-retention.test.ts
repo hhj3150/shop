@@ -34,8 +34,20 @@ describe("decideRenewalStage (KST 만료 잔여일 윈도우)", () => {
   it("만료 당일(d=0)은 none", () => {
     expect(decideRenewalStage("2026-06-10", now, [])).toBe("none");
   });
-  it("만료 경과(d<0)는 none", () => {
-    expect(decideRenewalStage("2026-06-09", now, [])).toBe("none"); // d=-1
+  it("만료 다음날(d=-1)은 END — 구독 종료를 한 번 알린다", () => {
+    expect(decideRenewalStage("2026-06-09", now, [])).toBe("END");
+  });
+  it("만료 당일(d=0)은 none — 그날은 마지막 회차를 실제로 배송하는 날이다", () => {
+    expect(decideRenewalStage("2026-06-10", now, [])).toBe("none");
+  });
+  it("END 를 이미 보냈으면 none (한 번만)", () => {
+    expect(decideRenewalStage("2026-06-09", now, ["END"])).toBe("none");
+  });
+  it("만료 3일 뒤까지는 뒤늦게라도 END (크론이 걸렀을 때 보정)", () => {
+    expect(decideRenewalStage("2026-06-07", now, [])).toBe("END"); // d=-3
+  });
+  it("만료 4일 넘게 지났으면 none — 지난 문자는 보내지 않는다", () => {
+    expect(decideRenewalStage("2026-06-06", now, [])).toBe("none"); // d=-4
   });
 });
 
@@ -78,5 +90,34 @@ describe("buildRenewalMessage (EXPIRE_SOON)", () => {
   it("본문에 재구독 신청 링크(마이페이지 절대 URL)가 들어간다", () => {
     const m = buildRenewalMessage(t);
     expect(m.text).toContain(`${SITE_URL}/account`);
+  });
+});
+
+describe("buildRenewalMessage (단계별 문구)", () => {
+  const t: RenewalTarget = {
+    slotId: 1,
+    name: "김손님",
+    phone: "01000000000",
+    expiryDate: "2026-06-29",
+    sentStages: [],
+  };
+
+  it("예고(D7·D3)는 '만료됩니다' 안내", () => {
+    const m = buildRenewalMessage(t, "D7");
+    expect(m.templateKey).toBe("EXPIRE_SOON");
+    expect(m.text).toContain("정기구독이 6월 29일에 만료됩니다");
+    expect(m.text).toContain(`${SITE_URL}/account`);
+  });
+
+  it("종료(END)는 '종료되었습니다' 안내 + 재구독 링크", () => {
+    const m = buildRenewalMessage(t, "END");
+    expect(m.templateKey).toBe("SUBSCRIPTION_ENDED");
+    expect(m.subject).toContain("구독이 종료되었습니다");
+    expect(m.text).toContain("6월 29일 배송을 끝으로 정기구독이 종료되었습니다");
+    expect(m.text).toContain(`${SITE_URL}/account`);
+  });
+
+  it("단계를 넘기지 않으면 기존 예고 문구(하위 호환)", () => {
+    expect(buildRenewalMessage(t).templateKey).toBe("EXPIRE_SOON");
   });
 });

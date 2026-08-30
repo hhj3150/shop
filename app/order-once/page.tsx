@@ -28,7 +28,7 @@ import { usableBalance, redeemableCoupons, type RewardLite } from "@/lib/referra
 import { backfillProfileShipping } from "@/lib/profile";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts, isCatalogRejection } from "@/lib/storefront-merge";
-import { notify } from "@/lib/notify";
+import { notify, notifyGuestOrder } from "@/lib/notify";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
@@ -370,9 +370,11 @@ function OrderOnce() {
       // await 로 등록 완결 후 라우팅 — fire-and-forget 이면 router.push 로 요청이 abort 돼
       //   서버 라우트에 도달조차 못 했음. 등록 실패는 내부에서 흡수(non-fatal)되어 주문은 진행됨.
       await registerPayActionDeposit(orderNo, ordererPhone);
-      // 정보성 문자는 세션 토큰으로 인증되므로 회원 주문에서만 발송한다.
-      // 비회원은 완료 페이지의 입금 안내로 갈음한다(입금확인 문자는 PayAction 이 자동 발송).
+      // 주문 접수·입금 안내 문자.
+      //   회원은 세션 토큰으로 /api/notify, 비회원은 전용 라우트(/api/notify/guest)로 보낸다.
+      //   예전엔 비회원에게 아무 문자도 보내지 않아, 안내 없이 입금 독촉만 받는 손님이 있었다.
       if (user) void notify({ kind: isGift ? "gift_once" : "order_received", orderId });
+      else void notifyGuestOrder(orderNo);
       idempotencyKeyRef.current = crypto.randomUUID(); // 주문 접수 완료 → 다음 주문은 새 키.
       router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {

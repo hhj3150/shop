@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { registerOrder, isPayActionConfigured } from "@/lib/payaction";
 import { normalizeBillingName } from "@/lib/depositor-name";
+import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 
 // PayAction 주문등록 라우트. 주문 생성 직후 브라우저가 호출한다(orderNo + 주문자 연락처).
 //
@@ -67,6 +68,12 @@ export async function POST(req: Request) {
     gifter_name?: string | null;
     status?: string;
     order_date?: string;
+    // 현금영수증 자동발행용
+    block_weeks?: number | null;
+    shipping_fee?: number | null;
+    cash_receipt_type?: string | null;
+    cash_receipt_id?: string | null;
+    items?: { product_id: string; unit_price: number; qty: number }[];
   };
   if (!o.found) {
     return NextResponse.json({ ok: false, reason: "order_not_found" });
@@ -90,6 +97,27 @@ export async function POST(req: Request) {
   // 입금확인 문자 수신처: 선물이면 보내는 분(클라이언트 제공) 번호, 일반은 배송 연락처.
   const ordererPhone = (body.ordererPhone ?? "").trim() || (o.ship_phone ?? "").trim();
 
+  // ── 현금영수증 자동발행 정보 ──
+  //   손님이 주문할 때 고른 발행 방식·식별번호를 그대로 싣는다. '발행안함'이면 싣지 않는다.
+  //   면세금액은 우리 계산기가 단일 출처다(우유=면세, 요거트=과세, 배송비 귀속 규칙 포함).
+  //   구독 주문의 품목 수량은 '회당'이므로 block_weeks 를 반드시 넘긴다 — 빠뜨리면
+  //   면세/과세 분리가 크게 어긋나 잘못된 금액으로 영수증이 나간다.
+  const receiptAmounts = computeCashReceiptAmounts(
+    (o.items ?? []).map((it) => ({
+      productId: it.product_id,
+      unitPrice: it.unit_price,
+      qty: it.qty,
+    })),
+    o.total_amount as number,
+    { weeks: o.block_weeks ?? 1, shippingFee: o.shipping_fee ?? undefined }
+  );
+  const tradeUsage =
+    o.cash_receipt_type === "소득공제"
+      ? ("소득공제용" as const)
+      : o.cash_receipt_type === "지출증빙"
+        ? ("지출증빙용" as const)
+        : undefined;
+
   const result = await registerOrder({
     orderNumber: orderNo,
     orderAmount: o.total_amount as number,
@@ -98,6 +126,11 @@ export async function POST(req: Request) {
     ordererName,
     ordererPhone: ordererPhone || undefined,
     ordererEmail: body.ordererEmail?.trim() || undefined,
+    // 품목을 못 읽었으면(레거시·이상 데이터) 면세금액을 보내지 않는다 —
+    //   0 을 보내면 '전액 과세'로 잘못 발행되므로, 차라리 생략해 기존 동작을 따른다.
+    taxFreeAmount: (o.items ?? []).length > 0 ? receiptAmounts.taxFreeAmount : undefined,
+    tradeUsage,
+    identityNumber: tradeUsage ? (o.cash_receipt_id ?? undefined) : undefined,
   });
 
   if (!result.ok) {

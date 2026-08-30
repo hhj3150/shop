@@ -83,6 +83,25 @@ export async function registerPayActionDeposit(
   }
 }
 
+// 주문 취소를 PayAction 에도 알린다(그 주문번호로 더는 입금을 매칭하지 않게).
+//   안 알리면 취소한 주문에 뒤늦게 입금이 들어와 '고아입금'으로 남는다.
+//   실패는 non-fatal — 취소 자체는 이미 DB 에 반영돼 있다.
+export async function cancelPayActionDeposit(orderNo: string): Promise<void> {
+  try {
+    const { data } = await getSupabase().auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    await fetch("/api/payaction/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ orderNo }),
+      keepalive: true,
+    });
+  } catch (error) {
+    console.error("PayAction 취소 통지 실패:", error);
+  }
+}
+
 // 신청 결과: 요일별로 몇 번째인지, 대기자인지.
 export type SlotResult = {
   deliveryDay: DeliveryDay;
