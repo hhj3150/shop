@@ -173,6 +173,7 @@ export function rosterBlockMaps(orders: OrderLite[], items: ItemLite[], slots: S
     slots.map((s, i) => ({
       id: s.id ?? -1 - i,
       order_id: s.order_id,
+      delivery_day: s.delivery_day,
       status: s.status,
       started_at: s.started_at ?? null,
       first_ship_date: s.first_ship_date ?? null,
@@ -206,6 +207,7 @@ function rosterEntriesForDate(
     blocksBySlot: maps?.blocksBySlot,
     slotIdByOrder: maps?.slotIdByOrder,
     slotById: maps?.slotById,
+    slotIdByOrderDay: maps?.slotIdByOrderDay,
   });
 }
 

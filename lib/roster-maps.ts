@@ -23,17 +23,26 @@ type MapItemFields = RosterItemFields & {
 type MapSlotFields = DispatchSlotInfo & {
   id: number;
   order_id: string | null;
+  // 한 주문에 요일별 슬롯이 둘 이상일 수 있다(월+수 동시 구독 → 슬롯 2개, order_id 동일).
+  //   그때 '이 요일 배송분은 어느 슬롯의 회차인가'를 가리는 키. 없는 호출부는 기존대로 동작한다.
+  delivery_day?: string | null;
 };
 
 export type RosterMaps<O, I, S> = {
   orderById: Map<string, O>;
   itemsByOrder: Map<string, I[]>;
   slotByOrder: Map<string, S>;
+  // 주문 → 그 주문이 만든 슬롯 전부(요일 2개 이상이면 2건). slotByOrder 는 그중 하나뿐이라
+  //   요일별 회차 계산에는 이 배열을 쓴다.
+  slotsByOrder: Map<string, S[]>;
   slotById: Map<number, S>;
   confirmedOrderIds: Set<string>;
   pausedOrderIds: Set<string>;
   blocksBySlot: Map<number, RawBlock[]>;
   slotIdByOrder: Map<string, number>;
+  // `${주문id}|${요일}` → 슬롯 id. 같은 주문이 여러 요일 슬롯을 가질 때 요일별로 정확한
+  //   슬롯(회차·정지일수·시작일)을 고르기 위한 키. 원주문·연장주문 모두 담는다.
+  slotIdByOrderDay: Map<string, number>;
 };
 
 // 관리자 page.tsx 의 confirmedOrderIds/pausedOrderIds/orderById/slotByOrder/slotById/
@@ -58,7 +67,14 @@ export function buildRosterMaps<
 
   // 주문 → 슬롯(원주문 기준). 연장은 원주문을 가리키므로 order_id 매핑.
   const slotByOrder = new Map<string, S>();
-  for (const s of slots) if (s.order_id) slotByOrder.set(s.order_id, s);
+  const slotsByOrder = new Map<string, S[]>();
+  for (const s of slots) {
+    if (!s.order_id) continue;
+    slotByOrder.set(s.order_id, s);
+    const arr = slotsByOrder.get(s.order_id) ?? [];
+    arr.push(s);
+    slotsByOrder.set(s.order_id, arr);
+  }
 
   const slotById = new Map<number, S>();
   for (const s of slots) slotById.set(s.id, s);
@@ -117,19 +133,30 @@ export function buildRosterMaps<
   }
 
   const slotIdByOrder = new Map<string, number>();
-  for (const s of slots) if (s.order_id) slotIdByOrder.set(s.order_id, s.id);
+  const slotIdByOrderDay = new Map<string, number>();
+  for (const s of slots) {
+    if (!s.order_id) continue;
+    slotIdByOrder.set(s.order_id, s.id);
+    if (s.delivery_day) slotIdByOrderDay.set(`${s.order_id}|${s.delivery_day}`, s.id);
+  }
   for (const [slotId, arr] of renewalOrdersBySlot) {
-    for (const o of arr) slotIdByOrder.set(o.id, slotId);
+    const day = slotById.get(slotId)?.delivery_day;
+    for (const o of arr) {
+      slotIdByOrder.set(o.id, slotId);
+      if (day) slotIdByOrderDay.set(`${o.id}|${day}`, slotId);
+    }
   }
 
   return {
     orderById,
     itemsByOrder,
     slotByOrder,
+    slotsByOrder,
     slotById,
     confirmedOrderIds,
     pausedOrderIds,
     blocksBySlot,
     slotIdByOrder,
+    slotIdByOrderDay,
   };
 }

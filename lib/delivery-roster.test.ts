@@ -54,6 +54,7 @@ function build(opts: {
   blocksBySlot?: Map<number, RawBlock[]>;
   slotIdByOrder?: Map<string, number>;
   slotById?: Map<number, DispatchSlotInfo>;
+  slotIdByOrderDay?: Map<string, number>;
 }) {
   return buildRosterForDate({
     dateISO: opts.dateISO ?? DATE,
@@ -65,6 +66,7 @@ function build(opts: {
     blocksBySlot: opts.blocksBySlot ?? new Map(),
     slotIdByOrder: opts.slotIdByOrder ?? new Map(),
     slotById: opts.slotById ?? new Map(),
+    slotIdByOrderDay: opts.slotIdByOrderDay ?? new Map(),
   });
 }
 
@@ -709,5 +711,60 @@ describe("buildRosterForDate — 2026 하절기 휴가 전 구간 배송 명단(
       for (const id of daysOn(d)) count[id] += 1;
     }
     expect(count).toEqual({ mon: 3, tue: 3, wed: 3, thu: 3, fri: 3 });
+  });
+});
+
+describe("buildRosterForDate — 한 주문이 두 요일을 구독한 경우(슬롯 2개)", () => {
+  // 월·수를 함께 구독하면 subscription_slots 가 요일마다 하나씩(같은 order_id) 생긴다.
+  //   요일별로 시작일·정지일수가 다르므로, 그 요일 슬롯으로 판정해야 회차가 맞는다.
+  const o = order({ id: "o1", block_weeks: 12 });
+  const monItem = item({ order_id: "o1", delivery_day: "mon", qty: 2 });
+  const wedItem = item({ order_id: "o1", delivery_day: "wed", qty: 3 });
+  const monSlot = slot({ started_at: "2026-07-06" }); // 월
+  const wedSlot = slot({ started_at: "2026-07-08" }); // 수
+
+  it("요일마다 한 건씩 나오고, 그 요일 품목만 담는다", () => {
+    const common = {
+      orders: [o],
+      items: [monItem, wedItem],
+      slots: new Map([["o1", monSlot]]),
+      slotById: new Map([
+        [1, monSlot],
+        [2, wedSlot],
+      ]),
+      slotIdByOrder: new Map([["o1", 1]]),
+      slotIdByOrderDay: new Map([
+        ["o1|mon", 1],
+        ["o1|wed", 2],
+      ]),
+    };
+    const mon = build({ ...common, dateISO: "2026-08-31" });
+    expect(mon).toHaveLength(1);
+    expect(mon[0].day).toBe("mon");
+    expect(mon[0].items).toEqual([monItem]);
+
+    const wed = build({ ...common, dateISO: "2026-09-02" });
+    expect(wed).toHaveLength(1);
+    expect(wed[0].day).toBe("wed");
+    expect(wed[0].items).toEqual([wedItem]);
+  });
+
+  it("★회귀: 그 요일 슬롯이 해지면 그 요일만 빠지고 다른 요일은 그대로 나간다", () => {
+    const common = {
+      orders: [o],
+      items: [monItem, wedItem],
+      slots: new Map([["o1", monSlot]]),
+      slotById: new Map([
+        [1, monSlot],
+        [2, slot({ started_at: "2026-07-08", status: "해지" })],
+      ]),
+      slotIdByOrder: new Map([["o1", 1]]),
+      slotIdByOrderDay: new Map([
+        ["o1|mon", 1],
+        ["o1|wed", 2],
+      ]),
+    };
+    expect(build({ ...common, dateISO: "2026-08-31" })).toHaveLength(1); // 월요일분은 그대로
+    expect(build({ ...common, dateISO: "2026-09-02" })).toHaveLength(0); // 해지한 수요일분만 제외
   });
 });

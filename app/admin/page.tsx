@@ -8,7 +8,8 @@ import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { computeSchedule } from "@/lib/subscription-schedule";
 import { buildRosterForDate, type DeliveryEntry as RosterEntry } from "@/lib/delivery-roster";
-import { buildRawBlocks, type OrderRow as BlockOrderRow, type OrderItemRow as BlockItemRow } from "@/lib/slot-blocks";
+import { buildRosterMaps } from "@/lib/roster-maps";
+import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import type { RawBlock } from "@/lib/subscription-timeline";
 import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 import {
@@ -396,125 +397,24 @@ export default function AdminPage() {
   const refreshSilently = useCallback(() => load({ silent: true }), [load]);
   usePolling(refreshSilently, 30_000, isAdmin);
 
-  const confirmedOrderIds = useMemo(
-    () => new Set(orders.filter((o) => CONFIRMED.includes(o.status as (typeof CONFIRMED)[number])).map((o) => o.id)),
-    [orders]
-  );
-  // 일시정지 중인 구독의 주문 — 이번 주 발송 집계에서 제외한다(횟수는 보존, 종료일만 밀림).
-  const pausedOrderIds = useMemo(
-    () =>
-      new Set(
-        slots
-          .filter((s) => s.paused && s.order_id)
-          .map((s) => s.order_id as string)
-      ),
-    [slots]
-  );
-  const orderById = useMemo(
-    () => new Map(orders.map((o) => [o.id, o])),
-    [orders]
-  );
-  // 주문 → 구독 슬롯(회차·제외 판정용). 연장은 원주문을 가리키므로 order_id 로 매핑.
-  //   배송 명단에서 해지·회차소진 구독을 제외하기 위해 dispatchScheduleForSlot 에 넘긴다.
-  const slotByOrder = useMemo(() => {
-    const m = new Map<string, SlotRow>();
-    for (const s of slots) if (s.order_id) m.set(s.order_id, s);
-    return m;
-  }, [slots]);
-  // 주문별 품목 묶음 — 주문 드릴다운(주문 관리 표 펼치기)·회원 주문 모달에서 공용으로 쓴다.
-  const itemsByOrder = useMemo(() => {
-    const m = new Map<string, ItemRow[]>();
-    for (const it of items) {
-      const arr = m.get(it.order_id) ?? [];
-      arr.push(it);
-      m.set(it.order_id, arr);
-    }
-    return m;
-  }, [items]);
-
-  // ── 블록(연장 체인) 인지 데이터 ─────────────────────────────
-  //   슬롯 한 건이 원주문(block0) + 연장주문(block k) 체인을 갖는다. 연장주문은 자기
-  //   order_items 를 가질 수 있어, 한 슬롯의 여러 블록이 같은 날 동시에 발송되면 이중발송이
-  //   된다. 발송일별 '활성 블록' 1개만 발송/집계하기 위해 아래 맵들을 조립한다.
-  const slotById = useMemo(() => {
-    const m = new Map<number, SlotRow>();
-    for (const s of slots) m.set(s.id, s);
-    return m;
-  }, [slots]);
-
-  // 연장주문(renews_slot_id != null) 중 확정류(CONFIRMED) 상태만 슬롯별로 묶고 created_at,id 순 정렬.
-  //   취소·입금대기 연장주문은 블록으로 치지 않는다(확정된 회차만 발송 대상).
-  const renewalOrdersBySlot = useMemo(() => {
-    const m = new Map<number, OrderRow[]>();
-    for (const o of orders) {
-      if (o.renews_slot_id == null) continue;
-      if (!CONFIRMED.includes(o.status as (typeof CONFIRMED)[number])) continue;
-      const arr = m.get(o.renews_slot_id) ?? [];
-      arr.push(o);
-      m.set(o.renews_slot_id, arr);
-    }
-    for (const [k, arr] of m) {
-      m.set(
-        k,
-        [...arr].sort(
-          (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
-        )
-      );
-    }
-    return m;
-  }, [orders]);
-
-  // OrderRow → buildRawBlocks 입력으로 변환(필요 필드만, 안전한 기본값).
-  const toBlockOrder = useCallback(
-    (o: OrderRow): BlockOrderRow => ({
-      id: o.id,
-      block_weeks: o.block_weeks ?? 0,
-      shipping_fee: o.shipping_fee ?? 0,
-      created_at: o.created_at,
-    }),
-    []
-  );
-
-  // 주문 id → order_items(블록 빌더용 최소 필드). 원주문·연장주문 모두 포함.
-  const blockItemsByOrder = useMemo(() => {
-    const m = new Map<string, BlockItemRow[]>();
-    for (const [oid, rows] of itemsByOrder) {
-      m.set(
-        oid,
-        rows.map((it) => ({
-          delivery_day: it.delivery_day,
-          qty: it.qty,
-          unit_price: it.unit_price,
-          product_name: it.product_name,
-          volume: it.volume,
-        }))
-      );
-    }
-    return m;
-  }, [itemsByOrder]);
-
-  // 슬롯 id → 블록 체인(RawBlock[]). 원주문은 slot.order_id 주문, 연장은 renewalOrdersBySlot.
-  const blocksBySlot = useMemo(() => {
-    const m = new Map<number, RawBlock[]>();
-    for (const s of slots) {
-      if (!s.order_id) continue;
-      const original = orderById.get(s.order_id);
-      if (!original) continue;
-      const renewals = (renewalOrdersBySlot.get(s.id) ?? []).map(toBlockOrder);
-      m.set(s.id, buildRawBlocks(toBlockOrder(original), renewals, blockItemsByOrder));
-    }
-    return m;
-  }, [slots, orderById, renewalOrdersBySlot, blockItemsByOrder, toBlockOrder]);
-
-  // 주문 id(원주문 + 연장주문 모두) → 슬롯 id. 활성 블록 조회 키.
-  const slotIdByOrder = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of slots) if (s.order_id) m.set(s.order_id, s.id);
-    for (const [slotId, arr] of renewalOrdersBySlot) {
-      for (const o of arr) m.set(o.id, slotId);
-    }
-    return m;
-  }, [slots, renewalOrdersBySlot]);
+  // ── 배송 명단 입력 맵 (SSOT) ────────────────────────────────
+  //   confirmedOrderIds/pausedOrderIds/orderById/itemsByOrder/slotByOrder/slotsByOrder/
+  //   slotById/blocksBySlot/slotIdByOrder/slotIdByOrderDay 를 한곳(lib/roster-maps)에서 만든다.
+  //   화면마다 같은 맵을 따로 조립하면 한쪽만 고쳐져 배송 명단이 갈린다(과·오배송) —
+  //   '발송 전날 예고'(netlify) · 관리자 어시스턴트도 같은 함수를 쓴다.
+  const rosterMaps = useMemo(() => buildRosterMaps(orders, items, slots), [orders, items, slots]);
+  const {
+    orderById,
+    itemsByOrder,
+    slotByOrder,
+    slotsByOrder,
+    slotById,
+    confirmedOrderIds,
+    pausedOrderIds,
+    blocksBySlot,
+    slotIdByOrder,
+    slotIdByOrderDay,
+  } = rosterMaps;
 
   // ── 데이터 점검 — 배포 중 접속 등으로 생길 수 있는 데이터 이상을 한눈에 잡는다.
   //   (1) 입금확인 이후 상태인데 결제확인 시각(paid_at)이 없는 주문 → 실입금 없이 확인됐을 가능성.
@@ -526,8 +426,16 @@ export default function AdminPage() {
     const emptyItems = orders.filter(
       (o) => o.status !== "취소" && (itemsByOrder.get(o.id)?.length ?? 0) === 0
     );
-    return { paymentNoEvidence, emptyItems };
-  }, [orders, itemsByOrder]);
+    // (3) 주문은 취소인데 구독 슬롯이 아직 '활성' → 요일 정원만 차지하고 배송은 안 나간다.
+    //     모집 현황과 실제 배송 인원이 갈리는 원인이라 눈에 띄게 잡아 둔다.
+    const cancelledButActive = slots.filter(
+      (s) =>
+        s.status === "활성" &&
+        !!s.order_id &&
+        orderById.get(s.order_id)?.status === "취소"
+    );
+    return { paymentNoEvidence, emptyItems, cancelledButActive };
+  }, [orders, itemsByOrder, slots, orderById]);
   const nameByUser = useMemo(
     () => new Map(profiles.map((p) => [p.id, p.name])),
     [profiles]
@@ -595,17 +503,39 @@ export default function AdminPage() {
     setBatchSummary(`재등록 완료 — 성공 ${ok}건${failNote}`);
   }, [batchRunning, pendingOrders, load]);
 
+  //   ★ '활성' 슬롯이라고 다 배송이 나가는 건 아니다. 결제한 회차를 다 받고도 해지 처리가
+  //     안 된 슬롯이 활성으로 남아 좌석을 차지한다 → 모집 인원과 실제 배송 명단 인원이 갈린다.
+  //     그래서 진행중(회차 남음)·소진(정리 필요)을 나눠 센다. 판정은 배송 명단과 같은
+  //     dispatchScheduleForSlot(회차소진·해지·정지) SSOT.
   const dayStats = useMemo(() => {
+    const todayISO = toISODate(new Date(now));
+    const remainsToday = (s: SlotRow): boolean => {
+      const weeks = (s.order_id ? orderById.get(s.order_id)?.block_weeks : null) ?? 0;
+      return !dispatchScheduleForSlot(s, weeks, todayISO).excluded;
+    };
     return DELIVERY_DAYS.map((d) => {
-      const taken = slots.filter(
-        (s) => s.delivery_day === d && (s.status === "신청" || s.status === "활성")
+      const ofDay = slots.filter((s) => s.delivery_day === d);
+      const taken = ofDay.filter((s) => s.status === "신청" || s.status === "활성").length;
+      const active = ofDay.filter((s) => s.status === "활성").length;
+      const waitlist = ofDay.filter((s) => s.status === "대기").length;
+      const paused = ofDay.filter((s) => s.paused).length;
+      // 진행중 = 정지도 아니고 회차도 남았으며 주문이 확정(입금확인 이후)인 구독
+      //   → 실제 배송 명단·배송 시트에 뜨는 인원과 같은 수.
+      const live = ofDay.filter(
+        (s) =>
+          (s.status === "신청" || s.status === "활성") &&
+          !s.paused &&
+          remainsToday(s) &&
+          !!s.order_id &&
+          confirmedOrderIds.has(s.order_id)
       ).length;
-      const active = slots.filter((s) => s.delivery_day === d && s.status === "활성").length;
-      const waitlist = slots.filter((s) => s.delivery_day === d && s.status === "대기").length;
-      const paused = slots.filter((s) => s.delivery_day === d && s.paused).length;
-      return { day: d, taken, active, waitlist, paused };
+      // 소진 = 활성인데 결제 회차를 다 보낸 좌석. 해지·연장 처리 전까지 자리만 차지한다.
+      const exhausted = ofDay.filter(
+        (s) => s.status === "활성" && !s.paused && !remainsToday(s)
+      ).length;
+      return { day: d, taken, active, waitlist, paused, live, exhausted };
     });
-  }, [slots]);
+  }, [slots, orderById, confirmedOrderIds, now]);
 
   // ── 요일별·제품별 주간 필요 수량 (확정 구독 기준) ──────────
   const productKeys = useMemo(() => {
@@ -665,8 +595,9 @@ export default function AdminPage() {
         blocksBySlot,
         slotIdByOrder,
         slotById,
+        slotIdByOrderDay,
       }),
-    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById]
+    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById, slotIdByOrderDay]
   );
 
   // 임의 날짜의 생산 수요를 정기/단품으로 분리. roster(해지·회차소진·정지 제외)에서
@@ -762,7 +693,8 @@ export default function AdminPage() {
     () => rosterForDate(todayDateISO).length,
     [rosterForDate, todayDateISO]
   );
-  const anomalyCount = anomalies.paymentNoEvidence.length + anomalies.emptyItems.length;
+  const anomalyCount =
+    anomalies.paymentNoEvidence.length + anomalies.emptyItems.length + anomalies.cancelledButActive.length;
   // 처리 대기 작업 카드. 수치는 전부 기존 파생값, 클릭은 해당 작업 화면으로 점프한다.
   const todoCards = useMemo<TodoCard[]>(
     () => [
@@ -1502,6 +1434,10 @@ export default function AdminPage() {
           blocksBySlot={blocksBySlot}
           slotIdByOrder={slotIdByOrder}
           slotById={slotById}
+          slotsByOrder={slotsByOrder}
+          slotIdByOrderDay={slotIdByOrderDay}
+          confirmedOrderIds={confirmedOrderIds}
+          pausedOrderIds={pausedOrderIds}
           onReload={load}
         />
       )}
@@ -1538,7 +1474,9 @@ export default function AdminPage() {
       </section>
 
       {/* 데이터 점검 — 결제상태/품목 이상 자동 탐지 */}
-      {(anomalies.paymentNoEvidence.length > 0 || anomalies.emptyItems.length > 0) && (
+      {(anomalies.paymentNoEvidence.length > 0 ||
+        anomalies.emptyItems.length > 0 ||
+        anomalies.cancelledButActive.length > 0) && (
         <section id="admin-data-check" className="mt-6 scroll-mt-6 rounded-2xl border border-amber-300 bg-amber-50/60 p-5 no-print">
           <h2 className="font-serif-kr text-lg text-amber-800">⚠ 데이터 점검 필요</h2>
           <p className="mt-1 text-[13px] text-amber-700">
@@ -1592,6 +1530,37 @@ export default function AdminPage() {
                     <span className="tabular-nums text-mute">{formatKRW(o.total_amount)}</span>
                   </li>
                 ))}
+              </ul>
+            </div>
+          )}
+          {anomalies.cancelledButActive.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[14px] font-medium text-ink">
+                주문은 취소인데 구독이 활성인 좌석 ({anomalies.cancelledButActive.length}건)
+                <span className="ml-1.5 text-[12px] font-normal text-mute">
+                  — 배송은 나가지 않는데 그 요일 정원만 차지합니다. 회원·구독 탭에서 해지 처리해 자리를 비워 주세요.
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {anomalies.cancelledButActive.map((s) => {
+                  const o = s.order_id ? orderById.get(s.order_id) : undefined;
+                  return (
+                    <li key={s.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
+                      {o && (
+                        <button
+                          onClick={() => focusOrderInManageTab(o.order_no)}
+                          className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
+                        >
+                          {o.order_no}
+                        </button>
+                      )}
+                      <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">
+                        {DELIVERY_DAY_LABEL[s.delivery_day]}요일 · 슬롯 {s.id}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -1732,14 +1701,20 @@ export default function AdminPage() {
 
       {/* 요일별 모집 현황 */}
       <h2 className="mt-12 font-serif-kr text-lg text-ink">요일별 모집 현황 (정원 100명)</h2>
+      <p className="mt-1 text-[13px] text-mute">
+        <strong className="text-ink-soft">진행중</strong>은 회차가 남아 실제로 배송이 나가는 인원(배송 명단 인원과 같은 기준)입니다.
+        <strong className="text-ink-soft"> 회차소진</strong>은 결제한 회차를 다 받았는데 해지·연장 처리가 안 돼 자리만 차지하는 구독이니,
+        연장 안내를 하거나 해지 처리해야 그 요일 자리가 납니다.
+      </p>
       <div className="mt-4 overflow-x-auto">
         <table className="admin-cards-sm w-full border-collapse text-[14px] md:min-w-[480px]">
           <thead>
             <tr className="border-b border-line text-left text-mute">
               <th className="py-2 font-normal">요일</th>
               <th className="py-2 text-right font-normal">모집(신청+활성)</th>
-              <th className="py-2 text-right font-normal">활성(입금확인)</th>
+              <th className="py-2 text-right font-normal">진행중(배송 명단)</th>
               <th className="py-2 text-right font-normal">정지중</th>
+              <th className="py-2 text-right font-normal">회차소진</th>
               <th className="py-2 text-right font-normal">잔여</th>
               <th className="py-2 text-right font-normal">대기자</th>
             </tr>
@@ -1749,8 +1724,9 @@ export default function AdminPage() {
               <tr key={s.day} className="border-b border-line/60">
                 <td data-label="요일" className="py-2.5 text-ink">{DELIVERY_DAY_LABEL[s.day]}</td>
                 <td data-label="모집(신청+활성)" className="py-2.5 text-right tabular-nums text-ink">{s.taken} / 100</td>
-                <td data-label="활성(입금확인)" className="py-2.5 text-right tabular-nums text-ink-soft">{s.active}</td>
+                <td data-label="진행중(배송 명단)" className="py-2.5 text-right tabular-nums font-medium text-ink">{s.live}</td>
                 <td data-label="정지중" className="py-2.5 text-right tabular-nums text-ink-soft">{s.paused || "·"}</td>
+                <td data-label="회차소진" className={`py-2.5 text-right tabular-nums ${s.exhausted > 0 ? "text-amber-700" : "text-ink-soft"}`}>{s.exhausted || "·"}</td>
                 <td data-label="잔여" className="py-2.5 text-right tabular-nums text-gold-deep">{Math.max(0, 100 - s.taken)}</td>
                 <td data-label="대기자" className="py-2.5 text-right tabular-nums text-ink-soft">{s.waitlist}</td>
               </tr>
