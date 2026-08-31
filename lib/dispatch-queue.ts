@@ -37,7 +37,36 @@ export type DispatchSlice<O, I> = {
   round: number;
   total: number; // 총 회차(구독). 단품 1, 미상 0
   remaining: number;
+  // ★ 과배송 최종 방어선. 이 구독 슬롯이 결제한 회차만큼 이미 발송됐는데 또 잡힌 행.
+  //   날짜 계산(회차 모델)에 어떤 오차가 있어도, 실제 발송 이력이 결제 회차에 도달하면
+  //   더 보내면 안 된다. 행을 조용히 지우지 않고 표시해 담당자가 사유를 보고 판단하게 한다.
+  overPaidRounds: boolean;
+  shippedRounds: number; // 이 슬롯 체인이 지금까지 실제로 나간 회차 수(shipment_log 기준)
 };
+
+// `${주문id}|${발송일}` 형식의 실제 출고 이력 키 집합(shipment_log).
+export type ShipmentKeys = ReadonlySet<string> | ReadonlyMap<string, unknown>;
+
+function hasKey(keys: ShipmentKeys | undefined, key: string): boolean {
+  return keys ? keys.has(key) : false;
+}
+
+// 슬롯별 실제 발송 회차 수 — 출고 이력 키(`주문id|발송일`)를 슬롯 체인으로 묶어 센다.
+//   원주문·연장주문이 같은 슬롯을 이어받으므로 slotIdByOrder 로 합산해야 총 회차가 맞다.
+export function countShippedRoundsBySlot(
+  keys: ShipmentKeys,
+  slotIdByOrder: ReadonlyMap<string, number>
+): Map<number, number> {
+  const out = new Map<number, number>();
+  const iter: Iterable<string> = keys instanceof Map ? keys.keys() : (keys as ReadonlySet<string>);
+  for (const key of iter) {
+    const orderId = key.slice(0, key.lastIndexOf("|"));
+    const slotId = slotIdByOrder.get(orderId);
+    if (slotId == null) continue;
+    out.set(slotId, (out.get(slotId) ?? 0) + 1);
+  }
+  return out;
+}
 
 type QueueOrderFields = RosterOrderFields & {
   status: string;
@@ -63,6 +92,8 @@ function dateOnly(v: string | null): string | null {
 
 export type QueueMaps<O, S> = {
   orderById: ReadonlyMap<string, O>;
+  // 실제 출고 이력(shipment_log) 키 — 과배송 방어선 판정용. 없으면 판정하지 않는다.
+  shippedKeys?: ShipmentKeys;
   slotByOrder: ReadonlyMap<string, S>;
   slotsByOrder?: ReadonlyMap<string, S[]>;
   slotById?: ReadonlyMap<number, S>;
@@ -113,6 +144,30 @@ function roundInfo<O extends QueueOrderFields, S extends DispatchSlotInfo & { or
   return { round: sch.round, total: sch.total, remaining: sch.remaining };
 }
 
+// 이 행이 '결제 회차를 넘긴 발송'인지. 회차 모델(날짜 계산)에 어떤 오차가 있어도
+//   실제 발송 이력이 결제 회차에 도달했으면 더 보내면 안 된다 — 과배송 최종 방어선.
+//   ★ 이 발송일분이 이미 출고된 행(오늘 나간 회차)은 초과가 아니다. 그 회차 자신이
+//     이미 이력에 들어 있어 카운트에 포함돼 있기 때문.
+function overPaidFor<O extends QueueOrderFields, S extends DispatchSlotInfo & { order_id?: string | null; delivery_day?: string | null }>(
+  maps: QueueMaps<O, S>,
+  order: O,
+  day: DeliveryDay | null,
+  shipISO: string,
+  paidRounds: number,
+  shippedBySlot: ReadonlyMap<number, number>
+): { overPaidRounds: boolean; shippedRounds: number } {
+  if (order.order_type === "단품") return { overPaidRounds: false, shippedRounds: 0 };
+  const slotId =
+    maps.slotIdByOrderDay?.get(`${order.id}|${day ?? ""}`) ?? maps.slotIdByOrder?.get(order.id);
+  if (slotId == null || paidRounds <= 0) return { overPaidRounds: false, shippedRounds: 0 };
+  const shippedRounds = shippedBySlot.get(slotId) ?? 0;
+  const alreadyShippedThisRound = hasKey(maps.shippedKeys, `${order.id}|${shipISO}`);
+  return {
+    overPaidRounds: !alreadyShippedThisRound && shippedRounds >= paidRounds,
+    shippedRounds,
+  };
+}
+
 // 선택 날짜(dateISO)에 실제로 나가야 하는 시트 행 — 기간별 배송 명단과 같은 SSOT + 단품 이월분.
 export function buildDispatchSlicesForDate<
   O extends QueueOrderFields,
@@ -127,6 +182,9 @@ export function buildDispatchSlicesForDate<
 }): DispatchSlice<O, I>[] {
   const { dateISO, orders, items, itemsByOrder, maps } = params;
   const out: DispatchSlice<O, I>[] = [];
+  const shippedBySlot = maps.shippedKeys
+    ? countShippedRoundsBySlot(maps.shippedKeys, maps.slotIdByOrder ?? new Map())
+    : new Map<number, number>();
 
   const entries = buildRosterForDate<O, I>({
     dateISO,
@@ -145,6 +203,7 @@ export function buildDispatchSlicesForDate<
     // 단품은 주문 상태 = 그 발송의 상태 → 완료분은 작업 목록에서 뺀다(정기는 회차 이력이 판정).
     if (e.kind === "단품" && !(ONCE_SHIPPABLE as readonly string[]).includes(e.order.status)) continue;
     const shipISO = e.kind === "단품" ? (e.order.ship_date ?? dateISO) : dateISO;
+    const info = roundInfo(maps, e.order, e.day, shipISO);
     out.push({
       order: e.order,
       items: e.items,
@@ -152,7 +211,8 @@ export function buildDispatchSlicesForDate<
       kind: e.kind,
       carriedOver: false,
       shipISO,
-      ...roundInfo(maps, e.order, e.day, shipISO),
+      ...info,
+      ...overPaidFor(maps, e.order, e.day, shipISO, info.total, shippedBySlot),
     });
   }
 
@@ -177,6 +237,8 @@ export function buildDispatchSlicesForDate<
       round: 1,
       total: 1,
       remaining: 0,
+      overPaidRounds: false,
+      shippedRounds: 0,
     });
   }
 
@@ -197,6 +259,9 @@ export function buildDispatchSlicesAll<
 }): DispatchSlice<O, I>[] {
   const { asOfISO, orders, itemsByOrder, maps } = params;
   const out: DispatchSlice<O, I>[] = [];
+  const shippedBySlot = maps.shippedKeys
+    ? countShippedRoundsBySlot(maps.shippedKeys, maps.slotIdByOrder ?? new Map())
+    : new Map<number, number>();
 
   for (const o of orders) {
     if (o.delivery_method === "방문수령") continue;
@@ -215,6 +280,8 @@ export function buildDispatchSlicesAll<
         round: 1,
         total: 1,
         remaining: 0,
+        overPaidRounds: false,
+        shippedRounds: 0,
       });
       continue;
     }
@@ -237,6 +304,7 @@ export function buildDispatchSlicesAll<
     for (const [day, dayItems] of groups) {
       const slot = slotForRow(maps, o.id, day);
       if (slot && dispatchScheduleForSlot(slot, o.block_weeks ?? 0, shipISO).excluded) continue;
+      const info = roundInfo(maps, o, day, shipISO);
       out.push({
         order: o,
         items: dayItems,
@@ -244,7 +312,8 @@ export function buildDispatchSlicesAll<
         kind: "정기",
         carriedOver: false,
         shipISO,
-        ...roundInfo(maps, o, day, shipISO),
+        ...info,
+        ...overPaidFor(maps, o, day, shipISO, info.total, shippedBySlot),
       });
     }
   }

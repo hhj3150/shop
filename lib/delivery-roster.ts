@@ -124,6 +124,9 @@ export function buildRosterForDate<
       const active = activeBlockForDate(
         {
           startedAt: slotForBlocks.started_at,
+          // ★ 회차 계산(dispatchScheduleForSlot)과 같은 입력을 써야 한다. 여기만 1회차
+          //   보정일을 빼면 '이 날짜의 활성 블록'과 '이 날짜의 회차'가 갈려 과·미배송이 난다.
+          firstShipDate: slotForBlocks.first_ship_date,
           paused: slotForBlocks.paused,
           pausedAt: slotForBlocks.paused_at,
           pausedDays: slotForBlocks.paused_days,

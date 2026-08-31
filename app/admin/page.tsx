@@ -10,6 +10,7 @@ import { computeSchedule } from "@/lib/subscription-schedule";
 import { buildRosterForDate, type DeliveryEntry as RosterEntry } from "@/lib/delivery-roster";
 import { buildRosterMaps } from "@/lib/roster-maps";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
+import { countShippedRoundsBySlot } from "@/lib/dispatch-queue";
 import type { RawBlock } from "@/lib/subscription-timeline";
 import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 import {
@@ -434,8 +435,21 @@ export default function AdminPage() {
         !!s.order_id &&
         orderById.get(s.order_id)?.status === "취소"
     );
-    return { paymentNoEvidence, emptyItems, cancelledButActive };
-  }, [orders, itemsByOrder, slots, orderById]);
+    // (4) 결제한 회차만큼 이미 나갔는데 아직 활성인 구독 → 다음 회차가 나가면 과배송이다.
+    //     배송 시트가 '발송금지'로 막지만, 원인(연장 미처리·회차 계산 어긋남)은 사람이 판단해야 한다.
+    const shippedBySlot = countShippedRoundsBySlot(shippedKeys, slotIdByOrder);
+    const roundsUsedUp = slots
+      .map((s) => {
+        const paid =
+          (s.order_id ? (orderById.get(s.order_id)?.block_weeks ?? 0) : 0) + (s.extended_weeks ?? 0);
+        return { slot: s, paid, shipped: shippedBySlot.get(s.id) ?? 0 };
+      })
+      .filter((x) => x.slot.status === "활성" && x.paid > 0 && x.shipped >= x.paid);
+    // (5) 일시정지 이력이 있는 구독 → 회차 표기(발송 문자의 'N회 중 M번째')가 한 회차 밀린다.
+    //     정지일수를 이미 나간 회차까지 미는 계산 결함. 발송 횟수 자체는 (4)의 방어선이 지킨다.
+    const pausedHistory = slots.filter((s) => s.status === "활성" && (s.paused_days ?? 0) > 0);
+    return { paymentNoEvidence, emptyItems, cancelledButActive, roundsUsedUp, pausedHistory };
+  }, [orders, itemsByOrder, slots, orderById, shippedKeys, slotIdByOrder]);
   const nameByUser = useMemo(
     () => new Map(profiles.map((p) => [p.id, p.name])),
     [profiles]
@@ -568,6 +582,7 @@ export default function AdminPage() {
       .filter((x): x is { slot: SlotRow; blocks: RawBlock[] } => x.blocks != null && x.blocks.length > 0)
       .map(({ slot: s, blocks }) => ({
         startedAt: s.started_at,
+        firstShipDate: s.first_ship_date,
         status: s.status,
         paused: s.paused,
         pausedAt: s.paused_at,
@@ -694,7 +709,10 @@ export default function AdminPage() {
     [rosterForDate, todayDateISO]
   );
   const anomalyCount =
-    anomalies.paymentNoEvidence.length + anomalies.emptyItems.length + anomalies.cancelledButActive.length;
+    anomalies.paymentNoEvidence.length +
+    anomalies.emptyItems.length +
+    anomalies.cancelledButActive.length +
+    anomalies.roundsUsedUp.length;
   // 처리 대기 작업 카드. 수치는 전부 기존 파생값, 클릭은 해당 작업 화면으로 점프한다.
   const todoCards = useMemo<TodoCard[]>(
     () => [
@@ -1018,10 +1036,20 @@ export default function AdminPage() {
         .eq("status", "신청");
       const slotErrors: string[] = [];
       for (const s of (pending ?? []) as { id: number; delivery_day: DeliveryDay }[]) {
+        // 앵커(started_at) = 선택 요일의 가장 가까운 날. 2회차+ cadence 기준이라 보정하지 않는다.
+        //   first_ship_date = 1회차 실제 배송일(주말·공휴일 → 다음 영업일, 목장 휴무 주 →
+        //   다음 주 같은 요일). 앵커와 같으면 null. ★ 서버 자동 입금확인(confirm_payment)이
+        //   저장하는 값과 정확히 같은 규칙(subscriptionShipDate = SQL sub_delivery_dates)이라
+        //   수기·자동 어느 경로로 확인해도 회차 배송일이 갈리지 않는다.
         const start = toISODate(firstSubscriptionDelivery(s.delivery_day));
+        const first = subscriptionShipDate(start);
         const { error: slotErr } = await sb
           .from("subscription_slots")
-          .update({ status: "활성", started_at: start })
+          .update({
+            status: "활성",
+            started_at: start,
+            first_ship_date: first === start ? null : first,
+          })
           .eq("id", s.id);
         if (slotErr) slotErrors.push(slotErr.message);
       }
@@ -1476,7 +1504,9 @@ export default function AdminPage() {
       {/* 데이터 점검 — 결제상태/품목 이상 자동 탐지 */}
       {(anomalies.paymentNoEvidence.length > 0 ||
         anomalies.emptyItems.length > 0 ||
-        anomalies.cancelledButActive.length > 0) && (
+        anomalies.cancelledButActive.length > 0 ||
+        anomalies.roundsUsedUp.length > 0 ||
+        anomalies.pausedHistory.length > 0) && (
         <section id="admin-data-check" className="mt-6 scroll-mt-6 rounded-2xl border border-amber-300 bg-amber-50/60 p-5 no-print">
           <h2 className="font-serif-kr text-lg text-amber-800">⚠ 데이터 점검 필요</h2>
           <p className="mt-1 text-[13px] text-amber-700">
@@ -1557,6 +1587,63 @@ export default function AdminPage() {
                       <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">
                         {DELIVERY_DAY_LABEL[s.delivery_day]}요일 · 슬롯 {s.id}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {anomalies.roundsUsedUp.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[14px] font-medium text-red-700">
+                ⛔ 결제한 회차를 이미 다 보낸 활성 구독 ({anomalies.roundsUsedUp.length}건)
+                <span className="ml-1.5 text-[12px] font-normal text-mute">
+                  — 더 보내면 과배송입니다. 배송 시트에서 발송이 막혀 있습니다. 연장 결제가 확인된
+                  건이면 연장 처리를, 끝난 구독이면 해지 처리를 해 주세요.
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {anomalies.roundsUsedUp.map(({ slot: s, paid, shipped }) => {
+                  const o = s.order_id ? orderById.get(s.order_id) : undefined;
+                  return (
+                    <li key={s.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
+                      {o && (
+                        <button
+                          onClick={() => focusOrderInManageTab(o.order_no)}
+                          className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
+                        >
+                          {o.order_no}
+                        </button>
+                      )}
+                      <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[12px] font-semibold text-red-700">
+                        결제 {paid}회 · 발송 {shipped}회
+                      </span>
+                      <span className="text-mute">{DELIVERY_DAY_LABEL[s.delivery_day]}요일</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {anomalies.pausedHistory.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[14px] font-medium text-ink">
+                일시정지 이력이 있는 구독 ({anomalies.pausedHistory.length}건) — 회차 표기 확인 필요
+                <span className="ml-1.5 text-[12px] font-normal text-mute">
+                  — 정지일수를 이미 나간 회차까지 미는 계산 결함이 있어, 화면·문자의 ‘N회 중 M번째’가
+                  한 회차 밀려 보일 수 있습니다. 실제 발송 횟수는 결제 회차를 넘지 않도록 막혀 있습니다.
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {anomalies.pausedHistory.map((s) => {
+                  const o = s.order_id ? orderById.get(s.order_id) : undefined;
+                  return (
+                    <li key={s.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
+                      <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">
+                        {DELIVERY_DAY_LABEL[s.delivery_day]}요일 · 정지 {s.paused_days}일
                       </span>
                     </li>
                   );

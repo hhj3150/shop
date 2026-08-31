@@ -43,6 +43,8 @@ export function splitDemandByKind<O, I extends DemandItem>(
 // 매트릭스 집계에 필요한 슬롯 최소 입력(블록 체인 포함).
 export type MatrixSlotInput = {
   startedAt: string | null;
+  // 1회차 실제 배송일(앵커가 공휴일이면 다음 영업일). 회차 계산과 같은 입력을 쓰기 위함.
+  firstShipDate?: string | null;
   status: string;
   paused: boolean;
   pausedAt: string | null;
@@ -80,6 +82,7 @@ export function buildWeeklyMatrix(
     if (slot.blocks.length === 0) continue;
     const input = {
       startedAt: slot.startedAt,
+      firstShipDate: slot.firstShipDate ?? null,
       paused: slot.paused,
       pausedAt: slot.pausedAt,
       pausedDays: slot.pausedDays,

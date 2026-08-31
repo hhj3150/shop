@@ -102,6 +102,8 @@ type DispatchRow = {
   o: DispatchOrder;
   items: DispatchItem[];
   carriedOver: boolean; // 지난 발송일을 넘긴 미출고 단품
+  overPaidRounds: boolean; // 결제 회차를 이미 다 보냈는데 또 잡힌 행 → 출고 차단
+  shippedRounds: number; // 이 구독이 지금까지 실제로 나간 회차 수
   q: number[]; // [우유180, 우유750, 요거트180, 요거트500]
   count: number; // 총 개수
   liters: number; // 총 L량
@@ -207,6 +209,7 @@ export function DispatchPanel({
     }
     return {
       orderById,
+      shippedKeys,
       slotByOrder,
       slotsByOrder: slotsByOrder ?? slotsByOrderFallback,
       slotById,
@@ -227,6 +230,7 @@ export function DispatchPanel({
   }, [
     orders,
     slots,
+    shippedKeys,
     orderById,
     slotByOrder,
     slotsByOrder,
@@ -280,6 +284,8 @@ export function DispatchPanel({
         o,
         items: sl.items,
         carriedOver: sl.carriedOver,
+        overPaidRounds: sl.overPaidRounds,
+        shippedRounds: sl.shippedRounds,
         q,
         count,
         liters,
@@ -351,6 +357,9 @@ export function DispatchPanel({
     const count = q.reduce((a, b) => a + b, 0);
     return { q, liters, litersTotal, count };
   }, [queue]);
+
+  // 결제 회차를 넘긴 행 — 상단 경고 + 발송 차단 대상.
+  const overPaidRows = useMemo(() => allRows.filter((r) => r.overPaidRounds), [allRows]);
 
   const allSelected = queue.length > 0 && queue.every((r) => selected.has(r.key));
 
@@ -549,6 +558,14 @@ export function DispatchPanel({
   //   재고 차감이 먼저라 주문 갱신이 실패해도 재시도 시 이중차감 없이 송장만 다시 반영된다.
   async function shipOut(r: DispatchRow) {
     const o = r.o;
+    // 과배송 최종 방어선 — 결제 회차만큼 이미 나간 구독은 출고를 막는다(회차 모델 오차 무관).
+    if (r.overPaidRounds) {
+      setError(
+        `${o.ship_name}: 결제한 ${r.total}회를 이미 모두 보냈습니다(발송 이력 ${r.shippedRounds}회). ` +
+          `연장 결제가 확인된 건이면 '연장' 처리를 먼저 하세요.`
+      );
+      return;
+    }
     const decision = decideShipOut({
       status: o.status,
       shipped_at: o.shipped_at,
@@ -715,6 +732,16 @@ export function DispatchPanel({
 
   // 선택분 일괄 발송: 송장 입력된 건만 배송중 전환 + 발송일·택배사 기록 + 알림.
   async function bulkShip() {
+    const overPaid = queue.filter((r) => selected.has(r.key) && r.overPaidRounds);
+    if (overPaid.length > 0) {
+      // 과배송 최종 방어선 — 한 건이라도 섞여 있으면 일괄 발송 자체를 멈춘다.
+      setError(
+        `결제 회차를 이미 다 보낸 구독 ${overPaid.length}건이 선택돼 있습니다` +
+          `(${overPaid.slice(0, 3).map((r) => r.o.ship_name).join(", ")}${overPaid.length > 3 ? " 외" : ""}). ` +
+          `선택을 해제하거나 연장 처리를 먼저 하세요.`
+      );
+      return;
+    }
     const targets = queue.filter((r) => selected.has(r.key) && trackingOf(r).trim());
     if (targets.length === 0) {
       setError("송장번호가 입력된 선택 주문이 없습니다.");
@@ -1197,6 +1224,14 @@ export function DispatchPanel({
         </p>
       )}
 
+      {overPaidRows.length > 0 && (
+        <p className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[13px] text-red-700">
+          ⛔ 결제한 회차를 이미 다 보낸 구독 {overPaidRows.length}건이 명단에 있습니다:{" "}
+          {overPaidRows.map((r) => `${r.o.ship_name}(${r.shippedRounds}/${r.total}회)`).join(", ")}.
+          발송이 막혀 있습니다 — 연장 결제가 확인된 건이면 연장 처리를 먼저 하고, 아니면 구독을 해지 처리해 주세요.
+        </p>
+      )}
+
       {unmappedKeys.length > 0 && (
         <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
           ⚠️ 발송명단 4칸(우유180/750·요거트180/500)에 없는 제품 {unmappedKeys.length}종이
@@ -1284,6 +1319,14 @@ export function DispatchPanel({
                           지연 {overdueDays(o.ship_date, date)}일
                         </span>
                       )}
+                      {r.overPaidRounds && (
+                        <span
+                          className="ml-1 rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold text-white"
+                          title={`결제 ${r.total}회 · 실제 발송 ${r.shippedRounds}회. 결제한 회차를 이미 다 보냈습니다. 연장 결제가 확인된 건이면 연장 처리를 먼저 하세요.`}
+                        >
+                          결제회차 초과 · 발송금지
+                        </span>
+                      )}
                     </td>
                     <td data-label="요일" className="py-3 pr-3 text-[13px] text-ink-soft">{r.dayLabel || "—"}</td>
                     <td data-label="우180" className="py-3 px-1 text-center">{qcell(r.q[0])}</td>
@@ -1357,10 +1400,11 @@ export function DispatchPanel({
                         <button
                           type="button"
                           onClick={() => shipOut(r)}
-                          disabled={shippingId === shipKey(r)}
+                          disabled={shippingId === shipKey(r) || r.overPaidRounds}
+                          title={r.overPaidRounds ? "결제한 회차를 이미 다 보냈습니다 — 연장 처리 후 발송하세요." : undefined}
                           className="rounded-full border border-gold/50 bg-gold/10 px-3 py-1.5 text-[12.5px] font-semibold text-gold-deep transition-colors enabled:hover:bg-gold/20 disabled:opacity-40"
                         >
-                          {shippingId === shipKey(r) ? "처리 중…" : "출고·발송"}
+                          {shippingId === shipKey(r) ? "처리 중…" : r.overPaidRounds ? "발송 금지" : "출고·발송"}
                         </button>
                       )}
                     </td>
