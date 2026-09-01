@@ -2058,7 +2058,7 @@ export default function AdminPage() {
       {tab === "회원·구독" && (
         <>
       {/* 단체문자 발송 */}
-      <BroadcastPanel profiles={profiles} slots={slots} />
+      <BroadcastPanel profiles={profiles} slots={slots} orders={orders} />
         </>
       )}
 

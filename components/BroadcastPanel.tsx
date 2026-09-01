@@ -1,19 +1,28 @@
 "use client";
 
 // 관리자 단체문자 공지/광고 발송 패널.
-// 수신자를 필터(전체·활성구독자·요일별)로 고르고 개별 체크 해제하거나 직접 번호를 입력한다.
-// 본문은 글자수(EUC-KR 바이트)로 SMS/LMS를 자동 판별한다.
+// 수신자를 필터(전체·구매고객·활성구독자·단품구매·요일별)로 고르고 개별 체크 해제하거나
+// 직접 번호를 입력한다. 본문은 글자수(EUC-KR 바이트)로 SMS/LMS를 자동 판별한다.
 // 실제 발송 시 광고성 법적 의무(광고 표기·수신거부·야간차단)는 서버에서 강제한다.
+//
+// ★ 「광고/홍보」 기본값은 꺼짐이다. 배송 일정·휴무 같은 공지는 광고가 아니며, 광고로 보내면
+//   수신 미동의 고객이 명단에서 통째로 빠진다(2026-08-12 하절기 휴가 안내 미수신 사고).
+//   광고를 켰을 때 몇 명이 제외되는지는 selectRecipients 가 돌려주는 adExcluded 로 항상 띄운다.
 
 import { useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
-import { DELIVERY_DAYS, DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
+import { DELIVERY_DAYS, DELIVERY_DAY_LABEL } from "@/lib/cart";
 import { SMS_PRESETS, fillPreset } from "@/lib/admin-sms";
+import {
+  selectRecipients,
+  type FilterKey,
+  type RecipientOrder,
+  type RecipientSlot,
+} from "@/lib/broadcast-recipients";
 
 type ProfileLite = { id: string; name: string; phone: string; marketing_consent?: boolean };
-type SlotLite = { user_id: string; delivery_day: DeliveryDay; status: string };
-
-type FilterKey = "all" | "active" | "nosub" | DeliveryDay;
+type SlotLite = RecipientSlot;
+type OrderLite = RecipientOrder;
 
 // EUC-KR 기준 바이트(한글 2바이트). 90바이트 초과 시 LMS.
 function eucKrBytes(s: string): number {
@@ -29,9 +38,11 @@ function normalizePhone(s: string): string {
 export function BroadcastPanel({
   profiles,
   slots,
+  orders,
 }: {
   profiles: ProfileLite[];
   slots: SlotLite[];
+  orders: OrderLite[];
 }) {
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set());
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
@@ -42,47 +53,21 @@ export function BroadcastPanel({
   const [presetName, setPresetName] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [isAd, setIsAd] = useState(true);
-  const [optout, setOptout] = useState("무료수신거부 ");
+  // 기본은 '공지'. 대부분의 단체문자는 배송·휴무 안내라 광고가 아니다.
+  const [isAd, setIsAd] = useState(false);
+  // 기본값을 비워 둔다 — "무료수신거부" 다섯 글자만 붙으면 서버의 비어있음 검사는 통과하지만
+  //   수신거부 '방법'이 없어 법적으로는 미비다(2026-08-12 발송분이 이 상태로 나갔다).
+  //   비워 두면 광고 발송 시 서버가 막아서, 실제 번호·방법을 적게 된다.
+  const [optout, setOptout] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
-  // 활성 구독자 / 요일별 활성 구독자 user_id 집합.
-  const activeUserIds = useMemo(
-    () => new Set(slots.filter((s) => s.status === "활성").map((s) => s.user_id)),
-    [slots]
+  // 필터 합집합으로 후보 회원 산출(번호 있는 회원만) — 순수 로직은 lib/broadcast-recipients.ts.
+  //   adExcluded = 광고 동의가 없어 잘려나간 인원수. 0이 아니면 화면에 경고로 띄운다.
+  const { candidates, adExcluded } = useMemo(
+    () => selectRecipients({ profiles, slots, orders, filters, isAd }),
+    [profiles, slots, orders, filters, isAd]
   );
-  const dayUserIds = useMemo(() => {
-    const m = new Map<DeliveryDay, Set<string>>();
-    for (const d of DELIVERY_DAYS) m.set(d, new Set());
-    for (const s of slots) {
-      if (s.status === "활성") m.get(s.delivery_day)?.add(s.user_id);
-    }
-    return m;
-  }, [slots]);
-  // 구독 이력이 한 번이라도 있는 회원(상태 무관 — 해지 포함). '미구독(미전환)' 필터는 이 집합의
-  //   여집합 = 구독 슬롯이 전혀 없는 회원만 고른다(과거 구독자=전환 경험자는 제외).
-  const everSubscribedUserIds = useMemo(
-    () => new Set(slots.map((s) => s.user_id)),
-    [slots]
-  );
-
-  // 필터 합집합으로 후보 회원 산출(번호 있는 회원만).
-  // 광고 발송 시에는 광고 수신동의(marketing_consent) 회원만 포함(정보통신망법).
-  const candidates = useMemo(() => {
-    if (filters.size === 0) return [] as ProfileLite[];
-    return profiles.filter((p) => {
-      if (!p.phone) return false;
-      if (isAd && !p.marketing_consent) return false;
-      if (filters.has("all")) return true;
-      if (filters.has("active") && activeUserIds.has(p.id)) return true;
-      if (filters.has("nosub") && !everSubscribedUserIds.has(p.id)) return true;
-      for (const d of DELIVERY_DAYS) {
-        if (filters.has(d) && dayUserIds.get(d)?.has(p.id)) return true;
-      }
-      return false;
-    });
-  }, [filters, profiles, activeUserIds, everSubscribedUserIds, dayUserIds, isAd]);
 
   const selectedProfiles = useMemo(
     () => candidates.filter((p) => !excluded.has(p.id)),
@@ -190,6 +175,10 @@ export function BroadcastPanel({
     const ok = window.confirm(
       `${finalPhones.length}명에게 ${msgType} 문자를 발송합니다.\n` +
         (isAd ? "(광고성: (광고) 표기·수신거부 안내가 자동 포함됩니다)\n" : "") +
+        (isAd && adExcluded > 0
+          ? `\n⚠ 광고 수신 미동의로 ${adExcluded}명이 명단에서 제외된 상태입니다.\n` +
+            `배송·휴무 공지라면 취소하고 「광고/홍보 문자」 체크를 꺼주세요.\n`
+          : "") +
         "발송 후에는 취소할 수 없습니다. 계속할까요?"
     );
     if (!ok) return;
@@ -238,7 +227,9 @@ export function BroadcastPanel({
 
   const filterChips: { key: FilterKey; label: string }[] = [
     { key: "all", label: "전체 회원" },
+    { key: "customer", label: "구매 고객 전체" },
     { key: "active", label: "활성 구독자" },
+    { key: "once", label: "단품 구매 고객" },
     { key: "nosub", label: "미구독 회원" },
     ...DELIVERY_DAYS.map((d) => ({ key: d as FilterKey, label: `${DELIVERY_DAY_LABEL[d]} 배송` })),
   ];
@@ -356,6 +347,21 @@ export function BroadcastPanel({
           <input type="checkbox" checked={isAd} onChange={(e) => setIsAd(e.target.checked)} className="accent-gold-deep" />
           광고/홍보 문자 (할인·이벤트 등)
         </label>
+        <p className="text-[12px] leading-relaxed text-mute">
+          배송·휴무·입금 안내 등 <span className="text-ink-soft">공지는 광고가 아닙니다</span> — 체크를 끈 채로 보내야
+          수신 미동의 고객까지 전원에게 전달됩니다.
+        </p>
+        {/* 광고로 보낼 때 명단에서 조용히 빠지는 인원을 발송 전에 반드시 보여준다. */}
+        {isAd && adExcluded > 0 && (
+          <p
+            role="alert"
+            className="rounded-xl border border-gold/50 bg-gold/10 px-3 py-2 text-[13px] leading-relaxed text-gold-deep"
+          >
+            ⚠ 필터에 걸린 {adExcluded + candidates.length}명 중{" "}
+            <strong className="font-medium">{adExcluded}명이 광고 수신 미동의로 제외</strong>되어{" "}
+            {candidates.length}명에게만 발송됩니다. 공지 성격이라면 위 「광고/홍보 문자」 체크를 꺼주세요.
+          </p>
+        )}
         {isAd && (
           <>
             <input
