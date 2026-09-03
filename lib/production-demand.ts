@@ -4,7 +4,7 @@
 //   설계: docs/superpowers/specs/2026-06-08-production-demand-split-design.md
 import type { DeliveryEntry } from "./delivery-roster";
 import type { DeliveryDay } from "./cart";
-import { activeBlockForDate, slotTotalWeeks, type RawBlock } from "./subscription-timeline";
+import { activeBlockForDate, type RawBlock } from "./subscription-timeline";
 import { closureDefersWeek } from "./ship-date";
 
 // 집계에 필요한 품목 최소 필드.
@@ -48,9 +48,6 @@ export type MatrixSlotInput = {
   pausedAt: string | null;
   pausedDays: number;
   blocks: RawBlock[];
-  // subscription_slots.extended_weeks — 연장 주문 없이 회차만 늘어나는 카드 정기결제까지
-  //   총 회차에 반영해야 원 회차 소진 뒤에도 수요에서 빠지지 않는다(배송 명단과 동일 기준).
-  extendedWeeks?: number | null;
 };
 
 const WEEKDAYS: readonly DeliveryDay[] = ["mon", "tue", "wed", "thu", "fri"];
@@ -87,7 +84,6 @@ export function buildWeeklyMatrix(
       pausedAt: slot.pausedAt,
       pausedDays: slot.pausedDays,
       blocks: slot.blocks,
-      totalWeeksOverride: slotTotalWeeks(slot.blocks, slot.extendedWeeks),
     };
     // 활성 블록의 요일 칸에만 1회 계상. 주중 요일마다 평가하되, 활성 블록의 요일과 일치하는
     //   요일에서만 더해 중복을 막는다.

@@ -125,8 +125,17 @@ export function buildRosterForDate<
     if (slotForBlocks && blocks && blocks.length > 0) {
       // 해지·정지·소진·시작전 제외와 '그날 발송할 블록 1개' 선택은 배송 탭(DispatchPanel)과
       //   같은 함수(activeBlockOrderForDate)에 맡긴다 — 두 화면이 갈리지 않게 하는 유일한 방법.
-      //   총 회차는 slots.extended_weeks 까지 반영되므로, 연장 주문 행이 없는 카드 정기결제
-      //   구독도 원 회차 이후에 명단에서 사라지지 않는다.
+      //
+      //   총 회차는 확정된 블록 체인(원주문 + 입금확인된 연장주문)의 합이다. slots.extended_weeks
+      //   는 쓰지 않는다 — 늘기만 하고 줄지 않으므로, 입금확인된 연장주문을 나중에 '취소'로
+      //   되돌리면 그 회차가 남아 이미 끝난 구독에 계속 보내게 된다(과배송).
+      //
+      //   ⚠ 향후 PortOne 카드 정기결제(confirm_billing_charge)를 켤 때 주의:
+      //     그 경로는 연장 '주문'을 만들지 않고 slots.extended_weeks 만 늘린다. 그러면 블록
+      //     체인이 원주문 회차에서 멈춰, 카드는 계속 결제되는데 손님이 명단에서 사라진다.
+      //     켜기 전에 confirm_billing_charge 가 연장 주문 행(+order_items)도 만들도록 하거나,
+      //     로스터가 '주문 없는 연장 회차'를 별도 입력으로 받도록 먼저 손봐야 한다.
+      //     (2026-09 현재 결제는 PayAction 계좌이체 단일 경로 — 이 경로는 비활성이다.)
       if (activeBlockOrderForDate(slotForBlocks, blocks, dateISO) !== orderId) continue;
       entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
       continue;

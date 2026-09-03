@@ -17,7 +17,7 @@ import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { subscriptionShipsOnDate } from "@/lib/delivery-roster";
-import { activeBlockOrderForDate, type RawBlock } from "@/lib/subscription-timeline";
+import { activeBlockOrderForDate, totalWeeks, type RawBlock } from "@/lib/subscription-timeline";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
 import { downloadXlsx } from "@/lib/xlsx-export";
 import { decideShipOut } from "@/lib/dispatch-shipout";
@@ -252,10 +252,16 @@ export function DispatchPanel({
       if (gateByBlock) {
         // 이 발송일의 활성 블록 주문이 아니면 제외(원구독 구간↔연장 구간 정확 전환).
         if (activeBlockOrderForDate(blockSlot!, slotBlocks!, shipISO) !== o.id) continue;
-        // 회차/총회차는 슬롯 단위(원구독 block_weeks 기준 + extended_weeks).
-        const origWeeks =
-          orderById.get(blockSlot!.order_id ?? "")?.block_weeks ?? o.block_weeks ?? 0;
-        const sch = dispatchScheduleForSlot(blockSlot!, origWeeks, shipISO);
+        // 총 회차는 확정된 블록 체인(원주문 + 입금확인된 연장주문)의 합으로 센다.
+        //   slots.extended_weeks 는 늘기만 하고 줄지 않는다 — 입금확인된 연장주문을 나중에
+        //   '취소'로 되돌리면 그 회차가 남아 이미 끝난 구독이 계속 시트에 뜬다(과배송).
+        //   발송 게이팅(activeBlockOrderForDate)이 이미 블록 체인 기준이므로 표기도 맞춘다.
+        const chainWeeks = totalWeeks(slotBlocks!);
+        const sch = dispatchScheduleForSlot(
+          { ...blockSlot!, extended_weeks: 0 },
+          chainWeeks,
+          shipISO
+        );
         round = sch.round;
         total = sch.total;
         remaining = sch.remaining;
@@ -299,7 +305,6 @@ export function DispatchPanel({
     slotIdByOrder,
     blocksBySlot,
     slotById,
-    orderById,
   ]);
 
   // 날짜 → 검색 → 구분/요일/상태 필터 → 정렬. 모든 컬럼 정렬 가능.

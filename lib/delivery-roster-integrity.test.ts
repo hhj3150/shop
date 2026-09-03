@@ -13,7 +13,6 @@ import {
   type RosterItemFields,
 } from "./delivery-roster";
 import type { DispatchSlotInfo } from "./dispatch-schedule";
-import { dispatchScheduleForSlot } from "./dispatch-schedule";
 import type { RawBlock } from "./subscription-timeline";
 import { computeSchedule } from "./subscription-schedule";
 import { DELIVERY_DAYS, type DeliveryDay } from "./cart";
@@ -59,14 +58,10 @@ function rosterFor(opts: {
   day: DeliveryDay;
   startedAt: string;
   blockWeeks?: number;
-  extendedWeeks?: number;
 }) {
   const weeks = opts.blockWeeks ?? 4;
   const o = order({ id: "o1", block_weeks: weeks });
-  const s = slot({
-    started_at: opts.startedAt,
-    extended_weeks: opts.extendedWeeks ?? 0,
-  });
+  const s = slot({ started_at: opts.startedAt });
   return buildRosterForDate({
     dateISO: opts.dateISO,
     items: [item({ order_id: "o1", delivery_day: opts.day })],
@@ -136,30 +131,50 @@ describe("① 요일 매칭 — 공휴일·휴무 시프트(배송 시트 = 명�
   });
 });
 
-describe("② 카드 정기결제 연장 — extended_weeks 만 늘어도 명단에서 사라지지 않는다", () => {
-  // confirm_billing_charge 는 연장 '주문'을 만들지 않고 slots.extended_weeks 만 +interval_weeks 한다.
-  //   → 블록 합(=원주문 4회차)만 보면 5회차부터 손님이 명단·생산·예고에서 통째로 증발한다.
-  const started = "2026-06-01"; // 월요일. 4회차 = 6/1, 6/8, 6/15, 6/22.
-  const afterOriginal = "2026-06-29"; // 5회차(연장분 첫 회) 발송일
+describe("② 총 회차 — 확정된 블록 체인만 센다(과배송·미배송 동시 차단)", () => {
+  // subscription_slots.extended_weeks 는 연장 입금확인 때 늘기만 하고 줄지 않는다.
+  //   그 값을 총 회차로 믿으면, 입금확인된 연장주문을 나중에 '취소'로 되돌렸을 때
+  //   회차가 남아 이미 끝난 구독에 계속 보내게 된다(과배송).
+  //   → 총 회차는 확정(입금확인 이후) 상태인 주문 블록의 합으로만 센다.
+  const started = "2026-06-01"; // 월요일. 원주문 4회차 = 6/1, 6/8, 6/15, 6/22.
 
-  it("연장 전에는 4회차까지만 나간다", () => {
-    expect(rosterFor({ dateISO: "2026-06-22", day: "mon", startedAt: started })).toHaveLength(1);
-    expect(rosterFor({ dateISO: afterOriginal, day: "mon", startedAt: started })).toHaveLength(0);
-  });
+  // 원주문 + 연장주문(확정 여부 선택)으로 로스터를 만든다.
+  function rosterWithRenewal(dateISO: string, opts: { renewalConfirmed: boolean }) {
+    const orig = order({ id: "o1", block_weeks: 4 });
+    const ren = order({ id: "o2", block_weeks: 4, renews_slot_id: 1 });
+    const s = slot({ started_at: started, extended_weeks: 4 }); // 연장 입금확인으로 이미 누적됨
+    // 확정된 연장주문만 블록 체인에 들어온다(buildRosterMaps 규칙과 동일).
+    const blocks = opts.renewalConfirmed
+      ? [block({ orderId: "o1", weeks: 4 }), block({ orderId: "o2", weeks: 4 })]
+      : [block({ orderId: "o1", weeks: 4 })];
+    const confirmed = new Set(opts.renewalConfirmed ? ["o1", "o2"] : ["o1"]);
+    return buildRosterForDate({
+      dateISO,
+      items: [item({ order_id: "o1" }), item({ order_id: "o2" })],
+      orderById: new Map([["o1", orig], ["o2", ren]]),
+      slotByOrder: new Map([["o1", s]]),
+      confirmedOrderIds: confirmed,
+      pausedOrderIds: new Set(),
+      blocksBySlot: new Map([[1, blocks]]),
+      slotIdByOrder: new Map([["o1", 1], ["o2", 1]]),
+      slotById: new Map([[1, s]]),
+    });
+  }
 
-  it("extended_weeks=4 면 5회차도 명단에 남는다", () => {
-    const r = rosterFor({ dateISO: afterOriginal, day: "mon", startedAt: started, extendedWeeks: 4 });
+  it("연장주문이 확정이면 5회차부터 연장주문 행으로 이어서 나간다", () => {
+    const r = rosterWithRenewal("2026-06-29", { renewalConfirmed: true });
     expect(r).toHaveLength(1);
-    expect(r[0].items[0].product_name).toBe("송영신우유"); // 구성품은 직전 블록을 그대로 잇는다
+    expect(r[0].order.id).toBe("o2"); // 한 슬롯에서 블록 1개만 — 이중발송 없음
   });
 
-  it("배송 시트(dispatchScheduleForSlot)와 명단의 제외 판정이 일치한다", () => {
-    const s = slot({ started_at: started, extended_weeks: 4 });
-    for (const d of ["2026-06-22", "2026-06-29", "2026-07-20", "2026-07-27"]) {
-      const inSheet = !dispatchScheduleForSlot(s, 4, d).excluded;
-      const inRoster =
-        rosterFor({ dateISO: d, day: "mon", startedAt: started, extendedWeeks: 4 }).length > 0;
-      expect({ d, inRoster }).toEqual({ d, inRoster: inSheet });
+  it("연장주문을 '취소'로 되돌리면 extended_weeks 가 남아 있어도 발송이 멈춘다", () => {
+    expect(rosterWithRenewal("2026-06-22", { renewalConfirmed: false })).toHaveLength(1); // 원 4회차
+    expect(rosterWithRenewal("2026-06-29", { renewalConfirmed: false })).toHaveLength(0); // 과배송 금지
+  });
+
+  it("한 슬롯의 원주문·연장주문이 같은 날 함께 나가지 않는다(이중발송 금지)", () => {
+    for (const d of ["2026-06-08", "2026-06-22", "2026-06-29", "2026-07-13"]) {
+      expect(rosterWithRenewal(d, { renewalConfirmed: true }).length).toBeLessThanOrEqual(1);
     }
   });
 });
