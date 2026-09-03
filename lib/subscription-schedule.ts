@@ -25,6 +25,11 @@ function daysBetween(from: Date, to: Date): number {
   return Math.round((to.getTime() - from.getTime()) / DAY_MS);
 }
 
+/** 일수를 주 단위(7의 배수)로 올린다. 정지 보정이 배송 요일을 흔들지 않게 하는 핵심. */
+export function ceilToWeeks(days: number): number {
+  return Math.ceil(Math.max(0, days) / 7) * 7;
+}
+
 export type SubInput = {
   startedAt: string | null; // 선택 요일 앵커(입금확인 시 부여). null이면 아직 시작 전.
   totalWeeks: number; // 총 배송 횟수 (= 주문 block_weeks)
@@ -77,7 +82,17 @@ export function computeSchedule(input: SubInput, now: Date = new Date()): SubSch
     input.paused && input.pausedAt
       ? Math.max(0, daysBetween(parseISO(input.pausedAt), today))
       : 0;
-  const totalPausedDays = input.pausedDays + currentPauseDays;
+  // ★ 정지 일수는 '주(회차) 단위'로 올려 적용한다.
+  //   정기구독은 요일 구독이다. 실제 발송(buildRosterForDate)은 order_items.delivery_day 요일에
+  //   붙어 있는데, 정지 일수를 날 단위로 그대로 더하면 앵커 cadence 가 그 요일에서 벗어난다
+  //   (예: 월요일 구독이 3일 정지 → 회차 예정일이 목요일로 이동). 그러면
+  //     · 화면·문자의 '다음 배송일'이 손님이 실제로 받는 요일과 달라지고,
+  //     · delivered/종료일이 실제 발송 횟수와 어긋나 마지막 회차가 사라지거나(회차 소실)
+  //       연장 블록 경계가 한 주 밀려 엉뚱한 구성품이 나간다.
+  //   올림(ceil)이라 종료일은 정지한 기간 이상으로만 밀린다 — 총 회차는 언제나 보존되고,
+  //   손님이 결제한 회차를 못 받는 방향으로는 절대 어긋나지 않는다.
+  //   (1주 건너뛰기는 정확히 +7일을 적립하므로 올림의 영향이 없다.)
+  const totalPausedDays = ceilToWeeks(input.pausedDays + currentPauseDays);
 
   // 1..total 회차의 실제 배송일을 한 번에 산출한다.
   //   1회차는 firstBase, 2회차+ 는 앵커 요일 cadence(앵커 + (k-1)주). 여기에 누적 정지일과

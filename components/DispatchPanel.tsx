@@ -16,6 +16,7 @@ import { matchLogen, type LogenMatchResult } from "@/lib/logen-match";
 import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
+import { subscriptionShipsOnDate } from "@/lib/delivery-roster";
 import { activeBlockOrderForDate, type RawBlock } from "@/lib/subscription-timeline";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
 import { downloadXlsx } from "@/lib/xlsx-export";
@@ -76,15 +77,6 @@ type DispatchSlot = {
 
 // 결제 후 배송 대상 상태(완료·취소·미입금 제외).
 const SHIPPABLE = ["입금확인", "배송준비", "배송중"];
-const WEEKDAY: readonly (DeliveryDay | null)[] = [
-  null, // 일
-  "mon",
-  "tue",
-  "wed",
-  "thu",
-  "fri",
-  null, // 토
-];
 
 function todayISO(): string {
   const d = new Date();
@@ -185,12 +177,6 @@ export function DispatchPanel({
   // 문자 이력·재발송 모달 대상 주문(null = 닫힘).
   const [smsOrder, setSmsOrder] = useState<DispatchOrder | null>(null);
 
-  // 선택 날짜의 요일(구독 매칭용). 주말이면 null → 구독은 매칭 안 됨.
-  const dayOfDate = useMemo<DeliveryDay | null>(() => {
-    const d = new Date(`${date}T00:00:00`);
-    return WEEKDAY[d.getDay()] ?? null;
-  }, [date]);
-
   // 주문 → 구독 슬롯(회차·제외 판정용). 연장은 원주문을 가리키므로 order_id 로 매핑.
   const slotByOrder = useMemo(() => {
     const m = new Map<string, DispatchSlot>();
@@ -257,8 +243,11 @@ export function DispatchPanel({
       const blockSlotId = !isOnce ? slotIdByOrder?.get(o.id) : undefined;
       const slotBlocks = blockSlotId != null ? blocksBySlot?.get(blockSlotId) : undefined;
       const blockSlot = blockSlotId != null ? slotById?.get(blockSlotId) : undefined;
+      // 블록이 하나뿐이어도 같은 함수로 판정한다 — 기간별 명단(buildRosterForDate)이
+      //   블록이 있으면 항상 activeBlockOrderForDate 로 거르므로, 여기서만 다른 길을 타면
+      //   두 화면의 제외 기준이 갈린다(한쪽에만 뜨는 손님 = 미배송 또는 이중발송).
       const gateByBlock =
-        useDateFilter && !!blockSlot && !!slotBlocks && slotBlocks.length > 1;
+        useDateFilter && !!blockSlot && !!slotBlocks && slotBlocks.length > 0;
 
       if (gateByBlock) {
         // 이 발송일의 활성 블록 주문이 아니면 제외(원구독 구간↔연장 구간 정확 전환).
@@ -323,7 +312,8 @@ export function DispatchPanel({
         if (o.order_type === "단품") {
           // 당일분(ship_date == 선택일) + 지난 미출고분(이월)도 함께 — 그날 못 보내면 사라지는 걸 막는다.
           if (o.ship_date !== date && !isCarriedOver(o, date)) return false;
-        } else if (!(dayOfDate !== null && r.dayKey === dayOfDate)) {
+        } else if (!subscriptionShipsOnDate(r.dayKey, date)) {
+          // 공휴일·휴무 시프트 반영(기간별 명단·예고 문자와 동일 기준).
           return false;
         }
       }
@@ -360,7 +350,7 @@ export function DispatchPanel({
     return [...filtered].sort(cmp);
   }, [
     allRows, query, typeFilter, dayFilter, statusFilter,
-    sortKey, sortDir, useDateFilter, date, dayOfDate,
+    sortKey, sortDir, useDateFilter, date,
   ]);
 
   // 현재 목록의 제품별 합계(개수·L량) — 화면 요약 + 엑셀 합계행 공용.
@@ -382,13 +372,13 @@ export function DispatchPanel({
       if (!useDateFilter) return true;
       const o = r.o;
       if (o.order_type === "단품") return o.ship_date === date || isCarriedOver(o, date);
-      return dayOfDate !== null && r.dayKey === dayOfDate;
+      return subscriptionShipsOnDate(r.dayKey, date);
     });
     let shipped = 0;
     for (const r of inDay) if (isShipped(r)) shipped += 1;
     return { total: inDay.length, shipped, pending: inDay.length - shipped };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, useDateFilter, date, dayOfDate, shippedKeys, justShipped]);
+  }, [allRows, useDateFilter, date, shippedKeys, justShipped]);
 
   function toggle(id: string) {
     setSelected((prev) => {

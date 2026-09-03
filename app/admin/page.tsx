@@ -643,6 +643,7 @@ export default function AdminPage() {
         pausedAt: s.paused_at,
         pausedDays: s.paused_days,
         blocks,
+        extendedWeeks: s.extended_weeks,
       }));
     return buildWeeklyMatrix(slotInputs, productKeys, thisWeekDates);
   }, [slots, blocksBySlot, productKeys, thisWeekDates]);

@@ -6,7 +6,7 @@
 import type { DeliveryDay } from "./cart";
 import { dispatchScheduleForSlot, type DispatchSlotInfo } from "./dispatch-schedule";
 import { deliveryDayHitsDate } from "./ship-date";
-import { activeBlockForDate, type RawBlock } from "./subscription-timeline";
+import { activeBlockOrderForDate, type RawBlock } from "./subscription-timeline";
 
 // 로스터 판정에 필요한 주문 최소 필드.
 export type RosterOrderFields = {
@@ -37,6 +37,23 @@ export type DeliveryEntry<O, I> = {
   sig: string;
   kind: "정기" | "단품";
 };
+
+// 이 배송요일 구독이 dateISO 에 실제로 나가는가 — 배송 명단·배송 시트·생산 계획·발송 예고가
+//   모두 이 한 함수만 쓴다(요일 매칭의 단일 진실 소스).
+//
+//   ★ '요일 일치'로 판정하면 안 되는 이유(실제 미배송 사고):
+//     공휴일·목장 휴무가 낀 주에는 발송일이 요일과 어긋난다.
+//       · 2026-08-17(광복절 대체공휴일, 월) 월요일분 → 8/18(화) 발송.
+//         요일 일치로 보면 8/18 배송 시트에 화요일분만 떠 월요일 손님이 통째로 누락된다
+//         (그 손님은 전날 저녁 '내일 발송 예정' 문자를 이미 받은 뒤다 → 문자만 가고 우유는 안 간다).
+//       · 2026 추석: 9/24(목)·9/25(금)·9/28(월)이 공휴일 → 목·금·월 세 요일분이 9/29(화)에 함께 나간다.
+//       · 하계 휴무 주(8/10~8/14)는 그 주 발송이 없고 다음 주 같은 요일로 이월된다.
+export function subscriptionShipsOnDate(
+  deliveryDay: DeliveryDay | null | undefined,
+  dateISO: string
+): boolean {
+  return deliveryDay != null && deliveryDayHitsDate(deliveryDay, dateISO).hits;
+}
 
 // 같은 구성품(제품·용량·수량)끼리 묶기 위한 정렬 키 — 포장 편의.
 export function compositionSignature(
@@ -88,7 +105,7 @@ export function buildRosterForDate<
   for (const it of items) {
     if (!confirmedOrderIds.has(it.order_id)) continue;
     if (pausedOrderIds.has(it.order_id)) continue;
-    if (!deliveryDayHitsDate(it.delivery_day, dateISO).hits) continue; // 평소 당일 또는 공휴일 시프트 도착일
+    if (!subscriptionShipsOnDate(it.delivery_day, dateISO)) continue; // 평소 당일 또는 공휴일 시프트 도착일
     const arr = byOrder.get(it.order_id) ?? [];
     arr.push(it);
     byOrder.set(it.order_id, arr);
@@ -106,19 +123,11 @@ export function buildRosterForDate<
     const slotForBlocks = slotId != null ? slotById?.get(slotId) : undefined;
     const blocks = slotId != null ? blocksBySlot?.get(slotId) : undefined;
     if (slotForBlocks && blocks && blocks.length > 0) {
-      // 해지·정지 슬롯은 발송 대상이 아니다(activeBlockForDate 는 status 미반영).
-      if (slotForBlocks.status === "해지" || slotForBlocks.paused) continue;
-      const active = activeBlockForDate(
-        {
-          startedAt: slotForBlocks.started_at,
-          paused: slotForBlocks.paused,
-          pausedAt: slotForBlocks.paused_at,
-          pausedDays: slotForBlocks.paused_days,
-          blocks,
-        },
-        dateISO
-      );
-      if (!active || active.orderId !== orderId) continue;
+      // 해지·정지·소진·시작전 제외와 '그날 발송할 블록 1개' 선택은 배송 탭(DispatchPanel)과
+      //   같은 함수(activeBlockOrderForDate)에 맡긴다 — 두 화면이 갈리지 않게 하는 유일한 방법.
+      //   총 회차는 slots.extended_weeks 까지 반영되므로, 연장 주문 행이 없는 카드 정기결제
+      //   구독도 원 회차 이후에 명단에서 사라지지 않는다.
+      if (activeBlockOrderForDate(slotForBlocks, blocks, dateISO) !== orderId) continue;
       entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
       continue;
     }
