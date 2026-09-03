@@ -16,6 +16,7 @@ import type { DispatchSlotInfo } from "./dispatch-schedule";
 import type { RawBlock } from "./subscription-timeline";
 import { computeSchedule } from "./subscription-schedule";
 import { DELIVERY_DAYS, type DeliveryDay } from "./cart";
+import { isDispatchBlockedISO } from "./holidays";
 
 // ── 픽스처 ──
 function order(over: Partial<RosterOrderFields> & { id: string }): RosterOrderFields {
@@ -96,12 +97,54 @@ describe("① 요일 매칭 — 공휴일·휴무 시프트(배송 시트 = 명�
     expect(legacyWeekdayMatch("mon", "2026-08-18")).toBe(false);
   });
 
-  it("2026 추석 — 목·금·월분이 9/29(화)에 화요일분과 함께 나간다", () => {
-    for (const d of ["2026-09-24", "2026-09-25", "2026-09-28"]) {
-      expect(DELIVERY_DAYS.some((k) => subscriptionShipsOnDate(k, d))).toBe(false);
+  it("2026 추석 주(9/21~9/25)는 통째로 휴배송 — 어느 요일분도 나가지 않는다", () => {
+    for (const d of ["2026-09-21","2026-09-22","2026-09-23","2026-09-24","2026-09-25","2026-09-28"]) {
+      expect({ d, ships: DELIVERY_DAYS.filter((k) => subscriptionShipsOnDate(k, d)) })
+        .toEqual({ d, ships: [] });
     }
-    const on29 = DELIVERY_DAYS.filter((k) => subscriptionShipsOnDate(k, "2026-09-29"));
-    expect(on29).toEqual(["mon", "tue", "thu", "fri"]);
+  });
+
+  it("추석 다음 주 재개 — 9/29 월·화, 9/30 수, 10/1 목, 10/2 금", () => {
+    const on = (d: string) => DELIVERY_DAYS.filter((k) => subscriptionShipsOnDate(k, d));
+    expect(on("2026-09-29")).toEqual(["mon", "tue"]); // 9/28 대체공휴일 → 월요일분이 화요일에
+    expect(on("2026-09-30")).toEqual(["wed"]);
+    expect(on("2026-10-01")).toEqual(["thu"]);
+    expect(on("2026-10-02")).toEqual(["fri"]);
+  });
+
+  it("개천절 대체(10/5 월) — 같은 주 뒤로 미뤄 10/6(화)에 화요일분과 함께", () => {
+    expect(subscriptionShipsOnDate("mon", "2026-10-05")).toBe(false);
+    expect(DELIVERY_DAYS.filter((k) => subscriptionShipsOnDate(k, "2026-10-06")))
+      .toEqual(["mon", "tue"]);
+  });
+
+  it("한글날(10/9 금) — 같은 주 앞으로 당겨 10/8(목)에 목요일분과 함께", () => {
+    expect(subscriptionShipsOnDate("fri", "2026-10-09")).toBe(false);
+    expect(DELIVERY_DAYS.filter((k) => subscriptionShipsOnDate(k, "2026-10-08")))
+      .toEqual(["thu", "fri"]);
+    // 뒤로 밀면 10/12(월)이 되어 주를 넘는다 — 그 날엔 금요일분이 없어야 한다.
+    expect(subscriptionShipsOnDate("fri", "2026-10-12")).toBe(false);
+  });
+
+  it("한 주에 한 요일그룹은 정확히 한 번(또는 휴배송이면 0번) 나간다 — 2026 하반기 전수", () => {
+    // 「한 회차는 그 주를 벗어나지 않는다」의 관측 가능한 형태:
+    //   같은 주에 두 번 나가면 이중발송, 영업일이 있는데 0번이면 그 주 회차가 증발한 것이다.
+    for (let w = 0; w < 26; w++) {
+      const mon = new Date("2026-07-06T00:00:00"); // 월요일
+      mon.setDate(mon.getDate() + w * 7);
+      const week = Array.from({ length: 5 }, (_, i) => {
+        const d = new Date(mon);
+        d.setDate(mon.getDate() + i);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+          d.getDate()
+        ).padStart(2, "0")}`;
+      });
+      const weekOpen = week.some((d) => !isDispatchBlockedISO(d));
+      for (const k of DELIVERY_DAYS) {
+        const n = week.filter((d) => subscriptionShipsOnDate(k, d)).length;
+        expect({ week: week[0], k, n }).toEqual({ week: week[0], k, n: weekOpen ? 1 : 0 });
+      }
+    }
   });
 
   it("하계 휴무 주(2026-08-10~14)는 어느 요일분도 나가지 않는다", () => {
@@ -285,13 +328,19 @@ describe("④ 회차 보존 — 결제한 회차는 공휴일·휴무 주를 지
     expect(new Set(dates).size).toBe(12);
   });
 
-  it("추석 직후 2026-09-29(화)에는 월·화·목·금 구독이 한 날에 모인다", () => {
+  it("한 날에 세 요일그룹 이상이 몰리지 않는다(9월~12월 전수)", () => {
+    // 물량 폭주 가드: 공휴일 시프트로 하루에 몰리는 요일그룹은 최대 2개여야 한다.
     const anchor: Record<DeliveryDay, string> = {
       mon: "2026-08-31", tue: "2026-09-01", wed: "2026-09-02", thu: "2026-09-03", fri: "2026-09-04",
     };
-    const shipping = DELIVERY_DAYS.filter(
-      (d) => rosterFor({ dateISO: "2026-09-29", day: d, startedAt: anchor[d], blockWeeks: 12 }).length > 0
-    );
-    expect(shipping).toEqual(["mon", "tue", "thu", "fri"]);
+    const cur = new Date("2026-09-01T00:00:00");
+    for (let i = 0; i < 122; i++) {
+      const iso = cur.toISOString().slice(0, 10);
+      const groups = DELIVERY_DAYS.filter(
+        (d) => rosterFor({ dateISO: iso, day: d, startedAt: anchor[d], blockWeeks: 20 }).length > 0
+      );
+      expect({ iso, count: groups.length }).toEqual({ iso, count: Math.min(groups.length, 2) });
+      cur.setDate(cur.getDate() + 1);
+    }
   });
 });

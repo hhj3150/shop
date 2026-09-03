@@ -145,6 +145,7 @@ describe("buildShipReminderMessage", () => {
         { product_name: "요거트", volume: "500ml", qty: 1 },
       ],
       kind: "정기",
+      shiftedFromDay: null,
     });
     expect(m.text).toContain("홍길동님");
     expect(m.text).toContain("6월 24일(수)");
@@ -218,5 +219,51 @@ describe("buildReminderTargets — 이미 발송된 건 제외(중복 예고 방
       remindedOrderIds: new Set(),
     });
     expect(targets.map((t) => t.orderId)).toEqual(["A"]);
+  });
+});
+
+describe("공휴일로 발송일이 옮겨진 회차 — 예고 문자에 이유를 먼저 알린다", () => {
+  // 2026-10-09(금) 한글날 → 금요일분은 같은 주 앞으로 당겨 10-08(목)에 나간다.
+  const THU = "2026-10-08";
+  function friItem(orderId: string): ReminderItem {
+    return {
+      order_id: orderId, product_name: "우유", volume: "750ml",
+      delivery_day: "fri" as DeliveryDay, qty: 1, unit_price: 5000,
+    };
+  }
+
+  it("앞당겨진 금요일분에 shiftedFromDay 가 붙는다", () => {
+    const targets = buildReminderTargets({
+      dateISO: THU,
+      orders: [sub("A")],
+      items: [friItem("A")],
+      slots: [slot(1, "A", { started_at: "2026-09-04" })], // 금요일 앵커
+      remindedOrderIds: new Set(),
+    });
+    expect(targets.map((t) => t.orderId)).toEqual(["A"]);
+    expect(targets[0].shiftedFromDay).toBe("fri");
+  });
+
+  it("평소 요일에 나가는 회차에는 붙지 않는다", () => {
+    const targets = buildReminderTargets({
+      dateISO: WED,
+      orders: [sub("A")],
+      items: [wedItem("A")],
+      slots: [slot(1, "A")],
+      remindedOrderIds: new Set(),
+    });
+    expect(targets[0].shiftedFromDay).toBeNull();
+  });
+
+  it("문자에 원래 요일과 사유가 들어간다", () => {
+    const m = buildShipReminderMessage({
+      orderId: "A", orderNo: "NO-A", shipDate: THU, shipName: "홍길동",
+      shipPhone: "01000000000", isGift: false, gifterName: null,
+      items: [{ product_name: "우유", volume: "750ml", qty: 1 }],
+      kind: "정기", shiftedFromDay: "fri",
+    });
+    expect(m.text).toContain("10월 8일(목)");
+    expect(m.text).toContain("원래 금요일 배송분");
+    expect(m.text).toContain("공휴일");
   });
 });
