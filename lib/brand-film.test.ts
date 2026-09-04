@@ -23,6 +23,6 @@ describe("buildFilmEmbedUrl", () => {
   });
 
   it("BRAND_FILM_ID는 제공된 영상 ID다", () => {
-    expect(BRAND_FILM_ID).toBe("bI5EmgK0i2A");
+    expect(BRAND_FILM_ID).toBe("D_EGqc1xKy0");
   });
 });
