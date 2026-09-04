@@ -47,7 +47,11 @@ const TEMPLATE_ENV: Record<NotifyTemplateKey, string> = {
 //   - EXPIRE_SOON: 재구독 링크(https://shop.a2jerseymilk.com/account)는 변수가 아니라
 //     템플릿 본문의 고정 텍스트(또는 웹링크 버튼)로 등록한다 — URL 이 고정이라 변수 불필요.
 //   - FIRST_SHIPPED: SHIPPED 와 동일 변수 + 본문에 '왜 이 우유' 한 줄, 브랜드필름
-//     (https://youtu.be/bI5EmgK0i2A)은 변수가 아니라 '웹링크 버튼'으로 고정 등록한다.
+//     (https://youtu.be/D_EGqc1xKy0)은 변수가 아니라 '웹링크 버튼'으로 고정 등록한다.
+//     ⚠ 이 URL 은 카카오 알림톡 템플릿에 '고정 텍스트'로 박혀 있어 코드에서 못 바꾼다.
+//       브랜드필름을 교체하면 lib/brand-film.ts 의 BRAND_FILM_ID 와 함께
+//       Solapi 콘솔의 FIRST_SHIPPED 템플릿 웹링크 버튼도 반드시 같이 고쳐야 한다.
+//       (LMS 폴백 본문은 BRAND_FILM_ID 를 읽으므로 자동 반영된다 — 알림톡만 수동.)
 //     env(SOLAPI_TEMPLATE_FIRST_SHIPPING) 미설정이면 자동으로 LMS(첫배송 ritual 본문)로 폴백.
 export const TEMPLATE_VARS: Record<NotifyTemplateKey, readonly string[]> = {
   EXPIRE_SOON: ["#{고객명}", "#{만료일}"],
