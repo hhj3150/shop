@@ -154,6 +154,29 @@ describe("toMySubscriptions — 연장분 합산", () => {
     expect(subs[0].blocks[0].shippingPerWeek).toBe(4000);
   });
 
+  it("★회귀: 연장주문이 취소로 빠지면 총회차도 줄어든다(extended_weeks 잔재 무시)", () => {
+    // slots.extended_weeks 는 연장 입금확인 때 늘고, 그 연장주문을 나중에 '취소'로 되돌려도
+    //   줄지 않는다. 그 값을 총회차로 쓰면 손님 화면만 "아직 4회 남음"이라 말하고,
+    //   배송 명단과 서버 환불(cancel_subscription = 확정 블록 체인 합)은 이미 끝난 구독으로
+    //   본다 — 오지 않을 배송을 약속하고 환불 미리보기도 실제 지급액보다 많아진다.
+    const noRenewalBlocks = [{ ...blockSource[0], renewalOrders: [] }];
+    const subs = toMySubscriptions(
+      [slotRow], // extended_weeks 는 4 그대로(취소돼도 남는 잔재)
+      [], // 확정 연장주문 없음
+      noRenewalBlocks
+    );
+    expect(subs[0].totalWeeks).toBe(4);
+    expect(subs[0].totalAmount).toBe(40000);
+    // 남은 회차 4회 환불 미리보기 = 서버 산식과 같은 4만원(8만원이 아니다).
+    expect(refundAmount(subs[0], 4)).toBe(40000);
+  });
+
+  it("블록을 만들 수 없는 레거시 슬롯만 옛 값(block_weeks+extended_weeks)으로 폴백", () => {
+    const subs = toMySubscriptions([slotRow], [], []); // blockSources 없음
+    expect(subs[0].blocks).toHaveLength(0);
+    expect(subs[0].totalWeeks).toBe(8);
+  });
+
   it("다른 슬롯의 연장주문은 섞이지 않는다", () => {
     const subs = toMySubscriptions(
       [slotRow],
