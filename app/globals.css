@@ -7,10 +7,25 @@
   --color-ink: #17120c;
   --color-ink-soft: #2b2620;
   --color-mute: #8a7e68;
-  --color-gold: #b89554;
-  --color-gold-deep: #9a7838;
+  --color-gold: #c9a46b;
+  --color-gold-deep: #96763f;
   --color-line: #e6ddca;
   --color-cream: #fffdf8;
+
+  /* ── 인쇄 라벨 별색 (한두패키지 2026-07-29 교정본) ─────────────────────
+     병 라벨과 화면의 색을 맞추기 위한 단일 출처다. 손님은 받은 병을 손에 들고
+     상세페이지를 본다 — 두 색이 다르면 같은 브랜드로 읽히지 않는다.
+     위 --color-gold / --color-gold-deep 도 4254C 에 맞춰 정렬돼 있다
+     (gold-deep 은 본문 대비 확보를 위해 같은 색조를 어둡게 쓴 변주).
+
+     ⚠ 아래 값은 Pantone 별색의 sRGB '근사치'다. 별색은 인쇄 잉크라 화면 색으로
+       정해진 정답이 없고, 4254C 는 확장 색상이라 변환값이 자료마다 갈린다.
+       인쇄소에서 정확한 sRGB 값을 받으면 이 네 줄만 고치면 사이트 전체가 따라온다. */
+  --color-label-black: #000000; /* BLACK  — 제품명 · 영양정보 박스 */
+  --color-label-green: #00694e; /* 3425 C — 표시사항 표 · 요거트 제품명 · 인증 */
+  --color-label-green-deep: #005a42; /* 3425 C 의 어두운 변주(500mL·강조) */
+  --color-label-gold: #c9a46b;  /* 4254 C — A2저지 로고 바탕 · 영문 제품명 */
+  --color-label-red: #c8202e;   /* 3517 C — 라벨의 강조 포인트. 넓게 쓰면 경고색이 되니 좁게만. */
 
   /* HEY MILK 공식 액센트 팔레트 — 절제된 포인트 컬러(베이스는 페이퍼·잉크·골드 유지). */
   --color-hey-rose: #d47c89;

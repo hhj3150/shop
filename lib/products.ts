@@ -280,7 +280,7 @@ export const PRODUCTS: Product[] = [
     price: 3500,
     taxFree: true,
     image: "/products/milk-180-pure.webp",
-    accent: "#b89554",
+    accent: "#c9a46b", // 라벨 4254C
   },
   {
     id: "milk-750",
@@ -334,7 +334,7 @@ export const PRODUCTS: Product[] = [
     price: 12000,
     taxFree: true,
     image: "/products/milk-750-pure.webp",
-    accent: "#a36b2c",
+    accent: "#96763f", // 라벨 4254C 의 어두운 변주(750mL)
   },
   {
     id: "yogurt-180",
@@ -390,7 +390,7 @@ export const PRODUCTS: Product[] = [
     price: 4300,
     taxFree: false,
     image: "/products/yogurt-180-pure.webp",
-    accent: "#7a8a3d",
+    accent: "#00694e", // 라벨 3425C — 병 라벨의 요거트 제품명과 같은 초록
   },
   {
     id: "yogurt-500",
@@ -446,7 +446,7 @@ export const PRODUCTS: Product[] = [
     price: 10000,
     taxFree: false,
     image: "/products/yogurt-500-pure.webp",
-    accent: "#6f7d36",
+    accent: "#005a42", // 라벨 3425C 의 어두운 변주(500mL)
   },
   {
     // 반려식물전용퇴비 애프터밀크 — 우유 다음의 순환(Zero Waste Cycle) 제품.
