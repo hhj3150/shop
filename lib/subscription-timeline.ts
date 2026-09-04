@@ -44,6 +44,9 @@ export type TimelineInput = {
   paused: boolean;
   pausedAt: string | null;
   pausedDays: number;
+  // 1회차 실제 배송일(앵커가 공휴일이면 다음 영업일). computeSchedule 과 같은 입력을 써야
+  //   '이 날짜의 활성 블록'과 '이 날짜의 회차'가 갈리지 않는다(과·미배송 방지).
+  firstShipDate?: string | null;
   blocks: RawBlock[];
 };
 
@@ -89,6 +92,7 @@ export function activeBlockOrderForDate(
   slot: {
     status: string;
     started_at: string | null;
+    first_ship_date?: string | null;
     paused: boolean;
     paused_at: string | null;
     paused_days: number;
@@ -100,6 +104,7 @@ export function activeBlockOrderForDate(
   const active = activeBlockForDate(
     {
       startedAt: slot.started_at,
+      firstShipDate: slot.first_ship_date ?? null,
       paused: slot.paused,
       pausedAt: slot.paused_at,
       pausedDays: slot.paused_days,
@@ -119,6 +124,7 @@ export function activeBlockForDate(
   const sched = computeSchedule(
     {
       startedAt: input.startedAt,
+      firstShipDate: input.firstShipDate ?? null,
       totalWeeks: total,
       paused: input.paused,
       pausedAt: input.pausedAt,
@@ -179,6 +185,7 @@ export function refundByBlocks(input: TimelineInput, asOfDateISO: string): numbe
   const sched = computeSchedule(
     {
       startedAt: input.startedAt,
+      firstShipDate: input.firstShipDate ?? null,
       totalWeeks: total,
       paused: input.paused,
       pausedAt: input.pausedAt,

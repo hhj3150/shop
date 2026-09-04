@@ -96,6 +96,7 @@ export function buildReminderTargets(input: {
     blocksBySlot: maps.blocksBySlot,
     slotIdByOrder: maps.slotIdByOrder,
     slotById: maps.slotById,
+    slotIdByOrderDay: maps.slotIdByOrderDay,
   });
 
   const eveISO = eveOf(input.dateISO);

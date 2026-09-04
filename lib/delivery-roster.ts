@@ -26,7 +26,8 @@ export type RosterItemFields = {
   order_id: string;
   product_name: string;
   volume: string;
-  delivery_day: DeliveryDay;
+  // 단품 품목은 요일이 없다(발송일 ship_date 로만 정해짐) → null 허용.
+  delivery_day: DeliveryDay | null;
   qty: number;
 };
 
@@ -36,6 +37,9 @@ export type DeliveryEntry<O, I> = {
   items: I[];
   sig: string;
   kind: "정기" | "단품";
+  // 이 배송 건의 배송요일(정기만). 같은 주문이 두 요일을 구독하면 요일마다 한 건씩 나온다.
+  //   단품은 발송일(ship_date)로만 정해지므로 null.
+  day: DeliveryDay | null;
 };
 
 // 이 배송요일 구독이 dateISO 에 실제로 나가는가 — 배송 명단·배송 시트·생산 계획·발송 예고가
@@ -84,6 +88,9 @@ export function buildRosterForDate<
   slotIdByOrder?: ReadonlyMap<string, number>;
   // 슬롯 id → 슬롯 상태. 활성 블록 게이팅의 슬롯 출처(연장주문은 slotByOrder 에 없으므로 필수).
   slotById?: ReadonlyMap<number, DispatchSlotInfo>;
+  // `${주문id}|${요일}` → 슬롯 id. 한 주문이 요일별 슬롯을 여럿 가질 때(월+수 동시 구독)
+  //   그 요일 배송분의 회차·시작일·정지일수를 어느 슬롯으로 볼지 고른다. 없으면 slotIdByOrder.
+  slotIdByOrderDay?: ReadonlyMap<string, number>;
 }): DeliveryEntry<O, I>[] {
   const {
     dateISO,
@@ -95,22 +102,28 @@ export function buildRosterForDate<
     blocksBySlot,
     slotIdByOrder,
     slotById,
+    slotIdByOrderDay,
   } = params;
   const entries: DeliveryEntry<O, I>[] = [];
 
   // ── 정기: 이 날짜(공휴일 시프트 반영)에 배송되는 회차분 ──
   //   날짜 매칭은 슬롯 앵커가 아니라 '요일'만 본다(deliveryDayHitsDate) — 평소 당일 또는
   //   직전 그 요일이 공휴일이라 다음 영업일이 이 날짜인 시프트 도착일을 모두 한 번에 잡는다.
-  const byOrder = new Map<string, I[]>();
+  //   묶음 키는 주문이 아니라 (주문, 배송요일)이다 — 한 주문이 두 요일을 구독하면 슬롯도
+  //   둘이라 회차·시작일이 서로 다르다. 요일별로 갈라야 그 요일 슬롯으로 정확히 판정한다.
+  const byOrderDay = new Map<string, { orderId: string; day: DeliveryDay; items: I[] }>();
   for (const it of items) {
+    const day = it.delivery_day;
+    if (!day) continue; // 요일 없는 품목(단품)은 아래 ship_date 경로에서 잡는다
     if (!confirmedOrderIds.has(it.order_id)) continue;
     if (pausedOrderIds.has(it.order_id)) continue;
-    if (!subscriptionShipsOnDate(it.delivery_day, dateISO)) continue; // 평소 당일 또는 공휴일 시프트 도착일
-    const arr = byOrder.get(it.order_id) ?? [];
-    arr.push(it);
-    byOrder.set(it.order_id, arr);
+    if (!subscriptionShipsOnDate(day, dateISO)) continue; // 평소 당일 또는 공휴일 시프트 도착일
+    const key = `${it.order_id}|${day}`;
+    const g = byOrderDay.get(key) ?? { orderId: it.order_id, day, items: [] };
+    g.items.push(it);
+    byOrderDay.set(key, g);
   }
-  for (const [orderId, its] of byOrder) {
+  for (const { orderId, day, items: its } of byOrderDay.values()) {
     const order = orderById.get(orderId);
     if (!order || order.order_type === "단품" || order.delivery_method === "방문수령") continue;
 
@@ -119,7 +132,7 @@ export function buildRosterForDate<
     //   해석한다(원주문·연장주문 모두 동일 슬롯에 닿는다). 활성 블록의 orderId 와 이 그룹
     //   order_id 가 같을 때만 발송 → 한 슬롯의 여러 블록 이중발송을 막는다.
     //   블록 데이터가 없으면(레거시·미상) 기존 dispatchScheduleForSlot 폴백으로 보수적 포함.
-    const slotId = slotIdByOrder?.get(orderId);
+    const slotId = slotIdByOrderDay?.get(`${orderId}|${day}`) ?? slotIdByOrder?.get(orderId);
     const slotForBlocks = slotId != null ? slotById?.get(slotId) : undefined;
     const blocks = slotId != null ? blocksBySlot?.get(slotId) : undefined;
     if (slotForBlocks && blocks && blocks.length > 0) {
@@ -137,7 +150,7 @@ export function buildRosterForDate<
       //     로스터가 '주문 없는 연장 회차'를 별도 입력으로 받도록 먼저 손봐야 한다.
       //     (2026-09 현재 결제는 PayAction 계좌이체 단일 경로 — 이 경로는 비활성이다.)
       if (activeBlockOrderForDate(slotForBlocks, blocks, dateISO) !== orderId) continue;
-      entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
+      entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기", day });
       continue;
     }
 
@@ -150,15 +163,17 @@ export function buildRosterForDate<
 
     // 폴백: 해지·회차소진(·정지) 구독은 그 발송일 기준 배송 대상이 아니다 → 명단에서 제외.
     //   배송 탭(DispatchPanel)과 동일한 SSOT 로 과배송을 막는다. 슬롯이 없으면 보수적으로 포함.
-    //   폴백 슬롯은 원주문 매핑(slotByOrder)을 쓴다 — block_weeks 가 원주문 기준이기 때문.
-    const fallbackSlot = slotByOrder.get(orderId);
+    //   폴백 슬롯은 요일 매칭 슬롯 → 원주문 매핑(slotByOrder) 순으로 고른다 — 요일 슬롯을
+    //   못 찾으면 기존과 같이 slotByOrder(원주문 기준 block_weeks)로 떨어진다.
+    const fallbackSlot =
+      (slotId != null ? slotById?.get(slotId) : undefined) ?? slotByOrder.get(orderId);
     if (
       fallbackSlot &&
       dispatchScheduleForSlot(fallbackSlot, order.block_weeks ?? 0, dateISO).excluded
     ) {
       continue;
     }
-    entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기" });
+    entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기", day });
   }
 
   // ── 단품: ship_date 일치분 ──
@@ -174,7 +189,7 @@ export function buildRosterForDate<
   }
   for (const [orderId, its] of onceByOrder) {
     const order = orderById.get(orderId)!;
-    entries.push({ order, items: its, sig: compositionSignature(its), kind: "단품" });
+    entries.push({ order, items: its, sig: compositionSignature(its), kind: "단품", day: null });
   }
 
   const rank = (k: DeliveryEntry<O, I>["kind"]) => (k === "정기" ? 0 : 1);

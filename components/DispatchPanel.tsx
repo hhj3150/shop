@@ -15,14 +15,18 @@ import * as logenExcel from "@/lib/logen-excel";
 import { matchLogen, type LogenMatchResult } from "@/lib/logen-match";
 import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
-import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
-import { subscriptionShipsOnDate } from "@/lib/delivery-roster";
-import { activeBlockOrderForDate, totalWeeks, type RawBlock } from "@/lib/subscription-timeline";
+import type { RawBlock } from "@/lib/subscription-timeline";
+import {
+  buildDispatchSlicesForDate,
+  buildDispatchSlicesAll,
+  SUB_SHIPPABLE,
+  type DispatchSlice,
+} from "@/lib/dispatch-queue";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
 import { downloadXlsx } from "@/lib/xlsx-export";
 import { decideShipOut } from "@/lib/dispatch-shipout";
 import { isNoticeFresh, NOTICE_MAX_DAYS } from "@/lib/notice-freshness";
-import { isCarriedOver, overdueDays } from "@/lib/dispatch-overdue";
+import { overdueDays } from "@/lib/dispatch-overdue";
 import {
   BUCKET_ML,
   BUCKET_LABEL,
@@ -56,6 +60,7 @@ type DispatchOrder = {
 };
 
 type DispatchItem = {
+  order_id: string;
   product_name: string;
   volume: string;
   qty: number;
@@ -75,8 +80,8 @@ type DispatchSlot = {
   delivery_day: DeliveryDay | null;
 };
 
-// 결제 후 배송 대상 상태(완료·취소·미입금 제외).
-const SHIPPABLE = ["입금확인", "배송준비", "배송중"];
+// 상태 필터 선택지 — 구독은 배송완료 주문도 다음 회차가 남아 있어 시트에 뜬다.
+const STATUS_FILTERS = ["입금확인", "배송준비", "배송중", "배송완료"];
 
 function todayISO(): string {
   const d = new Date();
@@ -88,25 +93,17 @@ function todayISO(): string {
 //   "2/8회"의 날짜 변환, 전화·우편번호·송장번호의 지수/0누락, 한글 깨짐, 칸 밀림이 없다.
 //   (과거 CSV + ="…" 텍스트 강제 방식은 엑셀별 호환이 들쭉날쭉이라 폐기)
 
-// 구독 회차 — 시작일 대비 발송일이 몇 주차인지(1-base). 정지·총회차를 모르는
-//   비(非)슬롯 경로(단품 등) 전용 보조 계산. 슬롯이 있으면 dispatchScheduleForSlot 를 쓴다.
-//   단품·시작일 미상은 1회로 본다. (과거 %4 순환은 5회차+를 1회차로 위장시켜 제거함.)
-function roundFor(orderType: string, shipISO: string, startedISO: string | null): number {
-  if (orderType === "단품" || !startedISO) return 1;
-  const start = Date.parse(`${startedISO.slice(0, 10)}T00:00:00`);
-  const ship = Date.parse(`${shipISO}T00:00:00`);
-  if (Number.isNaN(start) || Number.isNaN(ship) || ship < start) return 1;
-  const weeks = Math.floor((ship - start) / (7 * 86_400_000));
-  return weeks + 1;
-}
-
 // 정렬 가능한 컬럼 키.
 type SortKey = "name" | "type" | "day" | "status" | "region" | "count" | "round";
 
 // 한 주문의 배송 작업에 필요한 모든 파생값(품목 수량·합계·요일·회차)을 미리 계산해 둔다.
 type DispatchRow = {
+  key: string; // 행 식별자 — 같은 주문이 요일별로 두 행이 될 수 있어 주문 id 로는 부족하다
   o: DispatchOrder;
   items: DispatchItem[];
+  carriedOver: boolean; // 지난 발송일을 넘긴 미출고 단품
+  overPaidRounds: boolean; // 결제 회차를 이미 다 보냈는데 또 잡힌 행 → 출고 차단
+  shippedRounds: number; // 이 구독이 지금까지 실제로 나간 회차 수
   q: number[]; // [우유180, 우유750, 요거트180, 요거트500]
   count: number; // 총 개수
   liters: number; // 총 L량
@@ -128,6 +125,10 @@ export function DispatchPanel({
   blocksBySlot,
   slotIdByOrder,
   slotById,
+  slotsByOrder,
+  slotIdByOrderDay,
+  confirmedOrderIds,
+  pausedOrderIds,
   onReload,
 }: {
   orders: DispatchOrder[];
@@ -142,6 +143,11 @@ export function DispatchPanel({
   blocksBySlot?: ReadonlyMap<number, RawBlock[]>;
   slotIdByOrder?: ReadonlyMap<string, number>; // 주문 id(원주문·연장주문) → 슬롯 id
   slotById?: ReadonlyMap<number, DispatchSlot>; // 슬롯 id → 슬롯 상태
+  slotsByOrder?: ReadonlyMap<string, DispatchSlot[]>; // 주문 → 슬롯 전부(요일 2개 이상 대비)
+  slotIdByOrderDay?: ReadonlyMap<string, number>; // `${주문id}|${요일}` → 슬롯 id
+  // 확정류 주문(입금확인 이후)·정지 구독 주문 — 배송 명단과 같은 판정을 쓰기 위한 입력.
+  confirmedOrderIds?: ReadonlySet<string>;
+  pausedOrderIds?: ReadonlySet<string>;
   onReload: () => Promise<void> | void;
 }) {
   const queueRef = useRef<HTMLDivElement>(null);
@@ -191,137 +197,124 @@ export function DispatchPanel({
     return m;
   }, [orders]);
 
-  // 4개 칸(우유180/750·요거트180/500)에 매핑되지 않는 제품 — 수량·총합·발송명단에서
-  //   조용히 빠지므로 화면에 경고해 관리자가 분류 누락을 알아차리게 한다.
-  const unmappedKeys = useMemo(() => {
-    const its: { product_name: string; volume: string; qty: number }[] = [];
-    for (const o of orders) {
-      if (!SHIPPABLE.includes(o.status)) continue;
-      if (o.delivery_method === "방문수령") continue; // 방문수령은 발송 대상 아님 → 수량 집계 제외
-      // 연장주문도 자기 품목을 발송하므로 미매핑 경고 집계에 포함한다(과거: 유령행이라 제외).
-      for (const it of itemsByOrder.get(o.id) ?? []) its.push(it);
+  // 배송 명단(buildRosterForDate)과 같은 입력 맵. 부모(관리자 화면)가 넘겨주면 그대로 쓰고,
+  //   없으면 이 화면에서 최소한으로 만든다 — 어느 쪽이든 판정 규칙은 하나다.
+  const queueMaps = useMemo(() => {
+    const slotsByOrderFallback = new Map<string, DispatchSlot[]>();
+    for (const s of slots) {
+      if (!s.order_id) continue;
+      const arr = slotsByOrderFallback.get(s.order_id) ?? [];
+      arr.push(s);
+      slotsByOrderFallback.set(s.order_id, arr);
     }
-    return findUnmappedKeys(its);
-  }, [orders, itemsByOrder]);
+    return {
+      orderById,
+      shippedKeys,
+      slotByOrder,
+      slotsByOrder: slotsByOrder ?? slotsByOrderFallback,
+      slotById,
+      confirmedOrderIds:
+        confirmedOrderIds ??
+        new Set(
+          orders
+            .filter((o) => (SUB_SHIPPABLE as readonly string[]).includes(o.status))
+            .map((o) => o.id)
+        ),
+      pausedOrderIds:
+        pausedOrderIds ??
+        new Set(slots.filter((s) => s.paused && s.order_id).map((s) => s.order_id as string)),
+      blocksBySlot,
+      slotIdByOrder,
+      slotIdByOrderDay,
+    };
+  }, [
+    orders,
+    slots,
+    shippedKeys,
+    orderById,
+    slotByOrder,
+    slotsByOrder,
+    slotById,
+    confirmedOrderIds,
+    pausedOrderIds,
+    blocksBySlot,
+    slotIdByOrder,
+    slotIdByOrderDay,
+  ]);
 
-  // 배송 가능 주문을 파생값(품목 수량·합계·요일·회차)까지 계산해 행으로 만든다.
-  //   제외 대상(해지·일시정지·회차소진 구독, 연장 결제 유령주문)은 큐에서 빼
-  //   과배송·오배송을 막는다. 합계도 제외 후 기준이라 시트가 정확해진다.
+  // 로스터가 요구하는 평면 품목 배열(주문별 묶음에서 펼친다).
+  const flatItems = useMemo(() => {
+    const out: DispatchItem[] = [];
+    for (const arr of itemsByOrder.values()) out.push(...arr);
+    return out;
+  }, [itemsByOrder]);
+
+  // 배송 대상 행 — 날짜 모드는 '기간별 배송 명단'과 완전히 같은 SSOT(lib/dispatch-queue)에서
+  //   만든다. 공휴일 시프트·목장 휴무 이월·해지/정지/회차소진 제외·연장 활성 블록·요일별 분리가
+  //   모두 그 안에서 처리되므로, 두 화면의 명단과 건수가 갈릴 여지가 없다.
+  //   ★ 구독은 주문 상태(배송완료)로 거르지 않는다 — 한 주문이 매주 다시 나가기 때문.
   const allRows = useMemo<DispatchRow[]>(() => {
-    const rows: DispatchRow[] = [];
-    for (const o of orders) {
-      if (!SHIPPABLE.includes(o.status)) continue;
-      // 방문수령: 손님이 목장에서 직접 받음 → 택배 발송 대상 아님(발송명단 roster 와 동일 제외).
-      if (o.delivery_method === "방문수령") continue;
+    const slices: DispatchSlice<DispatchOrder, DispatchItem>[] = useDateFilter
+      ? buildDispatchSlicesForDate({
+          dateISO: date,
+          orders,
+          items: flatItems,
+          itemsByOrder,
+          maps: queueMaps,
+        })
+      : buildDispatchSlicesAll({
+          asOfISO: date,
+          orders,
+          itemsByOrder,
+          maps: queueMaps,
+        });
 
-      const items = itemsByOrder.get(o.id) ?? [];
+    return slices.map((sl) => {
+      const o = sl.order;
       const q = [0, 0, 0, 0];
-      let dayKey: DeliveryDay | null = null;
-      for (const it of items) {
+      for (const it of sl.items) {
         const b = productBucket(it.product_name, it.volume);
         if (b >= 0) q[b] += it.qty;
-        if (it.delivery_day) dayKey = it.delivery_day;
       }
       const count = q.reduce((a, b) => a + b, 0);
-      const liters =
-        Math.round(q.reduce((sum, n, i) => sum + n * BUCKET_ML[i], 0) / 100) / 10;
-      const shipISO = o.ship_date ?? (useDateFilter ? date : o.shipped_at ?? date);
-      const region = `${o.ship_postcode ?? ""} ${o.ship_address} ${o.ship_address_detail ?? ""}`.trim();
+      const liters = Math.round(q.reduce((sum, n, i) => sum + n * BUCKET_ML[i], 0) / 100) / 10;
       const isOnce = o.order_type === "단품";
-
-      // 회차·제외 판정: 슬롯이 있으면 정지·총회차 반영한 정확 계산, 없으면 보조 계산.
-      const slot = slotByOrder.get(o.id);
-      let round: number;
-      let total: number;
-      let remaining: number;
-
-      // 연장(다중 블록) 슬롯의 활성 블록 게이팅 — 날짜 필터 모드에서만 적용한다.
-      //   원구독+연장이 한 슬롯에 체인되면, 발송일의 '활성 블록' 주문 1건만 시트에 나와야
-      //   한다(기간별 명단과 동일 SSOT). 게이팅이 없으면 원구독을 연장 구간까지 늘여 보여
-      //   연장분과 같은 날 중복 표시되고 품목까지 어긋난다(오포장). 단일 블록·레거시·단품은
-      //   기존 경로 그대로 — 일상 운영 동작 불변.
-      const blockSlotId = !isOnce ? slotIdByOrder?.get(o.id) : undefined;
-      const slotBlocks = blockSlotId != null ? blocksBySlot?.get(blockSlotId) : undefined;
-      const blockSlot = blockSlotId != null ? slotById?.get(blockSlotId) : undefined;
-      // 블록이 하나뿐이어도 같은 함수로 판정한다 — 기간별 명단(buildRosterForDate)이
-      //   블록이 있으면 항상 activeBlockOrderForDate 로 거르므로, 여기서만 다른 길을 타면
-      //   두 화면의 제외 기준이 갈린다(한쪽에만 뜨는 손님 = 미배송 또는 이중발송).
-      const gateByBlock =
-        useDateFilter && !!blockSlot && !!slotBlocks && slotBlocks.length > 0;
-
-      if (gateByBlock) {
-        // 이 발송일의 활성 블록 주문이 아니면 제외(원구독 구간↔연장 구간 정확 전환).
-        if (activeBlockOrderForDate(blockSlot!, slotBlocks!, shipISO) !== o.id) continue;
-        // 총 회차는 확정된 블록 체인(원주문 + 입금확인된 연장주문)의 합으로 센다.
-        //   slots.extended_weeks 는 늘기만 하고 줄지 않는다 — 입금확인된 연장주문을 나중에
-        //   '취소'로 되돌리면 그 회차가 남아 이미 끝난 구독이 계속 시트에 뜬다(과배송).
-        //   발송 게이팅(activeBlockOrderForDate)이 이미 블록 체인 기준이므로 표기도 맞춘다.
-        const chainWeeks = totalWeeks(slotBlocks!);
-        const sch = dispatchScheduleForSlot(
-          { ...blockSlot!, extended_weeks: 0 },
-          chainWeeks,
-          shipISO
-        );
-        round = sch.round;
-        total = sch.total;
-        remaining = sch.remaining;
-      } else if (o.renews_slot_id != null) {
-        // 연장 결제 주문(단일 블록/비-날짜필터): 발송은 원주문 행에서 이어짐 → 유령행 제외.
-        continue;
-      } else if (!isOnce && slot) {
-        const sch = dispatchScheduleForSlot(slot, o.block_weeks ?? 0, shipISO);
-        if (sch.excluded) continue; // 해지·일시정지·회차소진 → 큐에서 제외
-        round = sch.round;
-        total = sch.total;
-        remaining = sch.remaining;
-      } else {
-        round = roundFor(o.order_type, shipISO, slot?.started_at ?? o.created_at);
-        total = isOnce ? 1 : 0; // 단품 1회, 슬롯 미상 구독은 총회차 미상(0)
-        remaining = 0;
-      }
-
-      rows.push({
+      return {
+        key: `${o.id}|${sl.shipISO}|${sl.day ?? ""}`,
         o,
-        items,
+        items: sl.items,
+        carriedOver: sl.carriedOver,
+        overPaidRounds: sl.overPaidRounds,
+        shippedRounds: sl.shippedRounds,
         q,
         count,
         liters,
-        dayKey,
-        dayLabel: dayKey ? DELIVERY_DAY_LABEL[dayKey] : isOnce ? "단품" : "",
-        round,
-        total,
-        remaining,
-        shipISO,
-        region,
-      });
-    }
-    return rows;
-  }, [
-    orders,
-    itemsByOrder,
-    slotByOrder,
-    useDateFilter,
-    date,
-    slotIdByOrder,
-    blocksBySlot,
-    slotById,
-  ]);
+        dayKey: sl.day,
+        dayLabel: sl.day ? DELIVERY_DAY_LABEL[sl.day] : isOnce ? "단품" : "",
+        round: sl.round,
+        total: isOnce ? 1 : sl.total,
+        remaining: sl.remaining,
+        shipISO: sl.shipISO,
+        region: `${o.ship_postcode ?? ""} ${o.ship_address} ${o.ship_address_detail ?? ""}`.trim(),
+      };
+    });
+  }, [useDateFilter, date, orders, flatItems, itemsByOrder, queueMaps]);
+
+  // 4개 칸(우유180/750·요거트180/500)에 매핑되지 않는 제품 — 수량·총합·발송명단에서
+  //   조용히 빠지므로 화면에 경고해 관리자가 분류 누락을 알아차리게 한다.
+  //   집계 대상은 실제 시트에 오른 행의 품목 = 화면 합계와 같은 모집단.
+  const unmappedKeys = useMemo(
+    () => findUnmappedKeys(allRows.flatMap((r) => r.items)),
+    [allRows]
+  );
 
   // 날짜 → 검색 → 구분/요일/상태 필터 → 정렬. 모든 컬럼 정렬 가능.
   const queue = useMemo<DispatchRow[]>(() => {
     const ql = query.trim().toLowerCase();
     const dayIdx = (d: DeliveryDay | null) => (d ? DELIVERY_DAYS.indexOf(d) : 99);
+    // 날짜 판정은 이미 allRows(SSOT)에서 끝났다 — 여기선 화면 필터만 건다.
     const filtered = allRows.filter((r) => {
       const o = r.o;
-      if (useDateFilter) {
-        if (o.order_type === "단품") {
-          // 당일분(ship_date == 선택일) + 지난 미출고분(이월)도 함께 — 그날 못 보내면 사라지는 걸 막는다.
-          if (o.ship_date !== date && !isCarriedOver(o, date)) return false;
-        } else if (!subscriptionShipsOnDate(r.dayKey, date)) {
-          // 공휴일·휴무 시프트 반영(기간별 명단·예고 문자와 동일 기준).
-          return false;
-        }
-      }
       if (typeFilter !== "전체" && o.order_type !== typeFilter) return false;
       if (dayFilter !== "전체" && r.dayKey !== dayFilter) return false;
       if (statusFilter !== "전체" && o.status !== statusFilter) return false;
@@ -341,7 +334,7 @@ export function DispatchPanel({
         case "day":
           return (dayIdx(a.dayKey) - dayIdx(b.dayKey) || a.round - b.round) * dir;
         case "status":
-          return (SHIPPABLE.indexOf(a.o.status) - SHIPPABLE.indexOf(b.o.status)) * dir;
+          return (STATUS_FILTERS.indexOf(a.o.status) - STATUS_FILTERS.indexOf(b.o.status)) * dir;
         case "region":
           return a.region.localeCompare(b.region, "ko") * dir;
         case "count":
@@ -353,10 +346,7 @@ export function DispatchPanel({
       }
     };
     return [...filtered].sort(cmp);
-  }, [
-    allRows, query, typeFilter, dayFilter, statusFilter,
-    sortKey, sortDir, useDateFilter, date,
-  ]);
+  }, [allRows, query, typeFilter, dayFilter, statusFilter, sortKey, sortDir]);
 
   // 현재 목록의 제품별 합계(개수·L량) — 화면 요약 + 엑셀 합계행 공용.
   const totals = useMemo(() => {
@@ -368,22 +358,19 @@ export function DispatchPanel({
     return { q, liters, litersTotal, count };
   }, [queue]);
 
-  const allSelected = queue.length > 0 && queue.every((r) => selected.has(r.o.id));
+  // 결제 회차를 넘긴 행 — 상단 경고 + 발송 차단 대상.
+  const overPaidRows = useMemo(() => allRows.filter((r) => r.overPaidRounds), [allRows]);
+
+  const allSelected = queue.length > 0 && queue.every((r) => selected.has(r.key));
 
   // 발송 진척도 — 선택 날짜의 배송 대상(필터 무관) 중 출고완료/미발송 집계.
   //   회차 단위 출고 이력(shipment_log 기반 isShipped)으로 '오늘 얼마나 보냈나'를 한눈에.
   const dayProgress = useMemo(() => {
-    const inDay = allRows.filter((r) => {
-      if (!useDateFilter) return true;
-      const o = r.o;
-      if (o.order_type === "단품") return o.ship_date === date || isCarriedOver(o, date);
-      return subscriptionShipsOnDate(r.dayKey, date);
-    });
     let shipped = 0;
-    for (const r of inDay) if (isShipped(r)) shipped += 1;
-    return { total: inDay.length, shipped, pending: inDay.length - shipped };
+    for (const r of allRows) if (isShipped(r)) shipped += 1;
+    return { total: allRows.length, shipped, pending: allRows.length - shipped };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, useDateFilter, date, shippedKeys, justShipped]);
+  }, [allRows, shippedKeys, justShipped]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -395,7 +382,7 @@ export function DispatchPanel({
   }
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(queue.map((r) => r.o.id)));
+    setSelected(allSelected ? new Set() : new Set(queue.map((r) => r.key)));
   }
 
   // 행(회차) 단위 송장값. 운영자가 이번 화면에서 입력한 값이 최우선(빈칸으로 지운 것도 존중).
@@ -403,7 +390,7 @@ export function DispatchPanel({
   //   회차마다 재출고하므로, 아직 출고 안 한 다음 회차에 직전 회차 송장이 남아 보이면 운영자가
   //   그대로 재발송해 오배송이 된다(이전 송장 = 이전 배송 추적). 미출고 회차는 반드시 빈칸.
   function trackingOf(r: DispatchRow): string {
-    const typed = tracking[r.o.id];
+    const typed = tracking[r.key];
     if (typed != null) return typed;
     return isShipped(r) ? (r.o.tracking_no ?? "") : "";
   }
@@ -412,7 +399,7 @@ export function DispatchPanel({
   //   매칭된 행은 자동 선택까지 해, 운영자가 바로 '선택 발송'으로 넘어갈 수 있다.
   function applyTrackingPaste() {
     const parsed = parseTrackingPaste(pasteText);
-    const idByOrderNo = new Map(allRows.map((r) => [r.o.order_no, r.o.id]));
+    const idByOrderNo = new Map(allRows.map((r) => [r.o.order_no, r.key]));
     const { matched, unmatched } = matchTracking(parsed, new Set(idByOrderNo.keys()));
     if (matched.length === 0) {
       setPasteNote(
@@ -465,7 +452,7 @@ export function DispatchPanel({
       const res = matchLogen(
         parsed,
         allRows.map((r) => ({
-          id: r.o.id,
+          id: r.key,
           order_no: r.o.order_no,
           ship_name: r.o.ship_name,
           ship_phone: r.o.ship_phone,
@@ -502,7 +489,7 @@ export function DispatchPanel({
     //   기존 송장을 덮어쓰면 오발송이 되므로, 그런 선택이 있으면 전체 적용을 멈춘다.
     //   판정은 회차 단위 유효 송장(trackingOf)으로 한다 — 구독 다음 회차는 이전 회차 송장이
     //   주문에 남아 있어도 '아직 미채움'이어야 새 송장을 받을 수 있다.
-    const rowById = new Map(allRows.map((r) => [r.o.id, r]));
+    const rowById = new Map(allRows.map((r) => [r.key, r]));
     const filled = [...new Set(picks.map(([, id]) => id))].filter((id) => {
       const row = rowById.get(id);
       return row ? trackingOf(row).trim() !== "" : false;
@@ -571,6 +558,14 @@ export function DispatchPanel({
   //   재고 차감이 먼저라 주문 갱신이 실패해도 재시도 시 이중차감 없이 송장만 다시 반영된다.
   async function shipOut(r: DispatchRow) {
     const o = r.o;
+    // 과배송 최종 방어선 — 결제 회차만큼 이미 나간 구독은 출고를 막는다(회차 모델 오차 무관).
+    if (r.overPaidRounds) {
+      setError(
+        `${o.ship_name}: 결제한 ${r.total}회를 이미 모두 보냈습니다(발송 이력 ${r.shippedRounds}회). ` +
+          `연장 결제가 확인된 건이면 '연장' 처리를 먼저 하세요.`
+      );
+      return;
+    }
     const decision = decideShipOut({
       status: o.status,
       shipped_at: o.shipped_at,
@@ -737,7 +732,17 @@ export function DispatchPanel({
 
   // 선택분 일괄 발송: 송장 입력된 건만 배송중 전환 + 발송일·택배사 기록 + 알림.
   async function bulkShip() {
-    const targets = queue.filter((r) => selected.has(r.o.id) && trackingOf(r).trim());
+    const overPaid = queue.filter((r) => selected.has(r.key) && r.overPaidRounds);
+    if (overPaid.length > 0) {
+      // 과배송 최종 방어선 — 한 건이라도 섞여 있으면 일괄 발송 자체를 멈춘다.
+      setError(
+        `결제 회차를 이미 다 보낸 구독 ${overPaid.length}건이 선택돼 있습니다` +
+          `(${overPaid.slice(0, 3).map((r) => r.o.ship_name).join(", ")}${overPaid.length > 3 ? " 외" : ""}). ` +
+          `선택을 해제하거나 연장 처리를 먼저 하세요.`
+      );
+      return;
+    }
+    const targets = queue.filter((r) => selected.has(r.key) && trackingOf(r).trim());
     if (targets.length === 0) {
       setError("송장번호가 입력된 선택 주문이 없습니다.");
       return;
@@ -802,7 +807,7 @@ export function DispatchPanel({
 
   // 선택분 상태 일괄 전환(배송준비 / 배송완료).
   async function bulkStatus(status: string) {
-    const rows = queue.filter((r) => selected.has(r.o.id));
+    const rows = queue.filter((r) => selected.has(r.key));
     const targets = rows.map((r) => r.o);
     if (targets.length === 0) {
       setError("선택된 주문이 없습니다.");
@@ -832,7 +837,7 @@ export function DispatchPanel({
       );
       // 배송완료로 전환된 건은 회차별 도착시각(shipment_log.delivered_at)을 기록하고
       //   고객에게 배송 완료 안내 발송(업데이트 성공분만). delivered_at 으로 고객 '내 배송
-      //   현황'의 배송완료 표시가 켜진다. (배송완료는 SHIPPABLE 큐에서 제외 → 중복 발송 없음)
+      //   현황'의 배송완료 표시가 켜진다. (같은 회차 중복 발송은 회차 이력 isShipped 로 막는다)
       if (status === "배송완료") {
         await Promise.all(
           rows.map(async (r, i) => {
@@ -949,7 +954,7 @@ export function DispatchPanel({
           className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink"
         >
           <option value="전체">상태 전체</option>
-          {SHIPPABLE.map((s) => (
+          {STATUS_FILTERS.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
@@ -1219,6 +1224,14 @@ export function DispatchPanel({
         </p>
       )}
 
+      {overPaidRows.length > 0 && (
+        <p className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[13px] text-red-700">
+          ⛔ 결제한 회차를 이미 다 보낸 구독 {overPaidRows.length}건이 명단에 있습니다:{" "}
+          {overPaidRows.map((r) => `${r.o.ship_name}(${r.shippedRounds}/${r.total}회)`).join(", ")}.
+          발송이 막혀 있습니다 — 연장 결제가 확인된 건이면 연장 처리를 먼저 하고, 아니면 구독을 해지 처리해 주세요.
+        </p>
+      )}
+
       {unmappedKeys.length > 0 && (
         <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[13px] text-amber-700">
           ⚠️ 발송명단 4칸(우유180/750·요거트180/500)에 없는 제품 {unmappedKeys.length}종이
@@ -1271,12 +1284,12 @@ export function DispatchPanel({
                     <span className="text-line">·</span>
                   );
                 return (
-                  <tr key={o.id} className="border-b border-line/70 align-top">
+                  <tr key={r.key} className="border-b border-line/70 align-top">
                     <td data-label="선택" className="no-print py-3 pr-3">
                       <input
                         type="checkbox"
-                        checked={selected.has(o.id)}
-                        onChange={() => toggle(o.id)}
+                        checked={selected.has(r.key)}
+                        onChange={() => toggle(r.key)}
                       />
                     </td>
                     <td data-label="받는 분" className="py-3 pr-3">
@@ -1301,9 +1314,17 @@ export function DispatchPanel({
                       {o.order_type !== "단품" && r.total > 0 && (
                         <span className="ml-1 text-[11px] text-mute">남은 {r.remaining}</span>
                       )}
-                      {isCarriedOver(o, date) && (
+                      {r.carriedOver && (
                         <span className="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold text-red-700">
                           지연 {overdueDays(o.ship_date, date)}일
+                        </span>
+                      )}
+                      {r.overPaidRounds && (
+                        <span
+                          className="ml-1 rounded bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold text-white"
+                          title={`결제 ${r.total}회 · 실제 발송 ${r.shippedRounds}회. 결제한 회차를 이미 다 보냈습니다. 연장 결제가 확인된 건이면 연장 처리를 먼저 하세요.`}
+                        >
+                          결제회차 초과 · 발송금지
                         </span>
                       )}
                     </td>
@@ -1335,7 +1356,7 @@ export function DispatchPanel({
                         type="text"
                         value={trackingOf(r)}
                         onChange={(e) =>
-                          setTracking((prev) => ({ ...prev, [o.id]: e.target.value }))
+                          setTracking((prev) => ({ ...prev, [r.key]: e.target.value }))
                         }
                         placeholder="송장번호"
                         className="no-print w-36 rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] tabular-nums text-ink outline-none focus:border-gold"
@@ -1379,10 +1400,11 @@ export function DispatchPanel({
                         <button
                           type="button"
                           onClick={() => shipOut(r)}
-                          disabled={shippingId === shipKey(r)}
+                          disabled={shippingId === shipKey(r) || r.overPaidRounds}
+                          title={r.overPaidRounds ? "결제한 회차를 이미 다 보냈습니다 — 연장 처리 후 발송하세요." : undefined}
                           className="rounded-full border border-gold/50 bg-gold/10 px-3 py-1.5 text-[12.5px] font-semibold text-gold-deep transition-colors enabled:hover:bg-gold/20 disabled:opacity-40"
                         >
-                          {shippingId === shipKey(r) ? "처리 중…" : "출고·발송"}
+                          {shippingId === shipKey(r) ? "처리 중…" : r.overPaidRounds ? "발송 금지" : "출고·발송"}
                         </button>
                       )}
                     </td>

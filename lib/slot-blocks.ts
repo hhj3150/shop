@@ -14,7 +14,8 @@ export type OrderRow = {
 };
 
 export type OrderItemRow = {
-  delivery_day: DeliveryDay;
+  // 단품 품목은 요일이 없다(null). 구독 블록은 요일 있는 품목으로 판정한다.
+  delivery_day: DeliveryDay | null;
   qty: number;
   unit_price: number;
   product_name: string;
@@ -54,10 +55,13 @@ function buildBlock(
   const hasItems = rows != null && rows.length > 0;
 
   if (hasItems) {
+    // 요일은 '요일이 있는 첫 품목' 기준. 한 주문이 두 요일을 구독하면 슬롯도 요일별로
+    //   따로 생기고, 발송 판정은 요일별 슬롯이 한다 — 블록의 요일은 상속 판정용 표식이다.
+    const day = rows!.find((r) => r.delivery_day != null)?.delivery_day ?? null;
     return {
       orderId: order.id,
       weeks: order.block_weeks,
-      deliveryDay: rows![0].delivery_day, // all items share the same delivery_day
+      deliveryDay: day,
       shippingPerWeek: computeShippingPerWeek(order.shipping_fee, order.block_weeks),
       items: rows!.map(toBlockItem),
     };

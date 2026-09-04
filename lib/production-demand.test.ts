@@ -13,7 +13,7 @@ function entry(
   items: I[],
   id = "o"
 ): DeliveryEntry<O, I> {
-  return { order: { id }, items, sig: "", kind };
+  return { order: { id }, items, sig: "", kind, day: null };
 }
 
 describe("splitDemandByKind", () => {
