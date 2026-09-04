@@ -4,6 +4,7 @@ import { useState, useEffect, type MouseEvent } from "react";
 import Link from "next/link";
 import { BRAND_FILM_ID, buildFilmEmbedUrl } from "@/lib/brand-film";
 import { useAuth } from "@/lib/auth";
+import { subscribeStartHref } from "@/lib/site";
 
 // 히어로의 "정기구독 신청하기" 버튼. 클릭하면 브랜드 필름이 반복 재생되는
 // 모달을 열고, 모달 안의 CTA로 실제 신청 흐름을 이어준다.
@@ -13,7 +14,7 @@ export function SubscribeFilmCTA({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const { ready, user } = useAuth();
   const isMember = ready && !!user;
-  const ctaHref = isMember ? "/#products" : "/signup";
+  const ctaHref = subscribeStartHref(isMember);
   const ctaLabel = isMember ? "구독할 제품 고르기 →" : "정기구독 신청하기 →";
 
   // 모달 CTA 클릭. 반드시 모달을 먼저 닫는다 — 안 닫으면 body 스크롤 잠금(overflow:hidden)

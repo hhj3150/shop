@@ -5,11 +5,11 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useCart } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
-import { BRAND_HOME } from "@/lib/site";
+import { BRAND_HOME, subscribeStartHref } from "@/lib/site";
 
 export function Nav() {
   const { count, open } = useCart();
-  const { user } = useAuth();
+  const { ready, user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -44,7 +44,10 @@ export function Nav() {
           <Link href="/#products" className="transition-colors hover:text-gold">
             제품
           </Link>
-          <Link href="/#subscribe" className="transition-colors hover:text-gold">
+          <Link
+            href={subscribeStartHref(ready && !!user)}
+            className="transition-colors hover:text-gold"
+          >
             정기구독
           </Link>
           <a
