@@ -279,7 +279,7 @@ export const PRODUCTS: Product[] = [
     signature: MILK_SIGNATURE,
     price: 3500,
     taxFree: true,
-    image: "/products/milk-180-pure.webp",
+    image: "/products/milk-180-bottle.webp",
     accent: "#c9a46b", // 라벨 4254C
   },
   {
@@ -333,7 +333,7 @@ export const PRODUCTS: Product[] = [
     signature: MILK_SIGNATURE,
     price: 12000,
     taxFree: true,
-    image: "/products/milk-750-pure.webp",
+    image: "/products/milk-750-bottle.webp",
     accent: "#96763f", // 라벨 4254C 의 어두운 변주(750mL)
   },
   {
@@ -389,7 +389,7 @@ export const PRODUCTS: Product[] = [
     signature: YOGURT_SIGNATURE_180,
     price: 4300,
     taxFree: false,
-    image: "/products/yogurt-180-pure.webp",
+    image: "/products/yogurt-180-bottle.webp",
     accent: "#00694e", // 라벨 3425C — 병 라벨의 요거트 제품명과 같은 초록
   },
   {
@@ -445,7 +445,7 @@ export const PRODUCTS: Product[] = [
     signature: YOGURT_SIGNATURE_500,
     price: 10000,
     taxFree: false,
-    image: "/products/yogurt-500-pure.webp",
+    image: "/products/yogurt-500-bottle.webp",
     accent: "#005a42", // 라벨 3425C 의 어두운 변주(500mL)
   },
   {
