@@ -289,7 +289,15 @@ export default async function ProductPage({
             ] as const
           ).map(([k, v]) => (
             <div key={k} className="grid grid-cols-[7rem_1fr] gap-4 py-3.5 sm:grid-cols-[9rem_1fr]">
-              <dt className="text-[13px] uppercase tracking-[0.14em] text-mute">{k}</dt>
+              {/* 항목명은 병 라벨의 초록 표시사항 표와 같은 색으로 — 병을 옆에 두고 봐도 같은 표로 읽힌다.
+                  퇴비(비식품)는 그 라벨 체계가 아니므로 중립색을 유지한다. */}
+              <dt
+                className={`text-[13px] tracking-[0.02em] ${
+                  product.line === "aftermilk" ? "uppercase tracking-[0.14em] text-mute" : "font-medium text-label-green"
+                }`}
+              >
+                {k}
+              </dt>
               <dd className="text-ink-soft">{v}</dd>
             </div>
           ))}
@@ -317,7 +325,8 @@ export default async function ProductPage({
               {product.name} {product.volume} 영양정보 ({product.nutrition.basis})
             </caption>
             <thead>
-              <tr className="border-b border-line text-[12px] uppercase tracking-[0.12em] text-mute">
+              {/* 라벨의 영양정보 표와 같은 초록 머리. 손님이 병과 화면을 나란히 봐도 한 표로 읽힌다. */}
+              <tr className="border-b border-label-green/30 text-[12px] tracking-[0.1em] text-label-green">
                 <th scope="col" className="py-3 text-left font-medium">영양성분</th>
                 <th scope="col" className="py-3 text-right font-medium">함량</th>
                 <th scope="col" className="py-3 text-right font-medium">% 영양성분기준치</th>
@@ -325,15 +334,15 @@ export default async function ProductPage({
             </thead>
             <tbody className="divide-y divide-line">
               <tr>
-                <th scope="row" className="py-3 text-left font-medium text-ink">총 열량</th>
-                <td className="py-3 text-right text-ink">{product.nutrition.calories}</td>
+                <th scope="row" className="py-3 text-left font-semibold text-ink">총 열량</th>
+                <td className="py-3 text-right font-semibold text-ink tabular-nums">{product.nutrition.calories}</td>
                 <td className="py-3 text-right text-mute" aria-hidden>—</td>
               </tr>
               {product.nutrition.rows.map((r) => (
                 <tr key={r.label}>
                   <th scope="row" className="py-3 text-left font-normal text-ink-soft">{r.label}</th>
-                  <td className="py-3 text-right text-ink-soft">{r.amount}</td>
-                  <td className="py-3 text-right text-mute">{r.percent}</td>
+                  <td className="py-3 text-right text-ink-soft tabular-nums">{r.amount}</td>
+                  <td className="py-3 text-right text-mute tabular-nums">{r.percent}</td>
                 </tr>
               ))}
             </tbody>
