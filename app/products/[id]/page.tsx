@@ -273,12 +273,18 @@ export default async function ProductPage({
             [
               ["제품명", `${product.name} ${product.volume}`],
               [product.line === "aftermilk" ? "제품유형" : "식품유형", product.label.type],
-              ["원재료명", product.label.ingredients],
+              ["원재료명 및 함량", product.label.ingredients],
               ["내용량", product.label.content],
+              // ↓ 실제 인쇄 라벨에 있는 항목만 노출한다(없는 제품은 행 자체를 만들지 않는다).
+              ...(product.label.milkSolids ? [["무지유고형분", product.label.milkSolids] as const] : []),
+              ...(product.label.cultures ? [["유산균수", product.label.cultures] as const] : []),
+              ...(product.label.sterilization ? [["살균방법", product.label.sterilization] as const] : []),
               ["보관방법", product.label.storage],
               ["포장재질", product.label.packaging],
               [product.line === "aftermilk" ? "사용기한" : "소비기한", product.label.shelf],
+              ...(product.label.reportNo ? [["품목보고번호", product.label.reportNo] as const] : []),
               ["제조원·판매원", product.label.maker],
+              ["반품 및 교환장소", "본사 및 구입처"],
               ["소비자상담", "031-674-3150 · 010-6642-5042"],
             ] as const
           ).map(([k, v]) => (
