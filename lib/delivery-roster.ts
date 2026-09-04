@@ -6,7 +6,7 @@
 import type { DeliveryDay } from "./cart";
 import { dispatchScheduleForSlot, type DispatchSlotInfo } from "./dispatch-schedule";
 import { deliveryDayHitsDate } from "./ship-date";
-import { activeBlockForDate, type RawBlock } from "./subscription-timeline";
+import { activeBlockOrderForDate, type RawBlock } from "./subscription-timeline";
 
 // 로스터 판정에 필요한 주문 최소 필드.
 export type RosterOrderFields = {
@@ -41,6 +41,23 @@ export type DeliveryEntry<O, I> = {
   //   단품은 발송일(ship_date)로만 정해지므로 null.
   day: DeliveryDay | null;
 };
+
+// 이 배송요일 구독이 dateISO 에 실제로 나가는가 — 배송 명단·배송 시트·생산 계획·발송 예고가
+//   모두 이 한 함수만 쓴다(요일 매칭의 단일 진실 소스).
+//
+//   ★ '요일 일치'로 판정하면 안 되는 이유(실제 미배송 사고):
+//     공휴일·목장 휴무가 낀 주에는 발송일이 요일과 어긋난다.
+//       · 2026-08-17(광복절 대체공휴일, 월) 월요일분 → 8/18(화) 발송.
+//         요일 일치로 보면 8/18 배송 시트에 화요일분만 떠 월요일 손님이 통째로 누락된다
+//         (그 손님은 전날 저녁 '내일 발송 예정' 문자를 이미 받은 뒤다 → 문자만 가고 우유는 안 간다).
+//       · 2026 추석: 9/24(목)·9/25(금)·9/28(월)이 공휴일 → 목·금·월 세 요일분이 9/29(화)에 함께 나간다.
+//       · 하계 휴무 주(8/10~8/14)는 그 주 발송이 없고 다음 주 같은 요일로 이월된다.
+export function subscriptionShipsOnDate(
+  deliveryDay: DeliveryDay | null | undefined,
+  dateISO: string
+): boolean {
+  return deliveryDay != null && deliveryDayHitsDate(deliveryDay, dateISO).hits;
+}
 
 // 같은 구성품(제품·용량·수량)끼리 묶기 위한 정렬 키 — 포장 편의.
 export function compositionSignature(
@@ -100,7 +117,7 @@ export function buildRosterForDate<
     if (!day) continue; // 요일 없는 품목(단품)은 아래 ship_date 경로에서 잡는다
     if (!confirmedOrderIds.has(it.order_id)) continue;
     if (pausedOrderIds.has(it.order_id)) continue;
-    if (!deliveryDayHitsDate(day, dateISO).hits) continue; // 평소 당일 또는 공휴일 시프트 도착일
+    if (!subscriptionShipsOnDate(day, dateISO)) continue; // 평소 당일 또는 공휴일 시프트 도착일
     const key = `${it.order_id}|${day}`;
     const g = byOrderDay.get(key) ?? { orderId: it.order_id, day, items: [] };
     g.items.push(it);
@@ -119,22 +136,20 @@ export function buildRosterForDate<
     const slotForBlocks = slotId != null ? slotById?.get(slotId) : undefined;
     const blocks = slotId != null ? blocksBySlot?.get(slotId) : undefined;
     if (slotForBlocks && blocks && blocks.length > 0) {
-      // 해지·정지 슬롯은 발송 대상이 아니다(activeBlockForDate 는 status 미반영).
-      if (slotForBlocks.status === "해지" || slotForBlocks.paused) continue;
-      const active = activeBlockForDate(
-        {
-          startedAt: slotForBlocks.started_at,
-          // ★ 회차 계산(dispatchScheduleForSlot)과 같은 입력을 써야 한다. 여기만 1회차
-          //   보정일을 빼면 '이 날짜의 활성 블록'과 '이 날짜의 회차'가 갈려 과·미배송이 난다.
-          firstShipDate: slotForBlocks.first_ship_date,
-          paused: slotForBlocks.paused,
-          pausedAt: slotForBlocks.paused_at,
-          pausedDays: slotForBlocks.paused_days,
-          blocks,
-        },
-        dateISO
-      );
-      if (!active || active.orderId !== orderId) continue;
+      // 해지·정지·소진·시작전 제외와 '그날 발송할 블록 1개' 선택은 배송 탭(DispatchPanel)과
+      //   같은 함수(activeBlockOrderForDate)에 맡긴다 — 두 화면이 갈리지 않게 하는 유일한 방법.
+      //
+      //   총 회차는 확정된 블록 체인(원주문 + 입금확인된 연장주문)의 합이다. slots.extended_weeks
+      //   는 쓰지 않는다 — 늘기만 하고 줄지 않으므로, 입금확인된 연장주문을 나중에 '취소'로
+      //   되돌리면 그 회차가 남아 이미 끝난 구독에 계속 보내게 된다(과배송).
+      //
+      //   ⚠ 향후 PortOne 카드 정기결제(confirm_billing_charge)를 켤 때 주의:
+      //     그 경로는 연장 '주문'을 만들지 않고 slots.extended_weeks 만 늘린다. 그러면 블록
+      //     체인이 원주문 회차에서 멈춰, 카드는 계속 결제되는데 손님이 명단에서 사라진다.
+      //     켜기 전에 confirm_billing_charge 가 연장 주문 행(+order_items)도 만들도록 하거나,
+      //     로스터가 '주문 없는 연장 회차'를 별도 입력으로 받도록 먼저 손봐야 한다.
+      //     (2026-09 현재 결제는 PayAction 계좌이체 단일 경로 — 이 경로는 비활성이다.)
+      if (activeBlockOrderForDate(slotForBlocks, blocks, dateISO) !== orderId) continue;
       entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기", day });
       continue;
     }
@@ -148,9 +163,10 @@ export function buildRosterForDate<
 
     // 폴백: 해지·회차소진(·정지) 구독은 그 발송일 기준 배송 대상이 아니다 → 명단에서 제외.
     //   배송 탭(DispatchPanel)과 동일한 SSOT 로 과배송을 막는다. 슬롯이 없으면 보수적으로 포함.
-    //   폴백 슬롯은 요일 매칭 슬롯 → 원주문 매핑(slotByOrder) 순으로 고른다 — block_weeks 가
-    //   원주문 기준이라 슬롯을 못 찾으면 기존과 같이 slotByOrder 로 떨어진다.
-    const fallbackSlot = (slotId != null ? slotById?.get(slotId) : undefined) ?? slotByOrder.get(orderId);
+    //   폴백 슬롯은 요일 매칭 슬롯 → 원주문 매핑(slotByOrder) 순으로 고른다 — 요일 슬롯을
+    //   못 찾으면 기존과 같이 slotByOrder(원주문 기준 block_weeks)로 떨어진다.
+    const fallbackSlot =
+      (slotId != null ? slotById?.get(slotId) : undefined) ?? slotByOrder.get(orderId);
     if (
       fallbackSlot &&
       dispatchScheduleForSlot(fallbackSlot, order.block_weeks ?? 0, dateISO).excluded

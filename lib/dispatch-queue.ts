@@ -16,9 +16,13 @@ import {
   type RosterOrderFields,
   type RosterItemFields,
 } from "./delivery-roster";
-import { dispatchScheduleForSlot, type DispatchSlotInfo } from "./dispatch-schedule";
+import {
+  dispatchScheduleForSlot,
+  type DispatchScheduleResult,
+  type DispatchSlotInfo,
+} from "./dispatch-schedule";
 import { isCarriedOver } from "./dispatch-overdue";
-import type { RawBlock } from "./subscription-timeline";
+import { totalWeeks, type RawBlock } from "./subscription-timeline";
 
 // 단품 주문은 1건 = 발송 1회다. 주문 상태가 곧 그 발송의 상태이므로 완료·취소는 시트에서 뺀다.
 export const ONCE_SHIPPABLE = ["입금확인", "배송준비", "배송중"] as const;
@@ -122,7 +126,40 @@ function slotForRow<O, S extends DispatchSlotInfo & { delivery_day?: string | nu
   return (chainId != null ? maps.slotById?.get(chainId) : undefined) ?? maps.slotByOrder.get(orderId);
 }
 
-// 회차 표기(n/m회·남은 회차). 연장 체인 슬롯은 슬롯 단위(원주문 block_weeks + extended_weeks)로 센다.
+// 이 행의 회차 스케줄(회차·총회차·남은 회차·제외 여부). 시트와 배송 명단이 같은 값을 쓰도록
+//   슬롯 선택·총회차 규칙을 여기 한 곳에만 둔다.
+//
+//   ★ 총 회차는 확정된 블록 체인(원주문 + 입금확인된 연장주문)의 합으로 센다.
+//     slots.extended_weeks 는 쓰지 않는다 — 늘기만 하고 줄지 않으므로, 입금확인된 연장주문을
+//     나중에 '취소'로 되돌리면 그 회차가 남아 이미 끝난 구독에 계속 보내게 된다(과배송).
+//     기간별 배송 명단의 발송 게이팅(activeBlockOrderForDate)도 블록 체인 기준이라 표기가 맞물린다.
+//     블록 데이터가 없으면(레거시·미상) 기존 슬롯 기준(block_weeks + extended_weeks)으로 떨어진다.
+function scheduleForRow<O extends QueueOrderFields, S extends DispatchSlotInfo & { order_id?: string | null; delivery_day?: string | null }>(
+  maps: QueueMaps<O, S>,
+  order: O,
+  day: DeliveryDay | null,
+  shipISO: string
+): DispatchScheduleResult | null {
+  const slot = slotForRow(maps, order.id, day);
+  if (!slot) return null;
+  // 연장 체인이면 총 회차는 원주문 기준(연장주문의 block_weeks 는 그 블록 몫일 뿐).
+  const chainSlotId = maps.slotIdByOrderDay?.get(`${order.id}|${day ?? ""}`) ?? maps.slotIdByOrder?.get(order.id);
+  const chainSlot = chainSlotId != null ? maps.slotById?.get(chainSlotId) : undefined;
+  const baseSlot = chainSlot ?? slot;
+  const blocks = chainSlotId != null ? maps.blocksBySlot?.get(chainSlotId) : undefined;
+  if (blocks && blocks.length > 0) {
+    return dispatchScheduleForSlot(
+      { ...baseSlot, extended_weeks: 0 },
+      totalWeeks(blocks),
+      shipISO
+    );
+  }
+  const originalId = (baseSlot as { order_id?: string | null }).order_id ?? order.id;
+  const weeks = maps.orderById.get(originalId)?.block_weeks ?? order.block_weeks ?? 0;
+  return dispatchScheduleForSlot(baseSlot, weeks, shipISO);
+}
+
+// 회차 표기(n/m회·남은 회차).
 function roundInfo<O extends QueueOrderFields, S extends DispatchSlotInfo & { order_id?: string | null; delivery_day?: string | null }>(
   maps: QueueMaps<O, S>,
   order: O,
@@ -130,17 +167,10 @@ function roundInfo<O extends QueueOrderFields, S extends DispatchSlotInfo & { or
   shipISO: string
 ): Pick<DispatchSlice<O, never>, "round" | "total" | "remaining"> {
   if (order.order_type === "단품") return { round: 1, total: 1, remaining: 0 };
-  const slot = slotForRow(maps, order.id, day);
-  if (!slot) {
+  const sch = scheduleForRow(maps, order, day, shipISO);
+  if (!sch) {
     return { round: roundFor(order.order_type, shipISO, order.created_at), total: 0, remaining: 0 };
   }
-  // 연장 체인이면 총 회차는 원주문 기준(연장주문의 block_weeks 는 그 블록 몫일 뿐).
-  const chainSlotId = maps.slotIdByOrderDay?.get(`${order.id}|${day ?? ""}`) ?? maps.slotIdByOrder?.get(order.id);
-  const chainSlot = chainSlotId != null ? maps.slotById?.get(chainSlotId) : undefined;
-  const baseSlot = chainSlot ?? slot;
-  const originalId = (baseSlot as { order_id?: string | null }).order_id ?? order.id;
-  const weeks = maps.orderById.get(originalId)?.block_weeks ?? order.block_weeks ?? 0;
-  const sch = dispatchScheduleForSlot(baseSlot, weeks, shipISO);
   return { round: sch.round, total: sch.total, remaining: sch.remaining };
 }
 
@@ -302,8 +332,8 @@ export function buildDispatchSlicesAll<
     }
     const groups: [DeliveryDay | null, I[]][] = byDay.size > 0 ? [...byDay] : [[null, its]];
     for (const [day, dayItems] of groups) {
-      const slot = slotForRow(maps, o.id, day);
-      if (slot && dispatchScheduleForSlot(slot, o.block_weeks ?? 0, shipISO).excluded) continue;
+      // 해지·정지·회차소진·시작전 제외 — 회차 표기와 같은 스케줄(=같은 총회차)로 판정한다.
+      if (scheduleForRow(maps, o, day, shipISO)?.excluded) continue;
       const info = roundInfo(maps, o, day, shipISO);
       out.push({
         order: o,

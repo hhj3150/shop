@@ -73,36 +73,48 @@ describe("computeSchedule", () => {
     expect(s.endDate).toBe("2026-07-20");
   });
 
-  // ── 첫배송 공휴일 시프트(firstShipDate): 앵커(started_at, 선택 요일)는 그대로 두고
-  //    1회차만 다음 영업일로. 2회차+ 는 앵커 요일 cadence 유지. ──
-  describe("firstShipDate(첫배송 공휴일 → 다음 영업일)", () => {
-    // 앵커 06-01(월)이 공휴일이라 첫배송만 06-02(화)로 시프트된 4주 구독 가정.
-    const shifted = (over: Partial<SubInput> = {}) =>
-      base({ firstShipDate: "2026-06-02", ...over });
-
-    it("앵커 당일(06-01)에는 아직 1회차 미발송 — delivered 0, 다음 발송 06-02", () => {
-      const s = computeSchedule(shifted(), d("2026-06-01"));
-      expect(s.delivered).toBe(0);
-      expect(s.nextDate).toBe("2026-06-02");
+  // ── 첫배송이 공휴일에 걸릴 때 ──
+  //    앵커(started_at, 선택 요일)는 그대로 두고 1회차 발송일만 규칙(shipDateInWeek)으로 정한다.
+  //    slots.first_ship_date 는 더 이상 쓰지 않는다 — 옛 규칙('다음 영업일')로 저장된 값이라
+  //    앞당김·휴배송이 들어간 지금 규칙과 어긋나고, 그러면 회차 계산과 배송 명단이 갈린다.
+  describe("첫배송 공휴일 — 앵커에서 규칙대로 산출", () => {
+    it("월요일 공휴일 앵커(10-05 개천절 대체) → 1회차는 같은 주 10-06(화)", () => {
+      const s = computeSchedule(
+        base({ startedAt: "2026-10-05", totalWeeks: 4 }),
+        d("2026-10-05")
+      );
+      expect(s.delivered).toBe(0); // 앵커 당일은 공휴일 — 아직 발송 전
+      expect(s.nextDate).toBe("2026-10-06");
     });
 
-    it("시프트된 첫배송일(06-02) — delivered 1, 다음 발송은 앵커 요일 06-08", () => {
-      const s = computeSchedule(shifted(), d("2026-06-02"));
+    it("시프트된 첫배송일(10-06) — delivered 1, 2회차는 앵커 요일 10-12", () => {
+      const s = computeSchedule(
+        base({ startedAt: "2026-10-05", totalWeeks: 4 }),
+        d("2026-10-06")
+      );
       expect(s.delivered).toBe(1);
-      expect(s.nextDate).toBe("2026-06-08");
+      expect(s.nextDate).toBe("2026-10-12");
+      expect(s.endDate).toBe("2026-10-26"); // 2회차+ 는 앵커 요일 cadence 유지
     });
 
-    it("2회차+ 와 종료일은 앵커 요일 그대로 — 06-15 시점 delivered 3, endDate 06-22", () => {
-      const s = computeSchedule(shifted(), d("2026-06-15"));
-      expect(s.delivered).toBe(3);
-      expect(s.endDate).toBe("2026-06-22");
+    it("first_ship_date 가 저장돼 있어도 무시하고 앵커에서 산출한다", () => {
+      const withStale = computeSchedule(
+        base({ startedAt: "2026-10-05", totalWeeks: 4, firstShipDate: "2026-10-09" }),
+        d("2026-10-06")
+      );
+      expect(withStale.delivered).toBe(1);
+      expect(withStale.nextDate).toBe("2026-10-12");
     });
 
-    it("firstShipDate 없으면(보정 불필요) 기존과 동일 — 1회차=앵커", () => {
-      const s = computeSchedule(base(), d("2026-06-01"));
-      expect(s.delivered).toBe(1); // 앵커 당일 발송
-      const sShift = computeSchedule(shifted(), d("2026-06-01"));
-      expect(sShift.delivered).toBe(0); // 시프트되면 앵커 당일은 아직
+    it("금요일 공휴일 앵커는 1회차를 앞당기지 않고 다음 주로 미룬다", () => {
+      // 2026-12-25(금) 성탄절. 앞당기면 12-24(목) — 앵커(입금확인 다음 날 이후)보다 이르다.
+      //   2027-01-01(금)도 신정이라 한 주 더 미뤄 1/8 이 1회차가 된다.
+      const s = computeSchedule(
+        base({ startedAt: "2026-12-25", totalWeeks: 4 }),
+        d("2026-12-25")
+      );
+      expect(s.delivered).toBe(0);
+      expect(s.nextDate).toBe("2027-01-08");
     });
   });
 });

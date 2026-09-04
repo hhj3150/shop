@@ -152,12 +152,27 @@ describe("buildDispatchSlicesForDate — 정기구독은 주문 상태로 사라
     expect(sheet(DATE, orders, [item({ order_id: "pickup" })], [slot({ id: 1, order_id: "pickup" })])).toEqual([]);
   });
 
-  it("회차 표기는 슬롯 기준(연장 회차 포함)으로 센다", () => {
-    const orders = [order({ id: "o1", block_weeks: 12 })];
-    const rows = sheet(DATE, orders, [item({ order_id: "o1" })], [slot({ id: 1, order_id: "o1", extended_weeks: 8 })]);
+  it("회차 표기는 확정된 블록 체인(원주문 + 연장주문) 기준으로 센다", () => {
+    const orders = [
+      order({ id: "o1", block_weeks: 12 }),
+      order({ id: "r1", block_weeks: 8, renews_slot_id: 1, created_at: "2026-08-01T00:00:00Z" }),
+    ];
+    const items = [item({ order_id: "o1" }), item({ order_id: "r1" })];
+    const rows = sheet(DATE, orders, items, [slot({ id: 1, order_id: "o1", extended_weeks: 8 })]);
+    expect(rows.length).toBe(1); // 연장분은 원구독 구간 동안 시트에 뜨지 않는다(이중 발송 방지)
     expect(rows[0].total).toBe(20);
     expect(rows[0].round).toBe(8); // 7/6 시작 월요일 구독의 8/31 회차(하계휴무 이월 1주 반영)
     expect(rows[0].remaining).toBe(12);
+  });
+
+  it("★회귀: 연장주문 없이 slots.extended_weeks 만 남은 회차는 세지 않는다(과배송)", () => {
+    // extended_weeks 는 늘기만 하고 줄지 않는다 — 입금확인했던 연장주문을 나중에 '취소'로
+    //   되돌리면 그 회차가 슬롯에 남아, 이미 끝난 구독에 계속 보내게 된다.
+    //   총 회차는 확정된 블록 체인(원주문 + 확정 연장주문)만 센다.
+    const orders = [order({ id: "o1", block_weeks: 12 })];
+    const rows = sheet(DATE, orders, [item({ order_id: "o1" })], [slot({ id: 1, order_id: "o1", extended_weeks: 8 })]);
+    expect(rows[0].total).toBe(12);
+    expect(rows[0].remaining).toBe(4);
   });
 });
 
