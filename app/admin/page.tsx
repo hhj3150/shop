@@ -21,7 +21,7 @@ import {
 import {
   firstSubscriptionDelivery,
   firstDeliveryOnOrAfter,
-  subscriptionShipDate,
+  roundShipPlan,
   toISODate,
 } from "@/lib/ship-date";
 import { kstDaysElapsed } from "@/lib/payment-recovery";
@@ -1037,12 +1037,14 @@ export default function AdminPage() {
       const slotErrors: string[] = [];
       for (const s of (pending ?? []) as { id: number; delivery_day: DeliveryDay }[]) {
         // 앵커(started_at) = 선택 요일의 가장 가까운 날. 2회차+ cadence 기준이라 보정하지 않는다.
-        //   first_ship_date = 1회차 실제 배송일(주말·공휴일 → 다음 영업일, 목장 휴무 주 →
-        //   다음 주 같은 요일). 앵커와 같으면 null. ★ 서버 자동 입금확인(confirm_payment)이
-        //   저장하는 값과 정확히 같은 규칙(subscriptionShipDate = SQL sub_delivery_dates)이라
-        //   수기·자동 어느 경로로 확인해도 회차 배송일이 갈리지 않는다.
+        //   first_ship_date = 1회차 실제 배송일(「한 회차는 그 주를 벗어나지 않는다」 규칙).
+        //   앵커와 같으면 null. ★ 서버 자동 입금확인(confirm_payment → sub_delivery_dates)이
+        //   저장하는 값과 정확히 같은 규칙이라, 수기·자동 어느 경로로 확인해도 갈리지 않는다.
+        //   ★ 1회차는 앞당기지 않는다(roundShipPlan 두 번째 인자) — 앵커가 '입금확인 다음 날
+        //   이후'라 앞당기면 이미 지난 날이 된다. 그 회차는 다음 주 같은 요일로 미룬다.
+        //   (회차 계산 자체는 이 값을 쓰지 않고 앵커에서 다시 구한다 — 표시·조회용 잔재 컬럼.)
         const start = toISODate(firstSubscriptionDelivery(s.delivery_day));
-        const first = subscriptionShipDate(start);
+        const first = roundShipPlan(start, true).ship;
         const { error: slotErr } = await sb
           .from("subscription_slots")
           .update({
@@ -1186,9 +1188,12 @@ export default function AdminPage() {
       return;
     }
     const newStart = firstDeliveryOnOrAfter(slot.delivery_day, baseISO);
+    // 새 앵커에 맞춰 1회차 보정일도 다시 쓴다(앞당김 없음 — 회차 계산은 앵커에서 다시 구하지만,
+    //   옛 값이 남아 있으면 '이번 출고가 어느 슬롯 회차인가'(slotShipsOn) 판정이 어긋난다).
+    const newFirst = roundShipPlan(newStart, true).ship;
     const { error } = await getSupabase()
       .from("subscription_slots")
-      .update({ started_at: newStart })
+      .update({ started_at: newStart, first_ship_date: newFirst === newStart ? null : newFirst })
       .eq("id", slot.id);
     if (error) {
       alert(`구독 시작일 변경 실패: ${error.message}`);
@@ -2364,7 +2369,7 @@ export default function AdminPage() {
                                   </label>
                                   <span className="text-[12px] text-mute">
                                     → {startDeferDate
-                                      ? `${subscriptionShipDate(firstDeliveryOnOrAfter(slot.delivery_day, startDeferDate))} (${DELIVERY_DAY_LABEL[slot.delivery_day]}) 첫 발송`
+                                      ? `${roundShipPlan(firstDeliveryOnOrAfter(slot.delivery_day, startDeferDate), true).ship} (${DELIVERY_DAY_LABEL[slot.delivery_day]}) 첫 발송`
                                       : "날짜 선택 시 첫 발송일 미리보기"}
                                   </span>
                                   <button
