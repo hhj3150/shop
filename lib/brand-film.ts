@@ -2,7 +2,8 @@
 // 단일 영상 무한 반복은 loop=1 + playlist=<자기 자신>이 함께 있어야 동작한다.
 // 개인정보 보호를 위해 youtube-nocookie 도메인을 사용한다.
 
-export const BRAND_FILM_ID = "bI5EmgK0i2A";
+// 브랜드 필름 영상 ID. 재촬영본으로 교체(2026-09-04).
+export const BRAND_FILM_ID = "D_EGqc1xKy0";
 
 export function buildFilmEmbedUrl(videoId: string): string {
   const params = new URLSearchParams({
