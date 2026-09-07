@@ -14,6 +14,16 @@ import {
   type RawBlock,
 } from "./subscription-timeline";
 
+// 확정된 연장(재구독) 주문 상태 — 서버 cancel_subscription 의 CONFIRMED 목록과 같다.
+//   회차·금액·블록 체인이 모두 이 목록 하나만 본다. 입금대기·취소 연장은 어디에도 반영하지 않는다.
+//   ★ 여기가 갈리면 손님 화면의 회차·환불 미리보기와 서버가 실제로 지급하는 환불액이 달라진다.
+export const CONFIRMED_RENEWAL_STATUSES = [
+  "입금확인",
+  "배송준비",
+  "배송중",
+  "배송완료",
+] as const;
+
 export type DayCount = {
   active: number; // 자동이체 확인된 정회원
   taken: number; // 신청+활성 (정원 100 점유)
@@ -137,9 +147,9 @@ function blocksForSlot(
   return buildRawBlocks(src.originalOrder, src.renewalOrders, src.itemsByOrder);
 }
 
-// 슬롯 원자료 + '입금확인' 연장주문 금액을 합쳐 미리보기용 구독 모델을 만든다.
-//   totalWeeks   = 원주문 block_weeks + 연장 누적 회차(extended_weeks)
-//   totalAmount  = 원주문 total_amount + Σ(해당 슬롯 입금확인 연장주문 total_amount)
+// 슬롯 원자료 + 확정 연장주문 금액을 합쳐 미리보기용 구독 모델을 만든다.
+//   totalWeeks   = 확정 블록 체인(원주문 + 확정 연장주문)의 회차 합
+//   totalAmount  = 원주문 total_amount + Σ(해당 슬롯 확정 연장주문 total_amount)
 // 서버(cancel_subscription)의 환불 산식과 동일한 분자·분모를 갖도록 맞춘다.
 export function toMySubscriptions(
   rows: SlotJoinRow[],
@@ -154,26 +164,37 @@ export function toMySubscriptions(
     };
   }, {});
 
-  return rows.map((row) => ({
-    slotId: row.id,
-    deliveryDay: row.delivery_day,
-    status: row.status,
-    startedAt: row.started_at,
-    firstShipDate: row.first_ship_date,
-    paused: row.paused,
-    pausedAt: row.paused_at,
-    pausedDays: row.paused_days,
-    skipResumeOn: row.skip_resume_on,
-    // 총 배송 회차 = 원 주문 block_weeks + 연장 누적 회차
-    totalWeeks: (row.orders?.block_weeks ?? 0) + (row.extended_weeks ?? 0),
-    periodMonths: row.orders?.period_months ?? 1,
-    orderNo: row.orders?.order_no ?? null,
-    // 총 납입액 = 원 주문 + 입금확인된 연장주문 합계
-    totalAmount: (row.orders?.total_amount ?? 0) + (extBySlot[row.id] ?? 0),
-    deliveryMethod: row.orders?.delivery_method ?? "택배",
-    // 블록 체인(원주문 먼저, 연장 created_at,id 순) — buildRawBlocks 로 조립.
-    blocks: blocksForSlot(row.id, blockSources),
-  }));
+  return rows.map((row) => {
+    const blocks = blocksForSlot(row.id, blockSources);
+    return {
+      slotId: row.id,
+      deliveryDay: row.delivery_day,
+      status: row.status,
+      startedAt: row.started_at,
+      firstShipDate: row.first_ship_date,
+      paused: row.paused,
+      pausedAt: row.paused_at,
+      pausedDays: row.paused_days,
+      skipResumeOn: row.skip_resume_on,
+      // 총 배송 회차 = 확정 블록 체인(원주문 + 확정 연장주문)의 합.
+      //   ★ slots.extended_weeks 를 쓰면 안 된다 — 늘기만 하고 줄지 않아서, 입금확인했던
+      //     연장주문을 나중에 '취소'로 되돌리면 그 회차가 남는다. 그러면 손님 화면은
+      //     "아직 8회 남음"인데 배송 명단·서버 환불(cancel_subscription)은 이미 끝난 구독으로
+      //     본다 — 오지 않을 배송을 약속하고, 미리보기 환불액도 실제 지급액보다 많아진다.
+      //   블록을 못 만든 레거시 슬롯만 옛 값으로 폴백한다.
+      totalWeeks:
+        blocks.length > 0
+          ? blockTotalWeeks(blocks)
+          : (row.orders?.block_weeks ?? 0) + (row.extended_weeks ?? 0),
+      periodMonths: row.orders?.period_months ?? 1,
+      orderNo: row.orders?.order_no ?? null,
+      // 총 납입액 = 원 주문 + 확정 연장주문 합계(회차와 같은 상태 목록)
+      totalAmount: (row.orders?.total_amount ?? 0) + (extBySlot[row.id] ?? 0),
+      deliveryMethod: row.orders?.delivery_method ?? "택배",
+      // 블록 체인(원주문 먼저, 연장 created_at,id 순) — buildRawBlocks 로 조립.
+      blocks,
+    };
+  });
 }
 
 // 로그인한 회원의 구독 슬롯 목록(해지 제외). 스케줄·환불 계산용 원자료를 그대로 돌려준다.
@@ -199,14 +220,15 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
     order_id: string | null;
   })[];
 
-  // 입금확인된 연장주문 금액(슬롯별)을 함께 가져와 총 납입액에 합산한다.
-  // extended_weeks 는 연장주문 입금확인 시에만 누적되므로 status='입금확인' 만 합산해야
-  // 회차와 금액이 정확히 대응한다(미입금 연장은 회차·금액 모두 제외).
+  // 확정 연장주문 금액(슬롯별)을 함께 가져와 총 납입액에 합산한다.
+  //   ★ 회차(블록 체인)와 반드시 같은 상태 목록을 써야 한다. '입금확인'만 세면, 배송준비·
+  //     배송중으로 넘어간 연장분이 회차에는 있는데 금액에서만 빠져 회당 단가가 왜곡된다
+  //     (블록 데이터가 없는 레거시 슬롯의 환불 폴백식이 그 단가를 쓴다).
   const { data: extData, error: extError } = await sb
     .from("orders")
     .select("renews_slot_id, total_amount")
     .eq("user_id", uid)
-    .eq("status", "입금확인")
+    .in("status", CONFIRMED_RENEWAL_STATUSES as unknown as string[])
     .not("renews_slot_id", "is", null);
   if (extError) throw new Error(extError.message);
 
@@ -218,15 +240,6 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
     blockSources
   );
 }
-
-// 블록 환불 미리보기에 쓰일 확정 블록 상태 — 서버 cancel_subscription 의 CONFIRMED 와 동일.
-// 입금대기·취소 연장주문은 회차에 반영되지 않으므로 블록에서 제외한다.
-const CONFIRMED_RENEWAL_STATUSES = [
-  "입금확인",
-  "배송준비",
-  "배송중",
-  "배송완료",
-] as const;
 
 // 주문 임베드 행(원주문/연장주문 공통) — 자기 order_items 포함.
 type OrderWithItemsRow = {

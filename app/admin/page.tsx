@@ -8,6 +8,11 @@ import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { computeSchedule } from "@/lib/subscription-schedule";
 import { buildRosterForDate, type DeliveryEntry as RosterEntry } from "@/lib/delivery-roster";
+import {
+  cancelledButActiveSlots,
+  roundsUsedUpSlots,
+  shipmentGapSlots,
+} from "@/lib/slot-integrity";
 import { buildRosterMaps } from "@/lib/roster-maps";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { countShippedRoundsBySlot } from "@/lib/dispatch-queue";
@@ -427,29 +432,31 @@ export default function AdminPage() {
     const emptyItems = orders.filter(
       (o) => o.status !== "취소" && (itemsByOrder.get(o.id)?.length ?? 0) === 0
     );
-    // (3) 주문은 취소인데 구독 슬롯이 아직 '활성' → 요일 정원만 차지하고 배송은 안 나간다.
-    //     모집 현황과 실제 배송 인원이 갈리는 원인이라 눈에 띄게 잡아 둔다.
-    const cancelledButActive = slots.filter(
-      (s) =>
-        s.status === "활성" &&
-        !!s.order_id &&
-        orderById.get(s.order_id)?.status === "취소"
-    );
-    // (4) 결제한 회차만큼 이미 나갔는데 아직 활성인 구독 → 다음 회차가 나가면 과배송이다.
-    //     배송 시트가 '발송금지'로 막지만, 원인(연장 미처리·회차 계산 어긋남)은 사람이 판단해야 한다.
+    // (3)~(5) 구독 슬롯 무결성 — 판정 규칙은 lib/slot-integrity 한 곳에만 둔다.
+    //   결제 회차는 어디서나 '확정 블록 체인'의 합이다(손님 화면·서버 환불과 같은 기준).
     const shippedBySlot = countShippedRoundsBySlot(shippedKeys, slotIdByOrder);
-    const roundsUsedUp = slots
-      .map((s) => {
-        const paid =
-          (s.order_id ? (orderById.get(s.order_id)?.block_weeks ?? 0) : 0) + (s.extended_weeks ?? 0);
-        return { slot: s, paid, shipped: shippedBySlot.get(s.id) ?? 0 };
-      })
-      .filter((x) => x.slot.status === "활성" && x.paid > 0 && x.shipped >= x.paid);
+    const cancelledButActive = cancelledButActiveSlots(slots, orderById);
+    const roundsUsedUp = roundsUsedUpSlots(slots, orderById, shippedBySlot, blocksBySlot);
+    // (6) 출고 기록이 실제 발송을 못 따라가는 구독 → 과배송 방어선이 무력해진다.
+    const shipmentGaps = shipmentGapSlots(
+      slots,
+      orderById,
+      shippedBySlot,
+      todayISO(),
+      blocksBySlot
+    );
     // (5) 일시정지 이력이 있는 구독 → 회차 표기(발송 문자의 'N회 중 M번째')가 한 회차 밀린다.
     //     정지일수를 이미 나간 회차까지 미는 계산 결함. 발송 횟수 자체는 (4)의 방어선이 지킨다.
     const pausedHistory = slots.filter((s) => s.status === "활성" && (s.paused_days ?? 0) > 0);
-    return { paymentNoEvidence, emptyItems, cancelledButActive, roundsUsedUp, pausedHistory };
-  }, [orders, itemsByOrder, slots, orderById, shippedKeys, slotIdByOrder]);
+    return {
+      paymentNoEvidence,
+      emptyItems,
+      cancelledButActive,
+      roundsUsedUp,
+      shipmentGaps,
+      pausedHistory,
+    };
+  }, [orders, itemsByOrder, slots, orderById, shippedKeys, slotIdByOrder, blocksBySlot]);
   const nameByUser = useMemo(
     () => new Map(profiles.map((p) => [p.id, p.name])),
     [profiles]
@@ -948,6 +955,29 @@ export default function AdminPage() {
   }
 
   // ── 액션 ─────────────────────────────────────────────────
+  // 취소된 주문에 딸린 구독 슬롯을 해지해 요일 자리를 되돌린다(멱등).
+  //   취소 주문의 배송은 어차피 나가지 않는데 슬롯이 '활성'으로 남으면, 손님 마이페이지에는
+  //   구독과 '다음 발송일'이 계속 떠 오지 않을 배송을 약속하게 된다.
+  async function releaseCancelledOrderSlots(order: OrderRow) {
+    if (
+      !window.confirm(
+        `${order.order_no}: 취소된 주문에 남아 있는 구독 좌석을 해지할까요?\n` +
+          `요일 정원이 즉시 반환되고, 손님 화면에도 '해지'로 표시됩니다. (환불은 별도 처리)`
+      )
+    ) {
+      return;
+    }
+    const { error } = await getSupabase().rpc("admin_cancel_order", {
+      p_order_id: order.id,
+      p_reason: "주문 취소(좌석 정리)",
+    });
+    if (error) {
+      alert(`좌석 정리 실패: ${error.message}`);
+      return;
+    }
+    await load();
+  }
+
   async function updateStatus(order: OrderRow, status: string) {
     // 실수 방지: '취소'는 되돌리기 어렵고 연결된 구독·환불이 자동 처리되지 않으므로 확인받는다.
     if (
@@ -984,6 +1014,24 @@ export default function AdminPage() {
       return;
     }
     const sb = getSupabase();
+    // 취소 → 전용 RPC로 주문 상태와 '그 주문이 만든 구독 슬롯 해지'를 원자적으로 처리한다.
+    //   상태만 바꾸면 슬롯이 '활성'으로 남아, 손님 마이페이지에는 구독과 다음 발송일이
+    //   계속 뜨는데 배송 명단에는 없어 우유가 안 간다(요일 정원도 계속 점유).
+    //   연장 주문의 취소는 슬롯을 건드리지 않는다 — 원구독 회차는 계속되어야 한다(RPC가 판정).
+    if (status === "취소") {
+      const { error: cancelErr } = await sb.rpc("admin_cancel_order", {
+        p_order_id: order.id,
+        p_reason: "관리자 주문 취소",
+      });
+      if (cancelErr) {
+        alert(`주문 취소 실패: ${cancelErr.message}`);
+        return;
+      }
+      void notify({ kind: "order_cancelled", orderId: order.id });
+      void cancelPayActionDeposit(order.order_no);
+      await load();
+      return;
+    }
     // 연장 주문 입금확인 → 전용 RPC로 슬롯 회차(+4) 연장과 상태 변경을 원자적으로 처리.
     if (status === "입금확인" && order.renews_slot_id) {
       const { error } = await sb.rpc("confirm_renewal_payment", {
@@ -1082,12 +1130,6 @@ export default function AdminPage() {
       if (isNoticeFresh(onceShipISO, toISODate(new Date()))) {
         void notify({ kind: "delivered", orderId: order.id });
       }
-    }
-    // 취소 → 고객(선물이면 보낸 분)에게 취소 안내 발송 + PayAction 매칭 중지.
-    //   PayAction 에 알리지 않으면 취소한 주문에 뒤늦게 입금이 들어와 고아입금이 된다.
-    if (status === "취소") {
-      void notify({ kind: "order_cancelled", orderId: order.id });
-      void cancelPayActionDeposit(order.order_no);
     }
     await load();
   }
@@ -1573,7 +1615,8 @@ export default function AdminPage() {
               <p className="text-[14px] font-medium text-ink">
                 주문은 취소인데 구독이 활성인 좌석 ({anomalies.cancelledButActive.length}건)
                 <span className="ml-1.5 text-[12px] font-normal text-mute">
-                  — 배송은 나가지 않는데 그 요일 정원만 차지합니다. 회원·구독 탭에서 해지 처리해 자리를 비워 주세요.
+                  — 손님 마이페이지에는 구독과 다음 발송일이 계속 뜨는데 배송은 나가지 않고, 그 요일 정원만
+                  차지합니다. [좌석 해지]를 누르면 자리가 반환되고 손님 화면에도 &apos;해지&apos;로 표시됩니다(환불은 별도).
                 </span>
               </p>
               <ul className="mt-2 space-y-1">
@@ -1591,7 +1634,51 @@ export default function AdminPage() {
                       )}
                       <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">
+                        {DELIVERY_DAY_LABEL[s.delivery_day]}요일 · 슬롯 {s.id} · {s.status}
+                      </span>
+                      {o && (
+                        <button
+                          onClick={() => releaseCancelledOrderSlots(o)}
+                          className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[12px] font-semibold text-amber-800 hover:bg-amber-100"
+                        >
+                          좌석 해지
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          {anomalies.shipmentGaps.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[14px] font-medium text-ink">
+                출고 기록이 실제 발송보다 적은 구독 ({anomalies.shipmentGaps.length}건)
+                <span className="ml-1.5 text-[12px] font-normal text-mute">
+                  — 과배송을 막는 &apos;발송금지&apos; 방어선과 손님 마이페이지의 &apos;배송 현황&apos;이 모두 이 기록을
+                  셉니다. 기록이 비어 있으면 이미 다 보낸 구독에도 시트가 계속 &apos;보내도 된다&apos;고 말합니다.
+                  배송 탭에서 지난 회차를 출고 처리해 기록을 맞춰 주세요.
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {anomalies.shipmentGaps.map(({ slot: s, expected, shipped, gap }) => {
+                  const o = s.order_id ? orderById.get(s.order_id) : undefined;
+                  return (
+                    <li key={s.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
+                      {o && (
+                        <button
+                          onClick={() => focusOrderInManageTab(o.order_no)}
+                          className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
+                        >
+                          {o.order_no}
+                        </button>
+                      )}
+                      <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
+                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[12px] text-ink-soft">
                         {DELIVERY_DAY_LABEL[s.delivery_day]}요일 · 슬롯 {s.id}
+                      </span>
+                      <span className="tabular-nums text-mute">
+                        예상 {expected}회 · 기록 {shipped}회 · <span className="text-red-700">누락 {gap}회</span>
                       </span>
                     </li>
                   );
