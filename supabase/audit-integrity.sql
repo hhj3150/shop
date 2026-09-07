@@ -66,7 +66,10 @@ union all select 'M. 배송중인데 출고 이력 없음', count(*)
   from orders o where o.status = '배송중'
    and not exists (select 1 from shipment_log sl where sl.order_id = o.id)
 
-union all select 'N. 재고 합계가 음수인 제품', count(*)
+-- 재고: 2026-09 현재 전 품목 product_catalog.stock = null(무제한)로 운영한다. 매주 생산해
+--   보내는 신선식품이라 수량 재고를 잡지 않는다 → stock_ship_out 이 차감을 건너뛰고
+--   stock_movements 도 비어 있는 것이 정상이다. 재고를 켜는 날 이 점검이 의미를 갖는다.
+union all select 'N. 재고 합계가 음수인 제품(재고 미사용 시 항상 0)', count(*)
   from (select product_id from stock_movements group by 1 having sum(delta) < 0) t
 
 union all select 'O. 확정 연장주문인데 슬롯이 해지됨', count(*)
