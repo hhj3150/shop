@@ -31,27 +31,27 @@ export function StickyBuyBar({ product, maxRate }: { product: Product; maxRate: 
   return (
     <div
       aria-hidden={!show}
-      className={`fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+3.9rem)] z-30 no-print transition-all duration-300 md:hidden ${
+      className={`fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+3.9rem)] z-30 no-print transition-all duration-300 ease-[var(--ease-spring)] md:hidden ${
         show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
       }`}
     >
       {/* pr-20: 오른쪽 채팅 FAB 자리를 비워 버튼과 겹치지 않게 한다. */}
-      <div className="mx-auto flex max-w-md items-center justify-between gap-3 border-t border-line bg-paper/95 px-5 py-2.5 pr-20 shadow-[0_-8px_24px_-16px_rgba(40,30,15,0.35)] backdrop-blur">
+      <div className="material-chrome mx-auto flex max-w-md items-center justify-between gap-3 border-t border-line/70 px-5 py-2.5 pr-20 shadow-[0_-8px_24px_-16px_rgba(40,30,15,0.35)]">
         {/* 1회 구매 전용 제품은 구독 문구 대신 정가·단품 CTA로 바꾼다. */}
         <div className="min-w-0">
-          <p className="text-[11px] leading-none text-mute">
+          <p className="t-caption leading-none text-mute">
             {product.onceOnly ? "정가 · 1회 구매" : "정기구독 회원가"}
           </p>
-          <p className="mt-1 text-[15px] font-semibold leading-none text-ink tabular-nums">
+          <p className="t-num mt-1 text-[15px] font-semibold leading-none text-ink">
             {formatKRW(product.onceOnly ? live.price : memberPrice)}
             {!product.onceOnly && (
-              <span className="ml-1 text-[12px] font-normal text-mute">/ 회</span>
+              <span className="t-caption ml-1 font-normal text-mute">/ 회</span>
             )}
           </p>
         </div>
         <a
           href="#configure"
-          className="shrink-0 rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
+          className="press flex min-h-11 shrink-0 items-center rounded-full bg-ink px-5 text-[14px] font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
         >
           {product.onceOnly ? "구매하기" : "정기구독 신청"}
         </a>

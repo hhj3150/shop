@@ -56,14 +56,80 @@ describe("computeSchedule", () => {
   });
 
   it("현재 정지중(paused)이면 nextDate 없음 + 정지일이 매일 누적돼 delivered 멈춤", () => {
-    // 06-08 정지 시작, 06-22 기준 currentPause=14일 → 06-08 1회만 완료된 채 멈춤.
+    // 06-08(월, 2회차 예정일) 정지 시작 → 그날 배송명단에서 빠지므로 06-01 1회만 완료.
     const s = computeSchedule(
       base({ paused: true, pausedAt: "2026-06-08" }),
       d("2026-06-22")
     );
     expect(s.paused).toBe(true);
     expect(s.nextDate).toBeNull();
-    expect(s.delivered).toBe(2);
+    expect(s.delivered).toBe(1);
+  });
+
+  // ── 일시정지 회차 밀림 ──
+  //   정지 보정의 기준은 '경과 일수'가 아니라 '놓친 회차 수'다. 경과 일수를 주 단위로
+  //   올리면(옛 규칙) 배송을 하나도 놓치지 않은 정지가 전 회차를 한 주 밀고, 반대로
+  //   휴배송 주를 낀 정지는 있지도 않은 배송을 놓친 것으로 세어 회차를 깎는다.
+  describe("일시정지 — 놓친 회차만큼만 민다", () => {
+    it("배송일이 끼지 않은 짧은 정지는 회차를 밀지 않는다", () => {
+      // 월요일 구독. 06-03(수) 정지 → 06-05(금) 기준. 그 사이 배송 예정일은 없다.
+      const s = computeSchedule(
+        base({ paused: true, pausedAt: "2026-06-03" }),
+        d("2026-06-05")
+      );
+      expect(s.delivered).toBe(1); // 06-01 1회차만 완료
+      expect(s.endDate).toBe("2026-06-22"); // 종료일 그대로 — 옛 규칙은 06-29 로 밀었다
+    });
+
+    it("배송일이 한 번 낀 정지는 딱 한 주만 민다", () => {
+      const s = computeSchedule(
+        base({ paused: true, pausedAt: "2026-06-03" }),
+        d("2026-06-10")
+      );
+      expect(s.delivered).toBe(1); // 06-08 회차를 놓쳤다
+      expect(s.endDate).toBe("2026-06-29"); // 종료일 +1주
+    });
+
+    it("정지 중에는 delivered 가 날마다 흔들리지 않고 그대로 멈춘다", () => {
+      const paused = base({ paused: true, pausedAt: "2026-06-03" });
+      for (const iso of ["2026-06-05", "2026-06-08", "2026-06-12", "2026-06-16", "2026-06-23"]) {
+        expect(computeSchedule(paused, d(iso)).delivered).toBe(1);
+      }
+    });
+
+    it("휴배송 주(2026 추석)를 낀 정지는 그 주를 정지로 세지 않는다", () => {
+      // 화요일 구독, 앵커 06-16 + 확정 정지 28일 → 9회차 09-15, 다음 회차는 추석 휴배송으로 09-29.
+      const tue = {
+        startedAt: "2026-06-16",
+        totalWeeks: 12,
+        paused: true,
+        pausedAt: "2026-09-17",
+        pausedDays: 28,
+      };
+      // 추석 주(09-21~25)는 원래 배송이 없는 주다 → 정지로 세면 안 된다.
+      expect(computeSchedule(tue, d("2026-09-23")).endDate).toBe("2026-10-13");
+      // 09-29 회차를 실제로 놓친 시점에야 한 주 밀린다.
+      expect(computeSchedule(tue, d("2026-09-29")).endDate).toBe("2026-10-20");
+    });
+
+    it("재개 시점의 스케줄이 정지 중 화면과 이어진다(회차가 튀지 않는다)", () => {
+      const tue = {
+        startedAt: "2026-06-16",
+        totalWeeks: 12,
+        paused: true,
+        pausedAt: "2026-09-17",
+        pausedDays: 28,
+      };
+      const whilePaused = computeSchedule(tue, d("2026-09-29"));
+      // 재개 RPC 는 [정지일, 재개일) 의 놓친 회차 1건 → paused_days += 7.
+      const afterResume = computeSchedule(
+        { ...tue, paused: false, pausedAt: null, pausedDays: 35 },
+        d("2026-09-30")
+      );
+      expect(afterResume.delivered).toBe(whilePaused.delivered);
+      expect(afterResume.endDate).toBe(whilePaused.endDate);
+      expect(afterResume.nextDate).toBe("2026-10-06");
+    });
   });
 
   it("연장(totalWeeks=8) → 5회차 시점 delivered 5, remaining 3", () => {

@@ -1,6 +1,15 @@
 // 정기구독 배송 스케줄 계산 (날짜 기반, 주차별 레코드 없이 산출).
-// 핵심: 총 배송 횟수(totalWeeks)는 보존하고, 일시정지한 일수만큼 모든 잔여 배송일이 뒤로 밀린다.
-// 정지 중에는 누적 정지일이 매일 늘어 다음 배송일도 같이 밀리므로 발송 완료 수가 자연히 멈춘다.
+// 핵심: 총 배송 횟수(totalWeeks)는 보존하고, 일시정지로 '놓친 회차'만큼 잔여 배송일이 뒤로 밀린다.
+//
+// ★ 정지 보정의 기준은 '경과 일수'가 아니라 '놓친 회차 수'다.
+//   경과 일수를 주 단위로 올리면(옛 규칙) 회차가 밀린다 — 두 방향 모두로 틀린다.
+//     · 화요일 구독이 수요일에 정지 → 금요일 재개: 놓친 배송은 0회인데 경과 2일이 1주로
+//       올림돼 전 회차가 한 주 밀린다(회차 1개를 공짜로 얹어 주고 종료일도 어긋난다).
+//     · 휴배송 주(추석·하계휴무)를 끼고 정지 → 그 주는 원래 배송이 없는데도 정지 1주로
+//       계산돼 손님이 결제한 회차를 한 번 덜 받는다.
+//   그래서 정지 구간에 '실제로 놓인 배송 예정일'만 세어 그 수 × 7일을 민다.
+//   SQL 도 같은 규칙이다(public.missed_delivery_weeks + sub_delivery_dates) — 화면·서버가
+//   같은 회차를 말해야 환불액·배송명단·연장 블록 경계가 갈리지 않는다.
 
 import { roundShipPlan } from "./ship-date";
 
@@ -51,6 +60,40 @@ export type SubSchedule = {
   done: boolean;
 };
 
+/**
+ * 회차 1..total 의 실제 배송일. 회차 k 의 기준일 = 앵커 + (k-1)주 + 정지일수 + 누적 이월일.
+ * 그 기준일의 실제 발송일은 roundShipPlan(「한 회차는 그 주를 벗어나지 않는다」)이 정한다.
+ *
+ *   ★ 휴배송 이월은 뒤 회차 전체에 누적해야 한다 — 아니면 이월된 회차와 그 다음 회차가
+ *     같은 날로 겹쳐 한 회차가 사라진다(2026 하계휴무 때 월요일 8/10·8/17 회차가 둘 다
+ *     8/18 로 뭉갠 사고). 총 회차는 보존되고 종료일만 이월한 주 수만큼 밀린다.
+ *   ★ 1회차는 앞당기지 않는다 — 앵커는 '입금확인 다음 날 이후'라, 앞당기면 아직 발송할 수
+ *     없는(이미 지난) 날이 된다. 그 회차는 다음 주로 미룬다.
+ *
+ * SQL public.sub_delivery_dates(p_anchor, p_first, p_total, p_pdays) 와 1:1 이다.
+ */
+function buildDates(anchor: Date, total: number, pausedDays: number): Date[] {
+  const dates: Date[] = [];
+  let deferDays = 0;
+  for (let k = 1; k <= total; k++) {
+    const base = addDays(anchor, (k - 1) * 7 + pausedDays + deferDays);
+    const plan = roundShipPlan(toISO(base), k === 1);
+    deferDays += plan.deferDays; // 이월분은 뒤 회차 전체에 누적
+    dates.push(parseISO(plan.ship));
+  }
+  return dates;
+}
+
+/** 반열림 구간 [from, to) 에 들어가는 배송일 수 — 정지 중 '놓친 회차' 계산용. */
+function countBetween(dates: readonly Date[], from: Date, to: Date): number {
+  return dates.filter((d) => d >= from && d < to).length;
+}
+
+/** from~to 를 덮는 주 수(올림). 정지 구간을 덮을 만큼 스케줄을 길게 뽑는 데 쓴다. */
+function weeksSpan(from: Date, to: Date): number {
+  return Math.ceil(Math.max(0, daysBetween(from, to)) / 7);
+}
+
 export function computeSchedule(input: SubInput, now: Date = new Date()): SubSchedule {
   const total = Math.max(0, input.totalWeeks);
 
@@ -74,39 +117,41 @@ export function computeSchedule(input: SubInput, now: Date = new Date()): SubSch
   //     (deliveryDayHitsDate)와 같은 함수를 쓰므로 두 화면이 갈릴 수 없다.
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const currentPauseDays =
-    input.paused && input.pausedAt
-      ? Math.max(0, daysBetween(parseISO(input.pausedAt), today))
-      : 0;
-  // ★ 정지 일수는 '주(회차) 단위'로 올려 적용한다.
-  //   정기구독은 요일 구독이다. 실제 발송(buildRosterForDate)은 order_items.delivery_day 요일에
-  //   붙어 있는데, 정지 일수를 날 단위로 그대로 더하면 앵커 cadence 가 그 요일에서 벗어난다
-  //   (예: 월요일 구독이 3일 정지 → 회차 예정일이 목요일로 이동). 그러면
-  //     · 화면·문자의 '다음 배송일'이 손님이 실제로 받는 요일과 달라지고,
-  //     · delivered/종료일이 실제 발송 횟수와 어긋나 마지막 회차가 사라지거나(회차 소실)
-  //       연장 블록 경계가 한 주 밀려 엉뚱한 구성품이 나간다.
-  //   올림(ceil)이라 종료일은 정지한 기간 이상으로만 밀린다 — 총 회차는 언제나 보존되고,
-  //   손님이 결제한 회차를 못 받는 방향으로는 절대 어긋나지 않는다.
-  //   (1주 건너뛰기는 정확히 +7일을 적립하므로 올림의 영향이 없다.)
-  const totalPausedDays = ceilToWeeks(input.pausedDays + currentPauseDays);
+  // 1) 정지가 끝난 뒤 확정된 정지일수(slots.paused_days)만 반영한 스케줄.
+  //    재개 RPC 가 '놓친 회차 × 7일'만 적립하므로 이 값은 언제나 7의 배수다.
+  //    (옛 데이터가 7의 배수가 아닐 수 있어 SQL pause_days_in_weeks 와 같게 올림해 둔다.)
+  const settledDates = buildDates(anchor, total, ceilToWeeks(input.pausedDays));
 
-  // 1..total 회차의 실제 배송일을 한 번에 산출한다.
-  //   회차 k 의 기준일 = 앵커 + (k-1)주 + 누적 정지일 + 누적 이월일. 그 기준일의 실제 발송일은
-  //   shipDateInWeek(「한 회차는 그 주를 벗어나지 않는다」 — 미루기·앞당김·휴배송)로 정한다.
+  // 2) 지금 정지 중이면, 정지 시작일부터 기준일까지 '놓친 회차'를 센다 — 양끝 포함.
+  //    정지 중인 슬롯은 그날 배송명단(buildRosterForDate)에서 빠지므로, 정지 구간 안에 놓인
+  //    회차는 '기준일 당일'까지 모두 놓친 회차다. 여기서 기준일을 빼면 정지 중인데도 그날
+  //    배송이 나간 것으로 집계돼 회차가 하나 앞질러 간다.
+  //    재개는 반대다 — 재개일 당일은 이미 정지가 풀려 정상 발송되므로 재개 RPC 는
+  //    [정지일, 재개일) 을 센다. 정지 마지막 날이 재개일 전날이라 두 구간은 정확히 맞물린다.
+  //    이 수가 곧 재개 시 paused_days 에 적립될 주 수라, 정지 중 화면과 재개 후 스케줄이 같다.
   //
-  //   ★ 휴배송 이월은 뒤 회차 전체에 누적해야 한다 — 아니면 이월된 회차와 그 다음 회차가
-  //     같은 날로 겹쳐 한 회차가 사라진다(2026 하계휴무 때 월요일 8/10·8/17 회차가 둘 다
-  //     8/18 로 뭉갠 사고). 총 회차는 보존되고 종료일만 이월한 주 수만큼 밀린다.
-  //   ★ 1회차는 앞당기지 않는다 — 앵커는 '입금확인 다음 날 이후'라, 앞당기면 아직 발송할 수
-  //     없는(이미 지난) 날이 된다. 그 회차는 다음 주로 미룬다.
-  const dates: Date[] = [];
-  let deferDays = 0;
-  for (let k = 1; k <= total; k++) {
-    const base = addDays(anchor, (k - 1) * 7 + totalPausedDays + deferDays);
-    const plan = roundShipPlan(toISO(base), k === 1);
-    deferDays += plan.deferDays; // 이월분은 뒤 회차 전체에 누적
-    dates.push(parseISO(plan.ship));
-  }
+  //    ★ 세는 스케줄은 총 회차보다 길게 뽑는다. 남은 회차가 정지 구간보다 짧으면(예: 3회
+  //      남기고 6주 정지) 총 회차까지만 센 수가 정지 기간보다 모자라, 밀어낸 회차 예정일이
+  //      여전히 과거에 머문다 → 정지 중인데 delivered 가 다시 늘고, 재개하면 남은 회차가
+  //      한꺼번에 '이미 배송됨'으로 삼켜진다. 요일 cadence 는 회차 수와 무관하므로
+  //      구간을 덮을 만큼만 더 뽑아 세면 된다(휴배송 주는 그 주에 자리가 없어 자연히 빠진다).
+  const missedWeeks =
+    input.paused && input.pausedAt
+      ? countBetween(
+          buildDates(
+            anchor,
+            total + weeksSpan(parseISO(input.pausedAt), today) + 2,
+            ceilToWeeks(input.pausedDays)
+          ),
+          parseISO(input.pausedAt),
+          addDays(today, 1)
+        )
+      : 0;
+
+  const dates =
+    missedWeeks > 0
+      ? buildDates(anchor, total, ceilToWeeks(input.pausedDays + missedWeeks * 7))
+      : settledDates;
   const deliveryDate = (k: number) => dates[k - 1];
 
   let delivered = 0;
