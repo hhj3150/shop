@@ -9,7 +9,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { SmsHistoryModal } from "@/components/SmsHistoryModal";
 import { stockShipOut, recordShipmentTracking, markShipmentDelivered } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
-import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
+import { DEFAULT_COURIER_ID, courierLabel } from "@/lib/couriers";
 import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
 import * as logenExcel from "@/lib/logen-excel";
 import { matchLogen, type LogenMatchResult } from "@/lib/logen-match";
@@ -153,7 +153,8 @@ export function DispatchPanel({
   const queueRef = useRef<HTMLDivElement>(null);
   const [date, setDate] = useState(todayISO());
   const [useDateFilter, setUseDateFilter] = useState(true);
-  const [courier, setCourier] = useState<string>("cj");
+  // 택배사는 로젠택배로 고정(선택 UI 없음).
+  const courier: string = DEFAULT_COURIER_ID;
   const [tracking, setTracking] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // 송장 일괄 붙여넣기(엑셀에서 주문번호+송장번호).
@@ -504,7 +505,6 @@ export function DispatchPanel({
     const resolved = picks
       .map(([idxStr, id]) => ({ id, t: trackByRow.get(Number(idxStr)) ?? ambByRow.get(Number(idxStr)) }))
       .filter((p): p is { id: string; t: string } => Boolean(p.t));
-    if (courier !== "logen") setCourier("logen");
     setTracking((prev) => {
       const next = { ...prev };
       for (const { id, t } of resolved) next[id] = t;
@@ -987,17 +987,9 @@ export function DispatchPanel({
       {/* 일괄 도구 */}
       <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paper p-3 no-print">
         <span className="text-[13px] text-ink-soft">택배사</span>
-        <select
-          value={courier}
-          onChange={(e) => setCourier(e.target.value)}
-          className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink"
-        >
-          {COURIER_IDS.map((id) => (
-            <option key={id} value={id}>
-              {COURIERS[id].label}
-            </option>
-          ))}
-        </select>
+        <span className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink">
+          {courierLabel(courier)}
+        </span>
         <button
           onClick={bulkShip}
           disabled={busy || selected.size === 0}
