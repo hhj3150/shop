@@ -29,6 +29,7 @@ import { backfillProfileShipping } from "@/lib/profile";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify, notifyGuestOrder } from "@/lib/notify";
+import { idempotencyKeyFor } from "@/lib/idempotency";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
@@ -80,7 +81,9 @@ function OrderOnce() {
   const [busy, setBusy] = useState(false);
   // 더블서밋 방어용 멱등키: 주문당 1회 생성, 빠른 더블탭·재시도 때 같은 키를 재사용한다.
   //   주문이 완료(결제 성공·무통장 등록)되면 회전 → 다음 주문은 새 키를 쓴다.
-  const idempotencyKeyRef = useRef<string | null>(null);
+  // 멱등 nonce — 주문이 접수될 때만 회전한다. 키는 이 nonce 와 '주문 내용 지문'으로 만든다
+  //   → 내용이 바뀌면 키가 저절로 바뀌어, 옛 주문이 재사용되지 않는다(lib/idempotency).
+  const idempotencyNonceRef = useRef<string | null>(null);
   // ?gift=1 로 들어오면 선물 모드로 시작(주문완료 화면의 '선물로 보내기' 유입 루프).
   //   회원에게만 적용한다 — 선물 토글(GiftOptions)은 회원 전용이라, 게스트가 이 쿼리로
   //   들어오면 끌 수 없는 선물 모드에 갇히고(카드결제도 사라짐) 입금확인 문자가
@@ -305,8 +308,16 @@ function OrderOnce() {
         cashReceiptType,
         cashReceiptId,
       };
-      // 키 지연 생성(이벤트 핸들러 안 — 렌더 중 ref 접근 금지). 재시도 시 같은 키를 재사용.
-      const idempotencyKey = (idempotencyKeyRef.current ??= crypto.randomUUID());
+      // nonce 는 지연 생성(이벤트 핸들러 안 — 렌더 중 ref 접근 금지).
+      //   키 = nonce + 주문 내용 지문. 같은 내용의 재시도는 같은 키(중복 생성 방지),
+      //   수량·배송지·쿠폰이 바뀌면 다른 키(옛 주문 재사용 방지).
+      const nonce = (idempotencyNonceRef.current ??= crypto.randomUUID());
+      const idempotencyKey = idempotencyKeyFor(nonce, {
+        items,
+        ship: shipInfo,
+        guest: !user,
+        useReferralCredit,
+      });
       const { orderId, orderNo, shipDate, totalAmount, referralCreditKrw } = user
         ? await createOnceOrder(items, shipInfo, idempotencyKey)
         : await createGuestOnceOrder(items, shipInfo, idempotencyKey);
@@ -355,10 +366,11 @@ function OrderOnce() {
           redirectUrl,
         });
         if (result.ok) {
-          idempotencyKeyRef.current = crypto.randomUUID(); // 결제 완료 → 다음 주문은 새 키.
+          idempotencyNonceRef.current = crypto.randomUUID(); // 결제 완료 → 다음 주문은 새 키.
           router.push(`${redirectUrl}&paid=1`);
         } else if (result.code !== "REDIRECTING") {
-          // 취소·실패: 주문은 입금대기로 남아 재시도 가능. 키 유지 → 같은 주문 재사용(중복 방지).
+          // 취소·실패: 주문은 입금대기로 남아 재시도 가능. nonce 유지 → 같은 내용이면
+          //   같은 주문 재사용(중복 방지). 내용을 고치면 지문이 달라져 새 주문이 만들어진다.
           setError(result.message);
         }
         return;
@@ -375,7 +387,7 @@ function OrderOnce() {
       //   예전엔 비회원에게 아무 문자도 보내지 않아, 안내 없이 입금 독촉만 받는 손님이 있었다.
       if (user) void notify({ kind: isGift ? "gift_once" : "order_received", orderId });
       else void notifyGuestOrder(orderNo);
-      idempotencyKeyRef.current = crypto.randomUUID(); // 주문 접수 완료 → 다음 주문은 새 키.
+      idempotencyNonceRef.current = crypto.randomUUID(); // 주문 접수 완료 → 다음 주문은 새 키.
       router.push(`/orders/complete?${params.toString()}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "주문에 실패했습니다.";
