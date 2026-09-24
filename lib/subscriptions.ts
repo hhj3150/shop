@@ -556,3 +556,69 @@ export function canSkipThisWeek(
     nextDate != null
   );
 }
+
+// ── 입금대기 연장 주문 ────────────────────────────────────────────────────
+//
+//   [왜 필요한가] 연장 신청 결과(주문번호·금액)는 지금껏 화면 state 에만 있었다.
+//     손님이 '확인'을 누르거나 새로고침하면 입금 안내가 사라지고, 다시 연장을 누르면
+//     request_renewal 이 '이미 연장 입금 대기 중인 주문이 있습니다' 로 거절한다 —
+//     계좌번호를 다시 볼 길이 없어진다. 문자를 지운 분은 전화를 거는 수밖에 없었다.
+//     서버에 남아 있는 사실(입금대기 연장주문)을 읽어 언제든 안내를 되살린다.
+export type PendingRenewal = {
+  orderId: string;
+  orderNo: string;
+  total: number;
+  weeks: number; // block_weeks = 이 연장으로 이어지는 회차 수(주 1회 발송)
+  periodMonths: number;
+  deliveryDay: DeliveryDay | null; // 연장주문 자기 order_items 의 요일(요일 변경 연장 대비)
+  createdAt: string;
+};
+
+type PendingRenewalRow = {
+  id: string;
+  order_no: string;
+  total_amount: number;
+  block_weeks: number | null;
+  period_months: number | null;
+  renews_slot_id: number;
+  created_at: string;
+  order_items: { delivery_day: DeliveryDay | null }[] | null;
+};
+
+// 슬롯 id → 그 슬롯의 입금대기 연장주문. 슬롯당 최대 1건이다
+//   (request_renewal 이 입금대기 연장 중복을 거절한다).
+export async function getPendingRenewals(): Promise<Map<number, PendingRenewal>> {
+  const sb = getSupabase();
+  const {
+    data: { session },
+  } = await sb.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return new Map();
+
+  const { data, error } = await sb
+    .from("orders")
+    .select(
+      "id, order_no, total_amount, block_weeks, period_months, renews_slot_id, created_at, order_items(delivery_day)"
+    )
+    .eq("user_id", uid)
+    .eq("status", "입금대기")
+    .not("renews_slot_id", "is", null)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  const map = new Map<number, PendingRenewal>();
+  for (const row of (data ?? []) as unknown as PendingRenewalRow[]) {
+    // created_at 내림차순이므로 첫 건이 최신 — 혹시 중복이 있어도 최신만 남긴다.
+    if (map.has(row.renews_slot_id)) continue;
+    map.set(row.renews_slot_id, {
+      orderId: row.id,
+      orderNo: row.order_no,
+      total: row.total_amount,
+      weeks: row.block_weeks ?? 0,
+      periodMonths: row.period_months ?? 0,
+      deliveryDay: row.order_items?.[0]?.delivery_day ?? null,
+      createdAt: row.created_at,
+    });
+  }
+  return map;
+}
