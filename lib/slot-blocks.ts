@@ -11,6 +11,9 @@ export type OrderRow = {
   block_weeks: number;
   shipping_fee: number;
   created_at: string; // orders.id 는 random uuid → 정렬은 created_at 기준
+  // 이 주문에 선차감된 추천 적립금(원). total_amount 는 이미 이 금액을 뺀 실결제액이다.
+  //   해지 환불에서 '남은 회차분'만큼 되차감하지 않으면 손님이 낸 적 없는 돈이 나간다.
+  referral_credit_krw: number;
 };
 
 export type OrderItemRow = {
@@ -63,6 +66,7 @@ function buildBlock(
       weeks: order.block_weeks,
       deliveryDay: day,
       shippingPerWeek: computeShippingPerWeek(order.shipping_fee, order.block_weeks),
+      creditKrw: Math.max(0, order.referral_credit_krw ?? 0),
       items: rows!.map(toBlockItem),
     };
   }
@@ -73,6 +77,7 @@ function buildBlock(
     weeks: order.block_weeks,
     deliveryDay: null,
     shippingPerWeek: computeShippingPerWeek(order.shipping_fee, order.block_weeks),
+    creditKrw: Math.max(0, order.referral_credit_krw ?? 0),
     items: [],
   };
 }
