@@ -1047,13 +1047,20 @@ export default function AdminPage() {
       }
       void notify({ kind: "renewal_confirmed", orderId: order.id });
       // 클레임 복기: 상태 전이 이력(누가·언제). 감사로그라 실패해도 흐름 무영향.
-      void sb.rpc("log_order_event", {
-        p_order_id: order.id,
-        p_event: "status_change",
-        p_from_status: order.status,
-        p_to_status: "입금확인",
-        p_reason: "연장 입금확인(수기)",
-      });
+      //   ★ then() 필수 — 쿼리 빌더는 then 안에서 fetch 를 시작한다(lib/track.ts 주석 참고).
+      //     void 만 붙이면 요청이 아예 나가지 않아 이력이 통째로 비었다(2026-09-24 발견).
+      void sb
+        .rpc("log_order_event", {
+          p_order_id: order.id,
+          p_event: "status_change",
+          p_from_status: order.status,
+          p_to_status: "입금확인",
+          p_reason: "연장 입금확인(수기)",
+        })
+        .then(
+          () => {},
+          () => {}
+        );
       await load();
       return;
     }
@@ -1072,13 +1079,19 @@ export default function AdminPage() {
       return;
     }
     // 클레임 복기: 상태 전이 이력(누가·언제·무엇→무엇). 감사로그라 실패해도 흐름 무영향.
-    void sb.rpc("log_order_event", {
-      p_order_id: order.id,
-      p_event: "status_change",
-      p_from_status: order.status,
-      p_to_status: status,
-      p_reason: status === "입금확인" ? "무통장 입금확인(수기)" : null,
-    });
+    //   ★ then() 필수 — 위와 같은 이유(빌더가 게으르다).
+    void sb
+      .rpc("log_order_event", {
+        p_order_id: order.id,
+        p_event: "status_change",
+        p_from_status: order.status,
+        p_to_status: status,
+        p_reason: status === "입금확인" ? "무통장 입금확인(수기)" : null,
+      })
+      .then(
+        () => {},
+        () => {}
+      );
     // 입금확인 → 슬롯을 활성화하고, 요일별 첫 배송일을 시작일로 부여.
     if (status === "입금확인") {
       const { data: pending } = await sb
