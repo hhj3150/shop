@@ -29,7 +29,12 @@ import {
 } from "@/lib/subscriptions";
 import { planDeliveryDayChange } from "@/lib/delivery-day-change";
 import { computeSchedule } from "@/lib/subscription-schedule";
-import { shouldPromptRenewal } from "@/lib/renewal-prompt";
+import {
+  shouldPromptRenewal,
+  isPendingRenewalError,
+  PENDING_RENEWAL_TITLE,
+  PENDING_RENEWAL_NOTICE,
+} from "@/lib/renewal-prompt";
 import { speak } from "@/lib/speech";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
@@ -383,7 +388,15 @@ export default function AccountPage() {
       void reloadOrders();
       await reloadSubs();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "구독 연장 신청에 실패했습니다.");
+      const msg = e instanceof Error ? e.message : "구독 연장 신청에 실패했습니다.";
+      if (isPendingRenewalError(msg)) {
+        // 다른 탭·기기에서 이미 신청했다 — 폼을 닫고 그 입금 안내를 띄운다(체크아웃과 같은 문구).
+        setRenewSlot(null);
+        await reloadSubs();
+        alert(`${PENDING_RENEWAL_TITLE}.\n\n${PENDING_RENEWAL_NOTICE}`);
+      } else {
+        alert(msg);
+      }
     } finally {
       setBusy(null);
     }
