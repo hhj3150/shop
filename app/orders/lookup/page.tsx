@@ -8,7 +8,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { Field } from "@/components/Field";
@@ -72,12 +72,22 @@ function LookupForm() {
     setBusy(true);
     setResult(null);
     try {
-      const { data, error: rpcErr } = await getSupabase().rpc("lookup_order_by_no_phone", {
-        p_order_no: no,
-        p_phone: digits,
+      // RPC 를 직접 부르지 않는다 — 서버 라우트가 IP 단위 호출 제한을 건 뒤 조회한다.
+      //   주문번호 무차별 대입을 막기 위한 것이다(자세한 이유는 라우트 주석 참고).
+      const res = await fetch("/api/orders/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderNo: no, phone: digits }),
       });
-      if (rpcErr) throw rpcErr;
-      setResult((data as LookupResult) ?? null);
+      const json = (await res.json().catch(() => null)) as
+        | { ok?: boolean; reason?: string; result?: LookupResult | null }
+        | null;
+      if (res.status === 429) {
+        setError("조회 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+      if (!json?.ok) throw new Error(json?.reason ?? "lookup_failed");
+      setResult(json.result ?? null);
       setSearched(true);
     } catch {
       setError("조회 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");

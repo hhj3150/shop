@@ -366,7 +366,7 @@ export default function AccountPage() {
     try {
       const res = await requestRenewal(slotId, args);
       // 갱신 주문을 PayAction 에 등록 → 회원이 안내된 금액을 입금하면 자동으로 입금확인(반자동 갱신).
-      await registerPayActionDeposit(res.orderNo, profile?.phone ?? "");
+      await registerPayActionDeposit(res.orderNo);
       setRenewSlot(null);
       setRenewal({
         slotId,
