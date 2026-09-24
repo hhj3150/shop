@@ -12,8 +12,13 @@ import {
   DELIVERY_DAY_LABEL,
   type SubscriptionSlotLite,
 } from "@/lib/cart";
-import { cancelUnpaidOrder, requestRenewal } from "@/lib/subscriptions";
+import { cancelUnpaidOrder, requestRenewal, getPendingRenewals } from "@/lib/subscriptions";
 import { getProduct, formatKRW, MIN_ORDER_KRW, PERIOD_LABEL } from "@/lib/products";
+import {
+  PENDING_RENEWAL_TITLE,
+  PENDING_RENEWAL_NOTICE,
+  isPendingRenewalError,
+} from "@/lib/renewal-prompt";
 import { isSpecialDeliveryPostcode } from "@/lib/regions";
 import {
   DEFAULT_DELIVERY_METHOD,
@@ -76,6 +81,13 @@ export default function CheckoutPage() {
   const dayConflict = conflictDays.length > 0;
   const conflictSlot = slotOnCartDay(deliveryDays, mySlots);
   const renewalMode = conflictSlot?.status === "활성";
+  // 이 구독에 이미 입금대기 연장이 걸려 있는가. 서버(request_renewal)가 중복을 거절하므로,
+  //   제출 순간에 막히기 전에 미리 알려 준다 — 신청(입금 전)·대기 슬롯을 미리 막는 것과 같은 대우다.
+  const [pendingRenewalSlots, setPendingRenewalSlots] = useState<ReadonlySet<number>>(
+    () => new Set()
+  );
+  const renewalAlreadyPending =
+    renewalMode && !!conflictSlot && pendingRenewalSlots.has(conflictSlot.id);
   // 연장 불가 충돌(신청=입금 전 / 대기): 다요일 안내가 선행되는 경우는 제외.
   const blockedConflict = !multiDay && dayConflict && !renewalMode;
   // 장바구니 항목 중 품절·판매중지가 하나라도 있으면 제출 차단(체크아웃 진입 재검증).
@@ -165,6 +177,21 @@ export default function CheckoutPage() {
       depositorName: prev.depositorName || profile.name,
     }));
   }, [profile]);
+
+  // 이미 접수된 연장(입금대기) 조회 — 마이페이지 입금 안내와 같은 사실을 본다.
+  //   실패해도 신청을 막지 않는다(서버 가드가 최종 차단한다). 미리 알려 주는 것이 목적이다.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    getPendingRenewals()
+      .then((m) => {
+        if (alive) setPendingRenewalSlots(new Set(m.keys()));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [user]);
 
   // 내 구독 슬롯(비해지) 조회 — 같은 요일 충돌 판정 + 활성이면 연장(재입금) 전환용.
   //   조회 실패 시 빈 배열 그대로(연장 전환만 못 할 뿐, 서버 가드가 중복 생성을 최종 차단한다).
@@ -316,6 +343,12 @@ export default function CheckoutPage() {
       );
       return;
     }
+    // 이미 접수된 연장이 있으면 서버가 거절한다 — 그 전에 같은 말로 안내하고 멈춘다.
+    //   (마이페이지 입금 안내와 같은 문구·같은 목적지를 쓴다.)
+    if (renewalAlreadyPending) {
+      setError(`${PENDING_RENEWAL_TITLE}. ${PENDING_RENEWAL_NOTICE}`);
+      return;
+    }
     // ★ 같은 요일 활성 구독 → 이 체크아웃을 연장(재입금)으로 접수한다.
     //   장바구니 구성·기간이 다음 블록부터 적용되고, 배송지·입금자명은 기존 구독을 승계
     //   (금액·좌석은 서버 request_renewal 이 권위 재계산). 계정 페이지 연장 흐름과 동일하게
@@ -335,7 +368,14 @@ export default function CheckoutPage() {
           `/orders/complete?no=${encodeURIComponent(res.orderNo)}&amount=${res.total}&renew=1`
         );
       } catch (err) {
-        setError(err instanceof Error ? err.message : "구독 연장 신청에 실패했습니다.");
+        const msg = err instanceof Error ? err.message : "구독 연장 신청에 실패했습니다.";
+        // 다른 탭·기기에서 방금 신청했을 수 있다 — 원문 대신 갈 곳을 알려 준다.
+        setError(
+          isPendingRenewalError(msg) ? `${PENDING_RENEWAL_TITLE}. ${PENDING_RENEWAL_NOTICE}` : msg
+        );
+        if (isPendingRenewalError(msg) && conflictSlot) {
+          setPendingRenewalSlots((prev) => new Set(prev).add(conflictSlot.id));
+        }
       } finally {
         setBusy(false);
       }
@@ -542,6 +582,13 @@ export default function CheckoutPage() {
             {displayPickup ? "방문수령 — 배송비 무료" : formatKRW(shipTotal)}
           </span>
         </div>
+        {renewalMode && creditAvailable.count > 0 && (
+          // 연장에는 적립금을 쓸 수 없다. 섹션이 말없이 사라지면 "내 적립금 어디 갔지?"가 된다.
+          <p className="mt-2 border-t border-gold/20 pt-2 text-[12px] leading-relaxed text-mute">
+            보유하신 추천 적립금 {creditAvailable.count}장({formatKRW(creditAvailable.krw)})은
+            구독 연장에는 쓸 수 없어요. 새로 시작하는 주문에서 사용하실 수 있습니다.
+          </p>
+        )}
         {!renewalMode && creditAvailable.count > 0 && (
           <div className="mt-2 border-t border-gold/20 pt-2">
             <label className="flex cursor-pointer items-center justify-between gap-2">
@@ -608,7 +655,20 @@ export default function CheckoutPage() {
 
       {/* 배송지 — 연장(재입금)은 기존 구독의 배송지·입금자명을 승계하므로 입력 칸을 생략한다. */}
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
-        {renewalMode && conflictSlot ? (
+        {renewalAlreadyPending ? (
+          // 이미 접수된 연장이 있다 — 끝까지 "접수돼요"라고 해 놓고 제출에서 막지 않는다.
+          //   마이페이지의 입금 안내를 가리켜, 두 화면이 같은 곳을 말하게 한다.
+          <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
+            <p className="font-medium text-ink">{PENDING_RENEWAL_TITLE}</p>
+            <p className="mt-1 text-[13px] text-ink-soft">{PENDING_RENEWAL_NOTICE}</p>
+            <Link
+              href="/account"
+              className="mt-2.5 inline-flex min-h-11 items-center rounded-full bg-ink px-5 text-[13px] text-cream transition-colors hover:bg-gold-deep"
+            >
+              입금 안내 보러 가기 →
+            </Link>
+          </div>
+        ) : renewalMode && conflictSlot ? (
           <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
             <p>
               이미{" "}
@@ -779,6 +839,7 @@ export default function CheckoutPage() {
             hasBlocked ||
             multiDay ||
             blockedConflict ||
+            renewalAlreadyPending ||
             (!renewalMode && !pickup && isSpecialRegion && !acceptFresh)
           }
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"

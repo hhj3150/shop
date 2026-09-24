@@ -9,6 +9,7 @@ import { CopyAmount } from "@/components/CopyAmount";
 import { ReferralCard } from "@/components/ReferralCard";
 import { DELIVERY_DAY_LABEL, useCart, type DeliveryDay } from "@/lib/cart";
 import { formatKRW } from "@/lib/products";
+import { PENDING_RENEWAL_WHERE } from "@/lib/renewal-prompt";
 import { DEPOSIT } from "@/lib/site";
 
 export default function OrderCompletePage() {
@@ -252,6 +253,8 @@ function Complete() {
         <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/10 px-5 py-4 text-[14px] leading-relaxed text-gold-deep">
           입금이 확인되면 <span className="font-semibold">다음 회차 블록부터 연장</span>됩니다.
           지금 진행 중인 회차는 그대로 배송되고, 남은 회차가 끝나면 끊김 없이 이어져요.
+          {/* 이 화면을 떠나도 계좌를 잃지 않게 갈 곳을 알려 준다(마이페이지 연장 패널과 같은 문장). */}
+          <span className="mt-1.5 block text-[13px] text-ink-soft">{PENDING_RENEWAL_WHERE}</span>
         </div>
       )}
 
