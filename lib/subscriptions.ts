@@ -10,7 +10,7 @@ import {
 import {
   normalizeBlocks,
   totalWeeks as blockTotalWeeks,
-  activeBlockForRound,
+  refundForRoundsFrom,
   type RawBlock,
 } from "./subscription-timeline";
 
@@ -247,6 +247,7 @@ type OrderWithItemsRow = {
   created_at: string;
   block_weeks: number | null;
   shipping_fee: number | null;
+  referral_credit_krw: number | null;
   renews_slot_id: number | null;
   order_items:
     | {
@@ -265,6 +266,7 @@ function toBlockOrderRow(row: OrderWithItemsRow): BlockOrderRow {
     block_weeks: row.block_weeks ?? 0,
     shipping_fee: row.shipping_fee ?? 0,
     created_at: row.created_at,
+    referral_credit_krw: row.referral_credit_krw ?? 0,
   };
 }
 
@@ -289,14 +291,14 @@ async function loadBlockSources(
       ? { data: [], error: null }
       : await sb
           .from("orders")
-          .select(`id, created_at, block_weeks, shipping_fee, renews_slot_id, ${ITEM_COLS}`)
+          .select(`id, created_at, block_weeks, shipping_fee, referral_credit_krw, renews_slot_id, ${ITEM_COLS}`)
           .in("id", originalIds);
   if (origError) throw new Error(origError.message);
 
   // 확정 연장주문(items 임베드).
   const { data: renewData, error: renewError } = await sb
     .from("orders")
-    .select(`id, created_at, block_weeks, shipping_fee, renews_slot_id, ${ITEM_COLS}`)
+    .select(`id, created_at, block_weeks, shipping_fee, referral_credit_krw, renews_slot_id, ${ITEM_COLS}`)
     .in("renews_slot_id", slotIds)
     .in("status", CONFIRMED_RENEWAL_STATUSES as unknown as string[]);
   if (renewError) throw new Error(renewError.message);
@@ -347,21 +349,15 @@ export function refundAmount(sub: MySubscription, remainingDeliveries: number): 
   if (remaining <= 0) return 0;
 
   if (sub.blocks.length > 0) {
-    const resolved = normalizeBlocks(sub.blocks);
     const total = blockTotalWeeks(sub.blocks);
-    const firstRefundRound = Math.max(1, total - remaining + 1);
-    let refund = 0;
-    for (let round = firstRefundRound; round <= total; round++) {
-      const b = activeBlockForRound(resolved, round);
-      if (!b) continue;
-      const perDelivery =
-        b.items.reduce((s, it) => s + it.unitPrice * it.qty, 0) + b.shippingPerWeek;
-      refund += perDelivery;
-    }
-    return refund;
+    // 남은 회차분 상품·배송비 합 − 그 구간에 걸린 추천 적립금(블록별 안분).
+    //   서버 cancel_subscription 과 같은 규칙이다 — 갈리면 미리보기와 실지급액이 달라진다.
+    return refundForRoundsFrom(normalizeBlocks(sub.blocks), total - remaining + 1, total);
   }
 
   if (sub.totalWeeks <= 0) return 0;
+  // 폴백(블록 미로드/레거시)은 totalAmount 를 나눈다. totalAmount 는 이미 추천 적립금을
+  //   뺀 실결제액이므로 여기서는 따로 되뺄 것이 없다(블록 경로만 정가 구성으로 계산한다).
   const perDelivery = Math.round(sub.totalAmount / sub.totalWeeks);
   return perDelivery * remaining;
 }
