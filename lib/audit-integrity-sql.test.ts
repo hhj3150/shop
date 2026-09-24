@@ -40,6 +40,14 @@ describe("audit-integrity.sql", () => {
     }
   });
 
+  it("출고 기록 누락 조회가 방문수령·취소 주문을 제외한다", () => {
+    // 방문수령은 택배 출고가 없어 기록이 원래 0건이고, 취소 주문의 살아 있는 좌석은
+    // D 항목이 따로 잡는다. 안 거르면 멀쩡한 건이 섞여 진짜 누락이 그 안에 묻힌다.
+    const detail = sql.split("-- 출고 기록이 실제 발송을 못 따라가는 구독")[1] ?? "";
+    expect(detail).toContain("delivery_method <> '방문수령'");
+    expect(detail).toContain("o.status <> '취소'");
+  });
+
   it("모든 점검 항목이 한 결과 집합으로 이어진다(union all + order by 1)", () => {
     // 항목을 추가하다 union all 을 빠뜨리면 그 항목이 조용히 실행되지 않는다.
     // 파일 뒤쪽 '상세' 절은 전부 주석이라, 실행되는 앞부분만 잘라서 본다.

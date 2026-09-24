@@ -125,6 +125,9 @@ order by 1;
 --   ⚠ 진행 중인 정지는 '놓친 회차 × 7일'로 환산한다(missed_delivery_weeks) — 경과 일수를 그대로
 --     더하면 정지 중인 슬롯의 model_delivered 가 틀어져 멀쩡한 구독이 누락으로 잡힌다.
 --     lib/subscription-schedule.ts·cancel_subscription 과 같은 규칙이어야 한다.
+--   ⚠ 방문수령·취소 주문은 제외한다. 방문수령은 택배 출고가 없어 기록이 원래 0건이고,
+--     취소 주문의 살아 있는 좌석은 D 항목이 따로 잡는다. 안 거르면 멀쩡한 건이 섞여
+--     숫자가 부풀고, 진짜 누락이 그 안에 묻힌다(2026-09-24 실측: 27건 → 23건).
 --   with chain as (
 --     select s.id slot_id, s.started_at, s.first_ship_date, s.paused, s.paused_at, s.paused_days,
 --            s.delivery_day, s.order_id, o.order_no, o.ship_name,
@@ -132,7 +135,9 @@ order by 1;
 --               where r.renews_slot_id = s.id
 --                 and r.status in ('입금확인','배송준비','배송중','배송완료')),0))::int as total_weeks
 --       from subscription_slots s join orders o on o.id = s.order_id
---      where s.status = '활성' and s.started_at is not null)
+--      where s.status = '활성' and s.started_at is not null
+--        and o.delivery_method <> '방문수령'   -- 택배 출고만 기록이 남는다(방문수령은 원래 0건)
+--        and o.status <> '취소')               -- 취소 주문의 살아 있는 좌석은 D 항목이 잡는다
 --   select slot_id, order_no, ship_name, delivery_day, total_weeks, model_delivered, actual_shipped,
 --          model_delivered - actual_shipped as gap
 --     from (select c.*,
