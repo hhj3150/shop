@@ -325,7 +325,7 @@ export default function CheckoutPage() {
           period,
           deliveryDay: conflictSlot.delivery_day,
         });
-        await registerPayActionDeposit(res.orderNo, profile?.phone ?? ship.phone);
+        await registerPayActionDeposit(res.orderNo);
         void notify({ kind: "renewal_guide", orderId: res.orderId });
         clear();
         router.push(
@@ -428,11 +428,11 @@ export default function CheckoutPage() {
       }
 
       // 무통장(또는 선물) 흐름: PayAction 에 주문 등록(자동 입금확인 대상으로 감시 시작).
-      //   입금확인 문자 수신처: 선물이면 보내는 분(주문자) 연락처, 일반은 배송 연락처.
-      const ordererPhone = isGift ? (profile?.phone ?? ship.phone) : ship.phone;
+      //   입금확인 알림톡 수신처는 서버가 DB 에서 정한다(선물이면 보내는 분, 일반은 배송 연락처).
+      //   클라이언트가 번호를 넘기던 경로는 임의 번호로 알림톡을 보낼 수 있어 없앴다.
       // await 로 등록 완결 후 라우팅 — fire-and-forget 이면 router.push 로 요청이 abort 돼
       //   서버 라우트에 도달조차 못 했음. 등록 실패는 내부에서 흡수(non-fatal)되어 주문은 진행됨.
-      await registerPayActionDeposit(orderNo, ordererPhone);
+      await registerPayActionDeposit(orderNo);
       // 즉시 입금 안내 문자 발송 후 완료 페이지로.
       void notify({ kind: isGift ? "gift_subscription" : "order_received", orderId });
       idempotencyKeyRef.current = crypto.randomUUID(); // 주문 접수 완료 → 다음 주문은 새 키.
