@@ -9,6 +9,7 @@
 //     '취소'로 되돌리면 회차가 남는다 — 손님·서버 환불(cancel_subscription)·배송 명단이
 //     제각각 다른 총 회차를 말하게 된다. 블록 체인은 취소 즉시 줄어든다.
 import { computeSchedule } from "./subscription-schedule";
+import { kstDaysElapsed } from "./payment-recovery";
 import { totalWeeks as blockTotalWeeks, type RawBlock } from "./subscription-timeline";
 
 export type IntegritySlotFields = {
@@ -118,4 +119,38 @@ export function shipmentGapSlots<
     })
     .filter((x) => x.gap >= threshold)
     .sort((a, b) => b.gap - a.gap || a.slot.id - b.slot.id);
+}
+
+// 며칠 지나도록 입금이 없으면 '식은' 연장 신청으로 본다. 3일 = 주말을 한 번 넘긴 길이.
+//   주문관리 목록의 '미입금 D+3 확인필요' 배지와 같은 기준일·같은 셈법(kstDaysElapsed)이다.
+export const STALE_RENEWAL_DAYS = 3;
+
+export type PendingRenewalOrderFields = {
+  id: string;
+  order_no: string;
+  status: string;
+  total_amount: number;
+  renews_slot_id: number | null;
+  created_at: string;
+  user_id: string | null;
+};
+
+// (4) 연장을 신청해 놓고 입금이 안 들어온 채 며칠 지난 주문.
+//   ★ 왜 중요한가: 목장은 이 손님이 이어서 받을지 모른 채 다음 주 생산량을 잡는다.
+//     손님 쪽도 대개 '입금하려다 잊은' 상태다 — 계좌를 잃어버렸거나 금액을 못 찾은 경우가 많다.
+//     한 통 넣으면 대부분 살아나는 건들이라, 조용히 사라지게 두면 그대로 이탈이 된다.
+//     회차소진(2)과 달리 이쪽은 손님이 이미 '이어받겠다'는 의사를 밝힌 건이다.
+export function stalePendingRenewals<O extends PendingRenewalOrderFields>(
+  orders: readonly O[],
+  todayISO: string,
+  thresholdDays: number = STALE_RENEWAL_DAYS
+): { order: O; daysWaiting: number }[] {
+  const parsed = Date.parse(`${todayISO}T00:00:00+09:00`);
+  if (Number.isNaN(parsed)) return [];
+  const today = new Date(parsed);
+  return orders
+    .filter((o) => o.status === "입금대기" && o.renews_slot_id != null)
+    .map((o) => ({ order: o, daysWaiting: kstDaysElapsed(o.created_at, today) }))
+    .filter((x) => x.daysWaiting >= thresholdDays)
+    .sort((a, b) => b.daysWaiting - a.daysWaiting || a.order.order_no.localeCompare(b.order.order_no));
 }

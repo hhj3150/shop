@@ -92,3 +92,16 @@ export function usedDeliveryDays(
     .map((s) => s.deliveryDay);
   return new Set(days);
 }
+
+// 고른 품목 한 줄 요약 — "그대로 연장"이 대다수라, 품목 칸을 접어 두고 이 줄만 보여준다.
+//   접힌 상태에서도 무엇이 이어지는지 한눈에 확인돼야 안심하고 신청한다.
+//   목록 순서(카탈로그 진열 순서)를 그대로 따른다 — 화면을 펼쳤을 때와 같은 차례로 읽힌다.
+export function summarizeItems(
+  products: readonly { id: string; name: string; volume: string }[],
+  qtyById: Readonly<Record<string, number>>
+): string {
+  return products
+    .filter((p) => (qtyById[p.id] ?? 0) > 0)
+    .map((p) => `${p.name} ${p.volume} ${qtyById[p.id]}개`)
+    .join(" · ");
+}

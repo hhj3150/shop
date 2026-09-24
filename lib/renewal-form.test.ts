@@ -6,6 +6,7 @@ import {
   buildRenewalItems,
   pruneToActive,
   usedDeliveryDays,
+  summarizeItems,
 } from "./renewal-form";
 import type { MySubscription } from "./subscriptions";
 import type { RawBlock, BlockItem } from "./subscription-timeline";
@@ -184,5 +185,29 @@ describe("usedDeliveryDays", () => {
     ];
     const used = usedDeliveryDays(subs, 1);
     expect(used.has("tue")).toBe(false);
+  });
+});
+
+describe("summarizeItems", () => {
+  const catalog = [
+    { id: "milk-750", name: "A2 저지 헤이밀크", volume: "750mL" },
+    { id: "yogurt-500", name: "A2 저지 플레인 요거트", volume: "500mL" },
+    { id: "milk-180", name: "A2 저지 헤이밀크", volume: "180mL" },
+  ];
+
+  it("담긴 품목만 목록 순서대로 한 줄로 잇는다", () => {
+    expect(summarizeItems(catalog, { "yogurt-500": 1, "milk-750": 2 })).toBe(
+      "A2 저지 헤이밀크 750mL 2개 · A2 저지 플레인 요거트 500mL 1개"
+    );
+  });
+
+  it("수량 0 은 빼고, 목록에 없는 id 는 무시한다", () => {
+    expect(summarizeItems(catalog, { "milk-750": 0, "milk-180": 1, "없는-id": 5 })).toBe(
+      "A2 저지 헤이밀크 180mL 1개"
+    );
+  });
+
+  it("아무것도 안 담겼으면 빈 문자열 — 화면이 대체 문구를 쓴다", () => {
+    expect(summarizeItems(catalog, {})).toBe("");
   });
 });

@@ -5,6 +5,8 @@ import {
   roundsUsedUpSlots,
   shipmentGapSlots,
   SHIPMENT_GAP_THRESHOLD,
+  stalePendingRenewals,
+  STALE_RENEWAL_DAYS,
 } from "./slot-integrity";
 import type { RawBlock } from "./subscription-timeline";
 
@@ -171,5 +173,76 @@ describe("shipmentGapSlots — 출고 기록이 실제를 못 따라가는 구�
       ])
     );
     expect(got.map((x) => x.slot.id)).toEqual([2, 1]);
+  });
+});
+
+// ── 연장 신청 후 미입금 ──────────────────────────────────────────────────
+// created_at 은 UTC 타임스탬프, 기준일은 KST 날짜다(운영 데이터와 같은 형태).
+function renewalOrder(
+  no: string,
+  createdAt: string,
+  over: Partial<{ status: string; renews_slot_id: number | null }> = {}
+) {
+  return {
+    id: `id-${no}`,
+    order_no: no,
+    status: "입금대기",
+    total_amount: 100000,
+    renews_slot_id: 7,
+    created_at: createdAt,
+    user_id: "u1",
+    ...over,
+  };
+}
+
+describe("stalePendingRenewals", () => {
+  const today = "2026-09-24";
+
+  it("사흘 지난 미입금 연장을 집어낸다", () => {
+    const rows = stalePendingRenewals([renewalOrder("A", "2026-09-21T01:00:00Z")], today);
+    expect(rows.map((r) => r.order.order_no)).toEqual(["A"]);
+    expect(rows[0].daysWaiting).toBe(STALE_RENEWAL_DAYS);
+  });
+
+  it("어제 신청한 건은 아직 재촉하지 않는다", () => {
+    expect(stalePendingRenewals([renewalOrder("A", "2026-09-23T01:00:00Z")], today)).toEqual([]);
+  });
+
+  it("입금이 끝난 연장은 대상이 아니다", () => {
+    expect(
+      stalePendingRenewals([renewalOrder("A", "2026-09-10T01:00:00Z", { status: "입금확인" })], today)
+    ).toEqual([]);
+  });
+
+  it("연장이 아닌 일반 입금대기 주문은 섞이지 않는다", () => {
+    expect(
+      stalePendingRenewals([renewalOrder("A", "2026-09-10T01:00:00Z", { renews_slot_id: null })], today)
+    ).toEqual([]);
+  });
+
+  it("오래 기다린 건이 위로 온다", () => {
+    const rows = stalePendingRenewals(
+      [renewalOrder("NEW", "2026-09-20T01:00:00Z"), renewalOrder("OLD", "2026-09-01T01:00:00Z")],
+      today
+    );
+    expect(rows.map((r) => r.order.order_no)).toEqual(["OLD", "NEW"]);
+  });
+
+  it("같은 날 신청이면 시각과 무관하게 같은 일수로 센다", () => {
+    // 2026-09-21 아침(01:00Z = 10:00 KST)과 밤(14:00Z = 23:00 KST) — 둘 다 24일 기준 3일째.
+    const rows = stalePendingRenewals(
+      [renewalOrder("아침", "2026-09-21T01:00:00Z"), renewalOrder("밤", "2026-09-21T14:00:00Z")],
+      today
+    );
+    expect(rows.map((r) => r.daysWaiting)).toEqual([3, 3]);
+  });
+
+  it("KST 자정 직전 신청도 그날 신청으로 본다(UTC 로는 전날)", () => {
+    // 2026-09-21T15:00Z = 2026-09-22 00:00 KST → 24일 기준 2일째(아직 대상 아님).
+    expect(stalePendingRenewals([renewalOrder("A", "2026-09-21T15:00:00Z")], today)).toEqual([]);
+  });
+
+  it("기준일이 이상하면 아무것도 보고하지 않는다(조용히 비운다)", () => {
+    expect(stalePendingRenewals([renewalOrder("A", "2026-09-01T01:00:00Z")], "not-a-date")).toEqual([]);
   });
 });

@@ -12,6 +12,7 @@ import {
   cancelledButActiveSlots,
   roundsUsedUpSlots,
   shipmentGapSlots,
+  stalePendingRenewals,
 } from "@/lib/slot-integrity";
 import { buildRosterMaps } from "@/lib/roster-maps";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
@@ -448,6 +449,8 @@ export default function AdminPage() {
     // (5) 일시정지 이력이 있는 구독 → 회차 표기(발송 문자의 'N회 중 M번째')가 한 회차 밀린다.
     //     정지일수를 이미 나간 회차까지 미는 계산 결함. 발송 횟수 자체는 (4)의 방어선이 지킨다.
     const pausedHistory = slots.filter((s) => s.status === "활성" && (s.paused_days ?? 0) > 0);
+    // 연장을 신청해 놓고 며칠째 입금이 없는 주문 → 한 통 넣으면 대개 살아나는 건들이다.
+    const staleRenewals = stalePendingRenewals(orders, todayISO());
     return {
       paymentNoEvidence,
       emptyItems,
@@ -455,6 +458,7 @@ export default function AdminPage() {
       roundsUsedUp,
       shipmentGaps,
       pausedHistory,
+      staleRenewals,
     };
   }, [orders, itemsByOrder, slots, orderById, shippedKeys, slotIdByOrder, blocksBySlot]);
   const nameByUser = useMemo(
@@ -1553,6 +1557,7 @@ export default function AdminPage() {
         anomalies.emptyItems.length > 0 ||
         anomalies.cancelledButActive.length > 0 ||
         anomalies.roundsUsedUp.length > 0 ||
+        anomalies.staleRenewals.length > 0 ||
         anomalies.pausedHistory.length > 0) && (
         <section id="admin-data-check" className="mt-6 scroll-mt-6 rounded-2xl border border-amber-300 bg-amber-50/60 p-5 no-print">
           <h2 className="font-serif-kr text-lg text-amber-800">⚠ 데이터 점검 필요</h2>
@@ -1716,6 +1721,41 @@ export default function AdminPage() {
                     </li>
                   );
                 })}
+              </ul>
+            </div>
+          )}
+          {anomalies.staleRenewals.length > 0 && (
+            <div className="mt-4">
+              <p className="text-[14px] font-medium text-amber-800">
+                연장 신청 후 입금이 없는 주문 ({anomalies.staleRenewals.length}건)
+                <span className="ml-1.5 text-[12px] font-normal text-mute">
+                  — 손님이 “이어받겠다”고 신청해 둔 건입니다. 대개 계좌를 잃어버렸거나 금액을 못 찾은
+                  경우라, 한 통 넣으면 살아납니다. 그대로 두면 회차가 끝나 자리만 비고 이탈이 됩니다.
+                </span>
+              </p>
+              <ul className="mt-2 space-y-1">
+                {anomalies.staleRenewals.map(({ order: o, daysWaiting }) => (
+                  <li key={o.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
+                    <button
+                      onClick={() => focusOrderInManageTab(o.order_no)}
+                      className="tabular-nums text-amber-800 underline decoration-amber-300 underline-offset-2 hover:text-ink"
+                    >
+                      {o.order_no}
+                    </button>
+                    <span className="text-ink">{nameByUser.get(o.user_id) ?? o.ship_name}</span>
+                    {phoneByUser.get(o.user_id) && (
+                      <a
+                        href={`tel:${phoneByUser.get(o.user_id)}`}
+                        className="tabular-nums text-ink-soft underline decoration-line underline-offset-2 hover:text-ink"
+                      >
+                        {phoneByUser.get(o.user_id)}
+                      </a>
+                    )}
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800 tabular-nums">
+                      {daysWaiting}일째 미입금 · {formatKRW(o.total_amount)}
+                    </span>
+                  </li>
+                ))}
               </ul>
             </div>
           )}
