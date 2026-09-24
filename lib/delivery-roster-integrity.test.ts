@@ -49,6 +49,7 @@ function block(over: Partial<RawBlock> & { orderId: string }): RawBlock {
     weeks: 4,
     deliveryDay: "mon",
     shippingPerWeek: 0,
+    creditKrw: 0,
     items: [{ productName: "송영신우유", volume: "180ml", qty: 1, unitPrice: 3000 }],
     ...over,
   };

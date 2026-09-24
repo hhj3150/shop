@@ -15,7 +15,7 @@ const beef    = { productName: "소고기",   volume: "150g", qty: 1, unitPrice:
 
 // 최종 API: normalizeBlocks(blocks: RawBlock[]). 요일은 각 RawBlock.deliveryDay 에 들어온다.
 function raw(over: Partial<RawBlock>): RawBlock {
-  return { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, items: [chicken], ...over };
+  return { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, creditKrw: 0, items: [chicken], ...over };
 }
 
 describe("normalizeBlocks", () => {
@@ -51,8 +51,8 @@ describe("normalizeBlocks", () => {
 
 describe("activeBlockForRound", () => {
   const blocks = normalizeBlocks([
-    { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, items: [chicken] },
-    { orderId: "o1", weeks: 4, deliveryDay: "wed", shippingPerWeek: 4000, items: [beef] },
+    { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, creditKrw: 0, items: [chicken] },
+    { orderId: "o1", weeks: 4, deliveryDay: "wed", shippingPerWeek: 4000, creditKrw: 0, items: [beef] },
   ]);
   it("4회차는 블록0(화·닭)", () => {
     expect(activeBlockForRound(blocks, 4)?.orderId).toBe("o0");
@@ -100,8 +100,8 @@ describe("activeBlockForDate", () => {
     startedAt: "2026-01-06",
     paused: false, pausedAt: null, pausedDays: 0,
     blocks: [
-      { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000, items: [chicken] },
-      { orderId: "o1", weeks: 4, deliveryDay: "wed" as const, shippingPerWeek: 4000, items: [beef] },
+      { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000, creditKrw: 0, items: [chicken] },
+      { orderId: "o1", weeks: 4, deliveryDay: "wed" as const, shippingPerWeek: 4000, creditKrw: 0, items: [beef] },
     ],
   };
   it("5회차 날짜(블록1 구간)면 블록1을 돌려준다", () => {
@@ -132,8 +132,8 @@ describe("activeBlockOrderForDate (배송 시트·기간별 명단 공용 게이
     paused_days: 0,
   };
   const blocks: RawBlock[] = [
-    { orderId: "o0", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, items: [chicken] },
-    { orderId: "o1", weeks: 8, deliveryDay: "mon", shippingPerWeek: 4000, items: [beef] },
+    { orderId: "o0", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, creditKrw: 0, items: [chicken] },
+    { orderId: "o1", weeks: 8, deliveryDay: "mon", shippingPerWeek: 4000, creditKrw: 0, items: [beef] },
   ];
 
   it("원구독 구간(06-29, 4회차)엔 원구독 주문 id", () => {
@@ -162,9 +162,9 @@ describe("refundByBlocks", () => {
   const input = {
     startedAt: "2026-01-06", paused: false, pausedAt: null, pausedDays: 0,
     blocks: [
-      { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000,
+      { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000, creditKrw: 0,
         items: [{ productName: "닭", volume: "200g", qty: 2, unitPrice: 10800 }] },
-      { orderId: "o1", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000,
+      { orderId: "o1", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000, creditKrw: 0,
         items: [{ productName: "소", volume: "150g", qty: 1, unitPrice: 30600 }] },
     ],
   };
@@ -189,14 +189,84 @@ describe("refundByBlocks", () => {
     // 더 늦은 날짜로 평가해도 정지 동결로 동일 환불 — delivered가 안 늘어남을 확인.
     expect(refundByBlocks(paused, "2026-02-10")).toBe(189600);
   });
+
+  // ── 추천 적립금(쿠폰) 안분 ──
+  //   주문의 total_amount 는 이미 적립금을 뺀 실결제액인데 환불은 정가 구성으로 계산한다.
+  //   되빼지 않으면 손님이 낸 적 없는 돈이 나간다. 상품비·배송비와 같은 규칙으로 안분한다.
+  describe("추천 적립금 — 남은 회차분만 되뺀다", () => {
+    // 단일 블록 12회, 회당 상품 10,000원 + 배송비 0 → 정가 120,000원.
+    //   쿠폰 12,000원 → 실결제 108,000원.
+    const withCredit = (creditKrw: number) => ({
+      startedAt: "2026-01-06",
+      paused: false,
+      pausedAt: null,
+      pausedDays: 0,
+      blocks: [
+        {
+          orderId: "o0",
+          weeks: 12,
+          deliveryDay: "tue" as const,
+          shippingPerWeek: 0,
+          creditKrw,
+          items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 10000 }],
+        },
+      ],
+    });
+
+    it("쿠폰 없음·배송 전 해지 → 정가 전액 (기존 동작 그대로)", () => {
+      expect(refundByBlocks(withCredit(0), "2026-01-05")).toBe(120000);
+    });
+
+    it("쿠폰 있음·배송 전 해지 → 실결제액 (과다 지급 없음)", () => {
+      // 옛 계산은 120,000 을 돌려줘 12,000 이 그대로 샜다.
+      expect(refundByBlocks(withCredit(12000), "2026-01-05")).toBe(108000);
+    });
+
+    it("쿠폰 없음·6회 받고 해지 → 남은 6회 정가", () => {
+      expect(refundByBlocks(withCredit(0), "2026-02-10")).toBe(60000);
+    });
+
+    it("쿠폰 있음·6회 받고 해지 → 실결제액의 남은 비율", () => {
+      // 공평한 값 = 108,000 × 6/12 = 54,000. 옛 계산은 60,000 으로 6,000 과다였다.
+      expect(refundByBlocks(withCredit(12000), "2026-02-10")).toBe(54000);
+    });
+
+    it("전 회차 소진 후에는 쿠폰과 무관하게 0원", () => {
+      expect(refundByBlocks(withCredit(12000), "2026-12-31")).toBe(0);
+    });
+
+    it("쿠폰이 상품비보다 커도 음수 환불은 나오지 않는다", () => {
+      expect(refundByBlocks(withCredit(999999), "2026-01-05")).toBe(0);
+    });
+
+    it("연장 블록은 자기 주문의 쿠폰으로 안분한다(상속하지 않음)", () => {
+      // 블록0: 4회·회당 10,000·쿠폰 0 / 블록1: 4회·회당 10,000·쿠폰 8,000
+      const chained = {
+        startedAt: "2026-01-06",
+        paused: false,
+        pausedAt: null,
+        pausedDays: 0,
+        blocks: [
+          { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 0, creditKrw: 0,
+            items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
+          { orderId: "o1", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 0, creditKrw: 8000,
+            items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
+        ],
+      };
+      // 배송 전 해지: 8회 정가 80,000 − 블록1 쿠폰 8,000 = 72,000
+      expect(refundByBlocks(chained, "2026-01-05")).toBe(72000);
+      // 6회 받고 해지: 남은 2회는 전부 블록1 → 20,000 − 8,000×2/4 = 16,000
+      expect(refundByBlocks(chained, "2026-02-10")).toBe(16000);
+    });
+  });
 });
 
 describe("totalWeeks invariant", () => {
   it("totalWeeks = 원주문 weeks + 연장 weeks 합", () => {
     const blocks: RawBlock[] = [
-      { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, items: [chicken] },
-      { orderId: "o1", weeks: 8, deliveryDay: "wed", shippingPerWeek: 4000, items: [beef] },
-      { orderId: "o2", weeks: 4, deliveryDay: null, shippingPerWeek: 4000, items: [] },
+      { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, creditKrw: 0, items: [chicken] },
+      { orderId: "o1", weeks: 8, deliveryDay: "wed", shippingPerWeek: 4000, creditKrw: 0, items: [beef] },
+      { orderId: "o2", weeks: 4, deliveryDay: null, shippingPerWeek: 4000, creditKrw: 0, items: [] },
     ];
     expect(totalWeeks(blocks)).toBe(16); // 4 + 8 + 4
   });
@@ -215,9 +285,9 @@ describe("refundByBlocks — 하계 휴무 구간 (SQL cancel_subscription 과 �
     pausedAt: null,
     pausedDays: 0,
     blocks: [
-      { orderId: "o0", weeks: 4, deliveryDay: "mon" as const, shippingPerWeek: 4000,
+      { orderId: "o0", weeks: 4, deliveryDay: "mon" as const, shippingPerWeek: 4000, creditKrw: 0,
         items: [{ productName: "헤이밀크", volume: "750mL", qty: 3, unitPrice: 10000 }] },
-      { orderId: "o1", weeks: 8, deliveryDay: "mon" as const, shippingPerWeek: 4000,
+      { orderId: "o1", weeks: 8, deliveryDay: "mon" as const, shippingPerWeek: 4000, creditKrw: 0,
         items: [{ productName: "헤이밀크", volume: "750mL", qty: 3, unitPrice: 12000 }] },
     ],
   };
