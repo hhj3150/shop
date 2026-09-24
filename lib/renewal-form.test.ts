@@ -25,6 +25,7 @@ function block(items: BlockItem[], weeks: number, day: DeliveryDay = "mon"): Raw
     weeks,
     deliveryDay: day,
     shippingPerWeek: 4000,
+    creditKrw: 0,
     items,
   };
 }
