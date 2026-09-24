@@ -27,9 +27,18 @@ export function track(event: FunnelEvent, opts?: { once?: boolean }): void {
       if (sessionStorage.getItem(k)) return;
       sessionStorage.setItem(k, "1");
     }
-    void getSupabase()
+    // ★ .then() 을 반드시 붙인다 — supabase-js 의 쿼리 빌더는 '게으르다'.
+    //   PostgrestBuilder 는 then() 안에서 비로소 fetch 를 시작한다. 그래서
+    //   `void builder` 처럼 then 을 부르지 않으면 식만 만들어지고 요청은 나가지 않는다.
+    //   이 한 줄이 빠져 있어 funnel_events 가 서비스 시작 이래 0건이었다(2026-09-24 발견).
+    //   실패는 조용히 삼킨다 — 분석이 사용자 흐름을 막지 않는다. 다만 '보내기는' 한다.
+    getSupabase()
       .from("funnel_events")
-      .insert({ session_id: sessionId(), event, path: location.pathname });
+      .insert({ session_id: sessionId(), event, path: location.pathname })
+      .then(
+        () => {},
+        () => {}
+      );
   } catch {
     // 분석 실패가 사용자 흐름을 막지 않는다.
   }
