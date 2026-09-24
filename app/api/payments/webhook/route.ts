@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { PortOneClient, Webhook } from "@portone/server-sdk";
 import { sendInfo, isSolapiConfigured, type AlimtalkSpec } from "@/lib/solapi";
-import { sendOrphanDepositAlert } from "@/lib/orphan-alert";
+import { sendOrphanDepositAlert, type OrphanReason } from "@/lib/orphan-alert";
 import { logSms } from "@/lib/sms-log";
 
 // PortOne(포트원) v2 결제 웹훅 수신.
@@ -130,6 +130,7 @@ export async function POST(req: Request) {
     changed: boolean;
     orphan?: boolean;
     orphan_inserted?: boolean;
+    orphan_reason?: OrphanReason | null;
     ship_name: string | null;
     ship_phone: string | null;
     ship_date: string | null;
@@ -149,6 +150,7 @@ export async function POST(req: Request) {
         shipPhone: r.ship_phone,
         paidAmount: paidAmount,
         payMethod: payMethod,
+        reason: r.orphan_reason ?? null,
       });
     }
   }
