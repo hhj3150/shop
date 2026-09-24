@@ -6,11 +6,16 @@
 --     · 마지막: 이 파일
 --     배포 전에 적용하면 그 사이 비회원 주문조회 화면이 "조회 중 오류"를 낸다.
 --
---   [왜] 2-인자판은 anon 에 열려 있어 브라우저가 직접 부를 수 있다. 그래서
+--   [왜] 2-인자판은 anon·authenticated 에 열려 있어 브라우저가 직접 부를 수 있다. 그래서
 --     호출 횟수를 셀 자리가 없다 — 주문번호를 무차별 대입해도 막을 방법이 없었다.
 --     (주문번호 엔트로피는 ①에서 이미 늘렸지만, 기존 4자리 번호는 그대로 남아 있다.)
 --     조회는 이제 Next API 라우트만 지나간다. 라우트가 IP 단위로 횟수를 제한한 뒤
 --     3-인자 시크릿판을 부른다.
+--     ★ authenticated 도 함께 회수한다. anon 만 막으면 회원가입 한 번으로 라우트를
+--       우회할 수 있다. 조회 경로는 /api/orders/lookup 하나여야 한다.
+--     3-인자 시크릿판은 그대로 둔다 — 라우트가 anon 키로 접속해 시크릿을 넘긴다.
+--       그 함수는 SECURITY DEFINER(소유자 postgres)라 내부에서 2-인자판을 부를 때
+--       호출자 권한이 아니라 소유자 권한으로 실행된다 → 이 회수의 영향을 받지 않는다.
 --
 --   되돌리려면: grant execute on function public.lookup_order_by_no_phone(text, text)
 --                 to anon, authenticated;
@@ -23,9 +28,13 @@ begin
 end $$;
 
 revoke execute on function public.lookup_order_by_no_phone(text, text) from anon;
+revoke execute on function public.lookup_order_by_no_phone(text, text) from authenticated;
 revoke execute on function public.lookup_order_by_no_phone(text, text) from public;
 
 -- 검증 (읽기만)
---   -- 2-인자판에 anon 이 없어야 한다. 3-인자판에는 있어야 한다(시크릿이 진짜 관문).
---   select oid::regprocedure::text, coalesce(array_to_string(proacl, ' | '), '(PUBLIC)')
+--   -- 2-인자판은 anon·authenticated 모두 false, 3-인자판은 true 여야 한다
+--   --   (3-인자판의 진짜 관문은 Vault 시크릿이다).
+--   select oid::regprocedure::text,
+--          has_function_privilege('anon', oid, 'execute') as anon,
+--          has_function_privilege('authenticated', oid, 'execute') as authenticated
 --     from pg_proc where proname = 'lookup_order_by_no_phone' order by 1;

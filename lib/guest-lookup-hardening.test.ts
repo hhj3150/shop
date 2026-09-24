@@ -66,6 +66,12 @@ describe("② 조회 경로", () => {
     expect(revoke).toMatch(/revoke execute on function public\.lookup_order_by_no_phone\(text, text\) from anon/);
   });
 
+  it("authenticated 도 회수한다 — anon 만 막으면 회원가입으로 우회된다", () => {
+    expect(revoke).toMatch(
+      /revoke execute on function public\.lookup_order_by_no_phone\(text, text\) from authenticated/
+    );
+  });
+
   it("회수 파일은 3-인자판이 있는지 먼저 확인한다", () => {
     expect(revoke).toContain("lookup_order_by_no_phone(text,text,text)");
     expect(revoke).toMatch(/raise exception '선행 누락/);
