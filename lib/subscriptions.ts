@@ -372,12 +372,39 @@ export async function cancelSubscription(
   reason: string,
   refundAccount: string
 ): Promise<number> {
-  const { data, error } = await getSupabase().rpc("cancel_subscription", {
+  const sb = getSupabase();
+
+  // 해지되면 '입금대기' 연장 주문도 같이 취소된다(DB 트리거). PayAction 등록 해제는
+  //   외부 API 라 DB 에서 못 하므로, 주문번호를 미리 읽어 두었다가 해지 뒤에 통지한다.
+  //   안 해제하면 해지된 구독의 연장 주문번호로 뒤늦게 입금이 매칭돼 고아입금이 된다.
+  let pendingRenewalNos: string[] = [];
+  try {
+    const { data } = await sb
+      .from("orders")
+      .select("order_no")
+      .eq("renews_slot_id", slotId)
+      .eq("status", "입금대기");
+    pendingRenewalNos = ((data ?? []) as { order_no: string }[]).map((r) => r.order_no);
+  } catch {
+    // 조회 실패는 해지를 막지 않는다 — 입금이 들어와도 서버가 고아입금으로 잡아낸다.
+  }
+
+  const { data, error } = await sb.rpc("cancel_subscription", {
     p_slot_id: slotId,
     p_reason: reason,
     p_refund_account: refundAccount,
   });
   if (error) throw new Error(error.message);
+
+  for (const orderNo of pendingRenewalNos) {
+    // 실패해도 해지 자체는 이미 반영됐으므로 흡수한다(non-fatal).
+    try {
+      await cancelPayActionDeposit(orderNo);
+    } catch {
+      // 통지 실패는 사용자 흐름에 영향을 주지 않는다.
+    }
+  }
+
   return (data as number) ?? 0;
 }
 
