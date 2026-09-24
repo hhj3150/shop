@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sendInfo, isSolapiConfigured, type AlimtalkSpec, type InfoMessage } from "@/lib/solapi";
 import { logSms } from "@/lib/sms-log";
+import { overDailyCap } from "@/lib/sms-quota";
 import { DEPOSIT } from "@/lib/site";
 import { formatKRW } from "@/lib/products";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
@@ -22,6 +23,9 @@ import { buildOrderReceivedMessage } from "@/lib/order-received-message";
 type OrderKind = "order_received" | "payment_confirmed" | "shipped" | "delivered" | "order_cancelled";
 type GiftKind = "gift_subscription" | "gift_once";
 type RenewalKind = "renewal_guide" | "renewal_confirmed";
+// 선물 메시지 서버측 한도 — components/GiftOptions 의 maxLength 와 같은 값.
+const GIFT_MESSAGE_MAX = 80;
+
 const ADMIN_KINDS = new Set(["payment_confirmed", "shipped", "delivered", "renewal_confirmed", "order_cancelled"]);
 
 type Body = {
@@ -125,10 +129,29 @@ async function alreadySent(
 // 발송 + 이력 적재(클레임 복기). 로그는 best-effort — 실패해도 발송/응답을 막지 않는다.
 async function sendAndLog(
   kind: string,
-  ids: { userId?: string | null; orderId?: string | null },
+  ids: { userId?: string | null; orderId?: string | null; slotId?: number | null },
   phone: string,
   msg: InfoMessage
 ) {
+  // 번호당 일일 상한(lib/sms-quota) — 손님이 촉발하는 알림만 대상이다.
+  //   관리자 전용 종류는 호출 전에 is_admin 검사를 통과한 것이라 상한을 적용하지 않는다.
+  //   상한이 관리자의 발송·배송 안내를 막으면 운영이 멈춘다. 남용 주체는 손님 경로다.
+  if (!ADMIN_KINDS.has(kind) && (await overDailyCap(phone))) {
+    await logSms({
+      kind,
+      toPhone: phone,
+      body: msg.text,
+      templateKey: msg.alimtalk?.templateKey,
+      channel: "info",
+      ok: false,
+      failReason: "daily_cap_exceeded",
+      userId: ids.userId ?? null,
+      orderId: ids.orderId ?? null,
+      meta: ids.slotId != null ? { slotId: ids.slotId } : null,
+    });
+    return { ok: false as const, reason: "daily_cap_exceeded" };
+  }
+
   const r = await sendInfo(phone, msg);
   await logSms({
     kind,
@@ -140,8 +163,31 @@ async function sendAndLog(
     failReason: r.ok ? null : (r.reason ?? null),
     userId: ids.userId ?? null,
     orderId: ids.orderId ?? null,
+    meta: ids.slotId != null ? { slotId: ids.slotId } : null,
   });
   return r;
+}
+
+// 슬롯 단위 중복발송 판정 — '해지 접수' 문자는 슬롯당 한 번이면 된다.
+//   주문 단위(alreadySent)로는 한 주문에 요일이 둘일 때 두 번째 슬롯이 통째로 막힌다.
+async function alreadySentForSlot(kind: string, slotId: number): Promise<boolean> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const secret = process.env.CONFIRM_PAYMENT_SECRET;
+  if (!url || !anon || !secret) return false;
+  try {
+    const sb = createClient(url, anon, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data } = await sb.rpc("sms_already_sent_slot", {
+      p_secret: secret,
+      p_kind: kind,
+      p_slot_id: slotId,
+    });
+    return data === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: Request) {
@@ -172,6 +218,8 @@ export async function POST(req: Request) {
   const userId = auth_user.user.id;
 
   // 관리자 전용 알림은 호출자가 관리자인지 확인한다.
+  //   확인을 통과하면 일일 상한도 적용하지 않는다 — 관리자가 직접 누른 발송이라
+  //   상한이 운영을 막으면 안 된다(남용 주체는 손님 경로다).
   if (ADMIN_KINDS.has(body.kind)) {
     const { data: prof } = await sb.from("profiles").select("is_admin").eq("id", userId).single();
     if (!prof?.is_admin) {
@@ -492,9 +540,11 @@ async function handleGift(sb: SupabaseClient, kind: GiftKind, orderId?: string) 
     })
     .join("\n");
 
-  const messageLine = o.gift_message
-    ? `\n메시지: ${o.gift_message as string}`
-    : "";
+  // 선물 메시지는 '임의의 번호로 나가는 자유 문구'다 — 화면은 80자로 막지만 서버는
+  //   막지 않아, RPC 를 직접 부르면 긴 문구를 그대로 실어 보낼 수 있었다(문자 중계 악용).
+  //   화면과 같은 한도를 서버에서도 강제한다.
+  const giftMessage = ((o.gift_message as string | null) ?? "").slice(0, GIFT_MESSAGE_MAX);
+  const messageLine = giftMessage ? `\n메시지: ${giftMessage}` : "";
 
   // 받는 분에게 선물 안내 (결제 정보 없음).
   let recipientText = "";
@@ -626,10 +676,20 @@ async function handleCancel(sb: SupabaseClient, slotId?: number) {
   if (!slotId) return NextResponse.json({ ok: false, reason: "no_slot" }, { status: 400 });
   const { data: slot } = await sb
     .from("subscription_slots")
-    .select("refund_amount, order_id, user_id")
+    .select("status, refund_amount, order_id, user_id")
     .eq("id", slotId)
     .single();
   if (!slot) return NextResponse.json({ ok: false, reason: "slot_not_found" }, { status: 404 });
+
+  // 실제로 해지된 구독만 보낸다. 상태를 안 보면 살아 있는 구독에도 '해지가 접수되었습니다'가
+  //   나가고(손님 혼란), 같은 슬롯으로 몇 번이고 다시 부를 수 있다(문자 비용 남용).
+  if (slot.status !== "해지") {
+    return NextResponse.json({ ok: false, reason: "not_cancelled" }, { status: 409 });
+  }
+  // 슬롯당 한 번. 해지 상태는 계속 '해지'라 상태 검사만으로는 반복 호출을 못 막는다.
+  if (await alreadySentForSlot("subscription_cancelled", slotId)) {
+    return NextResponse.json({ ok: true, reason: "duplicate_skipped" });
+  }
 
   // 수신번호·이름은 연결된 주문에서 가져오고, 없으면 프로필에서 보완.
   let phone = "";
@@ -664,7 +724,11 @@ async function handleCancel(sb: SupabaseClient, slotId?: number) {
     `입력하신 환불 계좌로 송금해 드리겠습니다.`;
   const r = await sendAndLog(
     "subscription_cancelled",
-    { userId: slot.user_id as string | null, orderId: slot.order_id as string | null },
+    {
+      userId: slot.user_id as string | null,
+      orderId: slot.order_id as string | null,
+      slotId,
+    },
     phone,
     {
     text,
