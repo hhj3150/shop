@@ -85,6 +85,31 @@ union all select 'P. slots.extended_weeks ≠ 확정 연장주문 회차 합', c
        coalesce((select sum(coalesce(r.block_weeks, 0)) from orders r
                   where r.renews_slot_id = s.id
                     and r.status in ('입금확인','배송준비','배송중','배송완료')), 0)
+
+-- 주문 생성 '코어' RPC 가 손님 키(anon/authenticated)로 직접 호출 가능한가.
+--   _create_once_order_core 는 첫 인자로 user_id 를 그대로 받는다. 손님이 직접 부를 수 있으면
+--   남의 uuid 를 넣어 타인 명의 주문을 만들 수 있다. 반드시 래퍼(create_once_order /
+--   create_guest_once_order)를 통해서만 부르게 하고, 코어는 revoke all from public 상태여야 한다.
+--   ★ 옛 시그니처가 오버로드로 남아 있어도 여기 잡힌다(인자 수 무관).
+union all select 'Q. 주문 코어 RPC 가 손님 키로 호출 가능', count(*)
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname = '_create_once_order_core'
+   and (p.proacl is null                                    -- null = PUBLIC 실행가능(기본값)
+        or array_to_string(p.proacl, ',') ~ '(^|,)(=|anon=|authenticated=)')
+
+-- 주문·연장 RPC 에서 서버 권위 가드가 빠졌는가 — 마이그레이션이 옛 본문으로 덮어쓰면 조용히 사라진다.
+--   재고 0 차단 / 정가 기준 최소주문(24,000원) / 멱등키. 셋 다 '돈이 어긋나는' 가드다.
+--   ※ request_renewal 은 멱등키 인자가 없고 '입금대기 연장 중복 거절'로 대신 막는다 → 멱등키 제외.
+union all select 'R. 주문 RPC 에 서버 권위 가드 누락(재고·정가최소·멱등키)', count(*)
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace,
+       lateral pg_get_functiondef(p.oid) as d(src)
+ where n.nspname = 'public'
+   and p.proname in ('_create_once_order_core','create_once_order','create_subscription_order')
+   and (position('stock'  in d.src) = 0        -- 재고 0(품절) 차단
+     or position('24000'  in d.src) = 0        -- 정가 기준 최소주문
+     or position('25000'  in d.src) > 0        -- 옛 할인가 기준 25,000원 잔존
+     or position('idempotency' in d.src) = 0)  -- 멱등키
 order by 1;
 
 
@@ -97,6 +122,12 @@ order by 1;
 -- 출고 기록이 실제 발송을 못 따라가는 구독 — 과배송 방어선(배송 시트의 '발송금지')과
 --   손님 마이페이지의 '배송 현황'이 모두 이 기록을 센다. 기록이 비면 방어선이 작동하지 않는다.
 --   (관리자 '데이터 점검'의 같은 항목과 동일 판정: 누락 2회 이상)
+--   ⚠ 진행 중인 정지는 '놓친 회차 × 7일'로 환산한다(missed_delivery_weeks) — 경과 일수를 그대로
+--     더하면 정지 중인 슬롯의 model_delivered 가 틀어져 멀쩡한 구독이 누락으로 잡힌다.
+--     lib/subscription-schedule.ts·cancel_subscription 과 같은 규칙이어야 한다.
+--   ⚠ 방문수령·취소 주문은 제외한다. 방문수령은 택배 출고가 없어 기록이 원래 0건이고,
+--     취소 주문의 살아 있는 좌석은 D 항목이 따로 잡는다. 안 거르면 멀쩡한 건이 섞여
+--     숫자가 부풀고, 진짜 누락이 그 안에 묻힌다(2026-09-24 실측: 27건 → 23건).
 --   with chain as (
 --     select s.id slot_id, s.started_at, s.first_ship_date, s.paused, s.paused_at, s.paused_days,
 --            s.delivery_day, s.order_id, o.order_no, o.ship_name,
@@ -104,13 +135,18 @@ order by 1;
 --               where r.renews_slot_id = s.id
 --                 and r.status in ('입금확인','배송준비','배송중','배송완료')),0))::int as total_weeks
 --       from subscription_slots s join orders o on o.id = s.order_id
---      where s.status = '활성' and s.started_at is not null)
+--      where s.status = '활성' and s.started_at is not null
+--        and o.delivery_method <> '방문수령'   -- 택배 출고만 기록이 남는다(방문수령은 원래 0건)
+--        and o.status <> '취소')               -- 취소 주문의 살아 있는 좌석은 D 항목이 잡는다
 --   select slot_id, order_no, ship_name, delivery_day, total_weeks, model_delivered, actual_shipped,
 --          model_delivered - actual_shipped as gap
 --     from (select c.*,
 --            (select count(*) from sub_delivery_dates(c.started_at, c.first_ship_date, c.total_weeks,
 --                (c.paused_days + case when c.paused and c.paused_at is not null
---                                      then greatest(0, current_date - c.paused_at) else 0 end)::int) d
+--                                      then missed_delivery_weeks(c.started_at, c.first_ship_date,
+--                                             c.total_weeks, c.paused_days,
+--                                             c.paused_at, current_date + 1) * 7
+--                                      else 0 end)::int) d
 --              where d.ship_date <= current_date)::int as model_delivered,
 --            (select count(*) from shipment_log sl
 --               where sl.order_id = c.order_id
