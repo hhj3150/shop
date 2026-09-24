@@ -326,6 +326,7 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
     weeks: 4,
     deliveryDay: "mon",
     shippingPerWeek: 4000,
+    creditKrw: 0,
     items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 3000 }],
   };
   const block1: RawBlock = {
@@ -333,6 +334,7 @@ describe("buildRosterForDate — 활성 블록 게이팅", () => {
     weeks: 4,
     deliveryDay: "tue",
     shippingPerWeek: 4000,
+    creditKrw: 0,
     items: [{ productName: "요거트", volume: "85g", qty: 2, unitPrice: 2000 }],
   };
   const blocksBySlot = new Map<number, RawBlock[]>([[10, [block0, block1]]]);
@@ -504,6 +506,7 @@ describe("buildRosterForDate — 멀티요일 활성블록 공휴일 시프트",
     weeks: 4,
     deliveryDay: "mon",
     shippingPerWeek: 4000,
+    creditKrw: 0,
     items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 3000 }],
   };
   const block1: RawBlock = {
@@ -511,6 +514,7 @@ describe("buildRosterForDate — 멀티요일 활성블록 공휴일 시프트",
     weeks: 4,
     deliveryDay: "tue",
     shippingPerWeek: 4000,
+    creditKrw: 0,
     items: [{ productName: "요거트", volume: "85g", qty: 2, unitPrice: 2000 }],
   };
   const blocksBySlot = new Map<number, RawBlock[]>([[10, [block0, block1]]]);
@@ -632,8 +636,8 @@ describe("buildRosterForDate — 연장(재구독) 중복 배송 가드", () => 
       [
         7,
         [
-          { orderId: "orig", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, items: [{ productName: "송영신우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
-          { orderId: "renew", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, items: [{ productName: "송영신우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
+          { orderId: "orig", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, creditKrw: 0, items: [{ productName: "송영신우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
+          { orderId: "renew", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, creditKrw: 0, items: [{ productName: "송영신우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
         ],
       ],
     ]);

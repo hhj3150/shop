@@ -41,7 +41,7 @@ const byId = (rows: O[]) => new Map(rows.map((o) => [o.id, o]));
 
 // 회차만 중요한 블록(품목·배송비는 이 판정에 쓰이지 않는다).
 function block(orderId: string, weeks: number): RawBlock {
-  return { orderId, weeks, shippingPerWeek: 0, items: [], deliveryDay: null };
+  return { orderId, weeks, shippingPerWeek: 0, creditKrw: 0, items: [], deliveryDay: null };
 }
 
 describe("paidRoundsForSlot — 결제 회차의 단일 기준", () => {

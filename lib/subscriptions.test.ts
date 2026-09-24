@@ -106,6 +106,7 @@ describe("toMySubscriptions — 연장분 합산", () => {
         block_weeks: 4,
         shipping_fee: 16000,
         created_at: "2026-06-01T00:00:00Z",
+          referral_credit_krw: 0,
       },
       renewalOrders: [
         {
@@ -113,6 +114,7 @@ describe("toMySubscriptions — 연장분 합산", () => {
           block_weeks: 4,
           shipping_fee: 16000,
           created_at: "2026-07-01T00:00:00Z",
+          referral_credit_krw: 0,
         },
       ],
       itemsByOrder: new Map([
@@ -130,6 +132,21 @@ describe("toMySubscriptions — 연장분 합산", () => {
     );
     expect(subs[0].totalWeeks).toBe(8);
     expect(subs[0].totalAmount).toBe(80000);
+  });
+
+  it("★회귀: 추천 적립금은 남은 회차분만큼 환불에서 빠진다", () => {
+    // 블록0(4회·쿠폰 0) + 블록1(4회·쿠폰 8,000). 회당 단가는 items 기준 10,000원.
+    //   남은 6회 = 블록0 2회 + 블록1 4회 → 쿠폰은 블록1에서 8,000 × 4/4 = 8,000 전액 차감.
+    const withCredit = blockSource.map((b) => ({
+      ...b,
+      renewalOrders: b.renewalOrders.map((o) => ({ ...o, referral_credit_krw: 8000 })),
+    }));
+    const subs = toMySubscriptions(
+      [slotRow],
+      [{ renews_slot_id: 7, total_amount: 40000 }],
+      withCredit
+    );
+    expect(refundAmount(subs[0], 6)).toBe(60000 - 8000);
   });
 
   it("환불 미리보기 = 서버와 동일: 8회/8만, 남은 6회 → 60,000원", () => {
