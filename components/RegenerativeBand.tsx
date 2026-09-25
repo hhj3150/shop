@@ -24,6 +24,11 @@ export function RegenerativeBand() {
           <p className="text-ink">흙에서 마음까지 — From Soil to Soul.</p>
         </div>
 
+        {/* 이 밴드의 마침표. 제품 이야기에는 From Soil to Soul, 목장 이야기 끝에는 이 문장. */}
+        <p className="mt-8 font-display text-[clamp(1.2rem,3vw,1.6rem)] font-medium tracking-[-0.01em] text-ink">
+          Save our soil, <span className="text-mute">save us.</span>
+        </p>
+
         {/* 원칙 — 자연이 허락한 만큼 (HEY 액센트 포인트) */}
         <div className="mt-10 grid gap-3 sm:grid-cols-3">
           {[

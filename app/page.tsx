@@ -1,4 +1,5 @@
 import { Hero } from "@/components/Hero";
+import { WhatItMeans } from "@/components/WhatItMeans";
 import { ProductShowcase } from "@/components/ProductShowcase";
 import { ConciergeInvite } from "@/components/ConciergeInvite";
 import { FarmBand } from "@/components/FarmBand";
@@ -20,6 +21,8 @@ export default function Home() {
       <JsonLd data={buildLocalBusiness()} />
       <JsonLd data={buildFAQPage(FAQ_ITEMS)} />
       <Hero />
+      {/* 제품을 보기 전에 이름부터 푼다 — 모르는 낱말 셋으로는 값이 설명되지 않는다. */}
+      <WhatItMeans />
       <ProductShowcase />
       <ConciergeInvite />
       <FarmBand />
