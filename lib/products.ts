@@ -139,6 +139,12 @@ const MILK_SIGNATURE: ProductSignature = {
 // 요거트 시그니처 — 1g당 7.2억 CFU(공인)를 병당 총량으로 환산(1mL≈1g 보수적).
 //   180mL → 7.2억×180 = 1,296억 ≈ 약 1,300억 / 500mL → 3,600억.
 //   실제 요거트 밀도는 1g/mL 초과라 실측은 이보다 많음(과장 아님).
+//
+//   ※ 기준 단위가 두 가지로 보이는 건 의도한 것이다 — 고치지 말 것.
+//     · 여기 caption 은 "1g당"  — 공인 시험성적서가 g 기준으로 측정했으므로 출처를 그대로 인용한다.
+//     · label.cultures 는 "1 mL당" — 발효유 표시기준이 mL 당 유산균수를 요구한다.
+//     밀도가 1g/mL 를 넘으므로 같은 수치를 mL 기준으로 옮기면 오히려 과소 표기다(보수적·안전).
+//     한쪽에 맞춰 통일하면 출처를 잘못 인용하거나 표시기준을 어기게 된다.
 const YOGURT_SIGNATURE_180: ProductSignature = {
   topLabel: "병당 총 유산균",
   pre: "약",
@@ -149,7 +155,7 @@ const YOGURT_SIGNATURE_180: ProductSignature = {
 };
 
 const YOGURT_SIGNATURE_500: ProductSignature = {
-  topLabel: "통당 총 유산균",
+  topLabel: "병당 총 유산균",
   pre: "약",
   figure: "3,600",
   unit: "억",
@@ -251,8 +257,9 @@ export const PRODUCTS: Product[] = [
     specs: [
       { label: "원유", value: "A2/A2 저지 원유 100%" },
       { label: "사육", value: "Hay-fed · 무사일리지" },
-      { label: "열량", value: "135 kcal" },
+      { label: "열량", value: "135 kcal / 병" },
       { label: "보관", value: "냉장 0–10℃" },
+      { label: "브랜드", value: "경기도 퀸스저지" },
       { label: "구분", value: "면세품" },
     ],
     label: {
@@ -307,6 +314,7 @@ export const PRODUCTS: Product[] = [
       { label: "사육", value: "Hay-fed · 무사일리지" },
       { label: "열량", value: "560 kcal / 병" },
       { label: "보관", value: "냉장 0–10℃" },
+      { label: "브랜드", value: "경기도 퀸스저지" },
       { label: "구분", value: "면세품" },
     ],
     label: {
@@ -359,8 +367,9 @@ export const PRODUCTS: Product[] = [
     specs: [
       { label: "원료", value: "A2 저지 원유 · 유산균" },
       { label: "첨가물", value: "무가당 · 무향료 · 무첨가" },
-      { label: "열량", value: "130 kcal" },
+      { label: "열량", value: "130 kcal / 병" },
       { label: "보관", value: "냉장 0–10℃" },
+      { label: "브랜드", value: "경기도 퀸스저지" },
       { label: "구분", value: "과세품 · 세금 포함가" },
     ],
     label: {
@@ -416,8 +425,9 @@ export const PRODUCTS: Product[] = [
     specs: [
       { label: "원료", value: "A2 저지 원유 · 유산균" },
       { label: "첨가물", value: "무가당 · 무향료 · 무첨가" },
-      { label: "열량", value: "360 kcal / 통" },
+      { label: "열량", value: "360 kcal / 병" },
       { label: "보관", value: "냉장 0–10℃" },
+      { label: "브랜드", value: "경기도 퀸스저지" },
       { label: "구분", value: "과세품 · 세금 포함가" },
     ],
     label: {
@@ -548,4 +558,19 @@ export function subscribePrice(price: number, rate: number = BASE_DISCOUNT): num
 
 export function formatKRW(value: number): string {
   return "₩" + value.toLocaleString("ko-KR");
+}
+
+// 문장 속 금액 — "4,000원". 표·가격 표기는 formatKRW("₩4,000")를 쓴다.
+//   FAQ·도우미처럼 한국어 산문 안에 금액이 들어가는 자리에서 ₩ 기호는 어색하다.
+export function formatWon(value: number): string {
+  return value.toLocaleString("ko-KR") + "원";
+}
+
+// 기간별 할인 안내 문구 — "4주 10% · 8주 12% · 12주 15%".
+//   FAQ·도우미·구독 화면이 같은 문장을 쓰도록 여기서 한 번만 만든다.
+//   할인율을 PERIOD_DISCOUNT 에서만 바꾸면 손님에게 보이는 모든 문구가 함께 따라온다.
+export function periodDiscountSentence(sep = " · "): string {
+  return SUB_PERIODS.map(
+    (m) => `${PERIOD_LABEL[m]} ${Math.round(PERIOD_DISCOUNT[m] * 100)}%`
+  ).join(sep);
 }

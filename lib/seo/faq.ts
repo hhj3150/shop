@@ -1,12 +1,28 @@
 // 검색·AI가 인용할 FAQ 데이터. buildFAQPage(FAQ_ITEMS)의 입력.
 // 배송·교환/환불 문구는 app/guide/page.tsx와 일치시킨다(불일치 시 가이드를 진실로 본다).
+//
+// 금액·할인율·정원은 lib/products.ts 단일 출처에서 끌어온다.
+//   이 FAQ 는 화면(FaqSection)·schema.org FAQPage·고객 도우미 세 곳이 함께 읽는다.
+//   숫자를 여기 손으로 적어 두면 정책을 바꿀 때 세 곳이 한꺼번에 옛 값을 말한다.
+import {
+  ONCE_MIN_KRW,
+  ONCE_SHIPPING_KRW,
+  PERIOD_LABEL,
+  SUB_PERIODS,
+  SUB_SHIPPING_KRW,
+  SUB_TOTAL_CAP,
+  formatWon,
+  periodDiscountSentence,
+} from "@/lib/products";
+import { SPECIAL_DELIVERY_SHIPPING_KRW } from "@/lib/regions";
+
 export type FaqItem = { question: string; answer: string };
 
 export const FAQ_ITEMS: readonly FaqItem[] = [
   {
     question: "정기구독은 어떻게 신청하나요?",
     answer:
-      "선착순 500인 한정 회원제입니다. 월–금 중 택배 발송 요일 하나를 골라 매주 1회 발송되며(택배 특성상 보통 다음 날 수령), 4주·8주·12주 중 기간을 선택해 그 기간분을 무통장입금으로 선납합니다. 기간이 길수록 할인이 커져 4주 10%·8주 12%·12주 15%가 적용되며, 배송비는 회당 4,000원입니다(제주·도서산간 등은 회당 5,000원).",
+      `선착순 ${SUB_TOTAL_CAP}인 한정 회원제입니다. 월–금 중 택배 발송 요일 하나를 골라 매주 1회 발송되며(택배 특성상 보통 다음 날 수령), ${SUB_PERIODS.map((m) => PERIOD_LABEL[m]).join("·")} 중 기간을 선택해 그 기간분을 무통장입금으로 선납합니다. 기간이 길수록 할인이 커져 ${periodDiscountSentence("·")}가 적용되며, 배송비는 회당 ${formatWon(SUB_SHIPPING_KRW)}입니다(제주·도서산간 등은 회당 ${formatWon(SPECIAL_DELIVERY_SHIPPING_KRW)}).`,
   },
   {
     question: "배송은 언제 시작되나요?",
@@ -51,6 +67,6 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
   {
     question: "회원이 아니어도 살 수 있나요?",
     answer:
-      "네. 정기구독과 별개로 단품(1회) 구매가 가능합니다. 회당 최소 상품 금액 24,000원 이상부터 주문하실 수 있으며, 배송비는 4,000원입니다(제주·도서산간 등은 5,000원).",
+      `네. 정기구독과 별개로 단품(1회) 구매가 가능합니다. 회당 최소 상품 금액 ${formatWon(ONCE_MIN_KRW)} 이상부터 주문하실 수 있으며, 배송비는 ${formatWon(ONCE_SHIPPING_KRW)}입니다(제주·도서산간 등은 ${formatWon(SPECIAL_DELIVERY_SHIPPING_KRW)}).`,
   },
 ] as const;
