@@ -23,6 +23,7 @@ import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
 import { SwipeNav } from "@/components/SwipeNav";
 import { JsonLd } from "@/components/JsonLd";
+import { ProductSticker } from "@/components/ProductSticker";
 import { buildProduct } from "@/lib/seo/schema";
 import { createClient } from "@supabase/supabase-js";
 import { reviewSummary, type ReviewRow } from "@/lib/reviews";
@@ -157,6 +158,13 @@ export default async function ProductPage({
               />
             ) : (
               <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:h-auto lg:aspect-[4/5] lg:max-w-none">
+                {product.sticker && (
+                  <ProductSticker
+                    title={product.sticker.title}
+                    sub={product.sticker.sub}
+                    className="left-5 top-5 sm:left-7 sm:top-7"
+                  />
+                )}
                 <Image
                   src={product.image}
                   alt={`${product.name} ${product.volume}`}
