@@ -95,6 +95,11 @@ export type Product = {
   //   출시할 때 이 플래그만 지우면 된다.
   unpublished?: boolean;
   image: string;
+  // 제품 사진 위에 붙는 메모지 — '오해부터 푸는' 한 줄.
+  //   요거트는 '떠먹는 꾸덕한 것'으로 오해받아 마시는 타입임을 먼저 알려야 한다.
+  //   ※ 사진에 굽지 않고 데이터로 둔다 — 검색에 잡히고, 스크린리더가 읽고,
+  //     수치가 바뀌어도 사진을 다시 만들지 않는다.
+  sticker?: { title: string; sub?: string };
   // 상세 페이지 멀티 컷 갤러리(대표 이미지 포함, 순서대로). 미지정 시 단일 image.
   gallery?: { src: string; label: string }[];
   accent: string;
@@ -390,6 +395,7 @@ export const PRODUCTS: Product[] = [
     price: 4300,
     taxFree: false,
     image: "/products/yogurt-180-bottle.webp",
+    sticker: { title: "드링킹 타입", sub: "유산균 7.2억 CFU/mL" },
     accent: "#00694e", // 라벨 3425C — 병 라벨의 요거트 제품명과 같은 초록
   },
   {
@@ -446,6 +452,7 @@ export const PRODUCTS: Product[] = [
     price: 10000,
     taxFree: false,
     image: "/products/yogurt-500-bottle.webp",
+    sticker: { title: "드링킹 타입", sub: "유산균 7.2억 CFU/mL" },
     accent: "#005a42", // 라벨 3425C 의 어두운 변주(500mL)
   },
   {

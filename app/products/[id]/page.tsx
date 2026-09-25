@@ -23,6 +23,7 @@ import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
 import { SwipeNav } from "@/components/SwipeNav";
 import { JsonLd } from "@/components/JsonLd";
+import { ProductSticker } from "@/components/ProductSticker";
 import { buildProduct } from "@/lib/seo/schema";
 import { createClient } from "@supabase/supabase-js";
 import { reviewSummary, type ReviewRow } from "@/lib/reviews";
@@ -148,7 +149,16 @@ export default async function ProductPage({
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-14">
           {/* 이미지 — 데스크톱에선 왼편 고정: 구매 영역을 스크롤하는 동안 제품이 항상 보인다. */}
           {/*   모바일은 높이를 제한해 제품과 구매 영역이 한 화면에 함께 보이게 한다. */}
-          <div className="lg:sticky lg:top-24">
+          {/* relative — 메모지를 조건 분기 밖에 둔다. 갤러리로 바꾸든 단일 이미지든
+              스티커가 따라간다(분기 안에 두면 갤러리 전환 때 조용히 사라진다). */}
+          <div className="relative lg:sticky lg:top-24">
+            {product.sticker && (
+              <ProductSticker
+                title={product.sticker.title}
+                sub={product.sticker.sub}
+                className="left-5 top-5 sm:left-7 sm:top-7"
+              />
+            )}
             {/* 멀티 컷 제품(gallery)은 썸네일 갤러리, 그 외엔 단일 이미지 */}
             {product.gallery ? (
               <ProductGallery
