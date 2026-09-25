@@ -31,8 +31,13 @@ export function Hero() {
             그리고 지속가능한 지구를.
           </h1>
 
+          {/* 남이 골랐다는 사실 한 줄. 스스로를 칭찬하는 문장 열 줄보다 세다. */}
+          <p className="mt-5 text-[13.5px] leading-relaxed text-ink-soft sm:text-[14px]">
+            압구정 갤러리아백화점 명품관, 바로 그 우유
+          </p>
+
           {/* 서브 한 줄 */}
-          <p className="mt-6 max-w-md text-[14.5px] leading-relaxed text-mute sm:text-[15px]">
+          <p className="mt-4 max-w-md text-[14.5px] leading-relaxed text-mute sm:text-[15px]">
             하루 500리터만 생산합니다.
             <br />더 만들 수 있지만, 그러지 않습니다.
           </p>
