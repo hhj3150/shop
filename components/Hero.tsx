@@ -57,13 +57,15 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Product visual — 흰배경 정렬샷(1600×1195) */}
+        {/* Product visual — 흰배경 정렬샷(1487×1058).
+            ※ width/height 는 실제 파일 크기와 맞춘다. 어긋나면 로딩 중 예약 공간이
+              틀려 첫 페인트 뒤 레이아웃이 밀린다(CLS). */}
         <div className="flex justify-center">
           <Image
-            src="/brand/hero-row-white.jpg"
-            alt="송영신목장 A2 저지 헤이밀크 제품 라인업"
-            width={1600}
-            height={1195}
+            src="/brand/hero-row-white.webp"
+            alt="송영신목장 A2 저지 헤이밀크 180mL·750mL 와 A2 저지 플레인요거트 180mL·500mL 제품 라인업"
+            width={1487}
+            height={1058}
             priority
             sizes="(max-width:1024px) 86vw, 50vw"
             className="h-auto w-[86%] max-w-[520px] object-contain lg:w-full lg:max-w-[600px]"
