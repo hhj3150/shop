@@ -26,9 +26,7 @@ export function Hero() {
 
           {/* 센터 슬로건 — 페이지 위계의 중심. 가볍고 우아한 serif(애플식, 덜 투박). */}
           <h1 className="max-w-2xl text-balance font-serif-kr text-[clamp(1.8rem,4.5vw,3.05rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
-            소중한 분들에게 최상의 우유를.
-            <br />
-            그리고 지속가능한 지구를.
+            우유에도 안목이 있습니다.
           </h1>
 
           {/* 남이 골랐다는 사실 한 줄. 스스로를 칭찬하는 문장 열 줄보다 세다. */}
