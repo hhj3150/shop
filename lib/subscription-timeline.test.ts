@@ -305,3 +305,79 @@ describe("refundByBlocks — 하계 휴무 구간 (SQL cancel_subscription 과 �
     expect(refundByBlocks(input, "2026-08-24")).toBe(5 * 40000); // 200,000
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 블록 선택을 '실제 발송 수'로 (activeBlockForDate shippedCount)
+//
+//   [사고] 박재우 님. 6/08 시작·원주문 4주(1~4회차) → 4회 수령.
+//     7/06~8/10 다섯 주는 연장 입금 전이라 배송 없음(정상).
+//     8/08 에 12주 결제 → 5~16회차 구간.
+//     그런데 8/18 에 날짜 기준 delivered=10 이 나와 10회차의 블록을 골랐고,
+//     5~9회차는 영영 건너뛰어졌다. 12주를 결제하고 7회만 받는 구조.
+//   [규칙] 이미 N 회 나갔으면 이번은 N+1 회차다. 날짜는 '언제'만 정한다.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("activeBlockForDate — 실제 발송 수 기준 블록 선택", () => {
+  const 원주문: RawBlock = {
+    orderId: "order-원주문", weeks: 4, deliveryDay: "mon",
+    shippingPerWeek: 4000, creditKrw: 0,
+    items: [{ productName: "A2 저지 헤이밀크", volume: "750mL", qty: 2, unitPrice: 12000 }],
+  };
+  const 연장: RawBlock = {
+    orderId: "order-연장12주", weeks: 12, deliveryDay: "mon",
+    shippingPerWeek: 4000, creditKrw: 0,
+    items: [{ productName: "A2 저지 헤이밀크", volume: "750mL", qty: 2, unitPrice: 12000 }],
+  };
+  const input = {
+    startedAt: "2026-06-08", firstShipDate: null,
+    paused: false, pausedAt: null, pausedDays: 0,
+    blocks: [원주문, 연장],
+  };
+
+  it("옛 방식: 공백 주가 회차를 먹어 5~9회차를 건너뛴다", () => {
+    // 8/18 날짜 기준 회차는 이미 10 — 4회밖에 못 받았는데 10회차 블록을 고른다.
+    const b = activeBlockForDate(input, "2026-08-18");
+    expect(b?.orderId).toBe("order-연장12주");
+    // 건너뛴 증거: 같은 날 발송 수 기준이면 5회차여야 한다.
+    const 사실 = activeBlockForDate(input, "2026-08-18", 4);
+    expect(사실?.fromRound).toBe(5); // 연장 블록 시작
+  });
+
+  it("4회 받았으면 이번은 5회차 — 연장 블록의 첫 회차", () => {
+    const b = activeBlockForDate(input, "2026-08-18", 4);
+    expect(b?.orderId).toBe("order-연장12주");
+    expect(b?.fromRound).toBe(5);
+    expect(b?.toRound).toBe(17); // 5 + 12
+  });
+
+  it("3회 받았으면 아직 원주문 블록(4회차)", () => {
+    const b = activeBlockForDate(input, "2026-08-18", 3);
+    expect(b?.orderId).toBe("order-원주문");
+  });
+
+  it("결제분(16회)을 다 받으면 더 보내지 않는다", () => {
+    expect(activeBlockForDate(input, "2026-08-18", 16)).toBeNull();
+  });
+
+  it("달력 종료일을 한참 지나도 결제분이 남았으면 계속 보낸다", () => {
+    // 옛 방식이면 소진으로 null — 손님이 결제한 회차가 사라지던 지점.
+    expect(activeBlockForDate(input, "2026-11-30")).toBeNull();
+    const b = activeBlockForDate(input, "2026-11-30", 9);
+    expect(b?.orderId).toBe("order-연장12주"); // 7회 남았으니 계속 나간다
+  });
+
+  it("아직 한 번도 안 나갔으면 1회차 — 원주문 블록", () => {
+    const b = activeBlockForDate(input, "2026-06-08", 0);
+    expect(b?.orderId).toBe("order-원주문");
+    expect(b?.fromRound).toBe(1);
+  });
+
+  it("시작 전·정지는 발송 수와 무관하게 null", () => {
+    expect(activeBlockForDate(input, "2026-06-01", 0)).toBeNull();
+    expect(activeBlockForDate({ ...input, paused: true, pausedAt: "2026-08-01" }, "2026-08-18", 4)).toBeNull();
+  });
+
+  it("미지정이면 옛 동작 그대로", () => {
+    expect(activeBlockForDate(input, "2026-08-18", null))
+      .toEqual(activeBlockForDate(input, "2026-08-18"));
+  });
+});
