@@ -134,3 +134,64 @@ describe("slotShipsOn / pickSlotForShipDate", () => {
     expect(pickSlotForShipDate([], "2026-06-01")).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 회차소진을 '날짜'가 아니라 '발송 수'로 판정 (shippedCount)
+//
+//   [사고] 달력이 종료일을 지나면 excluded 가 되어 배송 명단에서 빠졌다. 그래서 연장
+//     입금이 늦어 생긴 공백이나 기록 누락만큼, 손님이 결제한 회차가 조용히 사라졌다.
+//   [규칙] 결제한 회차를 다 보냈을 때에만 끝난다.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("dispatchScheduleForSlot — 발송 수 기준 소진", () => {
+  const slot = {
+    status: "활성",
+    started_at: "2026-06-08",
+    first_ship_date: null,
+    paused: false,
+    paused_at: null,
+    paused_days: 0,
+    extended_weeks: 12, // 원주문 4주 + 연장 12주 = 16회
+  };
+  const 종료일이후 = "2026-11-30"; // 달력상 16회차를 한참 지난 날
+
+  it("옛 방식: 날짜가 종료일을 지나면 발송을 안 했어도 명단에서 빠진다", () => {
+    const r = dispatchScheduleForSlot(slot, 4, 종료일이후);
+    expect(r.excluded).toBe(true);
+  });
+
+  it("발송 수를 주면 결제분을 다 보낼 때까지 명단에 남는다", () => {
+    const r = dispatchScheduleForSlot(slot, 4, 종료일이후, 9);
+    expect(r.excluded).toBe(false);
+    expect(r.total).toBe(16);
+    expect(r.remaining).toBe(7);
+  });
+
+  it("결제분을 다 보내면 그때 소진된다", () => {
+    const r = dispatchScheduleForSlot(slot, 4, 종료일이후, 16);
+    expect(r.excluded).toBe(true);
+    expect(r.remaining).toBe(0);
+  });
+
+  // ★ 이 한 건이 '날짜 판정'과 '발송 수 판정'을 실제로 가른다.
+  //   기록이 밀렸다가 한꺼번에 채워지면 달력 종료일보다 먼저 결제분을 다 채울 수 있다.
+  //   그때 날짜만 보면 아직 종료일 전이라 계속 명단에 올라 과배송이 된다.
+  it("달력 종료일 전이라도 결제분을 다 보냈으면 더 보내지 않는다(과배송 차단)", () => {
+    const 종료일이전 = "2026-08-24"; // 16회차 예정일보다 한참 앞
+    expect(dispatchScheduleForSlot(slot, 4, 종료일이전).excluded).toBe(false); // 날짜만 보면 발송 대상
+    expect(dispatchScheduleForSlot(slot, 4, 종료일이전, 16).excluded).toBe(true); // 다 보냈으면 끝
+  });
+
+  it("해지·정지는 발송 수와 무관하게 계속 제외된다", () => {
+    expect(dispatchScheduleForSlot({ ...slot, status: "해지" }, 4, 종료일이후, 9).excluded).toBe(true);
+    expect(dispatchScheduleForSlot({ ...slot, paused: true }, 4, 종료일이후, 9).excluded).toBe(true);
+  });
+
+  it("시작일 이전은 여전히 제외된다", () => {
+    expect(dispatchScheduleForSlot(slot, 4, "2026-06-01", 0).excluded).toBe(true);
+  });
+
+  it("미지정이면 옛 동작 그대로", () => {
+    const 옛 = dispatchScheduleForSlot(slot, 4, 종료일이후);
+    expect(dispatchScheduleForSlot(slot, 4, 종료일이후, null)).toEqual(옛);
+  });
+});

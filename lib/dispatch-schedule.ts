@@ -29,7 +29,11 @@ export type DispatchScheduleResult = {
 export function dispatchScheduleForSlot(
   slot: DispatchSlotInfo,
   blockWeeks: number,
-  shipISO: string
+  shipISO: string,
+  // 이 슬롯이 실제로 내보낸 회차 수(shipment_log 기준). 주면 회차소진을 '날짜'가 아니라
+  //   '발송 수'로 판정한다 — 결제한 회차가 날짜에 밀려 증발하는 것을 막는 핵심.
+  //   미지정이면 옛 동작(날짜 기준) 그대로.
+  shippedCount?: number | null
 ): DispatchScheduleResult {
   const total = Math.max(0, blockWeeks + (slot.extended_weeks ?? 0));
   const input = {
@@ -39,15 +43,23 @@ export function dispatchScheduleForSlot(
     paused: slot.paused,
     pausedAt: slot.paused_at,
     pausedDays: slot.paused_days,
+    shippedCount,
   };
 
   const atShip = computeSchedule(input, new Date(`${shipISO}T00:00:00`));
   const round = Math.max(1, atShip.delivered);
   const remaining = Math.max(0, total - round);
 
-  // 회차소진: 발송일이 마지막 배송 예정일(endDate)을 지났는가. 당일(==)은 발송 대상.
-  //   ISO(YYYY-MM-DD) 문자열 비교는 날짜 대소와 일치한다.
-  const pastEnd = atShip.endDate != null && shipISO > atShip.endDate;
+  // 회차소진 판정.
+  //   · 발송 수를 알면 그것으로 센다 — '결제한 회차를 다 보냈는가'가 유일한 종료 조건이다.
+  //     달력이 종료일을 지났다는 이유로 명단에서 빼면, 기록이 밀렸거나 연장 입금이 늦어
+  //     생긴 공백만큼 손님이 결제한 회차를 잃는다(실사고: 날짜만 보고 조기 종료).
+  //   · 발송 수를 모르면 옛 규칙(마지막 배송 예정일 경과). 당일(==)은 발송 대상.
+  //     ISO(YYYY-MM-DD) 문자열 비교는 날짜 대소와 일치한다.
+  const pastEnd =
+    shippedCount != null
+      ? atShip.delivered >= total
+      : atShip.endDate != null && shipISO > atShip.endDate;
   // 시작 전: 발송일이 시작일(started_at)보다 이르면 아직 발송 대상이 아니다.
   //   started_at 을 미래로 지정(구독 시작일 연기)하면 그 전 발송을 막는다. 당일(==)은 발송.
   const beforeStart = slot.started_at != null && shipISO < slot.started_at;

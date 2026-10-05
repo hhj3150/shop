@@ -47,6 +47,17 @@ export type SubInput = {
   // 첫 배송 공휴일 보정: 앵커(선택 요일)가 공휴일이면 1회차만 다음 영업일로 시프트한 실제 첫
   //   배송일. null/미지정이면 1회차 = 앵커(보정 불필요). 2회차+ 는 항상 앵커 요일 cadence.
   firstShipDate?: string | null;
+  // 실제로 나간 회차 수(shipment_log 기준). 주면 이 값이 delivered 의 진실이 된다.
+  //
+  //   ★ 왜 필요한가 — 달력으로 세면 '결제한 회차'가 증발한다.
+  //     구독은 블록(원주문 + 연장주문)으로 이어지는데, 연장 입금이 늦으면 그 사이 주에는
+  //     배송이 없다(명단이 미결제 블록을 내보내지 않는다 — 정상). 그런데 회차 커서를 날짜로
+  //     전진시키면 그 빈 주들도 '배송함'으로 세어, 손님이 결제한 회차가 그만큼 사라진다.
+  //     실사고(2026-10): 6/08 시작·4주 완료 → 7/06~8/10 연장 입금 전 공백 → 8/08 에 12주를
+  //     결제했는데, 공백 5주가 5회차로 먹혀 만료일이 10/06 으로 당겨졌다. 12회 중 7회만
+  //     받는 셈이고, 그 상태로 재구독 안내가 나가 손님이 또 결제했다.
+  //   미지정이면 옛 방식(지나간 예정일 수)으로 떨어진다 — 호출처를 점진적으로 옮기기 위함.
+  shippedCount?: number | null;
 };
 
 export type SubSchedule = {
@@ -154,23 +165,54 @@ export function computeSchedule(input: SubInput, now: Date = new Date()): SubSch
       : settledDates;
   const deliveryDate = (k: number) => dates[k - 1];
 
-  let delivered = 0;
-  for (let k = 1; k <= total; k++) {
-    if (daysBetween(deliveryDate(k), today) >= 0) delivered += 1;
-    else break;
+  // 진행도 = 실제로 나간 회차 수. 주어지면 그것이 진실이다(달력은 '언제 보낼지'만 정한다).
+  //   총 회차를 넘지 않게 클램프 — 중복 기록이 있어도 결제분을 넘겨 세지 않는다.
+  let delivered: number;
+  if (input.shippedCount != null) {
+    delivered = Math.min(Math.max(0, Math.floor(input.shippedCount)), total);
+  } else {
+    delivered = 0;
+    for (let k = 1; k <= total; k++) {
+      if (daysBetween(deliveryDate(k), today) >= 0) delivered += 1;
+      else break;
+    }
   }
 
   const done = delivered >= total;
-  const nextDate =
-    !input.paused && !done ? toISO(deliveryDate(delivered + 1)) : null;
-  const endDate = total > 0 ? toISO(deliveryDate(total)) : null;
+  const remaining = Math.max(0, total - delivered);
+
+  // 남은 회차가 '언제' 나가는가.
+  //   옛 방식(달력 기준)은 회차 k 의 자리를 앵커로부터 고정으로 잡았다. 실제 발송 수를
+  //   기준으로 삼으면 그 자리는 더 이상 맞지 않는다 — 밀린 회차는 지나간 날짜에 놓여 있다.
+  //   남은 회차는 '오늘 이후로 돌아오는 배송 요일 자리'에 차례로 놓는다. 휴무 주·공휴일은
+  //   buildDates 가 이미 비켜 가므로 그 자리만 이어서 세면 된다.
+  //   → 결제한 회차는 날짜가 아무리 밀려도 전부 나간다(과소배송 차단).
+  let nextDate: string | null = null;
+  let endDate: string | null = null;
+  if (input.shippedCount != null && remaining > 0) {
+    const horizon = total + weeksSpan(anchor, today) + remaining + 4;
+    const upcoming = buildDates(
+      anchor,
+      horizon,
+      ceilToWeeks(input.pausedDays + missedWeeks * 7)
+    ).filter((d) => daysBetween(d, today) <= 0); // 오늘 포함 이후
+    if (upcoming.length >= remaining) {
+      nextDate = input.paused ? null : toISO(upcoming[0]);
+      endDate = toISO(upcoming[remaining - 1]);
+    }
+  }
+  if (endDate == null) {
+    // 옛 방식(또는 남은 회차 0·지평 부족) — 고정 자리를 그대로 쓴다.
+    nextDate = !input.paused && !done ? toISO(deliveryDate(delivered + 1)) : null;
+    endDate = total > 0 ? toISO(deliveryDate(total)) : null;
+  }
 
   return {
     started: true,
     paused: input.paused,
     total,
     delivered,
-    remaining: Math.max(0, total - delivered),
+    remaining,
     nextDate,
     endDate,
     done,

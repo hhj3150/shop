@@ -107,7 +107,9 @@ export function activeBlockOrderForDate(
     paused_days: number;
   },
   blocks: RawBlock[],
-  dateISO: string
+  dateISO: string,
+  // 실제 발송 수(shipment_log). 미지정이면 옛 동작(날짜 기준).
+  shippedCount?: number | null
 ): string | null {
   if (slot.status === "해지" || slot.paused) return null;
   const active = activeBlockForDate(
@@ -119,14 +121,23 @@ export function activeBlockOrderForDate(
       pausedDays: slot.paused_days,
       blocks,
     },
-    dateISO
+    dateISO,
+    shippedCount
   );
   return active?.orderId ?? null;
 }
 
 export function activeBlockForDate(
   input: TimelineInput,
-  dateISO: string
+  dateISO: string,
+  // 이 슬롯이 실제로 내보낸 회차 수(shipment_log 기준, 이 발송일 '전'까지).
+  //   주면 '이번에 나갈 회차'를 발송 수 + 1 로 잡는다 — 날짜로 세면 결제한 회차가 증발한다.
+  //
+  //   ★ 실사고(2026-10): 연장 입금 전 공백 5주를 날짜가 5~9회차로 먹어, 8/18 에
+  //     delivered=10 이 나왔다. 그 회차의 블록을 고르니 5~9회차는 영영 건너뛰어졌고,
+  //     손님은 12주를 결제하고 7회만 받게 됐다.
+  //   미지정이면 옛 동작(날짜 기준) 그대로.
+  shippedCount?: number | null
 ): ResolvedBlock | null {
   const resolved = normalizeBlocks(input.blocks);
   const total = totalWeeks(input.blocks);
@@ -138,13 +149,30 @@ export function activeBlockForDate(
       paused: input.paused,
       pausedAt: input.pausedAt,
       pausedDays: input.pausedDays,
+      shippedCount,
     },
     new Date(`${dateISO}T00:00:00`)
   );
   if (!sched.started || input.paused) return null;
-  if (sched.endDate != null && dateISO > sched.endDate) return null; // 소진
   if (input.startedAt != null && dateISO < input.startedAt) return null; // 시작 전
-  const round = Math.max(1, sched.delivered);
+
+  // 소진 판정.
+  //   · 발송 수를 알면 따로 볼 것이 없다 — 결제분을 다 보냈으면 round(= 발송수 + 1)가
+  //     블록 범위를 벗어나 아래 activeBlockForRound 가 null 을 낸다. 여기서 한 번 더
+  //     검사하면 테스트로 가를 수 없는 죽은 분기가 되고, 나중에 읽는 사람이 두 규칙이
+  //     있는 줄 오해한다.
+  //   · 발송 수를 모르는 옛 경로에서만 '마지막 배송 예정일 경과'로 끊는다.
+  if (shippedCount == null && sched.endDate != null && dateISO > sched.endDate) {
+    return null;
+  }
+
+  // 이번에 나갈 회차.
+  //   · 발송 수 기준: 이미 N 회 나갔으면 이번이 N+1 회차다.
+  //   · 날짜 기준(옛): delivered 는 '오늘 자리까지' 포함하므로 그 값이 곧 이번 회차다.
+  const round =
+    shippedCount != null
+      ? Math.max(1, sched.delivered + 1)
+      : Math.max(1, sched.delivered);
   return activeBlockForRound(resolved, round);
 }
 
