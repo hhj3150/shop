@@ -574,25 +574,23 @@ export function DispatchPanel({
       shipISO: r.shipISO,
       alreadyShipped: isShipped(r),
     });
-    // 송장 없이 출고하면 발송 문자·배송추적이 누락되고 주문이 '입금확인'에 묶인다(되돌리기 번거로움).
-    //   → 송장번호를 필수로 막는다. (출고 후 뒤늦게 넣을 땐 '출고됨' 행의 송장 저장 버튼 사용.)
-    if (!decision.patch) {
-      setError(`${o.ship_name}: 송장번호를 입력해야 출고·발송됩니다.`);
-      return;
-    }
+    // 송장번호는 선택이다 — 없어도 출고·발송으로 처리한다.
+    //   예전엔 여기서 막았는데, 목장은 로젠 프로그램에서 송장을 뽑고 쇼핑몰에 또 넣는
+    //   이중 입력이라 현장에서 그 입력이 빠지면 stockShipOut 까지 건너뛰어 출고가 통째로
+    //   기록되지 않았다. 실제로 나간 회차가 '안 보낸 회차'로 남아 회차가 증발했다.
+    //   송장은 나중에 '출고됨' 행의 송장 저장 버튼으로 채우면 그때 주문에 반영된다.
     const k = shipKey(r);
     setShippingId(k);
     setError(null);
     try {
       await stockShipOut(o.id, r.shipISO);
-      if (decision.patch) {
-        const sb = getSupabase();
-        const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
-        if (error) throw error;
-        // 회차별 배송 레코드(shipment_log)에도 그 회차 송장을 기록 — 회차 이력·고객 추적의 권위값.
-        await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
-        if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id, shipDate: r.shipISO });
-      }
+      const sb = getSupabase();
+      const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
+      if (error) throw error;
+      // 회차별 배송 레코드(shipment_log)에도 그 회차를 기록 — 회차 이력·고객 추적의 권위값.
+      //   송장이 없으면 null 로 남고, 나중에 채우면 그 행이 갱신된다.
+      await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
+      if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id, shipDate: r.shipISO });
       setJustShipped((prev) => new Set(prev).add(k));
       await onReload();
     } catch (e) {
@@ -614,7 +612,9 @@ export function DispatchPanel({
       shipISO: r.shipISO,
       alreadyShipped: isShipped(r),
     });
-    if (!decision.patch) {
+    // 이 버튼은 '송장을 채우는' 동작이다 — 빈칸이면 할 일이 없으니 그대로 둔다.
+    //   (출고 자체는 송장 없이도 이미 기록돼 있다.)
+    if (!decision.hasTracking) {
       setError(`${o.ship_name}: 송장번호를 입력해 주세요.`);
       return;
     }
@@ -771,11 +771,9 @@ export function DispatchPanel({
           });
           try {
             await stockShipOut(o.id, r.shipISO); // 이미 출고된 회차면 서버가 'already' → 이중차감 없음
-            if (decision.patch) {
-              const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
-              if (error) throw error;
-              await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
-            }
+            const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
+            if (error) throw error;
+            await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
             return { o, decision, shipISO: r.shipISO, error: null as { message?: string } | null };
           } catch (e) {
             return {
