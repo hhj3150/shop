@@ -91,6 +91,10 @@ export function buildRosterForDate<
   // `${주문id}|${요일}` → 슬롯 id. 한 주문이 요일별 슬롯을 여럿 가질 때(월+수 동시 구독)
   //   그 요일 배송분의 회차·시작일·정지일수를 어느 슬롯으로 볼지 고른다. 없으면 slotIdByOrder.
   slotIdByOrderDay?: ReadonlyMap<string, number>;
+  // 슬롯 id → 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
+  //   미확정 슬롯은 없거나 null — 그 경우 지금까지와 똑같이 달력으로 판정한다.
+  //   주어지면 '결제한 회차를 다 보냈는가'가 유일한 종료 조건이 된다.
+  shippedBySlot?: ReadonlyMap<number, number | null>;
 }): DeliveryEntry<O, I>[] {
   const {
     dateISO,
@@ -103,6 +107,7 @@ export function buildRosterForDate<
     slotIdByOrder,
     slotById,
     slotIdByOrderDay,
+    shippedBySlot,
   } = params;
   const entries: DeliveryEntry<O, I>[] = [];
 
@@ -135,6 +140,8 @@ export function buildRosterForDate<
     const slotId = slotIdByOrderDay?.get(`${orderId}|${day}`) ?? slotIdByOrder?.get(orderId);
     const slotForBlocks = slotId != null ? slotById?.get(slotId) : undefined;
     const blocks = slotId != null ? blocksBySlot?.get(slotId) : undefined;
+    // 확정 안 됐거나 맵에 없으면 null → 아래 두 판정 모두 옛(달력) 경로로 떨어진다.
+    const shipped = slotId != null ? (shippedBySlot?.get(slotId) ?? null) : null;
     if (slotForBlocks && blocks && blocks.length > 0) {
       // 해지·정지·소진·시작전 제외와 '그날 발송할 블록 1개' 선택은 배송 탭(DispatchPanel)과
       //   같은 함수(activeBlockOrderForDate)에 맡긴다 — 두 화면이 갈리지 않게 하는 유일한 방법.
@@ -149,7 +156,7 @@ export function buildRosterForDate<
       //     켜기 전에 confirm_billing_charge 가 연장 주문 행(+order_items)도 만들도록 하거나,
       //     로스터가 '주문 없는 연장 회차'를 별도 입력으로 받도록 먼저 손봐야 한다.
       //     (2026-09 현재 결제는 PayAction 계좌이체 단일 경로 — 이 경로는 비활성이다.)
-      if (activeBlockOrderForDate(slotForBlocks, blocks, dateISO) !== orderId) continue;
+      if (activeBlockOrderForDate(slotForBlocks, blocks, dateISO, shipped) !== orderId) continue;
       entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기", day });
       continue;
     }
@@ -169,7 +176,7 @@ export function buildRosterForDate<
       (slotId != null ? slotById?.get(slotId) : undefined) ?? slotByOrder.get(orderId);
     if (
       fallbackSlot &&
-      dispatchScheduleForSlot(fallbackSlot, order.block_weeks ?? 0, dateISO).excluded
+      dispatchScheduleForSlot(fallbackSlot, order.block_weeks ?? 0, dateISO, shipped).excluded
     ) {
       continue;
     }

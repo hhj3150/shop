@@ -106,6 +106,9 @@ export type QueueMaps<O, S> = {
   blocksBySlot?: ReadonlyMap<number, RawBlock[]>;
   slotIdByOrder?: ReadonlyMap<string, number>;
   slotIdByOrderDay?: ReadonlyMap<string, number>;
+  // 슬롯 id → 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
+  //   미확정이면 없거나 null → 지금까지와 똑같이 달력으로 판정한다.
+  shippedBySlot?: ReadonlyMap<number, number | null>;
 };
 
 // 이 행(주문·요일)의 회차를 계산할 슬롯. 요일이 맞는 슬롯 → 주문 매핑 슬롯 순.
@@ -147,16 +150,19 @@ function scheduleForRow<O extends QueueOrderFields, S extends DispatchSlotInfo &
   const chainSlot = chainSlotId != null ? maps.slotById?.get(chainSlotId) : undefined;
   const baseSlot = chainSlot ?? slot;
   const blocks = chainSlotId != null ? maps.blocksBySlot?.get(chainSlotId) : undefined;
+  // 확정 안 됐거나 맵에 없으면 null → 아래 판정이 옛(달력) 경로로 떨어진다.
+  const shipped = chainSlotId != null ? (maps.shippedBySlot?.get(chainSlotId) ?? null) : null;
   if (blocks && blocks.length > 0) {
     return dispatchScheduleForSlot(
       { ...baseSlot, extended_weeks: 0 },
       totalWeeks(blocks),
-      shipISO
+      shipISO,
+      shipped
     );
   }
   const originalId = (baseSlot as { order_id?: string | null }).order_id ?? order.id;
   const weeks = maps.orderById.get(originalId)?.block_weeks ?? order.block_weeks ?? 0;
-  return dispatchScheduleForSlot(baseSlot, weeks, shipISO);
+  return dispatchScheduleForSlot(baseSlot, weeks, shipISO, shipped);
 }
 
 // 회차 표기(n/m회·남은 회차).

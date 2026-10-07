@@ -129,6 +129,7 @@ export function DispatchPanel({
   slotIdByOrderDay,
   confirmedOrderIds,
   pausedOrderIds,
+  shippedBySlot,
   onReload,
 }: {
   orders: DispatchOrder[];
@@ -148,6 +149,9 @@ export function DispatchPanel({
   // 확정류 주문(입금확인 이후)·정지 구독 주문 — 배송 명단과 같은 판정을 쓰기 위한 입력.
   confirmedOrderIds?: ReadonlySet<string>;
   pausedOrderIds?: ReadonlySet<string>;
+  // 슬롯 id → 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
+  //   확정된 슬롯만 들어 있다. 없으면 지금까지처럼 달력으로 회차·소진을 판정한다.
+  shippedBySlot?: ReadonlyMap<number, number | null>;
   onReload: () => Promise<void> | void;
 }) {
   const queueRef = useRef<HTMLDivElement>(null);
@@ -227,6 +231,7 @@ export function DispatchPanel({
       blocksBySlot,
       slotIdByOrder,
       slotIdByOrderDay,
+      shippedBySlot,
     };
   }, [
     orders,
@@ -241,6 +246,7 @@ export function DispatchPanel({
     blocksBySlot,
     slotIdByOrder,
     slotIdByOrderDay,
+    shippedBySlot,
   ]);
 
   // 로스터가 요구하는 평면 품목 배열(주문별 묶음에서 펼친다).

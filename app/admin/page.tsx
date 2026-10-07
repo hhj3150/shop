@@ -17,6 +17,7 @@ import {
 import { buildRosterMaps } from "@/lib/roster-maps";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { countShippedRoundsBySlot } from "@/lib/dispatch-queue";
+import { shippedRoundsBySlot, type RoundBaseline } from "@/lib/round-baseline";
 import type { RawBlock } from "@/lib/subscription-timeline";
 import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 import {
@@ -179,6 +180,9 @@ type SlotRow = {
   paused_at: string | null;
   paused_days: number;
   extended_weeks: number | null; // 연장 누적 회차(총 회차 = 원주문 block_weeks + extended_weeks)
+  // 관리자가 확정한 '확정일까지 나간 회차 수'. 둘 다 있을 때만 발송 기준으로 쓴다.
+  rounds_confirmed_count: number | null;
+  rounds_confirmed_at: string | null;
   cancel_reason: string | null;
   refund_account: string | null;
   refund_amount: number | null;
@@ -424,6 +428,30 @@ export default function AdminPage() {
     slotIdByOrderDay,
   } = rosterMaps;
 
+  // ── 확정된 구독의 '실제로 나간 회차' ─────────────────────────────────────
+  //   관리자가 회차를 확정한 구독만 담는다. 확정 전 구독은 맵에 없고, 그러면 배송 명단·
+  //   배송 시트가 지금까지와 똑같이 달력으로 판정한다(동작 변화 없음).
+  //
+  //   왜 이게 필요한가: 달력으로 세면 연장 입금이 늦어 배송이 비었던 주까지 '나갔다'고
+  //   쳐서, 손님이 결제한 회차가 종료일에 밀려 증발한다. 박재우 님은 24회를 결제하고
+  //   10회를 받은 상태에서 명단에서 빠질 참이었다.
+  const baselineBySlot = useMemo(() => {
+    const m = new Map<number, RoundBaseline>();
+    for (const s of slots) {
+      if (s.rounds_confirmed_count == null || !s.rounds_confirmed_at) continue;
+      m.set(s.id, {
+        confirmedCount: s.rounds_confirmed_count,
+        confirmedAt: s.rounds_confirmed_at,
+      });
+    }
+    return m;
+  }, [slots]);
+
+  const confirmedShippedBySlot = useMemo(
+    () => shippedRoundsBySlot(shippedKeys.keys(), slotIdByOrder, baselineBySlot),
+    [shippedKeys, slotIdByOrder, baselineBySlot]
+  );
+
   // ── 데이터 점검 — 배포 중 접속 등으로 생길 수 있는 데이터 이상을 한눈에 잡는다.
   //   (1) 입금확인 이후 상태인데 결제확인 시각(paid_at)이 없는 주문 → 실입금 없이 확인됐을 가능성.
   //   (2) 담긴 품목이 0건인 주문(취소 제외) → 주문상품이 안 보이는 이상.
@@ -537,7 +565,9 @@ export default function AdminPage() {
     const todayISO = toISODate(new Date(now));
     const remainsToday = (s: SlotRow): boolean => {
       const weeks = (s.order_id ? orderById.get(s.order_id)?.block_weeks : null) ?? 0;
-      return !dispatchScheduleForSlot(s, weeks, todayISO).excluded;
+      // 확정된 구독은 '결제분을 다 보냈는가'로, 미확정은 지금까지처럼 달력으로 센다.
+      const shipped = confirmedShippedBySlot.get(s.id) ?? null;
+      return !dispatchScheduleForSlot(s, weeks, todayISO, shipped).excluded;
     };
     return DELIVERY_DAYS.map((d) => {
       const ofDay = slots.filter((s) => s.delivery_day === d);
@@ -561,7 +591,7 @@ export default function AdminPage() {
       ).length;
       return { day: d, taken, active, waitlist, paused, live, exhausted };
     });
-  }, [slots, orderById, confirmedOrderIds, now]);
+  }, [slots, orderById, confirmedOrderIds, now, confirmedShippedBySlot]);
 
   // ── 요일별·제품별 주간 필요 수량 (확정 구독 기준) ──────────
   const productKeys = useMemo(() => {
@@ -623,8 +653,9 @@ export default function AdminPage() {
         slotIdByOrder,
         slotById,
         slotIdByOrderDay,
+        shippedBySlot: confirmedShippedBySlot,
       }),
-    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById, slotIdByOrderDay]
+    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById, slotIdByOrderDay, confirmedShippedBySlot]
   );
 
   // 임의 날짜의 생산 수요를 정기/단품으로 분리. roster(해지·회차소진·정지 제외)에서
@@ -1531,6 +1562,7 @@ export default function AdminPage() {
           slotIdByOrderDay={slotIdByOrderDay}
           confirmedOrderIds={confirmedOrderIds}
           pausedOrderIds={pausedOrderIds}
+          shippedBySlot={confirmedShippedBySlot}
           onReload={load}
         />
       )}
