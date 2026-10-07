@@ -48,6 +48,7 @@ function sub(partial: Partial<MySubscription>): MySubscription {
     totalAmount: 0,
     deliveryMethod: "택배",
     blocks: [],
+    shippedCount: null,
     ...partial,
   };
 }
