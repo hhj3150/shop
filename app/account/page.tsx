@@ -19,7 +19,6 @@ import {
   cancelUnpaidOrder,
   requestRenewal,
   getPendingRenewals,
-  refundAmount,
   changeDeliveryDay,
   getDayCounts,
   remaining as seatsLeft,
@@ -333,7 +332,7 @@ export default function AccountPage() {
     setRefundAcct("");
   }
 
-  async function onCancel(slotId: number, refund: number, remaining: number) {
+  async function onCancel(slotId: number, remaining: number) {
     if (!reason.trim()) {
       alert("중지 사유를 입력해 주세요.");
       return;
@@ -342,17 +341,16 @@ export default function AccountPage() {
       alert("환불받으실 계좌를 입력해 주세요.");
       return;
     }
+    // 금액을 말하지 않는다 — 화면이 계산한 값과 서버 지급액이 어긋나면 그게 분쟁이 된다.
+    //   회차는 서버 환불과 같은 함수로 세므로 회차만 말한다.
     if (
       !confirm(
-        `구독을 해지하시겠어요?\n남은 ${remaining}회분 ${formatKRW(
-          refund
-        )}이 입력하신 계좌로 환불됩니다. 이 작업은 되돌릴 수 없습니다.`
+        `구독을 해지하시겠어요?\n아직 받지 않은 ${remaining}회분이 입력하신 계좌로 환불됩니다. 이 작업은 되돌릴 수 없습니다.`
       )
     )
       return;
     setBusy(slotId);
     try {
-      // 환불액은 서버가 재계산한다(C2). refund 는 위 확인창의 미리보기 값일 뿐이다.
       await cancelSubscription(slotId, reason.trim(), refundAcct.trim());
       void notify({ kind: "subscription_cancelled", slotId });
       setCancelSlot(null);
@@ -565,6 +563,9 @@ export default function AccountPage() {
           <h2 className="mt-12 font-serif-kr text-lg text-ink">정기구독</h2>
           <ul className="mt-4 space-y-4">
             {subs.map((s) => {
+              // 실제로 받은 회차로 센다(확정된 구독만). 미확정이면 null → 달력 계산 그대로.
+              //   서버 환불(cancel_subscription)이 같은 값을 보므로 '남은 N회'와 입금액이
+              //   어긋나지 않는다.
               const sch = computeSchedule({
                 startedAt: s.startedAt,
                 firstShipDate: s.firstShipDate,
@@ -572,13 +573,13 @@ export default function AccountPage() {
                 paused: s.paused,
                 pausedAt: s.pausedAt,
                 pausedDays: s.pausedDays,
+                shippedCount: s.shippedCount,
               });
               const skipping = s.paused && !!s.skipResumeOn; // 이번 주 건너뛰는 중
               const manualPaused = s.paused && !s.skipResumeOn; // 일반 일시정지
               const canPause = s.status === "활성" && !s.paused;
               const canSkip = canSkipThisWeek(s, sch.nextDate);
               const canCancel = s.status === "활성" || s.status === "대기";
-              const refund = refundAmount(s, sch.remaining);
               // 이 구독에 걸린 입금대기 연장주문(있으면 입금 안내를 띄운다).
               const pending = pendingRenewals.get(s.slotId) ?? null;
               const pendingWeeks = pending
@@ -951,12 +952,13 @@ export default function AccountPage() {
                           )}
 
                           <p className="mt-4 text-[12px] text-mute">그래도 해지하시겠다면</p>
+                          {/* 금액은 적지 않는다 — 화면이 미리 계산한 값과 서버가 지급하는
+                              값이 조금이라도 어긋나면 그게 바로 분쟁이 된다. 회차는 양쪽이
+                              같은 함수로 세므로 회차만 알린다. */}
                           <div className="mt-2 flex items-center justify-between rounded-xl bg-cream px-4 py-3">
-                            <span className="text-[13px] text-ink-soft">
-                              남은 {sch.remaining}회분 환불 예정액
-                            </span>
+                            <span className="text-[13px] text-ink-soft">아직 받지 않은 회차</span>
                             <span className="font-serif-kr text-lg tabular-nums text-gold-deep">
-                              {formatKRW(refund)}
+                              {sch.remaining}회
                             </span>
                           </div>
                           <label className="mt-3 block text-[12px] text-mute">
@@ -981,7 +983,7 @@ export default function AccountPage() {
                           </label>
                           <div className="mt-4 flex gap-2">
                             <button
-                              onClick={() => onCancel(s.slotId, refund, sch.remaining)}
+                              onClick={() => onCancel(s.slotId, sch.remaining)}
                               disabled={busy === s.slotId}
                               className="flex-1 rounded-full bg-ink py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
                             >

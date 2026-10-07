@@ -7,12 +7,7 @@ import {
   type OrderRow as BlockOrderRow,
   type OrderItemRow as BlockOrderItemRow,
 } from "./slot-blocks";
-import {
-  normalizeBlocks,
-  totalWeeks as blockTotalWeeks,
-  refundForRoundsFrom,
-  type RawBlock,
-} from "./subscription-timeline";
+import { totalWeeks as blockTotalWeeks, type RawBlock } from "./subscription-timeline";
 
 // 확정된 연장(재구독) 주문 상태 — 서버 cancel_subscription 의 CONFIRMED 목록과 같다.
 //   회차·금액·블록 체인이 모두 이 목록 하나만 본다. 입금대기·취소 연장은 어디에도 반영하지 않는다.
@@ -101,6 +96,13 @@ export type MySubscription = {
   // 원주문 + 입금확인류 연장주문을 created_at,id 순으로 조립한 블록 체인.
   // 블록별 환불 미리보기(refundAmount)와 활성 블록 산출에 쓰인다.
   blocks: RawBlock[];
+  // 실제로 받은 회차 수. 관리자가 회차를 확정한 구독만 값이 있고, 그 값은 서버가 센다
+  //   (my_slot_shipped_rounds → slot_shipped_rounds). 미확정이면 null.
+  //
+  //   ★ 이 숫자를 화면에서 따로 계산하지 않는 이유: 해지 환불(cancel_subscription)이
+  //     같은 함수로 센다. 구현이 둘이면 '남은 2회'를 보고 해지했는데 0회분만 입금되는
+  //     일이 생긴다. 회차 표기와 환불은 같은 출처를 봐야 한다.
+  shippedCount: number | null;
 };
 
 type SlotJoinRow = {
@@ -154,7 +156,9 @@ function blocksForSlot(
 export function toMySubscriptions(
   rows: SlotJoinRow[],
   extRows: ExtAmountRow[],
-  blockSources: readonly SlotBlockSource[] = []
+  blockSources: readonly SlotBlockSource[] = [],
+  // 슬롯 id → 서버가 센 실제 발송 회차. 확정된 슬롯만 들어 있다(없으면 null = 미확정).
+  shippedBySlot: ReadonlyMap<number, number | null> = new Map()
 ): MySubscription[] {
   const extBySlot = extRows.reduce<Record<number, number>>((acc, r) => {
     if (r.renews_slot_id == null) return acc;
@@ -193,6 +197,7 @@ export function toMySubscriptions(
       deliveryMethod: row.orders?.delivery_method ?? "택배",
       // 블록 체인(원주문 먼저, 연장 created_at,id 순) — buildRawBlocks 로 조립.
       blocks,
+      shippedCount: shippedBySlot.get(row.id) ?? null,
     };
   });
 }
@@ -234,10 +239,25 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
 
   const blockSources = await loadBlockSources(slotRows);
 
+  // 실제 발송 회차는 서버에 묻는다 — 환불과 같은 함수를 쓰게 해 두 값이 갈라지지 않게 한다.
+  //   best-effort: 조회가 실패하면 빈 맵 → 회차 표기가 지금까지의 달력 계산으로 떨어진다.
+  //   마이페이지가 안 뜨는 것보다 옛 숫자가 뜨는 편이 낫다.
+  const shippedBySlot = new Map<number, number | null>();
+  try {
+    const { data: shipRows, error: shipError } = await sb.rpc("my_slot_shipped_rounds");
+    if (shipError) throw shipError;
+    for (const r of (shipRows ?? []) as { slot_id: number; shipped: number | null }[]) {
+      shippedBySlot.set(Number(r.slot_id), r.shipped == null ? null : Number(r.shipped));
+    }
+  } catch (error) {
+    console.error("발송 회차 조회 실패 — 달력 기준으로 표시합니다:", error);
+  }
+
   return toMySubscriptions(
     slotRows as unknown as SlotJoinRow[],
     (extData ?? []) as ExtAmountRow[],
-    blockSources
+    blockSources,
+    shippedBySlot
   );
 }
 
@@ -337,30 +357,11 @@ async function loadBlockSources(
   });
 }
 
-// 남은(미배송) 회차 환불액 — 블록별 회당 단가 합산.
-// 블록 데이터(sub.blocks)가 있으면 마지막 `remainingDeliveries` 회차가 속한 블록의
-// (회당 상품합 + 회당 배송비)를 회차별로 합산한다(refundByBlocks 와 동일 알고리즘).
-// 단일 블록·연장 없음이면 모든 회차 단가가 같아 기존 평균식과 동일한 결과가 된다.
-// 블록 데이터가 없으면(레거시/미로드) 기존 평균식으로 안전하게 폴백한다.
-// 주의: 이 함수는 화면 미리보기 전용이다. 실제 환불액은 서버(cancel_subscription RPC)가
-//      동일한 공식으로 재계산하며, 클라이언트 값은 신뢰하지 않는다(C2).
-export function refundAmount(sub: MySubscription, remainingDeliveries: number): number {
-  const remaining = Math.max(0, remainingDeliveries);
-  if (remaining <= 0) return 0;
-
-  if (sub.blocks.length > 0) {
-    const total = blockTotalWeeks(sub.blocks);
-    // 남은 회차분 상품·배송비 합 − 그 구간에 걸린 추천 적립금(블록별 안분).
-    //   서버 cancel_subscription 과 같은 규칙이다 — 갈리면 미리보기와 실지급액이 달라진다.
-    return refundForRoundsFrom(normalizeBlocks(sub.blocks), total - remaining + 1, total);
-  }
-
-  if (sub.totalWeeks <= 0) return 0;
-  // 폴백(블록 미로드/레거시)은 totalAmount 를 나눈다. totalAmount 는 이미 추천 적립금을
-  //   뺀 실결제액이므로 여기서는 따로 되뺄 것이 없다(블록 경로만 정가 구성으로 계산한다).
-  const perDelivery = Math.round(sub.totalAmount / sub.totalWeeks);
-  return perDelivery * remaining;
-}
+// 환불 미리보기는 더 두지 않는다.
+//   화면이 금액을 따로 계산하면 서버(cancel_subscription)가 지급하는 값과 어긋날 수 있고,
+//   손님에게는 그 차이가 그대로 분쟁이 된다. 해지 화면은 '아직 받지 않은 N회'만 말하고,
+//   금액은 서버가 계산해 관리자 환불 원장에 남긴다. 회차는 양쪽이 같은 함수로 센다
+//   (slot_shipped_rounds → computeSchedule.shippedCount / cancel_subscription.v_delivered).
 
 // 구독 해지. 환불액은 서버가 재계산해 반환하므로(C2), 그 값을 그대로 돌려준다.
 export async function cancelSubscription(
