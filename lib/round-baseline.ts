@@ -92,3 +92,36 @@ export function suggestBaseline(input: {
   const lower = Math.min(...candidates);
   return Math.max(0, Math.min(lower, Math.max(0, paidRounds)));
 }
+
+// 슬롯별 '실제로 내보낸 회차 수' 맵 — 배송 명단·배송 시트가 이것으로 종료를 판정한다.
+//
+//   입력은 관리자 화면이 이미 들고 있는 것들뿐이다. 서버를 한 번 더 부르지 않는다.
+//     shipmentKeys  `${주문id}|${발송일}` (shipment_log 에서 만든 키)
+//     slotIdByOrder 원주문·연장주문 id → 슬롯 id
+//     baselines     확정된 슬롯만 담긴 기준점
+//
+//   ★ 확정된 슬롯만 결과에 넣는다. 미확정 슬롯이 맵에 없으면 호출처가 '모름'으로 보고
+//     옛(달력) 경로로 떨어진다 — 0 을 넣으면 '한 번도 안 나갔다'는 뜻이 되어, 이미
+//     받은 손님에게 처음부터 다시 보내는 과배송이 된다. 둘은 전혀 다른 값이다.
+export function shippedRoundsBySlot(
+  shipmentKeys: Iterable<string>,
+  slotIdByOrder: ReadonlyMap<string, number>,
+  baselines: ReadonlyMap<number, RoundBaseline>
+): Map<number, number | null> {
+  const datesBySlot = new Map<number, string[]>();
+  for (const key of shipmentKeys) {
+    // 발송일은 키의 마지막 '|' 뒤. 주문 id 자체에 '|' 가 있어도 안전하게 뒤에서 자른다.
+    const cut = key.lastIndexOf("|");
+    if (cut < 0) continue;
+    const slotId = slotIdByOrder.get(key.slice(0, cut));
+    if (slotId == null) continue;
+    const list = datesBySlot.get(slotId);
+    if (list) list.push(key.slice(cut + 1));
+    else datesBySlot.set(slotId, [key.slice(cut + 1)]);
+  }
+  const out = new Map<number, number | null>();
+  for (const [slotId, baseline] of baselines) {
+    out.set(slotId, confirmedShippedCount(baseline, datesBySlot.get(slotId) ?? []));
+  }
+  return out;
+}
