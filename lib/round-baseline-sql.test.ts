@@ -103,4 +103,44 @@ describe("migration-round-baseline.sql", () => {
   it("shipment_log 에 행을 만들지 않는다 — 손님 배송이력을 더럽히지 않는다", () => {
     expect(/insert\s+into\s+public\.shipment_log/i.test(runnable)).toBe(false);
   });
+  // ── 관리자 확정 화면이 읽는 RPC ─────────────────────────────────────────────
+  it("확정 현황 조회도 관리자만 쓸 수 있다", () => {
+    expect(runnable).toMatch(/create or replace function public\.admin_round_baseline_rows\(\)/);
+    expect(runnable).toMatch(
+      /revoke execute on function public\.admin_round_baseline_rows\(\) from anon/
+    );
+    // is_admin 게이트가 선언부가 아니라 '본문 첫 줄'에 있어야 우회가 없다.
+    const body = runnable.slice(runnable.indexOf("admin_round_baseline_rows"));
+    expect(body.slice(0, body.indexOf("return query"))).toMatch(/if not public\.is_admin\(\)/);
+  });
+
+  // 조회 화면이 쓰기를 겸하면 확인·상한 검사를 건너뛸 길이 생긴다. 읽기만 한다.
+  it("확정 현황 조회는 읽기 전용이다", () => {
+    const fn = runnable.slice(runnable.indexOf("admin_round_baseline_rows"));
+    expect(/\bupdate\s+public\./i.test(fn), "조회 함수가 쓰면 안 된다").toBe(false);
+    expect(/\binsert\s+into\b/i.test(fn), "조회 함수가 쓰면 안 된다").toBe(false);
+    expect(fn).toMatch(/\bstable\b/);
+  });
+
+  // 화면이 비교해 보여줘야 할 두 숫자 — 이게 어긋난 폭이 곧 사고의 크기다.
+  it("우리 기록과 달력 기준을 함께 올린다", () => {
+    const fn = runnable.slice(runnable.indexOf("admin_round_baseline_rows"));
+    expect(fn).toMatch(/recorded_count\s+int/);
+    expect(fn).toMatch(/calendar_rounds\s+int/);
+    // 달력 기준은 배송일 생성 SSOT 를 그대로 쓴다 — 화면이 따로 계산하면 또 갈라진다.
+    expect(fn).toMatch(/public\.sub_delivery_dates\(/);
+  });
+
+  // 한 날짜 = 한 회차. 조회 쪽에서도 같은 규칙이어야 확정값과 화면이 맞는다.
+  it("조회도 발송을 '서로 다른 날짜'로 센다", () => {
+    const fn = runnable.slice(runnable.indexOf("admin_round_baseline_rows"));
+    expect(fn).toMatch(/count\(distinct sl\.ship_date\)/);
+  });
+
+  // 연장주문 발송이 빠지면 화면이 실제보다 적게 보여주고, 사장님이 그 숫자로 확정한다.
+  it("조회도 원주문과 연장주문 발송을 모두 센다", () => {
+    const fn = runnable.slice(runnable.indexOf("admin_round_baseline_rows"));
+    expect(fn).toMatch(/renews_slot_id is not null/);
+    expect(fn).toMatch(/slot_orders/);
+  });
 });

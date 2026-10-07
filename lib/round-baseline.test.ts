@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { confirmedShippedCount, suggestBaseline } from "./round-baseline";
+import {
+  confirmedShippedCount,
+  suggestBaseline,
+  sortBaselineRows,
+  type BaselineRow,
+} from "./round-baseline";
 
 describe("confirmedShippedCount — 확정 기준점 + 이후 기록", () => {
   it("미확정이면 null — 지금 동작이 그대로 유지된다", () => {
@@ -65,5 +70,46 @@ describe("suggestBaseline — 애매하면 손님에게 유리하게", () => {
     const s = suggestBaseline({ paidRounds: 24, recordedCount: 9, courierCount: 20 });
     expect(s).toBe(9);
     expect(s).toBeLessThan(20);
+  });
+});
+
+describe("sortBaselineRows — 할 일만 위로", () => {
+  const row = (over: Partial<BaselineRow>): BaselineRow => ({
+    slotId: 1, name: "가", phone: "", deliveryDay: "mon", startedAt: "2026-06-01",
+    paused: false, paidRounds: 12, recordedCount: 0, calendarRounds: 0,
+    lastShipDate: null, confirmedCount: null, confirmedAt: null, confirmedNote: null,
+    ...over,
+  });
+
+  it("미확정이 확정보다 먼저 온다", () => {
+    const sorted = sortBaselineRows([
+      row({ slotId: 1, name: "확정", confirmedCount: 5, confirmedAt: "2026-10-07" }),
+      row({ slotId: 2, name: "미확정" }),
+    ]);
+    expect(sorted.map((r) => r.slotId)).toEqual([2, 1]);
+  });
+
+  // 기록과 달력이 많이 벌어진 사람일수록 회차를 잃고 있을 위험이 크다 — 먼저 보여준다.
+  it("미확정끼리는 기록·달력 차이가 큰 쪽이 먼저다", () => {
+    const sorted = sortBaselineRows([
+      row({ slotId: 1, recordedCount: 10, calendarRounds: 12 }), // 차이 2
+      row({ slotId: 2, recordedCount: 2, calendarRounds: 12 }), // 차이 10
+      row({ slotId: 3, recordedCount: 11, calendarRounds: 12 }), // 차이 1
+    ]);
+    expect(sorted.map((r) => r.slotId)).toEqual([2, 1, 3]);
+  });
+
+  it("차이가 같으면 이름순이다", () => {
+    const sorted = sortBaselineRows([
+      row({ slotId: 1, name: "홍길동" }),
+      row({ slotId: 2, name: "강감찬" }),
+    ]);
+    expect(sorted.map((r) => r.name)).toEqual(["강감찬", "홍길동"]);
+  });
+
+  it("원본 배열을 바꾸지 않는다", () => {
+    const input = [row({ slotId: 1, name: "나" }), row({ slotId: 2, name: "가" })];
+    sortBaselineRows(input);
+    expect(input.map((r) => r.slotId)).toEqual([1, 2]);
   });
 });

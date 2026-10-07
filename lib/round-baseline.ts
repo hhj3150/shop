@@ -46,17 +46,37 @@ export function confirmedShippedCount(
 }
 
 // 관리자 확정 화면 한 줄 — 판단 재료를 모아 보여준다.
-//   사장님이 '남은 회차'를 숫자로만 확인하고 넘길 수 있게, 근거를 한 줄에 다 올린다.
+//   사장님이 '지금까지 몇 회 나갔나'를 숫자 하나로 끝낼 수 있게, 근거를 한 줄에 다 올린다.
 export type BaselineRow = {
   slotId: number;
   name: string;
   phone: string;
-  paidRounds: number; // 결제한 총 회차
-  recordedCount: number; // 우리 기록(shipment_log) 건수
-  courierCount: number | null; // 로젠 송장 건수(엑셀 대조). 모르면 null
+  deliveryDay: string;
+  startedAt: string | null;
+  paused: boolean;
+  paidRounds: number; // 결제한 총 회차(원주문 + 연장)
+  recordedCount: number; // 우리 기록(shipment_log) — 서로 다른 발송일 수
+  calendarRounds: number; // 지금 시스템이 '나갔다'고 믿는 회차(달력 기준)
   lastShipDate: string | null;
-  suggested: number; // 추천 확정값
+  confirmedCount: number | null; // 이미 확정했다면 그 값
+  confirmedAt: string | null;
+  confirmedNote: string | null;
 };
+
+// 아직 확정 안 된 줄이 위로 — 사장님이 할 일만 보이게 한다.
+//   같은 미확정끼리는 '기록과 달력이 많이 벌어진 쪽'이 위다. 틀어진 폭이 클수록
+//   손님이 회차를 잃고 있을 위험이 크기 때문이다.
+export function sortBaselineRows(rows: readonly BaselineRow[]): BaselineRow[] {
+  return [...rows].sort((a, b) => {
+    const ac = a.confirmedAt ? 1 : 0;
+    const bc = b.confirmedAt ? 1 : 0;
+    if (ac !== bc) return ac - bc;
+    const ag = a.calendarRounds - a.recordedCount;
+    const bg = b.calendarRounds - b.recordedCount;
+    if (ag !== bg) return bg - ag;
+    return a.name.localeCompare(b.name, "ko");
+  });
+}
 
 // 추천 확정값 — '애매하면 손님에게 유리하게'.
 //   우리 기록과 택배사 송장이 다르면 '적은 쪽'을 받은 것으로 본다. 덜 세면 회차가 남고,

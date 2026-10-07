@@ -151,3 +151,89 @@ grant execute on function public.admin_confirm_slot_rounds(bigint, int, text) to
 --   -- 미확정 슬롯 수(0이 되면 전수 확정 완료)
 --   select count(*) from public.subscription_slots
 --    where status = '활성' and rounds_confirmed_at is null;
+
+-- ── 관리자 확정 화면이 읽는 한 줄 ────────────────────────────────────────────
+--   사장님이 숫자 하나만 넣고 끝내도록, 판단 재료를 서버에서 다 모아 올린다.
+--
+--   핵심은 recorded_count(우리 기록)와 calendar_rounds(지금 시스템이 믿는 회차)를
+--   나란히 두는 것이다. 이 둘이 벌어진 폭이 곧 이번 사고의 크기다
+--   (박재우: 기록 10 · 달력 17 — 달력 쪽을 믿어서 재구독 안내가 먼저 나갔다).
+--
+--   택배사 송장 수는 넣지 않는다. 로젠 파일에는 구독분·홍보분·전화주문이 섞여 있어
+--   '송장 N건'이 '구독 N회'라는 보장이 없다. 근거 없는 숫자를 올려 두면 사장님이
+--   그걸 믿고 확정할 위험이 더 크다.
+create or replace function public.admin_round_baseline_rows()
+returns table (
+  slot_id         bigint,
+  name            text,
+  phone           text,
+  delivery_day    text,
+  started_at      date,
+  paused          boolean,
+  paid_rounds     int,
+  recorded_count  int,
+  calendar_rounds int,
+  last_ship_date  date,
+  confirmed_count int,
+  confirmed_at    date,
+  confirmed_note  text
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then raise exception '관리자만 가능합니다.'; end if;
+
+  return query
+  with slot_orders as (
+    -- 한 구독에 묶인 모든 주문(원주문 + 재구독 연장주문).
+    select s.id as sid, s.order_id as oid from public.subscription_slots s
+    union
+    select r.renews_slot_id, r.id from public.orders r where r.renews_slot_id is not null
+  )
+  select
+    s.id,
+    o.ship_name,
+    o.ship_phone,
+    s.delivery_day,
+    s.started_at,
+    coalesce(s.paused, false),
+    t.total,
+    coalesce((
+      select count(distinct sl.ship_date)::int
+        from public.shipment_log sl
+       where sl.order_id in (select so.oid from slot_orders so where so.sid = s.id)
+    ), 0),
+    coalesce((
+      select count(*)::int
+        from public.sub_delivery_dates(
+               s.started_at,
+               coalesce(s.first_ship_date, s.started_at),
+               t.total,
+               coalesce(s.paused_days, 0)
+             ) d
+       where d.ship_date <= public.kst_today()
+    ), 0),
+    (
+      select max(sl.ship_date)
+        from public.shipment_log sl
+       where sl.order_id in (select so.oid from slot_orders so where so.sid = s.id)
+    ),
+    s.rounds_confirmed_count,
+    s.rounds_confirmed_at,
+    s.rounds_confirmed_note
+  from public.subscription_slots s
+  join public.orders o on o.id = s.order_id
+  cross join lateral (
+    select greatest(coalesce(o.block_weeks, 0) + coalesce(s.extended_weeks, 0), 1) as total
+  ) t
+  where s.status = '활성'
+  order by (s.rounds_confirmed_at is not null), o.ship_name;
+end;
+$$;
+
+revoke all     on function public.admin_round_baseline_rows() from public;
+revoke execute on function public.admin_round_baseline_rows() from anon;
+grant  execute on function public.admin_round_baseline_rows() to authenticated;

@@ -40,6 +40,7 @@ import { usePolling } from "@/lib/usePolling";
 import { PayActionReRegister, postPayActionRegister } from "@/components/PayActionReRegister";
 import { AdminAssistant } from "@/components/AdminAssistant";
 import { ReferralAdminPanel } from "@/components/ReferralAdminPanel";
+import { RoundConfirmPanel } from "@/components/RoundConfirmPanel";
 import { FunnelDashboard } from "@/components/FunnelDashboard";
 import { payActionReasonLabel } from "@/lib/payaction-reason";
 import { AdminStats } from "@/components/AdminStats";
@@ -1816,6 +1817,10 @@ export default function AdminPage() {
 
       {tab === "회원·구독" && (
         <>
+      {/* 회차 확정 — 손님이 결제한 회차를 다 받게 하는 기준점. 다른 집계보다 위에 둔다. */}
+      <div className="mt-8">
+        <RoundConfirmPanel />
+      </div>
       {/* 회원 전체 */}
       <div className="mt-12 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-serif-kr text-lg text-ink">회원 전체 ({memberRows.length}명)</h2>
