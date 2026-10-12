@@ -12,12 +12,28 @@ import { logSms } from "@/lib/sms-log";
 
 const SHOP = "송영신목장";
 
+// 고아입금 사유 — confirm_payment 가 orphan_deposits.prior_status 로 적재하고
+//   반환 jsonb 의 orphan_reason 으로 알려 준다. 사람이 해야 할 일이 사유마다 다르다.
+export type OrphanReason = "취소주문" | "해지구독연장" | "연장좌석충돌";
+
 export type OrphanAlertParams = {
   orderNo: string;
   shipName: string | null;
   shipPhone: string | null;
   paidAmount: number | null;
   payMethod: string | null;
+  // 없으면 기존 동작대로 '취소주문'으로 본다(옛 RPC 가 이 값을 안 보내는 동안의 호환).
+  reason?: OrphanReason | null;
+};
+
+// 사유별 '무슨 일이 일어났고 무엇을 해야 하는가'. 문자를 받은 사람이 바로 움직일 수 있어야 한다.
+const REASON_TEXT: Record<OrphanReason, string> = {
+  취소주문:
+    "이미 취소된 주문에 입금이 확인됐습니다. 발송·환불 여부를 즉시 확인해 주세요.",
+  해지구독연장:
+    "해지된 구독의 연장 주문에 입금이 들어왔습니다. 회차는 더해지지 않았고 배송도 나가지 않습니다. 환불 또는 재구독으로 처리해 주세요.",
+  연장좌석충돌:
+    "연장 입금은 확인됐지만 요일 좌석 이동이 막혀 회차가 반영되지 않았습니다. 요일을 조정하거나 환불로 처리해 주세요.",
 };
 
 // 관리자 알림 본문(순수함수 — 테스트 대상).
@@ -27,9 +43,10 @@ export function buildOrphanAlertText(p: OrphanAlertParams): string {
   const name = p.shipName || "이름미상";
   const phone = p.shipPhone || "연락처미상";
   const method = p.payMethod || "수단미상";
+  const reason: OrphanReason = p.reason ?? "취소주문";
   return (
-    `[${SHOP}] ⚠️ 고아입금 발생\n` +
-    `이미 취소된 주문에 입금이 확인됐습니다. 발송·환불 여부를 즉시 확인해 주세요.\n` +
+    `[${SHOP}] ⚠️ 고아입금 발생 (${reason})\n` +
+    `${REASON_TEXT[reason]}\n` +
     `주문번호 ${p.orderNo}\n` +
     `입금자/수령 ${name} (${phone})\n` +
     `금액 ${amount} · ${method}`
@@ -57,7 +74,12 @@ export async function sendOrphanDepositAlert(p: OrphanAlertParams): Promise<SmsR
       channel: "admin_alert",
       ok: r.ok,
       failReason: r.ok ? null : (r.reason ?? null),
-      meta: { orderNo: p.orderNo, paidAmount: p.paidAmount, payMethod: p.payMethod },
+      meta: {
+        orderNo: p.orderNo,
+        paidAmount: p.paidAmount,
+        payMethod: p.payMethod,
+        reason: p.reason ?? "취소주문",
+      },
     });
     return r;
   } catch (error) {

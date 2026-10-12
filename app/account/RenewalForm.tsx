@@ -37,6 +37,7 @@ import {
   buildRenewalItems,
   pruneToActive,
   usedDeliveryDays,
+  summarizeItems,
   type FormItem,
 } from "@/lib/renewal-form";
 
@@ -71,6 +72,11 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
       {}
     )
   );
+
+  // 품목 칸은 기본으로 접어 둔다 — 대다수는 '지금 구성 그대로' 연장하므로, 펼쳐 두면
+  //   바꿀 것도 없는 목록을 지나쳐 스크롤해야 신청 버튼에 닿는다.
+  //   (판매종료로 빠진 품목이 있으면 아래에서 강제로 펼친다 — 손댈 거리가 생긴 경우다.)
+  const [editingItems, setEditingItems] = useState(false);
 
   useEffect(() => {
     getDayCounts().then(setCounts).catch(() => setCounts(null));
@@ -138,6 +144,14 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
   const items = buildRenewalItems(formItems);
   const hasItems = items.length > 0;
   const canSubmit = hasItems && !quote.belowMin && !busy && !catalogLoading;
+
+  // 접힌 상태에 보여 줄 한 줄 요약(펼쳤을 때와 같은 차례).
+  const itemSummary = useMemo(
+    () => summarizeItems(products, effectiveQty),
+    [products, effectiveQty]
+  );
+  // 손댈 거리가 있으면 접어 두지 않는다 — 담긴 품목이 없거나, 판매종료로 빠진 게 있을 때.
+  const itemsOpen = editingItems || !hasItems || droppedNames.length > 0;
 
   const setQty = (id: string, qty: number) =>
     setQtyById((prev) => ({ ...prev, [id]: Math.max(0, qty) }));
@@ -235,15 +249,34 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
         )}
       </div>
 
-      {/* 품목 편집 */}
+      {/* 품목 편집 — 기본은 접힌 요약, '바꾸기'로 펼친다 */}
       <div className="mt-5">
-        <p className="text-[13px] font-medium text-ink">품목</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[13px] font-medium text-ink">품목</p>
+          {!itemsOpen && (
+            <button
+              type="button"
+              onClick={() => setEditingItems(true)}
+              className="shrink-0 rounded-full border border-line px-4 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+            >
+              바꾸기
+            </button>
+          )}
+        </div>
         {droppedNames.length > 0 && (
           <p className="mt-2 rounded-xl bg-ink/5 px-3 py-2.5 text-[12px] leading-relaxed text-ink-soft">
             {droppedNames.join(", ")} — 판매 종료되어 목록에서 제외됐어요. 다른 품목으로
             연장해 주세요.
           </p>
         )}
+        {!itemsOpen ? (
+          <p className="mt-2 rounded-xl bg-cream px-4 py-3 text-[13px] leading-relaxed text-ink">
+            {itemSummary || "담긴 품목이 없어요."}
+            <span className="mt-0.5 block text-[12px] text-mute">
+              지금 받고 계신 구성 그대로 이어집니다.
+            </span>
+          </p>
+        ) : (
         <ul className="mt-2 space-y-3">
           {products.map((p) => {
             const ep = subscribePrice(p.price, rate);
@@ -293,6 +326,7 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
             );
           })}
         </ul>
+        )}
       </div>
 
       {/* 실시간 견적 */}

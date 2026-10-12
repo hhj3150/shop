@@ -9,6 +9,7 @@ import { visibleProducts } from "@/lib/storefront-merge";
 import { Reveal } from "./Reveal";
 import { Scatter, HEY, type ConfettiItem } from "./Confetti";
 import { LogoBubbles } from "./LogoBubbles";
+import { ProductSticker } from "./ProductSticker";
 
 type Filter = "all" | ProductLine;
 
@@ -107,6 +108,13 @@ export function ProductShowcase() {
                 className="mt-8 flex w-full flex-1 flex-col items-center"
               >
                 <div className="relative h-72 w-full overflow-hidden rounded-[20px] bg-paper sm:h-80">
+                  {p.sticker && (
+                    <ProductSticker
+                      title={p.sticker.title}
+                      sub={p.sticker.sub}
+                      className="left-3 top-3 sm:left-4 sm:top-4"
+                    />
+                  )}
                   <Image
                     src={p.image}
                     alt={`${p.name} ${p.volume}`}

@@ -65,17 +65,16 @@ export async function revokeReferralCredit(orderId: string): Promise<number> {
 // 서버 라우트가 PAYACTION_API_KEY 로 등록을 수행한다. 실패는 non-fatal —
 //   주문은 이미 생성되었으므로 등록 실패는 흡수하고 로깅만 한다(관리자 수동 처리 가능).
 //   ordererPhone: 입금확인 문자 수신처(선물=보내는 분, 일반=주문자 연락처).
-export async function registerPayActionDeposit(
-  orderNo: string,
-  ordererPhone: string
-): Promise<void> {
+// 주문자 연락처는 서버가 DB 에서 읽는다 — 클라이언트가 수신번호를 정하지 못하게
+//   한 이후로 인자가 필요 없어졌다(임의 번호로 알림톡을 보내던 경로를 막았다).
+export async function registerPayActionDeposit(orderNo: string): Promise<void> {
   try {
     // keepalive: 완료 페이지로 라우팅·언마운트되는 도중에도 요청이 취소되지 않도록 유지.
     //   (fire-and-forget 호출이 router.push 로 abort 돼 서버 라우트에 도달조차 못 하던 문제 해결)
     await fetch("/api/payaction/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderNo, ordererPhone }),
+      body: JSON.stringify({ orderNo }),
       keepalive: true,
     });
   } catch (error) {

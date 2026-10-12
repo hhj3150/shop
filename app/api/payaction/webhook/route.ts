@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyWebhookAuth } from "@/lib/payaction";
-import { sendOrphanDepositAlert } from "@/lib/orphan-alert";
+import { sendOrphanDepositAlert, type OrphanReason } from "@/lib/orphan-alert";
 import { sendInfo, isSolapiConfigured } from "@/lib/solapi";
 import { logSms } from "@/lib/sms-log";
 import { buildPaymentConfirmedMessage } from "@/lib/payment-confirmed-message";
@@ -138,6 +138,7 @@ export async function POST(req: Request) {
     idempotent?: boolean;
     orphan?: boolean;
     orphan_inserted?: boolean;
+    orphan_reason?: OrphanReason | null;
     ship_name?: string | null;
     ship_phone?: string | null;
   };
@@ -155,6 +156,7 @@ export async function POST(req: Request) {
         shipPhone: r.ship_phone ?? null,
         paidAmount: null, // PayAction 경로는 권위 금액을 DB에서만 알 수 있어 원장에 적재됨(SMS엔 금액미상)
         payMethod: "무통장입금",
+        reason: r.orphan_reason ?? null,
       });
     }
   }

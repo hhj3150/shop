@@ -107,6 +107,10 @@ export function buildRosterMaps<
     block_weeks: o.block_weeks ?? 0,
     shipping_fee: o.shipping_fee ?? 0,
     created_at: o.created_at,
+    // 로스터는 '이 날짜에 어느 블록이 나가는가'만 고른다 — 금액을 계산하지 않으므로
+    //   추천 적립금은 쓰이지 않는다. 환불 계산은 lib/subscriptions 가 자기 쿼리로
+    //   referral_credit_krw 를 따로 읽는다.
+    referral_credit_krw: 0,
   });
 
   const blockItemsByOrder = new Map<string, BlockItemRow[]>();

@@ -3,7 +3,7 @@ import { matchLogen, normalizeName } from "./logen-match";
 import type { LogenRow } from "./logen-excel";
 
 const row = (p: Partial<LogenRow>): LogenRow =>
-  ({ tracking: "T1", recipientName: "", phone7: "", orderNo: "", ...p });
+  ({ tracking: "T1", recipientName: "", phone7: "", orderNo: "", shipDate: "", ...p });
 const ord = (id: string, name: string, phone: string, tracking: string | null = null) =>
   ({ id, order_no: id, ship_name: name, ship_phone: phone, tracking_no: tracking });
 

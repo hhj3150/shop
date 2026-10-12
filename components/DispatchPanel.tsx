@@ -9,7 +9,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { SmsHistoryModal } from "@/components/SmsHistoryModal";
 import { stockShipOut, recordShipmentTracking, markShipmentDelivered } from "@/lib/inventory-data";
 import { notify } from "@/lib/notify";
-import { COURIERS, COURIER_IDS, courierLabel } from "@/lib/couriers";
+import { DEFAULT_COURIER_ID, courierLabel } from "@/lib/couriers";
 import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
 import * as logenExcel from "@/lib/logen-excel";
 import { matchLogen, type LogenMatchResult } from "@/lib/logen-match";
@@ -129,6 +129,7 @@ export function DispatchPanel({
   slotIdByOrderDay,
   confirmedOrderIds,
   pausedOrderIds,
+  shippedBySlot,
   onReload,
 }: {
   orders: DispatchOrder[];
@@ -148,12 +149,16 @@ export function DispatchPanel({
   // 확정류 주문(입금확인 이후)·정지 구독 주문 — 배송 명단과 같은 판정을 쓰기 위한 입력.
   confirmedOrderIds?: ReadonlySet<string>;
   pausedOrderIds?: ReadonlySet<string>;
+  // 슬롯 id → 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
+  //   확정된 슬롯만 들어 있다. 없으면 지금까지처럼 달력으로 회차·소진을 판정한다.
+  shippedBySlot?: ReadonlyMap<number, number | null>;
   onReload: () => Promise<void> | void;
 }) {
   const queueRef = useRef<HTMLDivElement>(null);
   const [date, setDate] = useState(todayISO());
   const [useDateFilter, setUseDateFilter] = useState(true);
-  const [courier, setCourier] = useState<string>("cj");
+  // 택배사는 로젠택배로 고정(선택 UI 없음).
+  const courier: string = DEFAULT_COURIER_ID;
   const [tracking, setTracking] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // 송장 일괄 붙여넣기(엑셀에서 주문번호+송장번호).
@@ -226,6 +231,7 @@ export function DispatchPanel({
       blocksBySlot,
       slotIdByOrder,
       slotIdByOrderDay,
+      shippedBySlot,
     };
   }, [
     orders,
@@ -240,6 +246,7 @@ export function DispatchPanel({
     blocksBySlot,
     slotIdByOrder,
     slotIdByOrderDay,
+    shippedBySlot,
   ]);
 
   // 로스터가 요구하는 평면 품목 배열(주문별 묶음에서 펼친다).
@@ -504,7 +511,6 @@ export function DispatchPanel({
     const resolved = picks
       .map(([idxStr, id]) => ({ id, t: trackByRow.get(Number(idxStr)) ?? ambByRow.get(Number(idxStr)) }))
       .filter((p): p is { id: string; t: string } => Boolean(p.t));
-    if (courier !== "logen") setCourier("logen");
     setTracking((prev) => {
       const next = { ...prev };
       for (const { id, t } of resolved) next[id] = t;
@@ -574,25 +580,23 @@ export function DispatchPanel({
       shipISO: r.shipISO,
       alreadyShipped: isShipped(r),
     });
-    // 송장 없이 출고하면 발송 문자·배송추적이 누락되고 주문이 '입금확인'에 묶인다(되돌리기 번거로움).
-    //   → 송장번호를 필수로 막는다. (출고 후 뒤늦게 넣을 땐 '출고됨' 행의 송장 저장 버튼 사용.)
-    if (!decision.patch) {
-      setError(`${o.ship_name}: 송장번호를 입력해야 출고·발송됩니다.`);
-      return;
-    }
+    // 송장번호는 선택이다 — 없어도 출고·발송으로 처리한다.
+    //   예전엔 여기서 막았는데, 목장은 로젠 프로그램에서 송장을 뽑고 쇼핑몰에 또 넣는
+    //   이중 입력이라 현장에서 그 입력이 빠지면 stockShipOut 까지 건너뛰어 출고가 통째로
+    //   기록되지 않았다. 실제로 나간 회차가 '안 보낸 회차'로 남아 회차가 증발했다.
+    //   송장은 나중에 '출고됨' 행의 송장 저장 버튼으로 채우면 그때 주문에 반영된다.
     const k = shipKey(r);
     setShippingId(k);
     setError(null);
     try {
       await stockShipOut(o.id, r.shipISO);
-      if (decision.patch) {
-        const sb = getSupabase();
-        const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
-        if (error) throw error;
-        // 회차별 배송 레코드(shipment_log)에도 그 회차 송장을 기록 — 회차 이력·고객 추적의 권위값.
-        await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
-        if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id, shipDate: r.shipISO });
-      }
+      const sb = getSupabase();
+      const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
+      if (error) throw error;
+      // 회차별 배송 레코드(shipment_log)에도 그 회차를 기록 — 회차 이력·고객 추적의 권위값.
+      //   송장이 없으면 null 로 남고, 나중에 채우면 그 행이 갱신된다.
+      await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
+      if (decision.notifyShipped) void notify({ kind: "shipped", orderId: o.id, shipDate: r.shipISO });
       setJustShipped((prev) => new Set(prev).add(k));
       await onReload();
     } catch (e) {
@@ -614,7 +618,9 @@ export function DispatchPanel({
       shipISO: r.shipISO,
       alreadyShipped: isShipped(r),
     });
-    if (!decision.patch) {
+    // 이 버튼은 '송장을 채우는' 동작이다 — 빈칸이면 할 일이 없으니 그대로 둔다.
+    //   (출고 자체는 송장 없이도 이미 기록돼 있다.)
+    if (!decision.hasTracking) {
       setError(`${o.ship_name}: 송장번호를 입력해 주세요.`);
       return;
     }
@@ -771,11 +777,9 @@ export function DispatchPanel({
           });
           try {
             await stockShipOut(o.id, r.shipISO); // 이미 출고된 회차면 서버가 'already' → 이중차감 없음
-            if (decision.patch) {
-              const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
-              if (error) throw error;
-              await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
-            }
+            const { error } = await sb.from("orders").update(decision.patch).eq("id", o.id);
+            if (error) throw error;
+            await recordShipmentTracking(o.id, r.shipISO, decision.patch.courier, decision.patch.tracking_no);
             return { o, decision, shipISO: r.shipISO, error: null as { message?: string } | null };
           } catch (e) {
             return {
@@ -987,17 +991,9 @@ export function DispatchPanel({
       {/* 일괄 도구 */}
       <div className="mt-2 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-paper p-3 no-print">
         <span className="text-[13px] text-ink-soft">택배사</span>
-        <select
-          value={courier}
-          onChange={(e) => setCourier(e.target.value)}
-          className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink"
-        >
-          {COURIER_IDS.map((id) => (
-            <option key={id} value={id}>
-              {COURIERS[id].label}
-            </option>
-          ))}
-        </select>
+        <span className="rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] text-ink">
+          {courierLabel(courier)}
+        </span>
         <button
           onClick={bulkShip}
           disabled={busy || selected.size === 0}

@@ -50,8 +50,10 @@ const EXTERNAL = [
   },
 ];
 
+// 탭 하나. 높이는 손가락 최소 판정(44px) 위에서 잡고, 눌린 순간 바로 반응한다
+//   — 터치에는 hover 가 없어 누름 피드백이 없으면 '안 눌렸나' 하고 두 번 누른다.
 function tabClass(active: boolean): string {
-  return `flex min-h-12 flex-col items-center justify-center gap-1 py-3 text-[11px] tracking-wide transition-colors ${
+  return `press flex min-h-12 w-full flex-col items-center justify-center gap-1 py-3 text-[11px] tracking-wide transition-colors ${
     active ? "text-gold-deep" : "text-ink-soft hover:text-gold-deep"
   }`;
 }
@@ -113,7 +115,7 @@ export function BottomNav() {
         aria-modal="true"
         aria-label="브랜드 채널 더보기"
         aria-hidden={!moreOpen}
-        className={`fixed inset-x-0 bottom-0 z-[70] mx-auto max-w-md rounded-t-2xl border-t border-line bg-paper p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-2xl outline-none transition-transform duration-300 ease-[var(--ease-soft)] md:hidden ${
+        className={`material-thick elev-3 fixed inset-x-0 bottom-0 z-[70] mx-auto max-w-md rounded-t-2xl border-t border-line/70 p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] outline-none transition-transform duration-300 ease-[var(--ease-spring)] md:hidden ${
           moreOpen ? "translate-y-0" : "translate-y-full"
         }`}
       >
@@ -123,7 +125,7 @@ export function BottomNav() {
             type="button"
             onClick={() => setMoreOpen(false)}
             aria-label="닫기"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-mute transition-colors hover:bg-cream hover:text-ink"
+            className="tap press flex h-8 w-8 items-center justify-center rounded-full text-mute transition-colors hover:bg-cream hover:text-ink"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               <path d="M6 6 18 18M18 6 6 18" strokeLinecap="round" />
@@ -138,7 +140,7 @@ export function BottomNav() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMoreOpen(false)}
-                className="flex items-center gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-cream"
+                className="press flex min-h-11 items-center gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-cream"
               >
                 <span
                   className="flex h-9 w-9 items-center justify-center rounded-full"
@@ -159,7 +161,7 @@ export function BottomNav() {
       {/* 하단 탭바 */}
       <nav
         aria-label="모바일 메뉴"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="material-chrome fixed inset-x-0 bottom-0 z-40 border-t border-line/70 pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         <ul className="mx-auto grid max-w-md grid-cols-4">
           {/* 홈 */}
@@ -182,12 +184,12 @@ export function BottomNav() {
               type="button"
               onClick={open}
               aria-label={count > 0 ? `장바구니 열기, ${count}개 담김` : "장바구니 열기"}
-              className={`${tabClass(false)} w-full`}
+              className={tabClass(false)}
             >
               <span className="relative">
                 <CartIcon />
                 {count > 0 && (
-                  <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold-deep px-1 text-[10px] font-semibold leading-none text-cream tabular-nums">
+                  <span className="t-num absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold-deep px-1 text-[10px] font-semibold leading-none text-cream">
                     {count}
                   </span>
                 )}
@@ -215,7 +217,7 @@ export function BottomNav() {
               onClick={() => setMoreOpen(true)}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
-              className={`${tabClass(moreOpen)} w-full`}
+              className={tabClass(moreOpen)}
             >
               <MoreIcon />
               더보기

@@ -5,7 +5,16 @@ import type { DeliveryDay } from "./cart";
 
 // ─── shared fixtures ──────────────────────────────────────────────────────────
 
-type OrderInput = { id: string; block_weeks: number; shipping_fee: number; created_at: string };
+type OrderInput = {
+  id: string;
+  block_weeks: number;
+  shipping_fee: number;
+  created_at: string;
+  referral_credit_krw?: number;
+};
+
+// referral_credit_krw 를 안 적은 fixture 는 적립금 0 으로 본다(대다수 주문).
+const order = (o: OrderInput) => ({ referral_credit_krw: 0, ...o });
 
 const chicken = { delivery_day: "tue" as DeliveryDay, qty: 2, unit_price: 10800, product_name: "닭가슴살", volume: "200g" };
 const beef    = { delivery_day: "wed" as DeliveryDay, qty: 1, unit_price: 30600, product_name: "소고기",   volume: "150g" };
@@ -24,7 +33,7 @@ describe("buildRawBlocks", () => {
       [o0.id, [chicken]],
       [o1.id, [beef]],
     ]);
-    const result = buildRawBlocks(o0, [o1], itemsByOrder);
+    const result = buildRawBlocks(order(o0), [order(o1)], itemsByOrder);
 
     expect(result).toHaveLength(2);
 
@@ -54,7 +63,7 @@ describe("buildRawBlocks", () => {
       [o0.id, [chicken]],
       // o2 has no entry → legacy
     ]);
-    const result = buildRawBlocks(o0, [o2], itemsByOrder);
+    const result = buildRawBlocks(order(o0), [order(o2)], itemsByOrder);
 
     expect(result).toHaveLength(2);
     const legacy = result[1];
@@ -74,7 +83,7 @@ describe("buildRawBlocks", () => {
       [late.id, [chicken]],
     ]);
     // Pass renewals out of created_at order: late first, then early.
-    const result = buildRawBlocks(o0, [late, early], itemsByOrder);
+    const result = buildRawBlocks(order(o0), [order(late), order(early)], itemsByOrder);
 
     expect(result).toHaveLength(3);
     // Original first, then renewals sorted by created_at ascending (early before late),
@@ -93,7 +102,7 @@ describe("buildRawBlocks", () => {
       [b.id, [chicken]],
     ]);
     // Pass in reverse id order with identical created_at.
-    const result = buildRawBlocks(o0, [b, a], itemsByOrder);
+    const result = buildRawBlocks(order(o0), [order(b), order(a)], itemsByOrder);
 
     expect(result.map((r) => r.orderId)).toEqual([o0.id, a.id, b.id]);
   });
@@ -101,7 +110,7 @@ describe("buildRawBlocks", () => {
   it("block_weeks=0 guard → shippingPerWeek 0 (no divide-by-zero)", () => {
     const oZero: OrderInput = { id: "uuid-zero", block_weeks: 0, shipping_fee: 16000, created_at: "2026-02-03T00:00:00Z" };
     const itemsByOrder = new Map([[o0.id, [chicken]]]);
-    const result = buildRawBlocks(o0, [oZero], itemsByOrder);
+    const result = buildRawBlocks(order(o0), [order(oZero)], itemsByOrder);
 
     const zeroBlock = result.find((b) => b.orderId === oZero.id)!;
     expect(zeroBlock.shippingPerWeek).toBe(0);
@@ -112,7 +121,7 @@ describe("buildRawBlocks", () => {
       [o0.id, [chicken]],
       // o2 is legacy
     ]);
-    const rawBlocks: RawBlock[] = buildRawBlocks(o0, [o2], itemsByOrder);
+    const rawBlocks: RawBlock[] = buildRawBlocks(order(o0), [order(o2)], itemsByOrder);
     const resolved = normalizeBlocks(rawBlocks);
 
     expect(resolved).toHaveLength(2);

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   totalRemainingSeats,
   toMySubscriptions,
-  refundAmount,
   requestRenewal,
   canSkipThisWeek,
   type DayCounts,
@@ -106,6 +105,7 @@ describe("toMySubscriptions — 연장분 합산", () => {
         block_weeks: 4,
         shipping_fee: 16000,
         created_at: "2026-06-01T00:00:00Z",
+          referral_credit_krw: 0,
       },
       renewalOrders: [
         {
@@ -113,6 +113,7 @@ describe("toMySubscriptions — 연장분 합산", () => {
           block_weeks: 4,
           shipping_fee: 16000,
           created_at: "2026-07-01T00:00:00Z",
+          referral_credit_krw: 0,
         },
       ],
       itemsByOrder: new Map([
@@ -132,13 +133,21 @@ describe("toMySubscriptions — 연장분 합산", () => {
     expect(subs[0].totalAmount).toBe(80000);
   });
 
-  it("환불 미리보기 = 서버와 동일: 8회/8만, 남은 6회 → 60,000원", () => {
+  it("★회귀: 추천 적립금은 남은 회차분만큼 환불에서 빠진다", () => {
+    // 블록0(4회·쿠폰 0) + 블록1(4회·쿠폰 8,000). 회당 단가는 items 기준 10,000원.
+    //   남은 6회 = 블록0 2회 + 블록1 4회 → 쿠폰은 블록1에서 8,000 × 4/4 = 8,000 전액 차감.
+    const withCredit = blockSource.map((b) => ({
+      ...b,
+      renewalOrders: b.renewalOrders.map((o) => ({ ...o, referral_credit_krw: 8000 })),
+    }));
     const subs = toMySubscriptions(
       [slotRow],
       [{ renews_slot_id: 7, total_amount: 40000 }],
-      blockSource
+      withCredit
     );
-    expect(refundAmount(subs[0], 6)).toBe(60000);
+    // 환불 산식 자체는 refundByBlocks(서버 cancel_subscription 과 동치)로 검증한다.
+    //   화면용 미리보기 함수는 없앴다 — 금액을 두 곳에서 계산하면 실지급액과 갈라진다.
+    expect(subs[0].blocks[1].creditKrw).toBe(8000);
   });
 
   it("blocks 를 buildRawBlocks 로 조립한다(원주문 먼저, 연장 다음)", () => {
@@ -152,6 +161,29 @@ describe("toMySubscriptions — 연장분 합산", () => {
     expect(subs[0].blocks[1].orderId).toBe("ord-1");
     expect(subs[0].blocks[0].weeks).toBe(4);
     expect(subs[0].blocks[0].shippingPerWeek).toBe(4000);
+  });
+
+  it("★회귀: 연장주문이 취소로 빠지면 총회차도 줄어든다(extended_weeks 잔재 무시)", () => {
+    // slots.extended_weeks 는 연장 입금확인 때 늘고, 그 연장주문을 나중에 '취소'로 되돌려도
+    //   줄지 않는다. 그 값을 총회차로 쓰면 손님 화면만 "아직 4회 남음"이라 말하고,
+    //   배송 명단과 서버 환불(cancel_subscription = 확정 블록 체인 합)은 이미 끝난 구독으로
+    //   본다 — 오지 않을 배송을 약속하고 환불 미리보기도 실제 지급액보다 많아진다.
+    const noRenewalBlocks = [{ ...blockSource[0], renewalOrders: [] }];
+    const subs = toMySubscriptions(
+      [slotRow], // extended_weeks 는 4 그대로(취소돼도 남는 잔재)
+      [], // 확정 연장주문 없음
+      noRenewalBlocks
+    );
+    expect(subs[0].totalWeeks).toBe(4);
+    expect(subs[0].totalAmount).toBe(40000);
+    // 블록도 원주문 하나만 남는다 → 서버 환불이 보는 회차 구간과 같다.
+    expect(subs[0].blocks).toHaveLength(1);
+  });
+
+  it("블록을 만들 수 없는 레거시 슬롯만 옛 값(block_weeks+extended_weeks)으로 폴백", () => {
+    const subs = toMySubscriptions([slotRow], [], []); // blockSources 없음
+    expect(subs[0].blocks).toHaveLength(0);
+    expect(subs[0].totalWeeks).toBe(8);
   });
 
   it("다른 슬롯의 연장주문은 섞이지 않는다", () => {
@@ -211,3 +243,45 @@ describe("requestRenewal — 손수 검증(zod 미도입)", () => {
     ).rejects.toThrow("배송 요일이 올바르지 않습니다.");
   });
 });
+
+describe("shippedCount — 손님 화면이 서버와 같은 회차를 본다", () => {
+  const slotRow2 = {
+    id: 7,
+    delivery_day: "mon" as DeliveryDay,
+    status: "활성",
+    started_at: "2026-06-01",
+    first_ship_date: null,
+    paused: false,
+    paused_at: null,
+    paused_days: 0,
+    skip_resume_on: null,
+    extended_weeks: 0,
+    orders: {
+      block_weeks: 8,
+      period_months: 2,
+      order_no: "20260601-0002",
+      total_amount: 80000,
+      delivery_method: "택배",
+    },
+  };
+
+  it("서버가 센 발송 회차를 그대로 싣는다", () => {
+    const subs = toMySubscriptions([slotRow2], [], [], new Map([[7, 5]]));
+    expect(subs[0].shippedCount).toBe(5);
+  });
+
+  // ★ 미확정 슬롯은 null 이어야 한다. 0 을 싣으면 '한 번도 못 받았다'가 되어 화면이
+  //   남은 회차를 전체로 보여주고, 서버 환불(달력 기준)과 어긋난다.
+  it("맵에 없으면 null — 화면이 옛 달력 계산으로 떨어진다", () => {
+    const subs = toMySubscriptions([slotRow2], [], []);
+    expect(subs[0].shippedCount).toBeNull();
+    const other = toMySubscriptions([slotRow2], [], [], new Map([[999, 3]]));
+    expect(other[0].shippedCount).toBeNull();
+  });
+
+  it("서버가 null 을 주면 null 로 둔다", () => {
+    const subs = toMySubscriptions([slotRow2], [], [], new Map([[7, null]]));
+    expect(subs[0].shippedCount).toBeNull();
+  });
+});
+

@@ -201,11 +201,14 @@ export async function stockShipOut(
 // 회차별 배송 송장 기록 — 출고로 만들어진 그 회차(주문|발송일) 행에 택배사·송장을 채운다.
 //   best-effort: 마이그레이션 미적용 등으로 실패해도 출고/주문 갱신 흐름을 막지 않는다.
 //   (orders 단일 컬럼은 호출자가 별도로 갱신 — 레거시 표시·알림 호환)
+// 회차별 배송 레코드에 택배사·송장을 기록. 송장은 없을 수 있다(null) —
+//   로젠 프로그램을 따로 쓰므로 송장 입력이 뒤늦거나 아예 없을 수 있고, 그래도
+//   '보냈다'는 사실은 남아야 한다. DB 는 nullif(trim(...),'') 로 빈 값을 NULL 로 받는다.
 export async function recordShipmentTracking(
   orderId: string,
   shipDate: string,
   courier: string,
-  trackingNo: string
+  trackingNo: string | null
 ): Promise<boolean> {
   try {
     const sb = getSupabase();
@@ -213,7 +216,7 @@ export async function recordShipmentTracking(
       p_order_id: orderId,
       p_ship_date: shipDate,
       p_courier: courier,
-      p_tracking_no: trackingNo,
+      p_tracking_no: trackingNo ?? "",
     });
     if (error) throw error;
     return true;

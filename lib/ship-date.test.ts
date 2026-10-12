@@ -98,6 +98,29 @@ describe("nextDispatchDate — 2026 하절기 휴가(8/9~8/17, FARM_CLOSURES)", 
   });
 });
 
+describe("nextDispatchDate — 2026 추석 연휴 주(9/21~9/25 휴배송) 단품 발송일", () => {
+  // 단품도 정기배송과 같은 발송 불가일을 쓴다(isDispatchBlockedISO).
+  //   9/21~25 는 목장 휴무(FARM_CLOSURES), 9/26(토)·9/28(월 대체공휴일)은 공휴일 →
+  //   9/17(목) 자정 이후 접수분은 모두 연휴 뒤 첫 영업일인 9/29(화)에 나간다.
+  it("연휴 직전 목요일 자정까지 주문분은 금요일(9/18) 정상 발송", () => {
+    expect(toISODate(nextDispatchDate(d(2026, 9, 17)))).toBe("2026-09-18");
+  });
+  it("금(9/18) 신청부터는 휴배송 주·추석 연휴를 넘겨 9/29(화) 발송", () => {
+    expect(toISODate(nextDispatchDate(d(2026, 9, 18)))).toBe("2026-09-29");
+  });
+  it("휴배송 주(9/21~25) 중 신청도 모두 9/29(화) 발송", () => {
+    for (const day of [21, 22, 23, 24, 25]) {
+      expect(toISODate(nextDispatchDate(d(2026, 9, day)))).toBe("2026-09-29");
+    }
+  });
+  it("연휴 마지막 날(9/28 대체공휴일) 신청도 9/29(화) 발송", () => {
+    expect(toISODate(nextDispatchDate(d(2026, 9, 28)))).toBe("2026-09-29");
+  });
+  it("연휴 종료 후(9/29 화)엔 평소 규칙으로 복귀 — 익일 발송", () => {
+    expect(toISODate(nextDispatchDate(d(2026, 9, 29)))).toBe("2026-09-30");
+  });
+});
+
 describe("deliveryDayHitsDate — 2026 하절기 휴가(8/9~8/17) 정기구독 배송일", () => {
   const days = ["mon", "tue", "wed", "thu", "fri"] as const;
 

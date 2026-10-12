@@ -15,7 +15,7 @@ const beef    = { productName: "소고기",   volume: "150g", qty: 1, unitPrice:
 
 // 최종 API: normalizeBlocks(blocks: RawBlock[]). 요일은 각 RawBlock.deliveryDay 에 들어온다.
 function raw(over: Partial<RawBlock>): RawBlock {
-  return { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, items: [chicken], ...over };
+  return { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, creditKrw: 0, items: [chicken], ...over };
 }
 
 describe("normalizeBlocks", () => {
@@ -51,8 +51,8 @@ describe("normalizeBlocks", () => {
 
 describe("activeBlockForRound", () => {
   const blocks = normalizeBlocks([
-    { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, items: [chicken] },
-    { orderId: "o1", weeks: 4, deliveryDay: "wed", shippingPerWeek: 4000, items: [beef] },
+    { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, creditKrw: 0, items: [chicken] },
+    { orderId: "o1", weeks: 4, deliveryDay: "wed", shippingPerWeek: 4000, creditKrw: 0, items: [beef] },
   ]);
   it("4회차는 블록0(화·닭)", () => {
     expect(activeBlockForRound(blocks, 4)?.orderId).toBe("o0");
@@ -100,8 +100,8 @@ describe("activeBlockForDate", () => {
     startedAt: "2026-01-06",
     paused: false, pausedAt: null, pausedDays: 0,
     blocks: [
-      { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000, items: [chicken] },
-      { orderId: "o1", weeks: 4, deliveryDay: "wed" as const, shippingPerWeek: 4000, items: [beef] },
+      { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000, creditKrw: 0, items: [chicken] },
+      { orderId: "o1", weeks: 4, deliveryDay: "wed" as const, shippingPerWeek: 4000, creditKrw: 0, items: [beef] },
     ],
   };
   it("5회차 날짜(블록1 구간)면 블록1을 돌려준다", () => {
@@ -132,8 +132,8 @@ describe("activeBlockOrderForDate (배송 시트·기간별 명단 공용 게이
     paused_days: 0,
   };
   const blocks: RawBlock[] = [
-    { orderId: "o0", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, items: [chicken] },
-    { orderId: "o1", weeks: 8, deliveryDay: "mon", shippingPerWeek: 4000, items: [beef] },
+    { orderId: "o0", weeks: 4, deliveryDay: "mon", shippingPerWeek: 4000, creditKrw: 0, items: [chicken] },
+    { orderId: "o1", weeks: 8, deliveryDay: "mon", shippingPerWeek: 4000, creditKrw: 0, items: [beef] },
   ];
 
   it("원구독 구간(06-29, 4회차)엔 원구독 주문 id", () => {
@@ -162,9 +162,9 @@ describe("refundByBlocks", () => {
   const input = {
     startedAt: "2026-01-06", paused: false, pausedAt: null, pausedDays: 0,
     blocks: [
-      { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000,
+      { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000, creditKrw: 0,
         items: [{ productName: "닭", volume: "200g", qty: 2, unitPrice: 10800 }] },
-      { orderId: "o1", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000,
+      { orderId: "o1", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 4000, creditKrw: 0,
         items: [{ productName: "소", volume: "150g", qty: 1, unitPrice: 30600 }] },
     ],
   };
@@ -179,22 +179,94 @@ describe("refundByBlocks", () => {
     expect(refundByBlocks(single, "2026-01-06")).toBe(76800);
   });
   it("정지 중에는 delivered가 동결되어 남은 회차가 일정하다", () => {
-    // 2026-01-20 정지, 2026-01-27 평가 → 정지일 7일이 모든 예정일을 같이 밀어
-    // delivered=3 으로 동결(3·4·5회차 예정일 01-13/01-20/01-27 <= asof).
-    // 남은 4·5·6·7·8 = 블록0 1회(25600) + 블록1 4회(34600*4=138400) = 164,000
+    // 화요일 구독. 3회차 예정일인 2026-01-20(화)에 정지 → 그날 배송명단에서 빠지므로
+    //   실제로 받은 건 01-06·01-13 두 회뿐이다(delivered=2, 정지 중 동결).
+    //   남은 3·4·5·6·7·8 = 블록0 2회(25600*2=51200) + 블록1 4회(34600*4=138400) = 189,600
+    //   ※ 옛 규칙은 '경과 일수 올림'으로 정지 첫날 회차를 배송한 것으로 세어 164,000 을
+    //     돌려줬다 — 손님이 받지도 않은 한 회차를 환불에서 깎던 자리다.
     const paused = { ...input, paused: true, pausedAt: "2026-01-20", pausedDays: 0 };
-    expect(refundByBlocks(paused, "2026-01-27")).toBe(164000);
+    expect(refundByBlocks(paused, "2026-01-27")).toBe(189600);
     // 더 늦은 날짜로 평가해도 정지 동결로 동일 환불 — delivered가 안 늘어남을 확인.
-    expect(refundByBlocks(paused, "2026-02-10")).toBe(164000);
+    expect(refundByBlocks(paused, "2026-02-10")).toBe(189600);
+  });
+
+  // ── 추천 적립금(쿠폰) 안분 ──
+  //   주문의 total_amount 는 이미 적립금을 뺀 실결제액인데 환불은 정가 구성으로 계산한다.
+  //   되빼지 않으면 손님이 낸 적 없는 돈이 나간다. 상품비·배송비와 같은 규칙으로 안분한다.
+  describe("추천 적립금 — 남은 회차분만 되뺀다", () => {
+    // 단일 블록 12회, 회당 상품 10,000원 + 배송비 0 → 정가 120,000원.
+    //   쿠폰 12,000원 → 실결제 108,000원.
+    const withCredit = (creditKrw: number) => ({
+      startedAt: "2026-01-06",
+      paused: false,
+      pausedAt: null,
+      pausedDays: 0,
+      blocks: [
+        {
+          orderId: "o0",
+          weeks: 12,
+          deliveryDay: "tue" as const,
+          shippingPerWeek: 0,
+          creditKrw,
+          items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 10000 }],
+        },
+      ],
+    });
+
+    it("쿠폰 없음·배송 전 해지 → 정가 전액 (기존 동작 그대로)", () => {
+      expect(refundByBlocks(withCredit(0), "2026-01-05")).toBe(120000);
+    });
+
+    it("쿠폰 있음·배송 전 해지 → 실결제액 (과다 지급 없음)", () => {
+      // 옛 계산은 120,000 을 돌려줘 12,000 이 그대로 샜다.
+      expect(refundByBlocks(withCredit(12000), "2026-01-05")).toBe(108000);
+    });
+
+    it("쿠폰 없음·6회 받고 해지 → 남은 6회 정가", () => {
+      expect(refundByBlocks(withCredit(0), "2026-02-10")).toBe(60000);
+    });
+
+    it("쿠폰 있음·6회 받고 해지 → 실결제액의 남은 비율", () => {
+      // 공평한 값 = 108,000 × 6/12 = 54,000. 옛 계산은 60,000 으로 6,000 과다였다.
+      expect(refundByBlocks(withCredit(12000), "2026-02-10")).toBe(54000);
+    });
+
+    it("전 회차 소진 후에는 쿠폰과 무관하게 0원", () => {
+      expect(refundByBlocks(withCredit(12000), "2026-12-31")).toBe(0);
+    });
+
+    it("쿠폰이 상품비보다 커도 음수 환불은 나오지 않는다", () => {
+      expect(refundByBlocks(withCredit(999999), "2026-01-05")).toBe(0);
+    });
+
+    it("연장 블록은 자기 주문의 쿠폰으로 안분한다(상속하지 않음)", () => {
+      // 블록0: 4회·회당 10,000·쿠폰 0 / 블록1: 4회·회당 10,000·쿠폰 8,000
+      const chained = {
+        startedAt: "2026-01-06",
+        paused: false,
+        pausedAt: null,
+        pausedDays: 0,
+        blocks: [
+          { orderId: "o0", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 0, creditKrw: 0,
+            items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
+          { orderId: "o1", weeks: 4, deliveryDay: "tue" as const, shippingPerWeek: 0, creditKrw: 8000,
+            items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 10000 }] },
+        ],
+      };
+      // 배송 전 해지: 8회 정가 80,000 − 블록1 쿠폰 8,000 = 72,000
+      expect(refundByBlocks(chained, "2026-01-05")).toBe(72000);
+      // 6회 받고 해지: 남은 2회는 전부 블록1 → 20,000 − 8,000×2/4 = 16,000
+      expect(refundByBlocks(chained, "2026-02-10")).toBe(16000);
+    });
   });
 });
 
 describe("totalWeeks invariant", () => {
   it("totalWeeks = 원주문 weeks + 연장 weeks 합", () => {
     const blocks: RawBlock[] = [
-      { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, items: [chicken] },
-      { orderId: "o1", weeks: 8, deliveryDay: "wed", shippingPerWeek: 4000, items: [beef] },
-      { orderId: "o2", weeks: 4, deliveryDay: null, shippingPerWeek: 4000, items: [] },
+      { orderId: "o0", weeks: 4, deliveryDay: "tue", shippingPerWeek: 4000, creditKrw: 0, items: [chicken] },
+      { orderId: "o1", weeks: 8, deliveryDay: "wed", shippingPerWeek: 4000, creditKrw: 0, items: [beef] },
+      { orderId: "o2", weeks: 4, deliveryDay: null, shippingPerWeek: 4000, creditKrw: 0, items: [] },
     ];
     expect(totalWeeks(blocks)).toBe(16); // 4 + 8 + 4
   });
@@ -213,9 +285,9 @@ describe("refundByBlocks — 하계 휴무 구간 (SQL cancel_subscription 과 �
     pausedAt: null,
     pausedDays: 0,
     blocks: [
-      { orderId: "o0", weeks: 4, deliveryDay: "mon" as const, shippingPerWeek: 4000,
+      { orderId: "o0", weeks: 4, deliveryDay: "mon" as const, shippingPerWeek: 4000, creditKrw: 0,
         items: [{ productName: "헤이밀크", volume: "750mL", qty: 3, unitPrice: 10000 }] },
-      { orderId: "o1", weeks: 8, deliveryDay: "mon" as const, shippingPerWeek: 4000,
+      { orderId: "o1", weeks: 8, deliveryDay: "mon" as const, shippingPerWeek: 4000, creditKrw: 0,
         items: [{ productName: "헤이밀크", volume: "750mL", qty: 3, unitPrice: 12000 }] },
     ],
   };
@@ -231,5 +303,81 @@ describe("refundByBlocks — 하계 휴무 구간 (SQL cancel_subscription 과 �
 
   it("08-24 해지 — 7회 배송, 남은 5회 환불", () => {
     expect(refundByBlocks(input, "2026-08-24")).toBe(5 * 40000); // 200,000
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 블록 선택을 '실제 발송 수'로 (activeBlockForDate shippedCount)
+//
+//   [사고] 박재우 님. 6/08 시작·원주문 4주(1~4회차) → 4회 수령.
+//     7/06~8/10 다섯 주는 연장 입금 전이라 배송 없음(정상).
+//     8/08 에 12주 결제 → 5~16회차 구간.
+//     그런데 8/18 에 날짜 기준 delivered=10 이 나와 10회차의 블록을 골랐고,
+//     5~9회차는 영영 건너뛰어졌다. 12주를 결제하고 7회만 받는 구조.
+//   [규칙] 이미 N 회 나갔으면 이번은 N+1 회차다. 날짜는 '언제'만 정한다.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("activeBlockForDate — 실제 발송 수 기준 블록 선택", () => {
+  const 원주문: RawBlock = {
+    orderId: "order-원주문", weeks: 4, deliveryDay: "mon",
+    shippingPerWeek: 4000, creditKrw: 0,
+    items: [{ productName: "A2 저지 헤이밀크", volume: "750mL", qty: 2, unitPrice: 12000 }],
+  };
+  const 연장: RawBlock = {
+    orderId: "order-연장12주", weeks: 12, deliveryDay: "mon",
+    shippingPerWeek: 4000, creditKrw: 0,
+    items: [{ productName: "A2 저지 헤이밀크", volume: "750mL", qty: 2, unitPrice: 12000 }],
+  };
+  const input = {
+    startedAt: "2026-06-08", firstShipDate: null,
+    paused: false, pausedAt: null, pausedDays: 0,
+    blocks: [원주문, 연장],
+  };
+
+  it("옛 방식: 공백 주가 회차를 먹어 5~9회차를 건너뛴다", () => {
+    // 8/18 날짜 기준 회차는 이미 10 — 4회밖에 못 받았는데 10회차 블록을 고른다.
+    const b = activeBlockForDate(input, "2026-08-18");
+    expect(b?.orderId).toBe("order-연장12주");
+    // 건너뛴 증거: 같은 날 발송 수 기준이면 5회차여야 한다.
+    const 사실 = activeBlockForDate(input, "2026-08-18", 4);
+    expect(사실?.fromRound).toBe(5); // 연장 블록 시작
+  });
+
+  it("4회 받았으면 이번은 5회차 — 연장 블록의 첫 회차", () => {
+    const b = activeBlockForDate(input, "2026-08-18", 4);
+    expect(b?.orderId).toBe("order-연장12주");
+    expect(b?.fromRound).toBe(5);
+    expect(b?.toRound).toBe(17); // 5 + 12
+  });
+
+  it("3회 받았으면 아직 원주문 블록(4회차)", () => {
+    const b = activeBlockForDate(input, "2026-08-18", 3);
+    expect(b?.orderId).toBe("order-원주문");
+  });
+
+  it("결제분(16회)을 다 받으면 더 보내지 않는다", () => {
+    expect(activeBlockForDate(input, "2026-08-18", 16)).toBeNull();
+  });
+
+  it("달력 종료일을 한참 지나도 결제분이 남았으면 계속 보낸다", () => {
+    // 옛 방식이면 소진으로 null — 손님이 결제한 회차가 사라지던 지점.
+    expect(activeBlockForDate(input, "2026-11-30")).toBeNull();
+    const b = activeBlockForDate(input, "2026-11-30", 9);
+    expect(b?.orderId).toBe("order-연장12주"); // 7회 남았으니 계속 나간다
+  });
+
+  it("아직 한 번도 안 나갔으면 1회차 — 원주문 블록", () => {
+    const b = activeBlockForDate(input, "2026-06-08", 0);
+    expect(b?.orderId).toBe("order-원주문");
+    expect(b?.fromRound).toBe(1);
+  });
+
+  it("시작 전·정지는 발송 수와 무관하게 null", () => {
+    expect(activeBlockForDate(input, "2026-06-01", 0)).toBeNull();
+    expect(activeBlockForDate({ ...input, paused: true, pausedAt: "2026-08-01" }, "2026-08-18", 4)).toBeNull();
+  });
+
+  it("미지정이면 옛 동작 그대로", () => {
+    expect(activeBlockForDate(input, "2026-08-18", null))
+      .toEqual(activeBlockForDate(input, "2026-08-18"));
   });
 });

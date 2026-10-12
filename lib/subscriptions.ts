@@ -7,12 +7,17 @@ import {
   type OrderRow as BlockOrderRow,
   type OrderItemRow as BlockOrderItemRow,
 } from "./slot-blocks";
-import {
-  normalizeBlocks,
-  totalWeeks as blockTotalWeeks,
-  activeBlockForRound,
-  type RawBlock,
-} from "./subscription-timeline";
+import { totalWeeks as blockTotalWeeks, type RawBlock } from "./subscription-timeline";
+
+// 확정된 연장(재구독) 주문 상태 — 서버 cancel_subscription 의 CONFIRMED 목록과 같다.
+//   회차·금액·블록 체인이 모두 이 목록 하나만 본다. 입금대기·취소 연장은 어디에도 반영하지 않는다.
+//   ★ 여기가 갈리면 손님 화면의 회차·환불 미리보기와 서버가 실제로 지급하는 환불액이 달라진다.
+export const CONFIRMED_RENEWAL_STATUSES = [
+  "입금확인",
+  "배송준비",
+  "배송중",
+  "배송완료",
+] as const;
 
 export type DayCount = {
   active: number; // 자동이체 확인된 정회원
@@ -91,6 +96,13 @@ export type MySubscription = {
   // 원주문 + 입금확인류 연장주문을 created_at,id 순으로 조립한 블록 체인.
   // 블록별 환불 미리보기(refundAmount)와 활성 블록 산출에 쓰인다.
   blocks: RawBlock[];
+  // 실제로 받은 회차 수. 관리자가 회차를 확정한 구독만 값이 있고, 그 값은 서버가 센다
+  //   (my_slot_shipped_rounds → slot_shipped_rounds). 미확정이면 null.
+  //
+  //   ★ 이 숫자를 화면에서 따로 계산하지 않는 이유: 해지 환불(cancel_subscription)이
+  //     같은 함수로 센다. 구현이 둘이면 '남은 2회'를 보고 해지했는데 0회분만 입금되는
+  //     일이 생긴다. 회차 표기와 환불은 같은 출처를 봐야 한다.
+  shippedCount: number | null;
 };
 
 type SlotJoinRow = {
@@ -137,14 +149,16 @@ function blocksForSlot(
   return buildRawBlocks(src.originalOrder, src.renewalOrders, src.itemsByOrder);
 }
 
-// 슬롯 원자료 + '입금확인' 연장주문 금액을 합쳐 미리보기용 구독 모델을 만든다.
-//   totalWeeks   = 원주문 block_weeks + 연장 누적 회차(extended_weeks)
-//   totalAmount  = 원주문 total_amount + Σ(해당 슬롯 입금확인 연장주문 total_amount)
+// 슬롯 원자료 + 확정 연장주문 금액을 합쳐 미리보기용 구독 모델을 만든다.
+//   totalWeeks   = 확정 블록 체인(원주문 + 확정 연장주문)의 회차 합
+//   totalAmount  = 원주문 total_amount + Σ(해당 슬롯 확정 연장주문 total_amount)
 // 서버(cancel_subscription)의 환불 산식과 동일한 분자·분모를 갖도록 맞춘다.
 export function toMySubscriptions(
   rows: SlotJoinRow[],
   extRows: ExtAmountRow[],
-  blockSources: readonly SlotBlockSource[] = []
+  blockSources: readonly SlotBlockSource[] = [],
+  // 슬롯 id → 서버가 센 실제 발송 회차. 확정된 슬롯만 들어 있다(없으면 null = 미확정).
+  shippedBySlot: ReadonlyMap<number, number | null> = new Map()
 ): MySubscription[] {
   const extBySlot = extRows.reduce<Record<number, number>>((acc, r) => {
     if (r.renews_slot_id == null) return acc;
@@ -154,26 +168,38 @@ export function toMySubscriptions(
     };
   }, {});
 
-  return rows.map((row) => ({
-    slotId: row.id,
-    deliveryDay: row.delivery_day,
-    status: row.status,
-    startedAt: row.started_at,
-    firstShipDate: row.first_ship_date,
-    paused: row.paused,
-    pausedAt: row.paused_at,
-    pausedDays: row.paused_days,
-    skipResumeOn: row.skip_resume_on,
-    // 총 배송 회차 = 원 주문 block_weeks + 연장 누적 회차
-    totalWeeks: (row.orders?.block_weeks ?? 0) + (row.extended_weeks ?? 0),
-    periodMonths: row.orders?.period_months ?? 1,
-    orderNo: row.orders?.order_no ?? null,
-    // 총 납입액 = 원 주문 + 입금확인된 연장주문 합계
-    totalAmount: (row.orders?.total_amount ?? 0) + (extBySlot[row.id] ?? 0),
-    deliveryMethod: row.orders?.delivery_method ?? "택배",
-    // 블록 체인(원주문 먼저, 연장 created_at,id 순) — buildRawBlocks 로 조립.
-    blocks: blocksForSlot(row.id, blockSources),
-  }));
+  return rows.map((row) => {
+    const blocks = blocksForSlot(row.id, blockSources);
+    return {
+      slotId: row.id,
+      deliveryDay: row.delivery_day,
+      status: row.status,
+      startedAt: row.started_at,
+      firstShipDate: row.first_ship_date,
+      paused: row.paused,
+      pausedAt: row.paused_at,
+      pausedDays: row.paused_days,
+      skipResumeOn: row.skip_resume_on,
+      // 총 배송 회차 = 확정 블록 체인(원주문 + 확정 연장주문)의 합.
+      //   ★ slots.extended_weeks 를 쓰면 안 된다 — 늘기만 하고 줄지 않아서, 입금확인했던
+      //     연장주문을 나중에 '취소'로 되돌리면 그 회차가 남는다. 그러면 손님 화면은
+      //     "아직 8회 남음"인데 배송 명단·서버 환불(cancel_subscription)은 이미 끝난 구독으로
+      //     본다 — 오지 않을 배송을 약속하고, 미리보기 환불액도 실제 지급액보다 많아진다.
+      //   블록을 못 만든 레거시 슬롯만 옛 값으로 폴백한다.
+      totalWeeks:
+        blocks.length > 0
+          ? blockTotalWeeks(blocks)
+          : (row.orders?.block_weeks ?? 0) + (row.extended_weeks ?? 0),
+      periodMonths: row.orders?.period_months ?? 1,
+      orderNo: row.orders?.order_no ?? null,
+      // 총 납입액 = 원 주문 + 확정 연장주문 합계(회차와 같은 상태 목록)
+      totalAmount: (row.orders?.total_amount ?? 0) + (extBySlot[row.id] ?? 0),
+      deliveryMethod: row.orders?.delivery_method ?? "택배",
+      // 블록 체인(원주문 먼저, 연장 created_at,id 순) — buildRawBlocks 로 조립.
+      blocks,
+      shippedCount: shippedBySlot.get(row.id) ?? null,
+    };
+  });
 }
 
 // 로그인한 회원의 구독 슬롯 목록(해지 제외). 스케줄·환불 계산용 원자료를 그대로 돌려준다.
@@ -199,34 +225,41 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
     order_id: string | null;
   })[];
 
-  // 입금확인된 연장주문 금액(슬롯별)을 함께 가져와 총 납입액에 합산한다.
-  // extended_weeks 는 연장주문 입금확인 시에만 누적되므로 status='입금확인' 만 합산해야
-  // 회차와 금액이 정확히 대응한다(미입금 연장은 회차·금액 모두 제외).
+  // 확정 연장주문 금액(슬롯별)을 함께 가져와 총 납입액에 합산한다.
+  //   ★ 회차(블록 체인)와 반드시 같은 상태 목록을 써야 한다. '입금확인'만 세면, 배송준비·
+  //     배송중으로 넘어간 연장분이 회차에는 있는데 금액에서만 빠져 회당 단가가 왜곡된다
+  //     (블록 데이터가 없는 레거시 슬롯의 환불 폴백식이 그 단가를 쓴다).
   const { data: extData, error: extError } = await sb
     .from("orders")
     .select("renews_slot_id, total_amount")
     .eq("user_id", uid)
-    .eq("status", "입금확인")
+    .in("status", CONFIRMED_RENEWAL_STATUSES as unknown as string[])
     .not("renews_slot_id", "is", null);
   if (extError) throw new Error(extError.message);
 
   const blockSources = await loadBlockSources(slotRows);
 
+  // 실제 발송 회차는 서버에 묻는다 — 환불과 같은 함수를 쓰게 해 두 값이 갈라지지 않게 한다.
+  //   best-effort: 조회가 실패하면 빈 맵 → 회차 표기가 지금까지의 달력 계산으로 떨어진다.
+  //   마이페이지가 안 뜨는 것보다 옛 숫자가 뜨는 편이 낫다.
+  const shippedBySlot = new Map<number, number | null>();
+  try {
+    const { data: shipRows, error: shipError } = await sb.rpc("my_slot_shipped_rounds");
+    if (shipError) throw shipError;
+    for (const r of (shipRows ?? []) as { slot_id: number; shipped: number | null }[]) {
+      shippedBySlot.set(Number(r.slot_id), r.shipped == null ? null : Number(r.shipped));
+    }
+  } catch (error) {
+    console.error("발송 회차 조회 실패 — 달력 기준으로 표시합니다:", error);
+  }
+
   return toMySubscriptions(
     slotRows as unknown as SlotJoinRow[],
     (extData ?? []) as ExtAmountRow[],
-    blockSources
+    blockSources,
+    shippedBySlot
   );
 }
-
-// 블록 환불 미리보기에 쓰일 확정 블록 상태 — 서버 cancel_subscription 의 CONFIRMED 와 동일.
-// 입금대기·취소 연장주문은 회차에 반영되지 않으므로 블록에서 제외한다.
-const CONFIRMED_RENEWAL_STATUSES = [
-  "입금확인",
-  "배송준비",
-  "배송중",
-  "배송완료",
-] as const;
 
 // 주문 임베드 행(원주문/연장주문 공통) — 자기 order_items 포함.
 type OrderWithItemsRow = {
@@ -234,6 +267,7 @@ type OrderWithItemsRow = {
   created_at: string;
   block_weeks: number | null;
   shipping_fee: number | null;
+  referral_credit_krw: number | null;
   renews_slot_id: number | null;
   order_items:
     | {
@@ -252,6 +286,7 @@ function toBlockOrderRow(row: OrderWithItemsRow): BlockOrderRow {
     block_weeks: row.block_weeks ?? 0,
     shipping_fee: row.shipping_fee ?? 0,
     created_at: row.created_at,
+    referral_credit_krw: row.referral_credit_krw ?? 0,
   };
 }
 
@@ -276,14 +311,14 @@ async function loadBlockSources(
       ? { data: [], error: null }
       : await sb
           .from("orders")
-          .select(`id, created_at, block_weeks, shipping_fee, renews_slot_id, ${ITEM_COLS}`)
+          .select(`id, created_at, block_weeks, shipping_fee, referral_credit_krw, renews_slot_id, ${ITEM_COLS}`)
           .in("id", originalIds);
   if (origError) throw new Error(origError.message);
 
   // 확정 연장주문(items 임베드).
   const { data: renewData, error: renewError } = await sb
     .from("orders")
-    .select(`id, created_at, block_weeks, shipping_fee, renews_slot_id, ${ITEM_COLS}`)
+    .select(`id, created_at, block_weeks, shipping_fee, referral_credit_krw, renews_slot_id, ${ITEM_COLS}`)
     .in("renews_slot_id", slotIds)
     .in("status", CONFIRMED_RENEWAL_STATUSES as unknown as string[]);
   if (renewError) throw new Error(renewError.message);
@@ -322,36 +357,11 @@ async function loadBlockSources(
   });
 }
 
-// 남은(미배송) 회차 환불액 — 블록별 회당 단가 합산.
-// 블록 데이터(sub.blocks)가 있으면 마지막 `remainingDeliveries` 회차가 속한 블록의
-// (회당 상품합 + 회당 배송비)를 회차별로 합산한다(refundByBlocks 와 동일 알고리즘).
-// 단일 블록·연장 없음이면 모든 회차 단가가 같아 기존 평균식과 동일한 결과가 된다.
-// 블록 데이터가 없으면(레거시/미로드) 기존 평균식으로 안전하게 폴백한다.
-// 주의: 이 함수는 화면 미리보기 전용이다. 실제 환불액은 서버(cancel_subscription RPC)가
-//      동일한 공식으로 재계산하며, 클라이언트 값은 신뢰하지 않는다(C2).
-export function refundAmount(sub: MySubscription, remainingDeliveries: number): number {
-  const remaining = Math.max(0, remainingDeliveries);
-  if (remaining <= 0) return 0;
-
-  if (sub.blocks.length > 0) {
-    const resolved = normalizeBlocks(sub.blocks);
-    const total = blockTotalWeeks(sub.blocks);
-    const firstRefundRound = Math.max(1, total - remaining + 1);
-    let refund = 0;
-    for (let round = firstRefundRound; round <= total; round++) {
-      const b = activeBlockForRound(resolved, round);
-      if (!b) continue;
-      const perDelivery =
-        b.items.reduce((s, it) => s + it.unitPrice * it.qty, 0) + b.shippingPerWeek;
-      refund += perDelivery;
-    }
-    return refund;
-  }
-
-  if (sub.totalWeeks <= 0) return 0;
-  const perDelivery = Math.round(sub.totalAmount / sub.totalWeeks);
-  return perDelivery * remaining;
-}
+// 환불 미리보기는 더 두지 않는다.
+//   화면이 금액을 따로 계산하면 서버(cancel_subscription)가 지급하는 값과 어긋날 수 있고,
+//   손님에게는 그 차이가 그대로 분쟁이 된다. 해지 화면은 '아직 받지 않은 N회'만 말하고,
+//   금액은 서버가 계산해 관리자 환불 원장에 남긴다. 회차는 양쪽이 같은 함수로 센다
+//   (slot_shipped_rounds → computeSchedule.shippedCount / cancel_subscription.v_delivered).
 
 // 구독 해지. 환불액은 서버가 재계산해 반환하므로(C2), 그 값을 그대로 돌려준다.
 export async function cancelSubscription(
@@ -359,12 +369,39 @@ export async function cancelSubscription(
   reason: string,
   refundAccount: string
 ): Promise<number> {
-  const { data, error } = await getSupabase().rpc("cancel_subscription", {
+  const sb = getSupabase();
+
+  // 해지되면 '입금대기' 연장 주문도 같이 취소된다(DB 트리거). PayAction 등록 해제는
+  //   외부 API 라 DB 에서 못 하므로, 주문번호를 미리 읽어 두었다가 해지 뒤에 통지한다.
+  //   안 해제하면 해지된 구독의 연장 주문번호로 뒤늦게 입금이 매칭돼 고아입금이 된다.
+  let pendingRenewalNos: string[] = [];
+  try {
+    const { data } = await sb
+      .from("orders")
+      .select("order_no")
+      .eq("renews_slot_id", slotId)
+      .eq("status", "입금대기");
+    pendingRenewalNos = ((data ?? []) as { order_no: string }[]).map((r) => r.order_no);
+  } catch {
+    // 조회 실패는 해지를 막지 않는다 — 입금이 들어와도 서버가 고아입금으로 잡아낸다.
+  }
+
+  const { data, error } = await sb.rpc("cancel_subscription", {
     p_slot_id: slotId,
     p_reason: reason,
     p_refund_account: refundAccount,
   });
   if (error) throw new Error(error.message);
+
+  for (const orderNo of pendingRenewalNos) {
+    // 실패해도 해지 자체는 이미 반영됐으므로 흡수한다(non-fatal).
+    try {
+      await cancelPayActionDeposit(orderNo);
+    } catch {
+      // 통지 실패는 사용자 흐름에 영향을 주지 않는다.
+    }
+  }
+
   return (data as number) ?? 0;
 }
 
@@ -519,4 +556,70 @@ export function canSkipThisWeek(
     !sub.skipResumeOn &&
     nextDate != null
   );
+}
+
+// ── 입금대기 연장 주문 ────────────────────────────────────────────────────
+//
+//   [왜 필요한가] 연장 신청 결과(주문번호·금액)는 지금껏 화면 state 에만 있었다.
+//     손님이 '확인'을 누르거나 새로고침하면 입금 안내가 사라지고, 다시 연장을 누르면
+//     request_renewal 이 '이미 연장 입금 대기 중인 주문이 있습니다' 로 거절한다 —
+//     계좌번호를 다시 볼 길이 없어진다. 문자를 지운 분은 전화를 거는 수밖에 없었다.
+//     서버에 남아 있는 사실(입금대기 연장주문)을 읽어 언제든 안내를 되살린다.
+export type PendingRenewal = {
+  orderId: string;
+  orderNo: string;
+  total: number;
+  weeks: number; // block_weeks = 이 연장으로 이어지는 회차 수(주 1회 발송)
+  periodMonths: number;
+  deliveryDay: DeliveryDay | null; // 연장주문 자기 order_items 의 요일(요일 변경 연장 대비)
+  createdAt: string;
+};
+
+type PendingRenewalRow = {
+  id: string;
+  order_no: string;
+  total_amount: number;
+  block_weeks: number | null;
+  period_months: number | null;
+  renews_slot_id: number;
+  created_at: string;
+  order_items: { delivery_day: DeliveryDay | null }[] | null;
+};
+
+// 슬롯 id → 그 슬롯의 입금대기 연장주문. 슬롯당 최대 1건이다
+//   (request_renewal 이 입금대기 연장 중복을 거절한다).
+export async function getPendingRenewals(): Promise<Map<number, PendingRenewal>> {
+  const sb = getSupabase();
+  const {
+    data: { session },
+  } = await sb.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return new Map();
+
+  const { data, error } = await sb
+    .from("orders")
+    .select(
+      "id, order_no, total_amount, block_weeks, period_months, renews_slot_id, created_at, order_items(delivery_day)"
+    )
+    .eq("user_id", uid)
+    .eq("status", "입금대기")
+    .not("renews_slot_id", "is", null)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  const map = new Map<number, PendingRenewal>();
+  for (const row of (data ?? []) as unknown as PendingRenewalRow[]) {
+    // created_at 내림차순이므로 첫 건이 최신 — 혹시 중복이 있어도 최신만 남긴다.
+    if (map.has(row.renews_slot_id)) continue;
+    map.set(row.renews_slot_id, {
+      orderId: row.id,
+      orderNo: row.order_no,
+      total: row.total_amount,
+      weeks: row.block_weeks ?? 0,
+      periodMonths: row.period_months ?? 0,
+      deliveryDay: row.order_items?.[0]?.delivery_day ?? null,
+      createdAt: row.created_at,
+    });
+  }
+  return map;
 }

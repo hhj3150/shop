@@ -8,7 +8,10 @@ import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 //
 // 보안 설계:
 //   - PAYACTION_API_KEY 가 필요한 등록은 서버에서만 수행한다(브라우저 노출 금지).
-//   - 금액·입금자명은 클라이언트 값이 아니라 payaction_order_payload RPC 로 DB 권위값을 재조회한다(C1).
+//   - 금액·입금자명·주문자 연락처를 클라이언트 값이 아니라 DB 권위값으로 재조회한다.
+//     (2026-09 점검: ordererPhone 이 body 값을 우선해, 임의의 번호로 PayAction 결제완료
+//      알림톡을 보낼 수 있었다. ordererEmail 도 클라이언트 값이라 메일 중계가 가능했다.
+//      둘 다 더는 body 에서 읽지 않는다 — 주문자 연락처는 order_orderer_contact RPC.)
 //   - 등록 실패는 주문을 막지 않는다(non-fatal): ok:false 를 200 으로 반환하고 호출측은 무시한다.
 //
 // 환경변수: PAYACTION_*(클라이언트), CONFIRM_PAYMENT_SECRET(RPC), NEXT_PUBLIC_SUPABASE_*.
@@ -26,12 +29,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "not_configured" });
   }
 
-  let body: {
-    orderNo?: string;
-    ordererPhone?: string;
-    ordererName?: string;
-    ordererEmail?: string;
-  };
+  // orderNo 외에는 클라이언트 값을 쓰지 않는다. 나머지는 전부 DB 권위값이다.
+  let body: { orderNo?: string };
   try {
     body = await req.json();
   } catch {
@@ -94,8 +93,19 @@ export async function POST(req: Request) {
   const ordererName = o.is_gift
     ? (o.gifter_name ?? billingName)
     : ((o.ship_name ?? "").trim() || billingName);
-  // 입금확인 문자 수신처: 선물이면 보내는 분(클라이언트 제공) 번호, 일반은 배송 연락처.
-  const ordererPhone = (body.ordererPhone ?? "").trim() || (o.ship_phone ?? "").trim();
+  // 입금확인 알림톡 수신처 — DB 권위값. 선물이면 보내는 분(주문한 회원)의 프로필 번호,
+  //   없거나 비회원이면 배송 연락처로 떨어진다. 클라이언트가 지정할 수 없다.
+  let ordererPhone = (o.ship_phone ?? "").trim();
+  try {
+    const { data: contact } = await supabase.rpc("order_orderer_contact", {
+      p_order_no: orderNo,
+      p_secret: confirmSecret,
+    });
+    const c = (contact ?? {}) as { found?: boolean; orderer_phone?: string | null };
+    if (c.found && c.orderer_phone) ordererPhone = c.orderer_phone.trim();
+  } catch {
+    // 조회 실패 → 배송 연락처를 쓴다(등록 자체를 막지 않는다).
+  }
 
   // ── 현금영수증 자동발행 정보 ──
   //   손님이 주문할 때 고른 발행 방식·식별번호를 그대로 싣는다. '발행안함'이면 싣지 않는다.
@@ -125,7 +135,6 @@ export async function POST(req: Request) {
     billingName,
     ordererName,
     ordererPhone: ordererPhone || undefined,
-    ordererEmail: body.ordererEmail?.trim() || undefined,
     // 품목을 못 읽었으면(레거시·이상 데이터) 면세금액을 보내지 않는다 —
     //   0 을 보내면 '전액 과세'로 잘못 발행되므로, 차라리 생략해 기존 동작을 따른다.
     taxFreeAmount: (o.items ?? []).length > 0 ? receiptAmounts.taxFreeAmount : undefined,

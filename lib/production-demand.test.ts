@@ -117,6 +117,7 @@ const milk: RawBlock = {
   weeks: 4,
   deliveryDay: "mon",
   shippingPerWeek: 4000,
+  creditKrw: 0,
   items: [{ productName: "우유", volume: "180ml", qty: 1, unitPrice: 3000 }],
 };
 const yogurt: RawBlock = {
@@ -124,6 +125,7 @@ const yogurt: RawBlock = {
   weeks: 4,
   deliveryDay: "tue",
   shippingPerWeek: 4000,
+  creditKrw: 0,
   items: [{ productName: "요거트", volume: "85g", qty: 2, unitPrice: 2000 }],
 };
 

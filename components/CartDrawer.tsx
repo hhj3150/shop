@@ -96,7 +96,7 @@ export function CartDrawer() {
         aria-label="장바구니"
         aria-hidden={!isOpen}
         tabIndex={-1}
-        className={`fixed right-0 top-0 z-[70] flex h-full w-full max-w-md flex-col bg-cream shadow-2xl outline-none transition-transform duration-500 ease-[var(--ease-soft)] ${
+        className={`material-thick elev-3 fixed right-0 top-0 z-[70] flex h-full w-full max-w-md flex-col outline-none transition-transform duration-500 ease-[var(--ease-spring)] ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -182,7 +182,7 @@ export function CartDrawer() {
                           >
                             −
                           </button>
-                          <span className="min-w-6 text-center text-sm tabular-nums text-ink">
+                          <span className="min-w-6 text-center text-sm t-num text-ink">
                             {item.qty}
                           </span>
                           <button
@@ -193,7 +193,7 @@ export function CartDrawer() {
                             +
                           </button>
                         </div>
-                        <span className="text-sm tabular-nums text-ink">
+                        <span className="text-sm t-num text-ink">
                           {formatKRW(weeklyPrice(item.productId) * item.qty)}
                         </span>
                       </div>
@@ -224,7 +224,7 @@ export function CartDrawer() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] text-ink">{p.name}</p>
-                        <p className="mt-0.5 text-[12px] tabular-nums text-gold-deep">
+                        <p className="mt-0.5 text-[12px] t-num text-gold-deep">
                           <span className="font-medium">{p.volume}</span> ·{" "}
                           {formatKRW(weeklyPrice(p.id))} / 회
                           {p.soldOut && <span className="ml-1.5 text-mute">품절</span>}
@@ -237,7 +237,7 @@ export function CartDrawer() {
                           add({ productId: p.id, qty: 1, deliveryDay: targetDay });
                         }}
                         disabled={p.soldOut}
-                        className="shrink-0 rounded-full border border-line px-3.5 py-2 text-[13px] font-medium text-ink-soft transition-[transform,colors] hover:border-gold hover:text-gold-deep active:scale-95 disabled:opacity-40"
+                        className="press flex min-h-11 shrink-0 items-center rounded-full border border-line px-3.5 text-[13px] font-medium text-ink-soft transition-colors hover:border-gold hover:text-gold-deep disabled:opacity-40"
                         aria-label={`${p.name} ${p.volume} 담기`}
                       >
                         담기
@@ -265,14 +265,14 @@ export function CartDrawer() {
                     key={m}
                     onClick={() => setPeriod(m)}
                     aria-pressed={active}
-                    className={`flex flex-col items-center rounded-xl border py-1.5 text-[13px] transition-all ${
+                    className={`press flex min-h-11 flex-col items-center justify-center rounded-xl border text-[13px] transition-colors ${
                       active
                         ? "border-gold bg-gold/10 text-ink"
                         : "border-line text-ink-soft hover:border-gold/50"
                     }`}
                   >
                     <span>{PERIOD_LABEL[m]}</span>
-                    <span className="mt-0.5 text-[10px] tabular-nums text-gold-deep">
+                    <span className="mt-0.5 text-[10px] t-num text-gold-deep">
                       −{Math.round(discountForPeriod(m) * 100)}%
                     </span>
                   </button>
@@ -282,19 +282,19 @@ export function CartDrawer() {
 
             <div className="mt-4 flex items-center justify-between">
               <span className="text-sm text-mute">회당(매주) 상품 합계</span>
-              <span className="text-sm tabular-nums text-ink-soft">
+              <span className="text-sm t-num text-ink-soft">
                 {formatKRW(perDelivery)}
               </span>
             </div>
             <div className="mt-1.5 flex items-center justify-between">
               <span className="text-sm text-mute">배송비 ({weeks}회)</span>
-              <span className="text-sm tabular-nums text-ink-soft">
+              <span className="text-sm t-num text-ink-soft">
                 {formatKRW(shipTotal)}
               </span>
             </div>
             <div className="mt-1.5 flex items-center justify-between">
               <span className="text-sm text-mute">{PERIOD_LABEL[period]}분({weeks}회) 입금액</span>
-              <span className="font-serif-kr text-xl text-ink tabular-nums">
+              <span className="font-serif-kr text-xl text-ink t-num">
                 {formatKRW(periodTotal)}
               </span>
             </div>
@@ -316,9 +316,9 @@ export function CartDrawer() {
                 className="mt-3 rounded-xl border border-gold/50 bg-gold/10 px-4 py-3 text-[13px] leading-relaxed text-gold-deep"
               >
                 회당(매주) 상품 금액이 정가 기준{" "}
-                <span className="font-semibold tabular-nums">{formatKRW(MIN_ORDER_KRW)}</span>{" "}
+                <span className="font-semibold t-num">{formatKRW(MIN_ORDER_KRW)}</span>{" "}
                 이상이어야 배송할 수 있어요. 현재 회당 정가 {formatKRW(perDeliveryList)}이라{" "}
-                <span className="font-semibold tabular-nums">{formatKRW(minShort)}</span>{" "}
+                <span className="font-semibold t-num">{formatKRW(minShort)}</span>{" "}
                 더 담아 주세요.
               </div>
             ) : (

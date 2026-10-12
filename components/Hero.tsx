@@ -26,13 +26,16 @@ export function Hero() {
 
           {/* 센터 슬로건 — 페이지 위계의 중심. 가볍고 우아한 serif(애플식, 덜 투박). */}
           <h1 className="max-w-2xl text-balance font-serif-kr text-[clamp(1.8rem,4.5vw,3.05rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
-            소중한 분들에게 최상의 우유를.
-            <br />
-            그리고 지속가능한 지구를.
+            우유에도 안목이 있습니다.
           </h1>
 
+          {/* 남이 골랐다는 사실 한 줄. 스스로를 칭찬하는 문장 열 줄보다 세다. */}
+          <p className="mt-5 text-[13.5px] leading-relaxed text-ink-soft sm:text-[14px]">
+            압구정 갤러리아백화점 명품관, 바로 그 우유
+          </p>
+
           {/* 서브 한 줄 */}
-          <p className="mt-6 max-w-md text-[14.5px] leading-relaxed text-mute sm:text-[15px]">
+          <p className="mt-4 max-w-md text-[14.5px] leading-relaxed text-mute sm:text-[15px]">
             하루 500리터만 생산합니다.
             <br />더 만들 수 있지만, 그러지 않습니다.
           </p>
@@ -57,13 +60,15 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Product visual — 흰배경 정렬샷(1600×1195) */}
+        {/* Product visual — 흰배경 정렬샷(1487×1058).
+            ※ width/height 는 실제 파일 크기와 맞춘다. 어긋나면 로딩 중 예약 공간이
+              틀려 첫 페인트 뒤 레이아웃이 밀린다(CLS). */}
         <div className="flex justify-center">
           <Image
-            src="/brand/hero-row-white.jpg"
-            alt="송영신목장 A2 저지 헤이밀크 제품 라인업"
-            width={1600}
-            height={1195}
+            src="/brand/hero-row-white.webp"
+            alt="송영신목장 A2 저지 헤이밀크 180mL·750mL 와 A2 저지 플레인요거트 180mL·500mL 제품 라인업"
+            width={1487}
+            height={1058}
             priority
             sizes="(max-width:1024px) 86vw, 50vw"
             className="h-auto w-[86%] max-w-[520px] object-contain lg:w-full lg:max-w-[600px]"

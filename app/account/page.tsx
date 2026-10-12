@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { formatKRW, PERIOD_LABEL, periodWeeks, type SubPeriod } from "@/lib/products";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
-import { registerPayActionDeposit } from "@/lib/orders";
+import { cancelPayActionDeposit, registerPayActionDeposit } from "@/lib/orders";
 import {
   getMySubscriptions,
   pauseSubscription,
@@ -18,32 +18,33 @@ import {
   cancelSubscription,
   cancelUnpaidOrder,
   requestRenewal,
-  refundAmount,
+  getPendingRenewals,
   changeDeliveryDay,
   getDayCounts,
   remaining as seatsLeft,
   type DayCounts,
   type MySubscription,
+  type PendingRenewal,
 } from "@/lib/subscriptions";
 import { planDeliveryDayChange } from "@/lib/delivery-day-change";
 import { computeSchedule } from "@/lib/subscription-schedule";
+import {
+  shouldPromptRenewal,
+  isPendingRenewalError,
+  PENDING_RENEWAL_TITLE,
+  PENDING_RENEWAL_NOTICE,
+} from "@/lib/renewal-prompt";
 import { speak } from "@/lib/speech";
 import { courierLabel, trackingUrl } from "@/lib/couriers";
 import { notify } from "@/lib/notify";
-import { DEPOSIT } from "@/lib/site";
+import { DepositAccount } from "@/components/DepositAccount";
+import { CopyAmount } from "@/components/CopyAmount";
 import { EmptyState } from "@/components/EmptyState";
 import { RecipientBook } from "@/components/RecipientBook";
 import { WishlistSection } from "@/components/WishlistSection";
 import { ReferralCard } from "@/components/ReferralCard";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { RenewalForm } from "./RenewalForm";
-
-type RenewalInfo = {
-  slotId: number;
-  orderNo: string;
-  total: number;
-  period: SubPeriod;
-};
 
 type OrderRow = {
   id: string;
@@ -168,8 +169,12 @@ export default function AccountPage() {
   const [cancelSlot, setCancelSlot] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [refundAcct, setRefundAcct] = useState("");
-  const [renewal, setRenewal] = useState<RenewalInfo | null>(null);
-  // 연장 신청 폼이 펼쳐진 슬롯(없으면 null). 입금 안내(renewal)와는 별개 단계.
+  // 입금대기 연장주문(슬롯 id → 안내 내용). 화면 state 가 아니라 서버가 가진 사실이다 —
+  //   새로고침해도, 며칠 뒤에 다시 들어와도 같은 입금 안내가 그대로 떠 있어야 한다.
+  const [pendingRenewals, setPendingRenewals] = useState<Map<number, PendingRenewal>>(
+    () => new Map()
+  );
+  // 연장 신청 폼이 펼쳐진 슬롯(없으면 null). 입금 안내와는 별개 단계.
   const [renewSlot, setRenewSlot] = useState<number | null>(null);
 
   useEffect(() => {
@@ -200,10 +205,18 @@ export default function AccountPage() {
     };
   }, [user]);
 
-  function reloadSubs() {
-    getMySubscriptions()
-      .then(setSubs)
-      .catch(() => setSubs([]));
+  // 구독과 입금대기 연장을 같은 시점에 읽는다 — 어긋나면 한 화면 안에서 앞뒤가 안 맞는다.
+  //   Promise 를 돌려주는 이유: 연장 신청 직후에는 이 로드를 기다렸다가 버튼을 풀어야
+  //   '신청 버튼 → (빈 화면) → 입금 안내' 로 한 번 깜빡이지 않는다.
+  function reloadSubs(): Promise<void> {
+    return Promise.all([
+      getMySubscriptions()
+        .then(setSubs)
+        .catch(() => setSubs([])),
+      getPendingRenewals()
+        .then(setPendingRenewals)
+        .catch(() => setPendingRenewals(new Map())),
+    ]).then(() => undefined);
   }
 
   useEffect(() => {
@@ -319,7 +332,7 @@ export default function AccountPage() {
     setRefundAcct("");
   }
 
-  async function onCancel(slotId: number, refund: number, remaining: number) {
+  async function onCancel(slotId: number, remaining: number) {
     if (!reason.trim()) {
       alert("중지 사유를 입력해 주세요.");
       return;
@@ -328,17 +341,16 @@ export default function AccountPage() {
       alert("환불받으실 계좌를 입력해 주세요.");
       return;
     }
+    // 금액을 말하지 않는다 — 화면이 계산한 값과 서버 지급액이 어긋나면 그게 분쟁이 된다.
+    //   회차는 서버 환불과 같은 함수로 세므로 회차만 말한다.
     if (
       !confirm(
-        `구독을 해지하시겠어요?\n남은 ${remaining}회분 ${formatKRW(
-          refund
-        )}이 입력하신 계좌로 환불됩니다. 이 작업은 되돌릴 수 없습니다.`
+        `구독을 해지하시겠어요?\n아직 받지 않은 ${remaining}회분이 입력하신 계좌로 환불됩니다. 이 작업은 되돌릴 수 없습니다.`
       )
     )
       return;
     setBusy(slotId);
     try {
-      // 환불액은 서버가 재계산한다(C2). refund 는 위 확인창의 미리보기 값일 뿐이다.
       await cancelSubscription(slotId, reason.trim(), refundAcct.trim());
       void notify({ kind: "subscription_cancelled", slotId });
       setCancelSlot(null);
@@ -366,18 +378,23 @@ export default function AccountPage() {
     try {
       const res = await requestRenewal(slotId, args);
       // 갱신 주문을 PayAction 에 등록 → 회원이 안내된 금액을 입금하면 자동으로 입금확인(반자동 갱신).
-      await registerPayActionDeposit(res.orderNo, profile?.phone ?? "");
+      await registerPayActionDeposit(res.orderNo);
       setRenewSlot(null);
-      setRenewal({
-        slotId,
-        orderNo: res.orderNo,
-        total: res.total,
-        period: args.period,
-      });
       void notify({ kind: "renewal_guide", orderId: res.orderId });
-      reloadOrders();
+      // 입금 안내는 reloadSubs 가 읽어 온 입금대기 연장주문으로 그린다(새로고침해도 유지).
+      //   기다렸다 버튼을 푼다 — 안내가 자리잡기 전에 폼이 닫히면 화면이 한 번 빈다.
+      void reloadOrders();
+      await reloadSubs();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "구독 연장 신청에 실패했습니다.");
+      const msg = e instanceof Error ? e.message : "구독 연장 신청에 실패했습니다.";
+      if (isPendingRenewalError(msg)) {
+        // 다른 탭·기기에서 이미 신청했다 — 폼을 닫고 그 입금 안내를 띄운다(체크아웃과 같은 문구).
+        setRenewSlot(null);
+        await reloadSubs();
+        alert(`${PENDING_RENEWAL_TITLE}.\n\n${PENDING_RENEWAL_NOTICE}`);
+      } else {
+        alert(msg);
+      }
     } finally {
       setBusy(null);
     }
@@ -419,6 +436,30 @@ export default function AccountPage() {
     setEditingInfo(false);
   }
 
+  // 연장 신청 취소 — 아직 입금 전이므로 되돌릴 수 있다. 취소해야 구성·요일을 다시 고를 수 있다
+  //   (request_renewal 은 입금대기 연장이 있으면 새 신청을 거절한다).
+  async function onCancelRenewal(slotId: number, pending: PendingRenewal) {
+    if (
+      !confirm(
+        `연장 신청(${pending.orderNo})을 취소하시겠어요?\n입금 전이라 그냥 취소되며, 진행 중인 구독과 남은 회차는 그대로입니다. 취소 후 다시 신청하실 수 있어요.`
+      )
+    )
+      return;
+    setBusy(slotId);
+    try {
+      await cancelUnpaidOrder(pending.orderId);
+      // 취소한 주문번호로 더는 입금이 매칭되지 않게 PayAction 에도 알린다(고아입금 예방).
+      await cancelPayActionDeposit(pending.orderNo);
+      void reloadOrders();
+      await reloadSubs(); // 안내가 걷힌 뒤에 폼을 연다(취소한 안내가 한 번 더 보이지 않게).
+      setRenewSlot(slotId); // 바로 다시 고를 수 있게 폼을 열어 둔다.
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "연장 신청 취소에 실패했습니다.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function onCancelOrder(orderId: string, orderNo: string) {
     if (
       !confirm(
@@ -429,6 +470,8 @@ export default function AccountPage() {
     setBusyOrder(orderId);
     try {
       await cancelUnpaidOrder(orderId);
+      // 취소한 주문번호로 뒤늦게 입금이 들어오면 '고아입금'이 된다 — PayAction 에도 알린다.
+      await cancelPayActionDeposit(orderNo);
       reloadOrders();
       reloadSubs();
     } catch (e) {
@@ -520,6 +563,9 @@ export default function AccountPage() {
           <h2 className="mt-12 font-serif-kr text-lg text-ink">정기구독</h2>
           <ul className="mt-4 space-y-4">
             {subs.map((s) => {
+              // 실제로 받은 회차로 센다(확정된 구독만). 미확정이면 null → 달력 계산 그대로.
+              //   서버 환불(cancel_subscription)이 같은 값을 보므로 '남은 N회'와 입금액이
+              //   어긋나지 않는다.
               const sch = computeSchedule({
                 startedAt: s.startedAt,
                 firstShipDate: s.firstShipDate,
@@ -527,13 +573,20 @@ export default function AccountPage() {
                 paused: s.paused,
                 pausedAt: s.pausedAt,
                 pausedDays: s.pausedDays,
+                shippedCount: s.shippedCount,
               });
               const skipping = s.paused && !!s.skipResumeOn; // 이번 주 건너뛰는 중
               const manualPaused = s.paused && !s.skipResumeOn; // 일반 일시정지
               const canPause = s.status === "활성" && !s.paused;
               const canSkip = canSkipThisWeek(s, sch.nextDate);
               const canCancel = s.status === "활성" || s.status === "대기";
-              const refund = refundAmount(s, sch.remaining);
+              // 이 구독에 걸린 입금대기 연장주문(있으면 입금 안내를 띄운다).
+              const pending = pendingRenewals.get(s.slotId) ?? null;
+              const pendingWeeks = pending
+                ? pending.weeks > 0
+                  ? pending.weeks
+                  : periodWeeks(pending.periodMonths as SubPeriod)
+                : 0;
               return (
                 <li
                   key={s.slotId}
@@ -759,38 +812,44 @@ export default function AccountPage() {
 
                   {s.status === "활성" && (
                     <div className="mt-4">
-                      {renewal && renewal.slotId === s.slotId ? (
+                      {pending ? (
+                        // 입금 안내 — 입금이 확인될 때까지 계속 떠 있는다. 손님이 나갔다
+                        //   며칠 뒤 돌아와도 계좌·금액을 여기서 다시 본다.
                         <div className="rounded-2xl bg-paper-2 p-4">
-                          <p className="text-[14px] font-medium text-ink">
-                            연장 입금 안내
+                          <p className="text-[14px] font-medium text-ink">연장 입금 안내</p>
+                          <p className="mt-1 text-[13px] leading-relaxed text-mute">
+                            아직 입금 전이에요. 아래 금액을 아래 계좌로 보내주시면 자동으로 확인됩니다.
                           </p>
-                          <div className="mt-3 flex items-center justify-between rounded-xl bg-cream px-4 py-3">
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-cream px-4 py-3">
                             <span className="text-[13px] text-ink-soft">
-                              연장 금액 ({PERIOD_LABEL[renewal.period]} ·{" "}
-                              {periodWeeks(renewal.period)}회)
+                              연장 금액
+                              {pendingWeeks > 0 ? ` (${pendingWeeks}회분)` : ""}
                             </span>
-                            <span className="font-serif-kr text-lg tabular-nums text-gold-deep">
-                              {formatKRW(renewal.total)}
-                            </span>
+                            <CopyAmount amount={pending.total} />
                           </div>
+                          <DepositAccount />
                           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-                            아래 계좌로 <span className="tabular-nums">{renewal.orderNo}</span>{" "}
-                            주문의 금액을 입금해 주세요. 입금이 확인되면 선택하신 요일로{" "}
-                            {periodWeeks(renewal.period)}회분이 더 이어집니다.
-                          </p>
-                          <p className="mt-2 rounded-xl bg-cream px-4 py-3 text-[13px] text-ink">
-                            {DEPOSIT.bank} {DEPOSIT.account} (예금주 {DEPOSIT.holder})
+                            주문번호 <span className="tabular-nums">{pending.orderNo}</span>
+                            {pending.deliveryDay
+                              ? ` · ${DELIVERY_DAY_LABEL[pending.deliveryDay]}요일로 이어집니다`
+                              : ""}
+                            . 입금이 확인되면
+                            {pendingWeeks > 0 ? ` ${pendingWeeks}회분이` : " 신청하신 회차가"} 더
+                            이어집니다. 남은 회차와 선착순 자리는 그대로예요.
                           </p>
                           <button
-                            onClick={() => setRenewal(null)}
-                            className="mt-3 rounded-full border border-line px-5 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+                            onClick={() => onCancelRenewal(s.slotId, pending)}
+                            disabled={busy === s.slotId}
+                            className="mt-3 text-[13px] text-mute underline transition-colors hover:text-ink disabled:opacity-50"
                           >
-                            확인
+                            {busy === s.slotId
+                              ? "처리 중…"
+                              : "신청 취소하고 다시 고르기"}
                           </button>
                         </div>
                       ) : (
                         <>
-                          {!s.paused && sch.started && sch.remaining <= 2 && (
+                          {shouldPromptRenewal(sch) && (
                             <div className="mb-3 rounded-2xl border border-gold/50 bg-gold/10 p-4">
                               <p className="text-[14px] font-medium text-gold-deep">
                                 정기배송이 곧 끝나요
@@ -893,12 +952,13 @@ export default function AccountPage() {
                           )}
 
                           <p className="mt-4 text-[12px] text-mute">그래도 해지하시겠다면</p>
+                          {/* 금액은 적지 않는다 — 화면이 미리 계산한 값과 서버가 지급하는
+                              값이 조금이라도 어긋나면 그게 바로 분쟁이 된다. 회차는 양쪽이
+                              같은 함수로 세므로 회차만 알린다. */}
                           <div className="mt-2 flex items-center justify-between rounded-xl bg-cream px-4 py-3">
-                            <span className="text-[13px] text-ink-soft">
-                              남은 {sch.remaining}회분 환불 예정액
-                            </span>
+                            <span className="text-[13px] text-ink-soft">아직 받지 않은 회차</span>
                             <span className="font-serif-kr text-lg tabular-nums text-gold-deep">
-                              {formatKRW(refund)}
+                              {sch.remaining}회
                             </span>
                           </div>
                           <label className="mt-3 block text-[12px] text-mute">
@@ -923,7 +983,7 @@ export default function AccountPage() {
                           </label>
                           <div className="mt-4 flex gap-2">
                             <button
-                              onClick={() => onCancel(s.slotId, refund, sch.remaining)}
+                              onClick={() => onCancel(s.slotId, sch.remaining)}
                               disabled={busy === s.slotId}
                               className="flex-1 rounded-full bg-ink py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
                             >
