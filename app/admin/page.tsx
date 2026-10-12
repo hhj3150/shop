@@ -428,6 +428,20 @@ export default function AdminPage() {
     slotIdByOrderDay,
   } = rosterMaps;
 
+  // 주문 행 → 그 주문이 속한 구독 슬롯. 원주문은 slotByOrder(order_id 매핑)로 찾지만,
+  //   연장주문은 id 가 달라 그 맵에 없다(renews_slot_id 로만 슬롯을 가리킨다). 이 구분을
+  //   빠뜨리면 연장 주문 행에서만 '시작일 변경·요일 변경·일시정지' 패널이 사라져
+  //   "어떤 주문은 뜨고 어떤 주문은 안 뜬다"가 된다. 관리자는 보통 최신(연장) 행을 보므로
+  //   두 경로 모두 같은 슬롯에 닿아야 한다.
+  const slotForOrder = useCallback(
+    (o: OrderRow): SlotRow | undefined => {
+      if (o.order_type !== "구독") return undefined;
+      if (o.renews_slot_id != null) return slotById.get(o.renews_slot_id);
+      return slotByOrder.get(o.id);
+    },
+    [slotById, slotByOrder]
+  );
+
   // ── 확정된 구독의 '실제로 나간 회차' ─────────────────────────────────────
   //   관리자가 회차를 확정한 구독만 담는다. 확정 전 구독은 맵에 없고, 그러면 배송 명단·
   //   배송 시트가 지금까지와 똑같이 달력으로 판정한다(동작 변화 없음).
@@ -2421,7 +2435,7 @@ export default function AdminPage() {
                     {/* 시작일이 미래로 연기된 구독 — 접힌 행에서도 보이게 배지로 표시.
                         (연기 설정은 행을 펼치면 나오는 '구독 시작일' 섹션에서) */}
                     {(() => {
-                      const s = o.order_type === "구독" ? slotByOrder.get(o.id) : undefined;
+                      const s = slotForOrder(o);
                       if (!s?.started_at || s.status === "해지" || s.started_at <= todayISO())
                         return null;
                       const [, mo, da] = s.started_at.split("-");
@@ -2529,10 +2543,18 @@ export default function AdminPage() {
                       {/* 구독 시작일 연기/지정 — 입금했으나 늦게 시작하려는 고객용 */}
                       {o.order_type === "구독" &&
                         (() => {
-                          const slot = slotByOrder.get(o.id);
+                          const slot = slotForOrder(o);
                           if (!slot || slot.status === "해지") return null;
+                          // 요일 변경의 총 회차(block_weeks + extended_weeks)는 원주문 기준이므로,
+                          //   연장 주문 행에서 열었어도 핸들러엔 원주문을 넘긴다.
+                          const slotOrder = (slot.order_id && orderById.get(slot.order_id)) || o;
                           return (
                             <div className="mt-3 border-t border-line/60 pt-3">
+                              {o.renews_slot_id != null && slotOrder.id !== o.id && (
+                                <p className="mb-2 text-[12px] text-mute">
+                                  연장 주문 — 아래 설정은 원주문 {slotOrder.order_no} 의 구독 슬롯에 적용됩니다.
+                                </p>
+                              )}
                               {startDeferOrder === o.id ? (
                                 <div className="flex flex-wrap items-end gap-2">
                                   <label className="text-[13px] text-ink-soft">
@@ -2595,7 +2617,7 @@ export default function AdminPage() {
                                       {DELIVERY_DAYS.filter((d) => d !== slot.delivery_day).map((d) => (
                                         <button
                                           key={d}
-                                          onClick={() => changeSlotDay(slot, o, d)}
+                                          onClick={() => changeSlotDay(slot, slotOrder, d)}
                                           className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
                                         >
                                           {DELIVERY_DAY_LABEL[d]}
@@ -2617,7 +2639,7 @@ export default function AdminPage() {
                                         요일 변경
                                       </button>
                                       <button
-                                        onClick={() => setSlotPaused(slot, o, !slot.paused)}
+                                        onClick={() => setSlotPaused(slot, slotOrder, !slot.paused)}
                                         className="rounded-full border border-line px-3 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
                                       >
                                         {slot.paused ? "배송 재개" : "일시정지"}
