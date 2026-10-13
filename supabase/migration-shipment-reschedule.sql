@@ -64,8 +64,12 @@ create policy "shipment_reschedules_select" on public.shipment_reschedules
     or exists (select 1 from public.orders o where o.id = shipment_reschedules.order_id and o.user_id = auth.uid())
   );
 -- 쓰기는 RPC(security definer)로만 한다 — insert/update/delete 정책 없음.
+--   Supabase 기본 권한(default privileges)이 anon/authenticated 에 all 을 주므로 명시적으로 거둔다.
+--   (RLS 만으로도 막히지만, 정책 실수 한 번에 열리지 않게 권한 단계에서도 닫는다.)
 
 grant select on public.shipment_reschedules to authenticated;
+revoke insert, update, delete, truncate, references, trigger on public.shipment_reschedules from anon, authenticated;
+revoke select on public.shipment_reschedules from anon;
 
 -- ── 2) 등록/수정 ─────────────────────────────────────────────────────────
 create or replace function public.admin_reschedule_shipment(

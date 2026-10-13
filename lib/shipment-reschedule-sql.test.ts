@@ -35,6 +35,10 @@ describe("migration-shipment-reschedule.sql", () => {
     expect(runnable).toMatch(/create policy "shipment_reschedules_select"/);
     expect(runnable).not.toMatch(/create policy "shipment_reschedules_(insert|update|delete)"/);
     expect(runnable).not.toMatch(/create policy[^;]*for (insert|update|delete)/);
+    expect(runnable).toContain(
+      "revoke insert, update, delete, truncate, references, trigger on public.shipment_reschedules from anon, authenticated"
+    );
+    expect(runnable).toContain("revoke select on public.shipment_reschedules from anon");
   });
 
   it("등록 RPC 는 관리자만, 규칙(±6일·주말·발송불가일·기출고)을 모두 검사한다", () => {
