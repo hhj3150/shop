@@ -13,7 +13,7 @@ function entry(
   items: I[],
   id = "o"
 ): DeliveryEntry<O, I> {
-  return { order: { id }, items, sig: "", kind, day: null };
+  return { order: { id }, items, sig: "", kind, day: null, scheduledISO: "2026-06-01", rescheduled: false };
 }
 
 describe("splitDemandByKind", () => {
