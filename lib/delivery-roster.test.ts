@@ -7,6 +7,7 @@ import {
 } from "./delivery-roster";
 import type { DispatchSlotInfo } from "./dispatch-schedule";
 import type { RawBlock } from "./subscription-timeline";
+import type { ShipmentReschedule } from "./shipment-reschedule";
 
 // ── 테스트 픽스처 헬퍼 ──
 function order(over: Partial<RosterOrderFields> & { id: string }): RosterOrderFields {
@@ -770,5 +771,73 @@ describe("buildRosterForDate — 한 주문이 두 요일을 구독한 경우(�
     };
     expect(build({ ...common, dateISO: "2026-08-31" })).toHaveLength(1); // 월요일분은 그대로
     expect(build({ ...common, dateISO: "2026-09-02" })).toHaveLength(0); // 해지한 수요일분만 제외
+  });
+});
+
+describe("buildRosterForDate — 배송일 변경(회차 1회 이동)", () => {
+  // 월요일 4주 구독(06-01 시작): 06-01, 06-08, 06-15, 06-22. 3회차(06-15)를 06-17(수)로 옮긴다.
+  const o1 = order({ id: "o1" });
+  const items = [item({ order_id: "o1" })];
+  const slots = new Map([["o1", slot()]]);
+  const confirmed = new Set(["o1"]);
+  const moved: ShipmentReschedule[] = [
+    { order_id: "o1", delivery_day: "mon", from_date: "2026-06-15", to_date: "2026-06-17" },
+  ];
+  const run = (dateISO: string, reschedules: ShipmentReschedule[] = moved) =>
+    buildRosterForDate({
+      dateISO,
+      items,
+      orderById: new Map([["o1", o1]]),
+      slotByOrder: slots,
+      confirmedOrderIds: confirmed,
+      pausedOrderIds: new Set<string>(),
+      reschedules,
+    });
+
+  it("예정일(06-15 월)에는 명단에서 빠진다", () => {
+    expect(run("2026-06-15")).toHaveLength(0);
+  });
+
+  it("새 날짜(06-17 수)에 들어오고, 원래 예정일을 함께 적는다", () => {
+    const r = run("2026-06-17");
+    expect(r).toHaveLength(1);
+    expect(r[0].order.id).toBe("o1");
+    expect(r[0].day).toBe("mon");
+    expect(r[0].rescheduled).toBe(true);
+    expect(r[0].scheduledISO).toBe("2026-06-15");
+  });
+
+  it("다른 회차(06-08·06-22)는 평소대로 나가고 변경 표시가 없다", () => {
+    for (const d of ["2026-06-08", "2026-06-22"]) {
+      const r = run(d);
+      expect(r).toHaveLength(1);
+      expect(r[0].rescheduled).toBe(false);
+      expect(r[0].scheduledISO).toBe(d);
+    }
+  });
+
+  it("변경 기록이 없으면 지금까지와 같다(06-15 포함, 06-17 없음)", () => {
+    expect(run("2026-06-15", [])).toHaveLength(1);
+    expect(run("2026-06-17", [])).toHaveLength(0);
+  });
+
+  it("다른 주문·다른 요일의 변경은 이 구독에 영향을 주지 않는다", () => {
+    const other: ShipmentReschedule[] = [
+      { order_id: "o9", delivery_day: "mon", from_date: "2026-06-15", to_date: "2026-06-17" },
+      { order_id: "o1", delivery_day: "tue", from_date: "2026-06-16", to_date: "2026-06-17" },
+    ];
+    expect(run("2026-06-15", other)).toHaveLength(1);
+    expect(run("2026-06-17", other)).toHaveLength(0);
+  });
+
+  it("옮긴 날짜가 마지막 회차(06-22) 이후여도 회차 판정은 예정일 기준이라 발송된다", () => {
+    // 마지막 회차 06-22(월)를 06-24(수)로 — 달력상 종료일을 지났지만 그 회차 자체다.
+    const last: ShipmentReschedule[] = [
+      { order_id: "o1", delivery_day: "mon", from_date: "2026-06-22", to_date: "2026-06-24" },
+    ];
+    expect(run("2026-06-22", last)).toHaveLength(0);
+    const r = run("2026-06-24", last);
+    expect(r).toHaveLength(1);
+    expect(r[0].scheduledISO).toBe("2026-06-22");
   });
 });

@@ -23,6 +23,7 @@ import {
 } from "./dispatch-schedule";
 import { isCarriedOver } from "./dispatch-overdue";
 import { totalWeeks, type RawBlock } from "./subscription-timeline";
+import type { ShipmentReschedule } from "./shipment-reschedule";
 
 // 단품 주문은 1건 = 발송 1회다. 주문 상태가 곧 그 발송의 상태이므로 완료·취소는 시트에서 뺀다.
 export const ONCE_SHIPPABLE = ["입금확인", "배송준비", "배송중"] as const;
@@ -38,6 +39,9 @@ export type DispatchSlice<O, I> = {
   kind: "정기" | "단품";
   carriedOver: boolean; // 지난 발송일을 넘긴 미출고 단품
   shipISO: string; // 이 행의 발송(예정)일 — 재고 차감·회차 이력의 키
+  // 이 회차의 원래 예정일. 배송일 변경으로 옮겨 온 회차만 shipISO 와 다르다.
+  scheduledISO: string;
+  rescheduled: boolean;
   round: number;
   total: number; // 총 회차(구독). 단품 1, 미상 0
   remaining: number;
@@ -109,6 +113,8 @@ export type QueueMaps<O, S> = {
   // 슬롯 id → 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
   //   미확정이면 없거나 null → 지금까지와 똑같이 달력으로 판정한다.
   shippedBySlot?: ReadonlyMap<number, number | null>;
+  // 배송일 변경(회차 1회 이동) 기록 — 로스터와 같은 입력. 없으면 지금까지와 같다.
+  reschedules?: readonly ShipmentReschedule[];
 };
 
 // 이 행(주문·요일)의 회차를 계산할 슬롯. 요일이 맞는 슬롯 → 주문 매핑 슬롯 순.
@@ -233,13 +239,15 @@ export function buildDispatchSlicesForDate<
     slotIdByOrder: maps.slotIdByOrder,
     slotById: maps.slotById,
     slotIdByOrderDay: maps.slotIdByOrderDay,
+    reschedules: maps.reschedules,
   });
 
   for (const e of entries) {
     // 단품은 주문 상태 = 그 발송의 상태 → 완료분은 작업 목록에서 뺀다(정기는 회차 이력이 판정).
     if (e.kind === "단품" && !(ONCE_SHIPPABLE as readonly string[]).includes(e.order.status)) continue;
     const shipISO = e.kind === "단품" ? (e.order.ship_date ?? dateISO) : dateISO;
-    const info = roundInfo(maps, e.order, e.day, shipISO);
+    // 회차 번호는 '원래 예정일' 기준 — 배송일 변경으로 옮겨 온 회차도 그 회차 그대로다.
+    const info = roundInfo(maps, e.order, e.day, e.kind === "단품" ? shipISO : e.scheduledISO);
     out.push({
       order: e.order,
       items: e.items,
@@ -247,6 +255,8 @@ export function buildDispatchSlicesForDate<
       kind: e.kind,
       carriedOver: false,
       shipISO,
+      scheduledISO: e.kind === "단품" ? shipISO : e.scheduledISO,
+      rescheduled: e.rescheduled,
       ...info,
       ...overPaidFor(maps, e.order, e.day, shipISO, info.total, shippedBySlot),
     });
@@ -270,6 +280,8 @@ export function buildDispatchSlicesForDate<
       kind: "단품",
       carriedOver: true,
       shipISO,
+      scheduledISO: shipISO,
+      rescheduled: false,
       round: 1,
       total: 1,
       remaining: 0,
@@ -313,6 +325,8 @@ export function buildDispatchSlicesAll<
         kind: "단품",
         carriedOver: isCarriedOver(o, asOfISO),
         shipISO,
+        scheduledISO: shipISO,
+        rescheduled: false,
         round: 1,
         total: 1,
         remaining: 0,
@@ -348,6 +362,8 @@ export function buildDispatchSlicesAll<
         kind: "정기",
         carriedOver: false,
         shipISO,
+        scheduledISO: shipISO,
+        rescheduled: false,
         ...info,
         ...overPaidFor(maps, o, day, shipISO, info.total, shippedBySlot),
       });

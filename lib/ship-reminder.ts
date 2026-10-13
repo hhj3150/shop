@@ -5,6 +5,7 @@ import { buildRosterMaps } from "./roster-maps";
 import { buildRosterForDate } from "./delivery-roster";
 import { deliveryDayHitsDate } from "./ship-date";
 import { DELIVERY_DAY_LABEL, type DeliveryDay } from "./cart";
+import type { ShipmentReschedule } from "./shipment-reschedule";
 
 // 서버(보안 RPC)에서 받아오는 원자료 행 타입 — 로스터·문구에 필요한 필드만.
 export type ReminderOrder = {
@@ -84,6 +85,8 @@ export function buildReminderTargets(input: {
   slots: ReminderSlot[];
   remindedOrderIds: ReadonlySet<string>;
   dispatchedOrderIds?: ReadonlySet<string>;
+  // 배송일 변경(회차 1회 이동) — 예정일에는 예고를 보내지 않고 새 날짜 전날에 보낸다.
+  reschedules?: readonly ShipmentReschedule[];
 }): ReminderTarget[] {
   const maps = buildRosterMaps(input.orders, input.items, input.slots);
   const entries = buildRosterForDate({
@@ -97,6 +100,7 @@ export function buildReminderTargets(input: {
     slotIdByOrder: maps.slotIdByOrder,
     slotById: maps.slotById,
     slotIdByOrderDay: maps.slotIdByOrderDay,
+    reschedules: input.reschedules,
   });
 
   const eveISO = eveOf(input.dateISO);

@@ -7,6 +7,7 @@ import type { DeliveryDay } from "./cart";
 import { dispatchScheduleForSlot, type DispatchSlotInfo } from "./dispatch-schedule";
 import { deliveryDayHitsDate } from "./ship-date";
 import { activeBlockOrderForDate, type RawBlock } from "./subscription-timeline";
+import { indexReschedules, rescheduleKey, type ShipmentReschedule } from "./shipment-reschedule";
 
 // 로스터 판정에 필요한 주문 최소 필드.
 export type RosterOrderFields = {
@@ -40,6 +41,10 @@ export type DeliveryEntry<O, I> = {
   // 이 배송 건의 배송요일(정기만). 같은 주문이 두 요일을 구독하면 요일마다 한 건씩 나온다.
   //   단품은 발송일(ship_date)로만 정해지므로 null.
   day: DeliveryDay | null;
+  // 이 회차의 원래 예정일(요일 규칙이 내는 발송일). 배송일 변경으로 다른 날에 나가는
+  //   회차만 dateISO 와 다르다 — 회차 번호·활성 블록 판정은 이 날짜 기준으로 한다.
+  scheduledISO: string;
+  rescheduled: boolean; // 배송일 변경(shipment_reschedules)으로 이 날짜에 들어온 회차
 };
 
 // 이 배송요일 구독이 dateISO 에 실제로 나가는가 — 배송 명단·배송 시트·생산 계획·발송 예고가
@@ -95,6 +100,10 @@ export function buildRosterForDate<
   //   미확정 슬롯은 없거나 null — 그 경우 지금까지와 똑같이 달력으로 판정한다.
   //   주어지면 '결제한 회차를 다 보냈는가'가 유일한 종료 조건이 된다.
   shippedBySlot?: ReadonlyMap<number, number | null>;
+  // 배송일 변경(회차 1회 이동) 기록. 예정일(from_date)에서는 빠지고 새 날짜(to_date)에
+  //   들어간다. 회차 번호·활성 블록·소진 판정은 예정일 기준 그대로다(이동 폭 ±6일이라
+  //   앞뒤 회차와 겹치지 않는다 — 서버 RPC 가 보장). 없으면 지금까지와 같다.
+  reschedules?: readonly ShipmentReschedule[];
 }): DeliveryEntry<O, I>[] {
   const {
     dateISO,
@@ -108,27 +117,41 @@ export function buildRosterForDate<
     slotById,
     slotIdByOrderDay,
     shippedBySlot,
+    reschedules,
   } = params;
   const entries: DeliveryEntry<O, I>[] = [];
+  const moved = indexReschedules(reschedules);
+  const movedHere = moved.movedTo.get(dateISO); // `${주문}|${요일}` → 원래 예정일
 
   // ── 정기: 이 날짜(공휴일 시프트 반영)에 배송되는 회차분 ──
   //   날짜 매칭은 슬롯 앵커가 아니라 '요일'만 본다(deliveryDayHitsDate) — 평소 당일 또는
   //   직전 그 요일이 공휴일이라 다음 영업일이 이 날짜인 시프트 도착일을 모두 한 번에 잡는다.
   //   묶음 키는 주문이 아니라 (주문, 배송요일)이다 — 한 주문이 두 요일을 구독하면 슬롯도
   //   둘이라 회차·시작일이 서로 다르다. 요일별로 갈라야 그 요일 슬롯으로 정확히 판정한다.
-  const byOrderDay = new Map<string, { orderId: string; day: DeliveryDay; items: I[] }>();
+  const byOrderDay = new Map<
+    string,
+    { orderId: string; day: DeliveryDay; items: I[]; scheduledISO: string }
+  >();
   for (const it of items) {
     const day = it.delivery_day;
     if (!day) continue; // 요일 없는 품목(단품)은 아래 ship_date 경로에서 잡는다
     if (!confirmedOrderIds.has(it.order_id)) continue;
     if (pausedOrderIds.has(it.order_id)) continue;
-    if (!subscriptionShipsOnDate(day, dateISO)) continue; // 평소 당일 또는 공휴일 시프트 도착일
     const key = `${it.order_id}|${day}`;
-    const g = byOrderDay.get(key) ?? { orderId: it.order_id, day, items: [] };
+    // 평소 당일 또는 공휴일 시프트 도착일 — 단, 배송일 변경으로 다른 날로 옮긴 회차는 뺀다.
+    const regular =
+      subscriptionShipsOnDate(day, dateISO) &&
+      !moved.movedAway.has(rescheduleKey(it.order_id, day, dateISO));
+    // 다른 예정일에서 이 날짜로 옮겨 온 회차.
+    const fromISO = movedHere?.get(key);
+    if (!regular && fromISO == null) continue;
+    const scheduledISO = regular ? dateISO : (fromISO as string);
+    const g = byOrderDay.get(key) ?? { orderId: it.order_id, day, items: [], scheduledISO };
     g.items.push(it);
     byOrderDay.set(key, g);
   }
-  for (const { orderId, day, items: its } of byOrderDay.values()) {
+  for (const { orderId, day, items: its, scheduledISO } of byOrderDay.values()) {
+    const rescheduled = scheduledISO !== dateISO;
     const order = orderById.get(orderId);
     if (!order || order.order_type === "단품" || order.delivery_method === "방문수령") continue;
 
@@ -156,8 +179,16 @@ export function buildRosterForDate<
       //     켜기 전에 confirm_billing_charge 가 연장 주문 행(+order_items)도 만들도록 하거나,
       //     로스터가 '주문 없는 연장 회차'를 별도 입력으로 받도록 먼저 손봐야 한다.
       //     (2026-09 현재 결제는 PayAction 계좌이체 단일 경로 — 이 경로는 비활성이다.)
-      if (activeBlockOrderForDate(slotForBlocks, blocks, dateISO, shipped) !== orderId) continue;
-      entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기", day });
+      if (activeBlockOrderForDate(slotForBlocks, blocks, scheduledISO, shipped) !== orderId) continue;
+      entries.push({
+        order,
+        items: its,
+        sig: compositionSignature(its),
+        kind: "정기",
+        day,
+        scheduledISO,
+        rescheduled,
+      });
       continue;
     }
 
@@ -176,11 +207,19 @@ export function buildRosterForDate<
       (slotId != null ? slotById?.get(slotId) : undefined) ?? slotByOrder.get(orderId);
     if (
       fallbackSlot &&
-      dispatchScheduleForSlot(fallbackSlot, order.block_weeks ?? 0, dateISO, shipped).excluded
+      dispatchScheduleForSlot(fallbackSlot, order.block_weeks ?? 0, scheduledISO, shipped).excluded
     ) {
       continue;
     }
-    entries.push({ order, items: its, sig: compositionSignature(its), kind: "정기", day });
+    entries.push({
+      order,
+      items: its,
+      sig: compositionSignature(its),
+      kind: "정기",
+      day,
+      scheduledISO,
+      rescheduled,
+    });
   }
 
   // ── 단품: ship_date 일치분 ──
@@ -196,7 +235,15 @@ export function buildRosterForDate<
   }
   for (const [orderId, its] of onceByOrder) {
     const order = orderById.get(orderId)!;
-    entries.push({ order, items: its, sig: compositionSignature(its), kind: "단품", day: null });
+    entries.push({
+      order,
+      items: its,
+      sig: compositionSignature(its),
+      kind: "단품",
+      day: null,
+      scheduledISO: dateISO,
+      rescheduled: false,
+    });
   }
 
   const rank = (k: DeliveryEntry<O, I>["kind"]) => (k === "정기" ? 0 : 1);

@@ -64,6 +64,8 @@ import { DispatchPanel } from "@/components/DispatchPanel";
 import { PickupPanel } from "@/components/PickupPanel";
 import { DeliveryStatsPanel } from "@/components/DeliveryStatsPanel";
 import { loadShippedKeys, loadDeliveredKeys } from "@/lib/inventory-data";
+import { loadReschedules } from "@/lib/shipment-reschedule-data";
+import { formatShortDate, type ShipmentReschedule } from "@/lib/shipment-reschedule";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
 import { loadReturns, type OrderReturn } from "@/lib/returns";
 import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
@@ -255,6 +257,8 @@ export default function AdminPage() {
   // 출고된 회차 → 실제 출고 시각. 배송판이 '지난 배송' 문자 차단 판정에 쓴다.
   const [shippedKeys, setShippedKeys] = useState<Map<string, string | null>>(new Map());
   const [deliveredKeys, setDeliveredKeys] = useState<Set<string>>(new Set());
+  // 배송일 변경(회차 1회 이동) 기록 — 배송 시트·기간별 명단·생산 수요가 같은 입력을 본다.
+  const [reschedules, setReschedules] = useState<ShipmentReschedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [batchRunning, setBatchRunning] = useState(false);
@@ -360,7 +364,7 @@ export default function AdminPage() {
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
     const sb = getSupabase();
-    const [o, i, s, p, shipped, delivered, r] = await Promise.all([
+    const [o, i, s, p, shipped, delivered, r, moved] = await Promise.all([
       // ★ .range() 페이지네이션은 '전순서(total order)'가 있어야 안전하다. 정렬 기준이
       //   없거나 동순위가 있으면 페이지 경계에서 행이 누락·중복되어, 1000행을 넘는 순간
       //   배송 명단에서 몇 건씩 빠진다. 모든 쿼리에 고유키(id) 정렬을 붙여 안정화한다.
@@ -388,6 +392,8 @@ export default function AdminPage() {
       loadShippedKeys().catch(() => new Map<string, string | null>()),
       loadDeliveredKeys().catch(() => new Set<string>()),
       loadReturns().catch(() => [] as OrderReturn[]),
+      // 표가 아직 없거나 실패해도 명단은 떠야 한다 — 빈 배열 폴백.
+      loadReschedules().catch(() => [] as ShipmentReschedule[]),
     ]);
     setOrders(o);
     setItems(i);
@@ -396,6 +402,7 @@ export default function AdminPage() {
     setShippedKeys(shipped);
     setDeliveredKeys(delivered);
     setReturns(r);
+    setReschedules(moved);
     setLastRefreshed(new Date());
     setLoading(false);
   }, []);
@@ -668,8 +675,9 @@ export default function AdminPage() {
         slotById,
         slotIdByOrderDay,
         shippedBySlot: confirmedShippedBySlot,
+        reschedules,
       }),
-    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById, slotIdByOrderDay, confirmedShippedBySlot]
+    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById, slotIdByOrderDay, confirmedShippedBySlot, reschedules]
   );
 
   // 임의 날짜의 생산 수요를 정기/단품으로 분리. roster(해지·회차소진·정지 제외)에서
@@ -1577,6 +1585,7 @@ export default function AdminPage() {
           confirmedOrderIds={confirmedOrderIds}
           pausedOrderIds={pausedOrderIds}
           shippedBySlot={confirmedShippedBySlot}
+          reschedules={reschedules}
           onReload={load}
         />
       )}
@@ -2190,10 +2199,18 @@ export default function AdminPage() {
                               포장 묶음 {gi + 1} · {g.sig} <span className="text-mute">({g.rows.length}건)</span>
                             </td>
                           </tr>
-                          {g.rows.map(({ order, items: its }) => (
+                          {g.rows.map(({ order, items: its, rescheduled, scheduledISO }) => (
                             <tr key={order.id} className="border-b border-line/60 align-top">
                               <td data-label="이름" className="py-2.5 text-ink">
                                 {order.ship_name}
+                                {rescheduled && (
+                                  <span
+                                    className="ml-1.5 rounded bg-sky-100 px-1.5 py-0.5 text-[11px] font-semibold text-sky-700"
+                                    title={`배송일 변경 — 원래 ${scheduledISO} 회차`}
+                                  >
+                                    변경 · 원래 {formatShortDate(scheduledISO)}
+                                  </span>
+                                )}
                                 {giftSenderLabel(order.is_gift, order.gifter_name) && (
                                   <span className="mt-0.5 block text-[12px] text-gold-deep">
                                     🎁 {giftSenderLabel(order.is_gift, order.gifter_name)}

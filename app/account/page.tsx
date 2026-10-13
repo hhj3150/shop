@@ -28,6 +28,8 @@ import {
 } from "@/lib/subscriptions";
 import { planDeliveryDayChange } from "@/lib/delivery-day-change";
 import { computeSchedule } from "@/lib/subscription-schedule";
+import { loadReschedulesForOrders } from "@/lib/shipment-reschedule-data";
+import { formatShortDate, type ShipmentReschedule } from "@/lib/shipment-reschedule";
 import {
   shouldPromptRenewal,
   isPendingRenewalError,
@@ -164,6 +166,8 @@ export default function AccountPage() {
   const [orderItems, setOrderItems] = useState<Record<string, OrderItemRow[]>>({});
   const [shipments, setShipments] = useState<Record<string, ShipmentRow[]>>({});
   const [subs, setSubs] = useState<MySubscription[]>([]);
+  // 관리자가 한 회차만 다른 날로 옮긴 기록(본인 주문분). '다음 발송'이 바뀐 날짜를 말해야 한다.
+  const [reschedules, setReschedules] = useState<ShipmentReschedule[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
   const [busyOrder, setBusyOrder] = useState<string | null>(null);
   const [cancelSlot, setCancelSlot] = useState<number | null>(null);
@@ -223,6 +227,22 @@ export default function AccountPage() {
     if (!user) return;
     reloadSubs();
   }, [user]);
+
+  // 배송일 변경 기록 — 표가 없거나 실패하면 빈 배열(화면은 그대로 뜬다).
+  useEffect(() => {
+    const ids = orders.map((o) => o.id);
+    let alive = true;
+    (ids.length === 0 ? Promise.resolve([] as ShipmentReschedule[]) : loadReschedulesForOrders(ids))
+      .then((rows) => {
+        if (alive) setReschedules(rows);
+      })
+      .catch(() => {
+        if (alive) setReschedules([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [orders]);
 
   // 배송요일 변경 — 어느 요일로 바꿀지 고르는 중인 구독과 선택값.
   const [dayEdit, setDayEdit] = useState<number | null>(null);
@@ -578,7 +598,18 @@ export default function AccountPage() {
               const skipping = s.paused && !!s.skipResumeOn; // 이번 주 건너뛰는 중
               const manualPaused = s.paused && !s.skipResumeOn; // 일반 일시정지
               const canPause = s.status === "활성" && !s.paused;
-              const canSkip = canSkipThisWeek(s, sch.nextDate);
+              // 다음 회차가 다른 날로 옮겨졌는가(관리자 배송일 변경). 블록 체인의 어느 주문이든 같은 구독이다.
+              const movedNext =
+                sch.nextDate != null
+                  ? reschedules.find(
+                      (x) =>
+                        x.delivery_day === s.deliveryDay &&
+                        x.from_date === sch.nextDate &&
+                        s.blocks.some((b) => b.orderId === x.order_id)
+                    ) ?? null
+                  : null;
+              // 옮겨진 회차는 건너뛰기 대상이 아니다 — 두 장치가 같은 회차를 두고 어긋난다.
+              const canSkip = canSkipThisWeek(s, sch.nextDate) && !movedNext;
               const canCancel = s.status === "활성" || s.status === "대기";
               // 이 구독에 걸린 입금대기 연장주문(있으면 입금 안내를 띄운다).
               const pending = pendingRenewals.get(s.slotId) ?? null;
@@ -636,7 +667,18 @@ export default function AccountPage() {
                       <div>
                         <dt className="text-[12px] text-mute">다음 발송</dt>
                         <dd className="text-ink">
-                          {skipping ? "이번 주 건너뜀" : sch.paused ? "정지 중" : fmtDate(sch.nextDate)}
+                          {skipping
+                            ? "이번 주 건너뜀"
+                            : sch.paused
+                              ? "정지 중"
+                              : movedNext
+                                ? fmtDate(movedNext.to_date)
+                                : fmtDate(sch.nextDate)}
+                          {movedNext && !skipping && !sch.paused && (
+                            <span className="ml-1 block text-[11px] text-mute sm:inline">
+                              (이번 회차만 변경 · 원래 {formatShortDate(movedNext.from_date)})
+                            </span>
+                          )}
                         </dd>
                       </div>
                       <div>

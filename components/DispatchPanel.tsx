@@ -1,13 +1,22 @@
 "use client";
 
 // 관리자: 배송 일괄처리 — 결제완료(입금확인 이후) 주문을 한 화면에서 모아
-//   택배사·송장번호를 입력하고 상태를 일괄 전환한다.
+//   출고·발송을 기록하고 상태를 일괄 전환한다.
 //   단품은 발송예정일(ship_date), 구독은 요일(delivery_day)로 날짜 필터.
+//   송장번호는 손으로 적지 않는다 — 로젠 엑셀 업로드(또는 붙여넣기)로 채워지고, 행에는
+//   읽기 전용으로만 보인다(2026-10 요청: 입력란·도착확인 버튼 제거).
 import { useMemo, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { PrintButton } from "@/components/PrintButton";
 import { SmsHistoryModal } from "@/components/SmsHistoryModal";
 import { stockShipOut, recordShipmentTracking, markShipmentDelivered } from "@/lib/inventory-data";
+import {
+  checkRescheduleTarget,
+  formatShortDate,
+  RESCHEDULE_MAX_DAYS,
+  type ShipmentReschedule,
+} from "@/lib/shipment-reschedule";
+import { cancelReschedule, rescheduleShipment } from "@/lib/shipment-reschedule-data";
 import { notify } from "@/lib/notify";
 import { DEFAULT_COURIER_ID, courierLabel } from "@/lib/couriers";
 import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
@@ -113,6 +122,8 @@ type DispatchRow = {
   total: number; // 총 회차(구독: block_weeks + extended_weeks, 단품: 1)
   remaining: number; // 남은 회차(구독만 의미, 단품 0)
   shipISO: string; // 이 발송 건의 발송(예정)일
+  scheduledISO: string; // 원래 예정일(배송일 변경으로 옮겨 온 회차만 shipISO 와 다르다)
+  rescheduled: boolean;
   region: string; // 정렬·검색용 지역 문자열
 };
 
@@ -130,6 +141,7 @@ export function DispatchPanel({
   confirmedOrderIds,
   pausedOrderIds,
   shippedBySlot,
+  reschedules = [],
   onReload,
 }: {
   orders: DispatchOrder[];
@@ -152,6 +164,8 @@ export function DispatchPanel({
   // 슬롯 id → 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
   //   확정된 슬롯만 들어 있다. 없으면 지금까지처럼 달력으로 회차·소진을 판정한다.
   shippedBySlot?: ReadonlyMap<number, number | null>;
+  // 배송일 변경(회차 1회 이동) 기록 — 예정일에서 빠지고 새 날짜에 들어간다.
+  reschedules?: readonly ShipmentReschedule[];
   onReload: () => Promise<void> | void;
 }) {
   const queueRef = useRef<HTMLDivElement>(null);
@@ -182,9 +196,11 @@ export function DispatchPanel({
   // 이번 화면에서 방금 출고 확정한 행(즉시 비활성). 서버 shippedKeys 와 합쳐 판정.
   const [justShipped, setJustShipped] = useState<Set<string>>(new Set());
   const [shippingId, setShippingId] = useState<string | null>(null);
-  // 이번 화면에서 방금 도착확인한 행. 서버 deliveredKeys 와 합쳐 판정.
-  const [justDelivered, setJustDelivered] = useState<Set<string>>(new Set());
-  const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  // 배송일 변경 — 펼친 행 키 + 입력값. 서버 RPC 가 최종 판정하고 여기선 미리 거른다.
+  const [rescheduleKeyOpen, setRescheduleKeyOpen] = useState<string | null>(null);
+  const [rescheduleTo, setRescheduleTo] = useState("");
+  const [rescheduleNote, setRescheduleNote] = useState("");
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   // 문자 이력·재발송 모달 대상 주문(null = 닫힘).
   const [smsOrder, setSmsOrder] = useState<DispatchOrder | null>(null);
 
@@ -232,6 +248,7 @@ export function DispatchPanel({
       slotIdByOrder,
       slotIdByOrderDay,
       shippedBySlot,
+      reschedules,
     };
   }, [
     orders,
@@ -247,6 +264,7 @@ export function DispatchPanel({
     slotIdByOrder,
     slotIdByOrderDay,
     shippedBySlot,
+    reschedules,
   ]);
 
   // 로스터가 요구하는 평면 품목 배열(주문별 묶음에서 펼친다).
@@ -302,6 +320,8 @@ export function DispatchPanel({
         total: isOnce ? 1 : sl.total,
         remaining: sl.remaining,
         shipISO: sl.shipISO,
+        scheduledISO: sl.scheduledISO,
+        rescheduled: sl.rescheduled,
         region: `${o.ship_postcode ?? ""} ${o.ship_address} ${o.ship_address_detail ?? ""}`.trim(),
       };
     });
@@ -555,8 +575,7 @@ export function DispatchPanel({
   }
 
   function isDelivered(r: DispatchRow): boolean {
-    const k = shipKey(r);
-    return deliveredKeys.has(k) || justDelivered.has(k);
+    return deliveredKeys.has(shipKey(r));
   }
 
   // 출고·발송 → 그 발송일분 재고 차감(stock_ship_out, 주차당 1회·서버 보장) +
@@ -641,36 +660,104 @@ export function DispatchPanel({
     }
   }
 
-  // 도착확인 → 그 회차의 배송완료 시각 기록(shipment_log.delivered_at) + 주문 '배송완료' 전환 +
-  //   배송완료 안내 문자(새 전환 건만). 고객 '내 배송 현황'의 배송완료 표시가 이 값으로 켜진다.
-  async function markDelivered(r: DispatchRow) {
+  // ── 배송일 변경(회차 1회 이동) ──────────────────────────────────────────
+  //   정기: shipment_reschedules 에 (주문·요일·예정일 → 새 날짜)를 기록한다. 요일·앵커·회차는
+  //        그대로고, 명단·시트·전날 예고가 새 날짜를 따른다. 서버 RPC 가 ±6일·평일·휴무·기출고를
+  //        최종 판정한다(여기선 같은 규칙으로 미리 거른다).
+  //   단품: 주문 1건 = 발송 1회라 orders.ship_date 를 바꾸면 끝이다.
+  function rescheduleOf(r: DispatchRow): ShipmentReschedule | undefined {
+    if (!r.dayKey) return undefined;
+    return reschedules.find(
+      (x) => x.order_id === r.o.id && x.delivery_day === r.dayKey && x.from_date === r.scheduledISO
+    );
+  }
+
+  function openReschedule(r: DispatchRow) {
+    setRescheduleKeyOpen(r.key);
+    setRescheduleTo(r.shipISO);
+    setRescheduleNote("");
+    setError(null);
+  }
+
+  async function submitReschedule(r: DispatchRow) {
     const o = r.o;
-    const k = shipKey(r);
-    setDeliveringId(k);
+    const to = rescheduleTo;
+    const isOnce = o.order_type === "단품";
+    if (isOnce) {
+      // 단품은 ±6일 제한이 없다 — 날짜 형식·평일만 본다(공휴일 미루기는 발송 때 규칙대로).
+      const d = new Date(`${to}T00:00:00`);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(to) || Number.isNaN(d.getTime())) {
+        setError("날짜를 선택해 주세요.");
+        return;
+      }
+      if (to === r.shipISO) {
+        setError("같은 날짜입니다.");
+        return;
+      }
+      if (d.getDay() === 0 || d.getDay() === 6) {
+        setError("주말에는 발송할 수 없습니다.");
+        return;
+      }
+    } else {
+      const chk = checkRescheduleTarget(r.scheduledISO, to);
+      if (!chk.ok) {
+        setError(`${o.ship_name}: ${chk.reason}`);
+        return;
+      }
+      if (!r.dayKey) {
+        setError(`${o.ship_name}: 배송 요일을 알 수 없어 날짜를 옮길 수 없습니다.`);
+        return;
+      }
+    }
+    setReschedulingId(r.key);
     setError(null);
     try {
-      // 회차별 배송완료 시각 기록(권위값). 미출고 회차면 RPC no-op.
-      await markShipmentDelivered(o.id, r.shipISO);
-      const transitioned = o.status !== "배송완료";
-      if (transitioned) {
+      if (isOnce) {
         const sb = getSupabase();
-        const { error } = await sb.from("orders").update({ status: "배송완료" }).eq("id", o.id);
+        const { error } = await sb.from("orders").update({ ship_date: to }).eq("id", o.id);
         if (error) throw error;
-        // 지난 회차를 뒤늦게 정리하는 경우엔 상태만 기록하고 문자는 보내지 않는다
-        //   (이미 몇 주 전에 받은 배송에 '배송 완료' 안내가 나가는 사고 방지).
-        //   서버(/api/notify)도 같은 규칙으로 한 번 더 막는다 — 여기 판정은 화면 안내용.
-        if (isNoticeFresh(dispatchedAtOf(r), todayISO())) {
-          void notify({ kind: "delivered", orderId: o.id, shipDate: r.shipISO });
-        }
+      } else {
+        await rescheduleShipment({
+          orderId: o.id,
+          deliveryDay: r.dayKey as string,
+          fromISO: r.scheduledISO,
+          toISO: to,
+          note: rescheduleNote,
+        });
       }
-      setJustDelivered((prev) => new Set(prev).add(k));
+      setRescheduleKeyOpen(null);
       await onReload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "도착확인 처리 실패");
+      setError(e instanceof Error ? e.message : "배송일 변경 실패");
     } finally {
-      setDeliveringId(null);
+      setReschedulingId(null);
     }
   }
+
+  async function undoReschedule(x: ShipmentReschedule, label: string) {
+    if (x.id == null) return;
+    if (!window.confirm(`${label}: 배송일 변경을 취소하고 원래 날짜(${formatShortDate(x.from_date)})로 되돌릴까요?`)) {
+      return;
+    }
+    setReschedulingId(`undo:${x.id}`);
+    setError(null);
+    try {
+      await cancelReschedule(x.id);
+      await onReload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "배송일 변경 취소 실패");
+    } finally {
+      setReschedulingId(null);
+    }
+  }
+
+  // 선택 날짜에서 다른 날로 옮겨 나간 회차 — 명단에서 '사라진' 이유를 담당자가 바로 보게 한다.
+  const movedAwayFromDate = useMemo(() => {
+    if (!useDateFilter) return [] as { x: ShipmentReschedule; name: string }[];
+    return reschedules
+      .filter((x) => x.from_date === date)
+      .map((x) => ({ x, name: orderById.get(x.order_id)?.ship_name ?? x.order_id }));
+  }, [reschedules, date, useDateFilter, orderById]);
 
   // 배송 담당자용 발송 명단 엑셀 — 회차별 발송일 칸 + 제품 수량 + 총개수/총 L량 합계(빠뜨림 방지).
   async function exportDispatchCsv() {
@@ -736,7 +823,8 @@ export function DispatchPanel({
     await downloadXlsx(`발송명단_${tag}.xlsx`, rows, "발송명단");
   }
 
-  // 선택분 일괄 발송: 송장 입력된 건만 배송중 전환 + 발송일·택배사 기록 + 알림.
+  // 선택분 일괄 발송: 미출고 선택 건을 출고·배송중 전환 + 발송일·택배사 기록 + 알림.
+  //   송장번호는 필수가 아니다(행 출고와 같은 규칙) — 로젠 엑셀로 채워진 값이 있으면 함께 저장된다.
   async function bulkShip() {
     const overPaid = queue.filter((r) => selected.has(r.key) && r.overPaidRounds);
     if (overPaid.length > 0) {
@@ -748,9 +836,9 @@ export function DispatchPanel({
       );
       return;
     }
-    const targets = queue.filter((r) => selected.has(r.key) && trackingOf(r).trim());
+    const targets = queue.filter((r) => selected.has(r.key) && !isShipped(r));
     if (targets.length === 0) {
-      setError("송장번호가 입력된 선택 주문이 없습니다.");
+      setError("발송할 미출고 선택 주문이 없습니다(이미 출고된 건은 건너뜁니다).");
       return;
     }
     // 실수 방지: 일괄 발송은 고객에게 문자가 나가므로 건수를 확인받는다.
@@ -852,7 +940,7 @@ export function DispatchPanel({
             } catch (e) {
               console.error(`배송완료 기록 실패 ${r.o.order_no}:`, e);
             }
-            // 오래전 발송분의 일괄 정리는 문자 없이 상태만 기록한다(위 markDelivered 와 동일 규칙).
+            // 오래전 발송분의 일괄 정리는 문자 없이 상태만 기록한다(행 단위 도착확인이 있던 때와 같은 규칙).
             if (isNoticeFresh(dispatchedAtOf(r), todayISO())) {
               void notify({ kind: "delivered", orderId: r.o.id, shipDate: r.shipISO });
             }
@@ -1220,6 +1308,30 @@ export function DispatchPanel({
         </p>
       )}
 
+      {movedAwayFromDate.length > 0 && (
+        <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] text-sky-800 no-print">
+          <span className="font-medium">배송일 변경으로 이 날짜에서 빠진 회차 {movedAwayFromDate.length}건</span>
+          <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+            {movedAwayFromDate.map(({ x, name }) => (
+              <li key={x.id ?? `${x.order_id}|${x.from_date}`} className="flex items-center gap-1.5">
+                <span>
+                  {name} → <strong className="tabular-nums">{formatShortDate(x.to_date)}</strong>
+                  {x.note ? <span className="text-sky-700/80"> ({x.note})</span> : null}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => undoReschedule(x, name)}
+                  disabled={reschedulingId === `undo:${x.id}`}
+                  className="rounded border border-sky-300 px-1.5 py-0.5 text-[11px] text-sky-700 hover:bg-sky-100 disabled:opacity-40"
+                >
+                  되돌리기
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {overPaidRows.length > 0 && (
         <p className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[13px] text-red-700">
           ⛔ 결제한 회차를 이미 다 보낸 구독 {overPaidRows.length}건이 명단에 있습니다:{" "}
@@ -1259,7 +1371,7 @@ export function DispatchPanel({
               {sortTh("count", "개수", "text-center")}
               {sortTh("region", "배송지")}
               {sortTh("status", "상태")}
-              <th className="py-2.5 font-medium">송장번호</th>
+              <th className="py-2.5 font-medium">송장</th>
               <th className="no-print py-2.5 font-medium">출고</th>
             </tr>
           </thead>
@@ -1324,7 +1436,63 @@ export function DispatchPanel({
                         </span>
                       )}
                     </td>
-                    <td data-label="요일" className="py-3 pr-3 text-[13px] text-ink-soft">{r.dayLabel || "—"}</td>
+                    <td data-label="요일" className="py-3 pr-3 text-[13px] text-ink-soft">
+                      {r.dayLabel || "—"}
+                      {r.rescheduled && (
+                        <span
+                          className="mt-1 block w-fit rounded bg-sky-100 px-1.5 py-0.5 text-[11px] font-semibold text-sky-700"
+                          title={`배송일 변경 — 원래 ${r.scheduledISO} 회차를 이날 보냅니다.`}
+                        >
+                          변경 · 원래 {formatShortDate(r.scheduledISO)}
+                        </span>
+                      )}
+                      {!useDateFilter && r.o.order_type === "단품" && (
+                        <span className="mt-1 block text-[11px] tabular-nums text-mute">{r.shipISO}</span>
+                      )}
+                      {rescheduleKeyOpen === r.key && (
+                        <div className="no-print mt-2 w-[190px] rounded-lg border border-sky-200 bg-sky-50 p-2 text-[12px] text-ink">
+                          <p className="font-medium text-sky-800">
+                            {o.order_type === "단품" ? "발송예정일 변경" : "이 회차만 날짜 변경"}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-mute">
+                            원래 {formatShortDate(r.scheduledISO)}
+                            {o.order_type !== "단품" ? ` · ±${RESCHEDULE_MAX_DAYS}일 이내 평일` : " · 평일"}
+                          </p>
+                          <input
+                            type="date"
+                            value={rescheduleTo}
+                            onChange={(e) => setRescheduleTo(e.target.value)}
+                            className="mt-1.5 w-full rounded border border-line bg-cream px-2 py-1 text-[12px] text-ink"
+                          />
+                          {o.order_type !== "단품" && (
+                            <input
+                              type="text"
+                              value={rescheduleNote}
+                              onChange={(e) => setRescheduleNote(e.target.value)}
+                              placeholder="사유(선택) — 예: 고객 요청"
+                              className="mt-1.5 w-full rounded border border-line bg-cream px-2 py-1 text-[12px] text-ink placeholder:text-mute"
+                            />
+                          )}
+                          <div className="mt-1.5 flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => submitReschedule(r)}
+                              disabled={reschedulingId === r.key}
+                              className="rounded bg-ink px-2 py-1 text-[12px] text-cream hover:bg-gold-deep disabled:opacity-40"
+                            >
+                              {reschedulingId === r.key ? "처리 중…" : "변경"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRescheduleKeyOpen(null)}
+                              className="rounded border border-line px-2 py-1 text-[12px] text-ink-soft hover:border-gold"
+                            >
+                              닫기
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </td>
                     <td data-label="우180" className="py-3 px-1 text-center">{qcell(r.q[0])}</td>
                     <td data-label="우750" className="py-3 px-1 text-center">{qcell(r.q[1])}</td>
                     <td data-label="요180" className="py-3 px-1 text-center">{qcell(r.q[2])}</td>
@@ -1347,17 +1515,8 @@ export function DispatchPanel({
                         </button>
                       </div>
                     </td>
-                    <td data-label="송장번호" className="py-3">
-                      <input
-                        type="text"
-                        value={trackingOf(r)}
-                        onChange={(e) =>
-                          setTracking((prev) => ({ ...prev, [r.key]: e.target.value }))
-                        }
-                        placeholder="송장번호"
-                        className="no-print w-36 rounded-lg border border-line bg-cream px-2.5 py-1.5 text-[13px] tabular-nums text-ink outline-none focus:border-gold"
-                      />
-                      <span className="print-only tabular-nums">{trackingOf(r)}</span>
+                    <td data-label="송장" className="py-3 text-[13px] tabular-nums text-ink-soft">
+                      {trackingOf(r) ? trackingOf(r) : <span className="text-line">—</span>}
                     </td>
                     <td data-label="출고" className="no-print py-3">
                       {isShipped(r) ? (
@@ -1365,8 +1524,8 @@ export function DispatchPanel({
                           <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
                             출고됨
                           </span>
-                          {o.status !== "배송중" && o.status !== "배송완료" && (
-                            // 출고는 됐으나 송장 없어 입금확인에 묶인 건 — 여기서 송장 넣고 배송중 전환·문자.
+                          {o.status !== "배송중" && o.status !== "배송완료" && trackingOf(r).trim() !== "" && (
+                            // 출고는 됐으나 입금확인에 묶인 건 — 로젠 엑셀로 채워진 송장을 저장하며 배송중 전환·문자.
                             <button
                               type="button"
                               onClick={() => saveTrackingShipped(r)}
@@ -1376,32 +1535,52 @@ export function DispatchPanel({
                               {shippingId === shipKey(r) ? "처리 중…" : "송장 저장"}
                             </button>
                           )}
-                          {isDelivered(r) ? (
+                          {isDelivered(r) && (
                             <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[12px] font-semibold text-sky-700">
                               배송완료
                             </span>
-                          ) : (
-                            // 도착확인 → 회차별 delivered_at 기록 + 배송완료 전환·문자. 고객 배송현황에 반영.
-                            <button
-                              type="button"
-                              onClick={() => markDelivered(r)}
-                              disabled={deliveringId === shipKey(r)}
-                              className="rounded-full border border-sky-400/60 bg-sky-50 px-2.5 py-1 text-[12px] font-semibold text-sky-700 transition-colors enabled:hover:bg-sky-100 disabled:opacity-40"
-                            >
-                              {deliveringId === shipKey(r) ? "처리 중…" : "도착확인"}
-                            </button>
                           )}
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => shipOut(r)}
-                          disabled={shippingId === shipKey(r) || r.overPaidRounds}
-                          title={r.overPaidRounds ? "결제한 회차를 이미 다 보냈습니다 — 연장 처리 후 발송하세요." : undefined}
-                          className="rounded-full border border-gold/50 bg-gold/10 px-3 py-1.5 text-[12.5px] font-semibold text-gold-deep transition-colors enabled:hover:bg-gold/20 disabled:opacity-40"
-                        >
-                          {shippingId === shipKey(r) ? "처리 중…" : r.overPaidRounds ? "발송 금지" : "출고·발송"}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => shipOut(r)}
+                            disabled={shippingId === shipKey(r) || r.overPaidRounds}
+                            title={r.overPaidRounds ? "결제한 회차를 이미 다 보냈습니다 — 연장 처리 후 발송하세요." : undefined}
+                            className="rounded-full border border-gold/50 bg-gold/10 px-3 py-1.5 text-[12.5px] font-semibold text-gold-deep transition-colors enabled:hover:bg-gold/20 disabled:opacity-40"
+                          >
+                            {shippingId === shipKey(r) ? "처리 중…" : r.overPaidRounds ? "발송 금지" : "출고·발송"}
+                          </button>
+                          {/* 배송일 변경 — 미출고 회차만. 옮겨 온 회차는 '되돌리기'. */}
+                          {(() => {
+                            const x = rescheduleOf(r);
+                            if (x) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => undoReschedule(x, o.ship_name)}
+                                  disabled={reschedulingId === `undo:${x.id}`}
+                                  className="rounded-full border border-sky-300 bg-sky-50 px-2.5 py-1 text-[12px] text-sky-700 transition-colors hover:bg-sky-100 disabled:opacity-40"
+                                >
+                                  {reschedulingId === `undo:${x.id}` ? "처리 중…" : "날짜 되돌리기"}
+                                </button>
+                              );
+                            }
+                            if (!useDateFilter && o.order_type !== "단품") return null; // 전체 보기엔 회차 날짜가 없다
+                            return (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  rescheduleKeyOpen === r.key ? setRescheduleKeyOpen(null) : openReschedule(r)
+                                }
+                                className="rounded-full border border-line px-2.5 py-1 text-[12px] text-ink-soft transition-colors hover:border-sky-400 hover:text-sky-700"
+                              >
+                                날짜 변경
+                              </button>
+                            );
+                          })()}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1431,8 +1610,10 @@ export function DispatchPanel({
       </div>
 
       <p className="mt-4 text-[12.5px] text-mute">
-        ※ 헤더를 누르면 정렬됩니다. ‘선택 발송’은 송장번호가 입력된 주문만 배송중으로 전환하고
-        발송 알림을 보냅니다. 택배사는 선택분 전체에 동일 적용됩니다. 엑셀에는 회차별 발송일·유입·소득공발행 칸이 함께 출력됩니다.
+        ※ 헤더를 누르면 정렬됩니다. ‘선택 발송’은 선택한 미출고 건을 출고·배송중으로 전환하고
+        발송 알림을 보냅니다(송장번호 없이도 됩니다 — 로젠 엑셀 업로드로 채워진 송장은 함께 저장). ‘날짜 변경’은
+        그 회차 하나만 다른 날로 옮깁니다(정기는 ±{RESCHEDULE_MAX_DAYS}일 이내 평일, 요일·남은 회차는 그대로). 엑셀에는
+        회차별 발송일·유입·소득공발행 칸이 함께 출력됩니다.
       </p>
 
       {smsOrder && <SmsHistoryModal order={smsOrder} onClose={() => setSmsOrder(null)} />}
