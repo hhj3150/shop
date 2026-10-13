@@ -260,7 +260,6 @@ export const PRODUCTS: Product[] = [
       { label: "열량", value: "135 kcal / 병" },
       { label: "보관", value: "냉장 0–10℃" },
       { label: "브랜드", value: "송영신목장" },
-      { label: "라벨 표기", value: "경기도 퀸스저지와 함께 합니다" },
       { label: "구분", value: "면세품" },
     ],
     label: {
@@ -316,7 +315,6 @@ export const PRODUCTS: Product[] = [
       { label: "열량", value: "560 kcal / 병" },
       { label: "보관", value: "냉장 0–10℃" },
       { label: "브랜드", value: "송영신목장" },
-      { label: "라벨 표기", value: "경기도 퀸스저지와 함께 합니다" },
       { label: "구분", value: "면세품" },
     ],
     label: {
@@ -372,7 +370,6 @@ export const PRODUCTS: Product[] = [
       { label: "열량", value: "130 kcal / 병" },
       { label: "보관", value: "냉장 0–10℃" },
       { label: "브랜드", value: "송영신목장" },
-      { label: "라벨 표기", value: "경기도 퀸스저지와 함께 합니다" },
       { label: "구분", value: "과세품 · 세금 포함가" },
     ],
     label: {
@@ -431,7 +428,6 @@ export const PRODUCTS: Product[] = [
       { label: "열량", value: "360 kcal / 병" },
       { label: "보관", value: "냉장 0–10℃" },
       { label: "브랜드", value: "송영신목장" },
-      { label: "라벨 표기", value: "경기도 퀸스저지와 함께 합니다" },
       { label: "구분", value: "과세품 · 세금 포함가" },
     ],
     label: {
