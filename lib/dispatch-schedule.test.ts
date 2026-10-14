@@ -160,10 +160,24 @@ describe("dispatchScheduleForSlot — 발송 수 기준 소진", () => {
   });
 
   it("발송 수를 주면 결제분을 다 보낼 때까지 명단에 남는다", () => {
+    // 그 전까지 9회 나갔으면 이번이 10회차, 이번 것까지 보내면 6회 남는다.
     const r = dispatchScheduleForSlot(slot, 4, 종료일이후, 9);
     expect(r.excluded).toBe(false);
     expect(r.total).toBe(16);
-    expect(r.remaining).toBe(7);
+    expect(r.round).toBe(10);
+    expect(r.remaining).toBe(6);
+  });
+
+  // ★ 2026-10-13 점검: 발송 수에 '그 발송일 당일'의 출고가 들어가면 출고 직후 회차가 하나
+  //   앞질러 간다. 그래서 shippedCount 는 '그 전까지' 수이고, 이번 회차 = 그 수 + 1 이다.
+  it("발송 수 0 이면 1회차, 총 회차와 같으면 소진(이번 회차 없음)", () => {
+    expect(dispatchScheduleForSlot(slot, 4, "2026-06-08", 0).round).toBe(1);
+    expect(dispatchScheduleForSlot(slot, 4, "2026-06-15", 0).round).toBe(1); // 달력과 무관
+    const last = dispatchScheduleForSlot(slot, 4, 종료일이후, 15);
+    expect(last.round).toBe(16);
+    expect(last.remaining).toBe(0);
+    expect(last.excluded).toBe(false);
+    expect(dispatchScheduleForSlot(slot, 4, 종료일이후, 16).excluded).toBe(true);
   });
 
   it("결제분을 다 보내면 그때 소진된다", () => {

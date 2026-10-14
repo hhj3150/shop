@@ -93,7 +93,46 @@ export function suggestBaseline(input: {
   return Math.max(0, Math.min(lower, Math.max(0, paidRounds)));
 }
 
-// 슬롯별 '실제로 내보낸 회차 수' 맵 — 배송 명단·배송 시트가 이것으로 종료를 판정한다.
+// (슬롯, 날짜) → 그 날짜 '전까지' 실제로 내보낸 회차 수. 미확정 슬롯은 null.
+//
+//   ★ 왜 '전까지'인가 — 명단·시트는 날짜마다 "이번에 나갈 회차 = 그 전까지 나간 수 + 1"로
+//     판정한다. 그 날짜 자신의 출고까지 세면, 출고 버튼을 누르는 순간 같은 날 명단에서
+//     회차가 하나 앞질러 간다: 마지막 회차 행이 사라지고, 블록 경계(원주문 4회차 당일)에선
+//     연장주문 행이 '미출고'로 새로 떠 같은 날 두 번 나갈 수 있다(2026-10-13 점검에서 발견).
+//   확정일 이전 날짜는 '모름(null)' — 확정값이 그 날짜까지의 수가 아니기 때문이다.
+export type ShippedBefore = (slotId: number, beforeISO: string) => number | null;
+
+export function shippedRoundsBeforeBySlot(
+  shipmentKeys: Iterable<string>,
+  slotIdByOrder: ReadonlyMap<string, number>,
+  baselines: ReadonlyMap<number, RoundBaseline>
+): ShippedBefore {
+  const datesBySlot = new Map<number, Set<string>>();
+  for (const key of shipmentKeys) {
+    const cut = key.lastIndexOf("|");
+    if (cut < 0) continue;
+    const slotId = slotIdByOrder.get(key.slice(0, cut));
+    if (slotId == null) continue;
+    const d = key.slice(cut + 1);
+    if (!d) continue;
+    const set = datesBySlot.get(slotId);
+    if (set) set.add(d);
+    else datesBySlot.set(slotId, new Set([d]));
+  }
+  return (slotId, beforeISO) => {
+    const b = baselines.get(slotId);
+    if (!b || b.confirmedCount == null || !b.confirmedAt) return null;
+    if (beforeISO <= b.confirmedAt) return null; // 확정 전 날짜의 진행도는 모른다
+    let n = 0;
+    for (const d of datesBySlot.get(slotId) ?? []) {
+      if (d > b.confirmedAt && d < beforeISO) n += 1;
+    }
+    return Math.max(0, Math.floor(b.confirmedCount)) + n;
+  };
+}
+
+// 슬롯별 '실제로 내보낸 회차 수' 맵 — 무결성 점검·확정 화면용(날짜 무관 총수).
+//   배송 명단·배송 시트는 위 shippedRoundsBeforeBySlot 을 쓴다.
 //
 //   입력은 관리자 화면이 이미 들고 있는 것들뿐이다. 서버를 한 번 더 부르지 않는다.
 //     shipmentKeys  `${주문id}|${발송일}` (shipment_log 에서 만든 키)

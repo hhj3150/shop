@@ -10,7 +10,7 @@ import {
 } from "./delivery-roster";
 import type { DispatchSlotInfo } from "./dispatch-schedule";
 import type { RawBlock } from "./subscription-timeline";
-import { shippedRoundsBySlot, type RoundBaseline } from "./round-baseline";
+import { shippedRoundsBySlot, shippedRoundsBeforeBySlot, type RoundBaseline } from "./round-baseline";
 
 const ORDER_ID = "o1";
 const SLOT_ID = 7;
@@ -40,6 +40,9 @@ const items: RosterItemFields[] = [
   { order_id: ORDER_ID, product_name: "송영신우유", volume: "900ml", delivery_day: "mon", qty: 1 },
 ];
 
+// 테스트 편의: '그 날짜 전까지 나간 수' 를 날짜와 무관한 고정값으로 준다.
+const before = (m: ReadonlyMap<number, number | null>) => (slotId: number) => m.get(slotId) ?? null;
+
 function roster(dateISO: string, shippedBySlot?: ReadonlyMap<number, number | null>) {
   return buildRosterForDate({
     dateISO,
@@ -50,7 +53,7 @@ function roster(dateISO: string, shippedBySlot?: ReadonlyMap<number, number | nu
     slotIdByOrder: new Map([[ORDER_ID, SLOT_ID]]),
     confirmedOrderIds: new Set([ORDER_ID]),
     pausedOrderIds: new Set<string>(),
-    shippedBySlot,
+    shippedBefore: shippedBySlot ? before(shippedBySlot) : undefined,
   });
 }
 
@@ -157,7 +160,11 @@ describe("재구독으로 블록이 이어진 구독", () => {
     { order_id: RENEW_ID, product_name: "송영신우유", volume: "900ml", delivery_day: "mon", qty: 1 },
   ];
 
-  function chainRoster(dateISO: string, shippedBySlot?: ReadonlyMap<number, number | null>) {
+  function chainRoster(
+    dateISO: string,
+    shippedBySlot?: ReadonlyMap<number, number | null>,
+    shippedBeforeFn?: ReturnType<typeof shippedRoundsBeforeBySlot>
+  ) {
     return buildRosterForDate({
       dateISO,
       items: chainItems,
@@ -174,7 +181,7 @@ describe("재구독으로 블록이 이어진 구독", () => {
       blocksBySlot: new Map([[SLOT_ID, blocks]]),
       confirmedOrderIds: new Set([ORDER_ID, RENEW_ID]),
       pausedOrderIds: new Set<string>(),
-      shippedBySlot,
+      shippedBefore: shippedBeforeFn ?? (shippedBySlot ? before(shippedBySlot) : undefined),
     });
   }
 
@@ -198,8 +205,97 @@ describe("재구독으로 블록이 이어진 구독", () => {
     expect(got[0].order.id).toBe(RENEW_ID);
   });
 
+  // ★ 블록 경계 — 원주문 4회차(06-22) 당일. 출고 전엔 원주문 행, 출고 뒤에도 같은 행이어야 한다.
+  //   당일 출고까지 세면 '그 전까지 4회' → 5회차 자리 → 연장주문 행이 미출고로 떠 같은 날 두 번 나간다.
+  it("블록 경계 당일: 출고 뒤에도 연장주문 행이 새로 뜨지 않는다", () => {
+    const keys = ["2026-06-01", "2026-06-08", "2026-06-15"].map((d) => `${ORDER_ID}|${d}`);
+    const b = new Map<number, RoundBaseline>([[SLOT_ID, { confirmedCount: 0, confirmedAt: "2026-05-31" }]]);
+    const ids = new Map([
+      [ORDER_ID, SLOT_ID],
+      [RENEW_ID, SLOT_ID],
+    ]);
+    const beforeShip = shippedRoundsBeforeBySlot(keys, ids, b);
+    const afterShip = shippedRoundsBeforeBySlot([...keys, `${ORDER_ID}|2026-06-22`], ids, b);
+    const pre = chainRoster("2026-06-22", undefined, beforeShip);
+    const post = chainRoster("2026-06-22", undefined, afterShip);
+    expect(pre.map((e) => e.order.id)).toEqual([ORDER_ID]);
+    expect(post.map((e) => e.order.id)).toEqual([ORDER_ID]);
+    // 다음 주엔 연장 블록 1회차(5회차)가 나간다.
+    expect(chainRoster("2026-06-29", undefined, afterShip).map((e) => e.order.id)).toEqual([RENEW_ID]);
+  });
+
   it("8회를 다 보냈으면 더 나가지 않는다", () => {
     const shipped = new Map<number, number | null>([[SLOT_ID, 8]]);
     expect(chainRoster("2026-07-06", shipped)).toHaveLength(0);
+  });
+});
+
+// ★ 2026-10-13 점검에서 발견: 발송 수에 '그날 출고'까지 넣으면 출고 버튼을 누르는 순간 같은 날
+//   명단이 한 회차 앞질러 간다 — 마지막 회차 행이 사라지고, 블록 경계(원주문 4회차 당일)에선
+//   연장주문 행이 미출고로 새로 떠 같은 날 두 번 나갈 수 있다. 그래서 '그 날짜 전까지'만 센다.
+describe("shippedRoundsBeforeBySlot — 당일 출고는 세지 않는다", () => {
+  const baselines = new Map<number, RoundBaseline>([
+    [SLOT_ID, { confirmedCount: 2, confirmedAt: "2026-06-08" }],
+  ]);
+  const slotIdByOrder = new Map([[ORDER_ID, SLOT_ID]]);
+
+  it("확정값 + 확정일 이후·기준일 전 출고만 더한다", () => {
+    const before = shippedRoundsBeforeBySlot(
+      [`${ORDER_ID}|2026-06-15`, `${ORDER_ID}|2026-06-22`],
+      slotIdByOrder,
+      baselines
+    );
+    expect(before(SLOT_ID, "2026-06-15")).toBe(2); // 06-15 당일 출고는 안 센다
+    expect(before(SLOT_ID, "2026-06-22")).toBe(3);
+    expect(before(SLOT_ID, "2026-06-29")).toBe(4);
+  });
+
+  it("확정일 이전 날짜는 '모름'", () => {
+    const before = shippedRoundsBeforeBySlot([], slotIdByOrder, baselines);
+    expect(before(SLOT_ID, "2026-06-08")).toBeNull();
+    expect(before(SLOT_ID, "2026-06-01")).toBeNull();
+    expect(before(SLOT_ID, "2026-06-09")).toBe(2);
+  });
+
+  it("미확정 슬롯·모르는 슬롯은 null", () => {
+    const before = shippedRoundsBeforeBySlot([`${ORDER_ID}|2026-06-15`], slotIdByOrder, new Map());
+    expect(before(SLOT_ID, "2026-06-22")).toBeNull();
+    expect(before(999, "2026-06-22")).toBeNull();
+  });
+
+  it("마지막 회차를 출고한 뒤에도 그날 명단에 남는다(행이 사라지지 않는다)", () => {
+    // 4회차(06-22) 당일: 출고 전·후 모두 '그 전까지 3회' → 명단에 있다.
+    const keys = [`${ORDER_ID}|2026-06-01`, `${ORDER_ID}|2026-06-08`, `${ORDER_ID}|2026-06-15`];
+    const b = new Map<number, RoundBaseline>([[SLOT_ID, { confirmedCount: 0, confirmedAt: "2026-05-31" }]]);
+    const beforeShip = shippedRoundsBeforeBySlot(keys, slotIdByOrder, b);
+    const afterShip = shippedRoundsBeforeBySlot([...keys, `${ORDER_ID}|2026-06-22`], slotIdByOrder, b);
+    const run = (fn: typeof beforeShip) =>
+      buildRosterForDate({
+        dateISO: "2026-06-22",
+        items,
+        orderById: new Map([[ORDER_ID, order]]),
+        slotByOrder: new Map([[ORDER_ID, slot()]]),
+        slotById: new Map([[SLOT_ID, slot()]]),
+        slotIdByOrder,
+        confirmedOrderIds: new Set([ORDER_ID]),
+        pausedOrderIds: new Set<string>(),
+        shippedBefore: fn,
+      });
+    expect(run(beforeShip)).toHaveLength(1);
+    expect(run(afterShip)).toHaveLength(1);
+    // 다음 주(06-29)에는 4회를 다 보냈으므로 나가지 않는다.
+    expect(
+      buildRosterForDate({
+        dateISO: "2026-06-29",
+        items,
+        orderById: new Map([[ORDER_ID, order]]),
+        slotByOrder: new Map([[ORDER_ID, slot()]]),
+        slotById: new Map([[SLOT_ID, slot()]]),
+        slotIdByOrder,
+        confirmedOrderIds: new Set([ORDER_ID]),
+        pausedOrderIds: new Set<string>(),
+        shippedBefore: afterShip,
+      })
+    ).toHaveLength(0);
   });
 });

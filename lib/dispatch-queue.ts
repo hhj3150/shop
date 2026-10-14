@@ -24,6 +24,7 @@ import {
 import { isCarriedOver } from "./dispatch-overdue";
 import { totalWeeks, type RawBlock } from "./subscription-timeline";
 import type { ShipmentReschedule } from "./shipment-reschedule";
+import type { ShippedBefore } from "./round-baseline";
 
 // 단품 주문은 1건 = 발송 1회다. 주문 상태가 곧 그 발송의 상태이므로 완료·취소는 시트에서 뺀다.
 export const ONCE_SHIPPABLE = ["입금확인", "배송준비", "배송중"] as const;
@@ -110,9 +111,9 @@ export type QueueMaps<O, S> = {
   blocksBySlot?: ReadonlyMap<number, RawBlock[]>;
   slotIdByOrder?: ReadonlyMap<string, number>;
   slotIdByOrderDay?: ReadonlyMap<string, number>;
-  // 슬롯 id → 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
-  //   미확정이면 없거나 null → 지금까지와 똑같이 달력으로 판정한다.
-  shippedBySlot?: ReadonlyMap<number, number | null>;
+  // (슬롯 id, 날짜) → 그 날짜 '전까지' 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
+  //   미확정이면 null → 지금까지와 똑같이 달력으로 판정한다. 당일 출고는 세지 않는다.
+  shippedBefore?: ShippedBefore;
   // 배송일 변경(회차 1회 이동) 기록 — 로스터와 같은 입력. 없으면 지금까지와 같다.
   reschedules?: readonly ShipmentReschedule[];
 };
@@ -147,7 +148,9 @@ function scheduleForRow<O extends QueueOrderFields, S extends DispatchSlotInfo &
   maps: QueueMaps<O, S>,
   order: O,
   day: DeliveryDay | null,
-  shipISO: string
+  shipISO: string,
+  // 발송 수를 셀 기준일('이 날짜 전까지'). 기본은 shipISO. 앞당긴 회차는 실제 발송일(더 이른 날).
+  beforeISO: string = shipISO
 ): DispatchScheduleResult | null {
   const slot = slotForRow(maps, order.id, day);
   if (!slot) return null;
@@ -156,8 +159,8 @@ function scheduleForRow<O extends QueueOrderFields, S extends DispatchSlotInfo &
   const chainSlot = chainSlotId != null ? maps.slotById?.get(chainSlotId) : undefined;
   const baseSlot = chainSlot ?? slot;
   const blocks = chainSlotId != null ? maps.blocksBySlot?.get(chainSlotId) : undefined;
-  // 확정 안 됐거나 맵에 없으면 null → 아래 판정이 옛(달력) 경로로 떨어진다.
-  const shipped = chainSlotId != null ? (maps.shippedBySlot?.get(chainSlotId) ?? null) : null;
+  // 확정 안 됐으면 null → 아래 판정이 옛(달력) 경로로 떨어진다.
+  const shipped = chainSlotId != null ? (maps.shippedBefore?.(chainSlotId, beforeISO) ?? null) : null;
   if (blocks && blocks.length > 0) {
     return dispatchScheduleForSlot(
       { ...baseSlot, extended_weeks: 0 },
@@ -176,10 +179,11 @@ function roundInfo<O extends QueueOrderFields, S extends DispatchSlotInfo & { or
   maps: QueueMaps<O, S>,
   order: O,
   day: DeliveryDay | null,
-  shipISO: string
+  shipISO: string,
+  beforeISO: string = shipISO
 ): Pick<DispatchSlice<O, never>, "round" | "total" | "remaining"> {
   if (order.order_type === "단품") return { round: 1, total: 1, remaining: 0 };
-  const sch = scheduleForRow(maps, order, day, shipISO);
+  const sch = scheduleForRow(maps, order, day, shipISO, beforeISO);
   if (!sch) {
     return { round: roundFor(order.order_type, shipISO, order.created_at), total: 0, remaining: 0 };
   }
@@ -239,6 +243,7 @@ export function buildDispatchSlicesForDate<
     slotIdByOrder: maps.slotIdByOrder,
     slotById: maps.slotById,
     slotIdByOrderDay: maps.slotIdByOrderDay,
+    shippedBefore: maps.shippedBefore,
     reschedules: maps.reschedules,
   });
 
@@ -247,7 +252,11 @@ export function buildDispatchSlicesForDate<
     if (e.kind === "단품" && !(ONCE_SHIPPABLE as readonly string[]).includes(e.order.status)) continue;
     const shipISO = e.kind === "단품" ? (e.order.ship_date ?? dateISO) : dateISO;
     // 회차 번호는 '원래 예정일' 기준 — 배송일 변경으로 옮겨 온 회차도 그 회차 그대로다.
-    const info = roundInfo(maps, e.order, e.day, e.kind === "단품" ? shipISO : e.scheduledISO);
+    //   발송 수의 기준일은 예정일과 실제 발송일 중 이른 쪽(당일 출고를 자기 회차에 세지 않게).
+    const info =
+      e.kind === "단품"
+        ? roundInfo(maps, e.order, e.day, shipISO)
+        : roundInfo(maps, e.order, e.day, e.scheduledISO, e.scheduledISO < shipISO ? e.scheduledISO : shipISO);
     out.push({
       order: e.order,
       items: e.items,

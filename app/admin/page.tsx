@@ -17,7 +17,7 @@ import {
 import { buildRosterMaps } from "@/lib/roster-maps";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { countShippedRoundsBySlot } from "@/lib/dispatch-queue";
-import { shippedRoundsBySlot, type RoundBaseline } from "@/lib/round-baseline";
+import { shippedRoundsBeforeBySlot, type RoundBaseline } from "@/lib/round-baseline";
 import type { RawBlock } from "@/lib/subscription-timeline";
 import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
 import {
@@ -468,8 +468,8 @@ export default function AdminPage() {
     return m;
   }, [slots]);
 
-  const confirmedShippedBySlot = useMemo(
-    () => shippedRoundsBySlot(shippedKeys.keys(), slotIdByOrder, baselineBySlot),
+  const confirmedShippedBefore = useMemo(
+    () => shippedRoundsBeforeBySlot(shippedKeys.keys(), slotIdByOrder, baselineBySlot),
     [shippedKeys, slotIdByOrder, baselineBySlot]
   );
 
@@ -587,7 +587,8 @@ export default function AdminPage() {
     const remainsToday = (s: SlotRow): boolean => {
       const weeks = (s.order_id ? orderById.get(s.order_id)?.block_weeks : null) ?? 0;
       // 확정된 구독은 '결제분을 다 보냈는가'로, 미확정은 지금까지처럼 달력으로 센다.
-      const shipped = confirmedShippedBySlot.get(s.id) ?? null;
+      //   오늘 '전까지' 나간 수 — 오늘 출고분은 오늘의 회차 자신이다.
+      const shipped = confirmedShippedBefore(s.id, todayISO);
       return !dispatchScheduleForSlot(s, weeks, todayISO, shipped).excluded;
     };
     return DELIVERY_DAYS.map((d) => {
@@ -612,7 +613,7 @@ export default function AdminPage() {
       ).length;
       return { day: d, taken, active, waitlist, paused, live, exhausted };
     });
-  }, [slots, orderById, confirmedOrderIds, now, confirmedShippedBySlot]);
+  }, [slots, orderById, confirmedOrderIds, now, confirmedShippedBefore]);
 
   // ── 요일별·제품별 주간 필요 수량 (확정 구독 기준) ──────────
   const productKeys = useMemo(() => {
@@ -674,10 +675,10 @@ export default function AdminPage() {
         slotIdByOrder,
         slotById,
         slotIdByOrderDay,
-        shippedBySlot: confirmedShippedBySlot,
+        shippedBefore: confirmedShippedBefore,
         reschedules,
       }),
-    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById, slotIdByOrderDay, confirmedShippedBySlot, reschedules]
+    [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById, slotIdByOrderDay, confirmedShippedBefore, reschedules]
   );
 
   // 임의 날짜의 생산 수요를 정기/단품으로 분리. roster(해지·회차소진·정지 제외)에서
@@ -1584,7 +1585,7 @@ export default function AdminPage() {
           slotIdByOrderDay={slotIdByOrderDay}
           confirmedOrderIds={confirmedOrderIds}
           pausedOrderIds={pausedOrderIds}
-          shippedBySlot={confirmedShippedBySlot}
+          shippedBefore={confirmedShippedBefore}
           reschedules={reschedules}
           onReload={load}
         />

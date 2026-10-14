@@ -19,6 +19,7 @@
 
 import { computeSchedule, type SubInput } from "./subscription-schedule";
 import { DELIVERY_DAYS, type DeliveryDay } from "./cart";
+import { deliveryDayHitsDate } from "./ship-date";
 
 // 'mon'..'fri' → 1..5 (Date.getDay 과 같은 기준).
 const DAY_NUM: Record<DeliveryDay, number> = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5 };
@@ -106,6 +107,18 @@ export function planDeliveryDayChange(
   }
   if (before.done) {
     return { ok: false, reason: "이미 모든 회차가 발송되어 요일을 바꿀 수 없습니다." };
+  }
+
+  // ★ 오늘이 새 요일의 배송일이면(예: 수요일에 월→수) 바꾸지 않는다.
+  //   배송 명단은 요일로 그날 손님을 잡으므로 바꾸는 즉시 '오늘' 명단에 오르는데, 아래 앵커
+  //   후보 검사는 오늘 자리를 '이미 나간 회차'로 세어 통과시킨다 → 같은 주에 두 번 나가고
+  //   (이번 주 월요일분 + 오늘 수요일분) 달력은 한 회차를 더 센다(2026-10-13 점검에서 발견).
+  //   정지 중이면 오늘 명단에 오르지 않으므로 허용한다. 서버(change_delivery_day)도 같은 규칙.
+  if (!slot.paused && deliveryDayHitsDate(newDay, todayISO).hits) {
+    return {
+      ok: false,
+      reason: "오늘이 새 요일의 배송일이라 지금은 바꿀 수 없습니다. 내일 이후에 다시 시도해 주세요.",
+    };
   }
 
   const delta = DAY_NUM[newDay] - DAY_NUM[slot.deliveryDay];
