@@ -17,6 +17,7 @@ import {
   type ShipmentReschedule,
 } from "@/lib/shipment-reschedule";
 import { cancelReschedule, rescheduleShipment } from "@/lib/shipment-reschedule-data";
+import type { ShippedBefore } from "@/lib/round-baseline";
 import { notify } from "@/lib/notify";
 import { DEFAULT_COURIER_ID, courierLabel } from "@/lib/couriers";
 import { parseTrackingPaste, matchTracking } from "@/lib/tracking-paste";
@@ -140,7 +141,7 @@ export function DispatchPanel({
   slotIdByOrderDay,
   confirmedOrderIds,
   pausedOrderIds,
-  shippedBySlot,
+  shippedBefore,
   reschedules = [],
   onReload,
 }: {
@@ -161,9 +162,9 @@ export function DispatchPanel({
   // 확정류 주문(입금확인 이후)·정지 구독 주문 — 배송 명단과 같은 판정을 쓰기 위한 입력.
   confirmedOrderIds?: ReadonlySet<string>;
   pausedOrderIds?: ReadonlySet<string>;
-  // 슬롯 id → 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
-  //   확정된 슬롯만 들어 있다. 없으면 지금까지처럼 달력으로 회차·소진을 판정한다.
-  shippedBySlot?: ReadonlyMap<number, number | null>;
+  // (슬롯 id, 날짜) → 그 날짜 전까지 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
+  //   미확정 슬롯은 null. 없으면 지금까지처럼 달력으로 회차·소진을 판정한다.
+  shippedBefore?: ShippedBefore;
   // 배송일 변경(회차 1회 이동) 기록 — 예정일에서 빠지고 새 날짜에 들어간다.
   reschedules?: readonly ShipmentReschedule[];
   onReload: () => Promise<void> | void;
@@ -247,7 +248,7 @@ export function DispatchPanel({
       blocksBySlot,
       slotIdByOrder,
       slotIdByOrderDay,
-      shippedBySlot,
+      shippedBefore,
       reschedules,
     };
   }, [
@@ -263,7 +264,7 @@ export function DispatchPanel({
     blocksBySlot,
     slotIdByOrder,
     slotIdByOrderDay,
-    shippedBySlot,
+    shippedBefore,
     reschedules,
   ]);
 

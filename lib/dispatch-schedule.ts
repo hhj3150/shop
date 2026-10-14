@@ -30,8 +30,10 @@ export function dispatchScheduleForSlot(
   slot: DispatchSlotInfo,
   blockWeeks: number,
   shipISO: string,
-  // 이 슬롯이 실제로 내보낸 회차 수(shipment_log 기준). 주면 회차소진을 '날짜'가 아니라
-  //   '발송 수'로 판정한다 — 결제한 회차가 날짜에 밀려 증발하는 것을 막는 핵심.
+  // 이 슬롯이 '이 발송일 전까지' 실제로 내보낸 회차 수(shipment_log 기준). 주면 회차소진을
+  //   '날짜'가 아니라 '발송 수'로 판정한다 — 결제한 회차가 날짜에 밀려 증발하는 것을 막는 핵심.
+  //   ★ 그 발송일 당일의 출고는 넣지 않는다 — 넣으면 출고 직후 같은 행의 회차가 하나 앞질러
+  //     간다(마지막 회차 행 소실·블록 경계 이중 발송). lib/round-baseline.ts ShippedBefore 참조.
   //   미지정이면 옛 동작(날짜 기준) 그대로.
   shippedCount?: number | null
 ): DispatchScheduleResult {
@@ -47,7 +49,13 @@ export function dispatchScheduleForSlot(
   };
 
   const atShip = computeSchedule(input, new Date(`${shipISO}T00:00:00`));
-  const round = Math.max(1, atShip.delivered);
+  // 이번에 나갈 회차.
+  //   · 발송 수 기준: 그 전까지 N 회 나갔으면 이번이 N+1 회차(총 회차를 넘기지 않는다).
+  //   · 날짜 기준(옛): delivered 는 '발송일 자리까지' 포함하므로 그 값이 곧 이번 회차.
+  const round =
+    shippedCount != null
+      ? Math.max(1, Math.min(Math.max(1, total), atShip.delivered + 1))
+      : Math.max(1, atShip.delivered);
   const remaining = Math.max(0, total - round);
 
   // 회차소진 판정.

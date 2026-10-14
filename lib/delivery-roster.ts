@@ -8,6 +8,7 @@ import { dispatchScheduleForSlot, type DispatchSlotInfo } from "./dispatch-sched
 import { deliveryDayHitsDate } from "./ship-date";
 import { activeBlockOrderForDate, type RawBlock } from "./subscription-timeline";
 import { indexReschedules, rescheduleKey, type ShipmentReschedule } from "./shipment-reschedule";
+import type { ShippedBefore } from "./round-baseline";
 
 // 로스터 판정에 필요한 주문 최소 필드.
 export type RosterOrderFields = {
@@ -96,10 +97,11 @@ export function buildRosterForDate<
   // `${주문id}|${요일}` → 슬롯 id. 한 주문이 요일별 슬롯을 여럿 가질 때(월+수 동시 구독)
   //   그 요일 배송분의 회차·시작일·정지일수를 어느 슬롯으로 볼지 고른다. 없으면 slotIdByOrder.
   slotIdByOrderDay?: ReadonlyMap<string, number>;
-  // 슬롯 id → 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
-  //   미확정 슬롯은 없거나 null — 그 경우 지금까지와 똑같이 달력으로 판정한다.
+  // (슬롯 id, 날짜) → 그 날짜 '전까지' 실제로 내보낸 회차 수(관리자 확정 기준점 + 이후 출고 기록).
+  //   미확정 슬롯은 null — 그 경우 지금까지와 똑같이 달력으로 판정한다.
   //   주어지면 '결제한 회차를 다 보냈는가'가 유일한 종료 조건이 된다.
-  shippedBySlot?: ReadonlyMap<number, number | null>;
+  //   ★ 당일 출고는 세지 않는다(세면 출고 직후 명단이 한 회차 앞질러 간다) — round-baseline.ts.
+  shippedBefore?: ShippedBefore;
   // 배송일 변경(회차 1회 이동) 기록. 예정일(from_date)에서는 빠지고 새 날짜(to_date)에
   //   들어간다. 회차 번호·활성 블록·소진 판정은 예정일 기준 그대로다(이동 폭 ±6일이라
   //   앞뒤 회차와 겹치지 않는다 — 서버 RPC 가 보장). 없으면 지금까지와 같다.
@@ -116,7 +118,7 @@ export function buildRosterForDate<
     slotIdByOrder,
     slotById,
     slotIdByOrderDay,
-    shippedBySlot,
+    shippedBefore,
     reschedules,
   } = params;
   const entries: DeliveryEntry<O, I>[] = [];
@@ -163,8 +165,11 @@ export function buildRosterForDate<
     const slotId = slotIdByOrderDay?.get(`${orderId}|${day}`) ?? slotIdByOrder?.get(orderId);
     const slotForBlocks = slotId != null ? slotById?.get(slotId) : undefined;
     const blocks = slotId != null ? blocksBySlot?.get(slotId) : undefined;
-    // 확정 안 됐거나 맵에 없으면 null → 아래 두 판정 모두 옛(달력) 경로로 떨어진다.
-    const shipped = slotId != null ? (shippedBySlot?.get(slotId) ?? null) : null;
+    // 확정 안 됐으면 null → 아래 두 판정 모두 옛(달력) 경로로 떨어진다.
+    //   '전까지'의 기준일은 이 회차가 실제로 나가는 날과 예정일 중 이른 쪽 — 앞당긴 회차는
+    //   새 날짜(더 이른 날)에 나가므로 그날 출고를 자기 회차에 포함해 세면 안 된다.
+    const beforeISO = scheduledISO < dateISO ? scheduledISO : dateISO;
+    const shipped = slotId != null ? (shippedBefore?.(slotId, beforeISO) ?? null) : null;
     if (slotForBlocks && blocks && blocks.length > 0) {
       // 해지·정지·소진·시작전 제외와 '그날 발송할 블록 1개' 선택은 배송 탭(DispatchPanel)과
       //   같은 함수(activeBlockOrderForDate)에 맡긴다 — 두 화면이 갈리지 않게 하는 유일한 방법.
