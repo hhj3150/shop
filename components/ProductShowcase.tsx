@@ -107,7 +107,7 @@ export function ProductShowcase() {
                 href={`/products/${p.id}`}
                 className="mt-8 flex w-full flex-1 flex-col items-center"
               >
-                <div className="relative h-72 w-full overflow-hidden rounded-[20px] bg-paper sm:h-80">
+                <div className="relative h-72 w-full overflow-hidden rounded-[20px] bg-studio sm:h-80">
                   {p.sticker && (
                     <ProductSticker
                       title={p.sticker.title}

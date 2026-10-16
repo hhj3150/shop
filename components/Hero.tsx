@@ -2,9 +2,12 @@ import Image from "next/image";
 import { MembershipCounter } from "./MembershipCounter";
 import { SubscribeFilmCTA } from "./SubscribeFilmCTA";
 
+// 바탕은 종이색이다. 예전엔 히어로만 흰 밴드였는데, 내비게이션은 종이 위에 떠 있고
+//   히어로만 희면 브랜드 색이 첫 화면에서 한 번 끊긴다. 제품컷의 흰 배경은
+//   .media-plate(곱셈 합성)로 녹여 병만 종이 위에 남긴다.
 export function Hero() {
   return (
-    <section className="relative overflow-hidden bg-white">
+    <section className="relative overflow-hidden bg-paper">
       <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 pt-28 pb-16 sm:px-8 sm:pt-32 lg:min-h-[94svh] lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-20">
         {/* Copy */}
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
@@ -68,7 +71,7 @@ export function Hero() {
             height={1058}
             priority
             sizes="(max-width:1024px) 86vw, 50vw"
-            className="h-auto w-[86%] max-w-[520px] object-contain lg:w-full lg:max-w-[600px]"
+            className="media-plate h-auto w-[86%] max-w-[520px] object-contain lg:w-full lg:max-w-[600px]"
           />
         </div>
       </div>
