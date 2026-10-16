@@ -166,7 +166,7 @@ export default async function ProductPage({
                 alt={`${product.name} ${product.volume}`}
               />
             ) : (
-              <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:h-auto lg:aspect-[4/5] lg:max-w-none">
+              <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-studio lg:h-auto lg:aspect-[4/5] lg:max-w-none">
                 <Image
                   src={product.image}
                   alt={`${product.name} ${product.volume}`}
@@ -379,7 +379,7 @@ export default async function ProductPage({
                 href={`/products/${p.id}`}
                 className="group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-cream transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_24px_48px_-20px_rgba(40,30,15,0.25)]"
               >
-                <div className="relative h-56 overflow-hidden bg-paper">
+                <div className="relative h-56 overflow-hidden bg-studio">
                   <Image
                     src={p.image}
                     alt={`${p.name} ${p.volume}`}

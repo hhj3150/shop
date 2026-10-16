@@ -17,7 +17,7 @@ export function ProductGallery({
 
   return (
     <div>
-      <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-paper lg:h-auto lg:aspect-[4/5] lg:max-w-none">
+      <div className="relative mx-auto h-[44vh] max-w-md overflow-hidden rounded-[2rem] bg-studio lg:h-auto lg:aspect-[4/5] lg:max-w-none">
         <Image
           src={current.src}
           alt={`${alt} — ${current.label}`}
@@ -37,7 +37,7 @@ export function ProductGallery({
               onClick={() => setIdx(i)}
               aria-label={`${img.label} 보기`}
               aria-pressed={i === idx}
-              className={`relative h-16 w-14 overflow-hidden rounded-xl border bg-paper transition-colors ${
+              className={`relative h-16 w-14 overflow-hidden rounded-xl border bg-studio transition-colors ${
                 i === idx ? "border-gold" : "border-line hover:border-gold/50"
               }`}
             >
