@@ -104,7 +104,12 @@ export function B2bDemandSection({
     });
 
   async function handleAdd() {
-    if (!newName.trim()) return;
+    // 조용히 return 하면 버튼이 고장난 것처럼 보인다 — 왜 안 되는지 말해 준다.
+    if (!newName.trim()) {
+      setMsg(null);
+      setErr("거래처 이름을 입력해 주세요.");
+      return;
+    }
     setAdding(true);
     setErr(null);
     setMsg(null);
@@ -210,7 +215,10 @@ export function B2bDemandSection({
           />
           <button
             onClick={handleAdd}
-            disabled={adding || !newName.trim()}
+            // 이름이 비어도 누를 수 있게 둔다. 예전엔 disabled 였는데, 눌러도 아무 일이
+            //   없으니 '고장'으로 읽혔다(회색 버튼은 '왜' 안 되는지 말해 주지 않는다).
+            //   이제 누르면 addClient 가 '거래처 이름을 입력해 주세요.'를 올려 준다.
+            disabled={adding}
             className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft hover:border-gold hover:text-gold-deep disabled:opacity-50"
           >
             {adding ? "추가 중…" : "거래처 추가"}
