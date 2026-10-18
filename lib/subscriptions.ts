@@ -604,6 +604,10 @@ export type PendingRenewal = {
   periodMonths: number;
   deliveryDay: DeliveryDay | null; // 연장주문 자기 order_items 의 요일(요일 변경 연장 대비)
   createdAt: string;
+  // 이 연장분이 실제로 나갈 곳 — 연장주문 자기 배송지(신청 시점에 원주문에서 승계돼 박힌 값).
+  //   입금 안내는 손님이 돈을 보내기 직전에 보는 화면이고, 입금 전까지 며칠이고 떠 있다.
+  //   여기서 주소가 틀린 걸 알면 '그냥 취소'로 되돌릴 수 있다 — 가장 싼 확인 지점이다.
+  shipTo: ShipTo;
 };
 
 type PendingRenewalRow = {
@@ -614,6 +618,13 @@ type PendingRenewalRow = {
   period_months: number | null;
   renews_slot_id: number;
   created_at: string;
+  is_gift: boolean | null;
+  delivery_method: string | null;
+  ship_name: string | null;
+  ship_phone: string | null;
+  ship_postcode: string | null;
+  ship_address: string | null;
+  ship_address_detail: string | null;
   order_items: { delivery_day: DeliveryDay | null }[] | null;
 };
 
@@ -630,7 +641,7 @@ export async function getPendingRenewals(): Promise<Map<number, PendingRenewal>>
   const { data, error } = await sb
     .from("orders")
     .select(
-      "id, order_no, total_amount, block_weeks, period_months, renews_slot_id, created_at, order_items(delivery_day)"
+      "id, order_no, total_amount, block_weeks, period_months, renews_slot_id, created_at, is_gift, delivery_method, ship_name, ship_phone, ship_postcode, ship_address, ship_address_detail, order_items(delivery_day)"
     )
     .eq("user_id", uid)
     .eq("status", "입금대기")
@@ -650,6 +661,15 @@ export async function getPendingRenewals(): Promise<Map<number, PendingRenewal>>
       periodMonths: row.period_months ?? 0,
       deliveryDay: row.order_items?.[0]?.delivery_day ?? null,
       createdAt: row.created_at,
+      shipTo: {
+        isGift: row.is_gift === true,
+        method: row.delivery_method ?? "택배",
+        name: row.ship_name ?? "",
+        phone: row.ship_phone ?? "",
+        postcode: row.ship_postcode ?? "",
+        address: row.ship_address ?? "",
+        addressDetail: row.ship_address_detail ?? "",
+      },
     });
   }
   return map;
