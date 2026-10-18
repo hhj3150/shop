@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
@@ -162,6 +162,8 @@ export default function AccountPage() {
   const router = useRouter();
   const { ready, user, profile, signOut, refreshProfile } = useAuth();
   const [editingInfo, setEditingInfo] = useState(false);
+  // 연장 폼에서 '받는 곳 바꾸기'를 눌렀을 때 데려갈 자리.
+  const myInfoRef = useRef<HTMLDivElement>(null);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [orderItems, setOrderItems] = useState<Record<string, OrderItemRow[]>>({});
   const [shipments, setShipments] = useState<Record<string, ShipmentRow[]>>({});
@@ -453,7 +455,22 @@ export default function AccountPage() {
     }
 
     await refreshProfile();
+    // 연장 폼이 보여주는 '받는 곳'은 프로필이 아니라 구독(원 주문)의 배송지다.
+    //   방금 동기화했어도 다시 읽지 않으면 화면엔 옛 주소가 그대로 남는다 —
+    //   손님은 고쳤는데 안 고쳐진 줄 알고 한 번 더 고치거나, 그냥 신청해 버린다.
+    await reloadSubs();
     setEditingInfo(false);
+  }
+
+  // 연장 폼의 '받는 곳 바꾸기' — 내 정보 카드를 펼치고 그 자리로 데려간다.
+  //   내 정보 카드는 페이지 맨 위, 연장 폼은 한참 아래에 있다. 열기만 하고 두면
+  //   화면에서 아무 일도 일어나지 않은 것처럼 보여 손님이 버튼을 또 누른다.
+  function openShipToEditor() {
+    setEditingInfo(true);
+    // 펼쳐진 뒤에 재야 위치가 맞는다(다음 페인트까지 기다린다).
+    requestAnimationFrame(() => {
+      myInfoRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
   // 연장 신청 취소 — 아직 입금 전이므로 되돌릴 수 있다. 취소해야 구성·요일을 다시 고를 수 있다
@@ -527,7 +544,7 @@ export default function AccountPage() {
       </div>
 
       {profile && (
-        <div className="mt-8 rounded-2xl border border-line bg-cream p-6">
+        <div ref={myInfoRef} className="mt-8 rounded-2xl border border-line bg-cream p-6">
           {editingInfo ? (
             <>
               <p className="mb-4 text-[13px] font-medium text-ink">내 정보 수정</p>
@@ -924,6 +941,7 @@ export default function AccountPage() {
                               busy={busy === s.slotId}
                               onSubmit={(args) => onRenew(s.slotId, args)}
                               onCancel={() => setRenewSlot(null)}
+                              onEditShipTo={openShipToEditor}
                             />
                           ) : (
                             <>

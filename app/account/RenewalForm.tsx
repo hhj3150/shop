@@ -38,7 +38,9 @@ import {
   pruneToActive,
   usedDeliveryDays,
   summarizeItems,
+  shipToView,
   type FormItem,
+  type ShipToView,
 } from "@/lib/renewal-form";
 
 type Props = {
@@ -51,6 +53,9 @@ type Props = {
     deliveryDay: DeliveryDay;
   }) => void;
   onCancel: () => void;
+  // '받는 곳 바꾸기' — 내 정보 수정을 열어 준다. 주소는 연장 폼의 상태가 아니라
+  //   원 구독 주문의 값이라, 여기서 직접 고치지 않고 한 곳(내 정보)에서만 고친다.
+  onEditShipTo: () => void;
 };
 
 // 기존 periodMonths 가 허용 기간(1/2/3)이면 그대로, 아니면 1(4주)로 기본.
@@ -60,7 +65,7 @@ function defaultPeriod(periodMonths: number): SubPeriod {
     : 1;
 }
 
-export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
+export function RenewalForm({ sub, subs, busy, onSubmit, onCancel, onEditShipTo }: Props) {
   const { map, loading: catalogLoading } = useStorefrontCatalog();
   const [period, setPeriod] = useState<SubPeriod>(defaultPeriod(sub.periodMonths));
   const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>(sub.deliveryDay);
@@ -165,6 +170,11 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
       <p className="mt-1 text-[12px] leading-relaxed text-mute">
         품목·요일·회차수를 바꿔 신청하실 수 있어요. 그대로 두고 신청하면 같은 구성으로 이어집니다.
       </p>
+
+      {/* 받는 곳 — 품목·금액보다 먼저 보여준다.
+          연장분의 주소는 원 구독 주문에서 그대로 승계되므로, 이사하고 내 정보를 안 고친
+          손님은 여기서 보지 못하면 옛 주소로 간다는 걸 결제 후에야 알게 된다. */}
+      <ShipToBlock view={shipToView(sub.shipTo)} onEdit={onEditShipTo} />
 
       {/* 회차수 */}
       <div className="mt-5">
@@ -391,6 +401,84 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel }: Props) {
         입금이 확인되면 선택한 요일·구성으로 이어집니다. 최종 금액·할인·자리 배정은 입금 안내
         시점에 확정됩니다.
       </p>
+    </div>
+  );
+}
+
+// 받는 곳 한 칸. 세 경우가 서로 다른 진실을 갖는다 — 같은 모양으로 뭉뚱그리면 안 된다.
+//   · 택배  : 내 정보 수정이 진행 중인 주문에 반영되므로 바꿀 수 있다.
+//   · 선물  : 받는 분 주소다. 동기화(sync_my_order_shipping)가 선물 주문을 제외하므로
+//             내 정보를 고쳐도 안 바뀐다 — '바꾸기'를 걸면 거짓말이 된다.
+//   · 방문수령 : 주소 자체가 없다.
+function ShipToBlock({
+  view,
+  onEdit,
+}: {
+  view: ShipToView;
+  onEdit: () => void;
+}) {
+  if (view.kind === "방문수령") {
+    return (
+      <div className="mt-4 rounded-xl border border-line bg-cream px-3.5 py-3">
+        <p className="t-caption text-mute">받는 곳</p>
+        <p className="t-subhead mt-0.5 text-ink">직접 방문수령 — 목장에서 받으십니다</p>
+      </div>
+    );
+  }
+
+  if (view.kind === "주소없음") {
+    return (
+      <div className="mt-4 rounded-xl border border-hey-deep-orange/40 bg-hey-deep-orange/8 px-3.5 py-3">
+        <p className="t-caption text-hey-deep-orange">받는 곳이 비어 있어요</p>
+        <p className="t-subhead mt-0.5 text-ink">
+          주소가 없으면 연장분이 발송되지 않습니다. 신청 전에 주소를 넣어 주세요.
+        </p>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="t-footnote mt-2 rounded-full border border-hey-deep-orange/50 px-3.5 py-1.5 text-hey-deep-orange transition-colors hover:bg-hey-deep-orange/10"
+        >
+          주소 넣기
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-line bg-cream px-3.5 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="t-caption text-mute">
+            받는 곳{view.kind === "선물" && " · 선물"}
+          </p>
+          <p className="t-subhead mt-0.5 font-medium text-ink">
+            {view.name}
+            {view.phone && (
+              <span className="ml-1.5 font-normal tabular-nums text-ink-soft">{view.phone}</span>
+            )}
+          </p>
+          {view.lines.map((line) => (
+            <p key={line} className="t-footnote text-ink-soft">
+              {line}
+            </p>
+          ))}
+        </div>
+        {view.editable && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="t-footnote shrink-0 rounded-full border border-line px-3.5 py-1.5 text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+          >
+            바꾸기
+          </button>
+        )}
+      </div>
+      {!view.editable && (
+        // 여기서 '바꾸기'를 못 거는 이유를 적어 둔다. 버튼만 없으면 손님은 고장으로 읽는다.
+        <p className="t-caption mt-2 text-mute">
+          선물 배송지는 내 정보를 고쳐도 바뀌지 않습니다. 바꾸시려면 목장으로 알려 주세요.
+        </p>
+      )}
     </div>
   );
 }
