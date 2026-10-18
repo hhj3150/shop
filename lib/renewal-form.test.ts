@@ -7,6 +7,8 @@ import {
   pruneToActive,
   usedDeliveryDays,
   summarizeItems,
+  shipToView,
+  formatPhone,
 } from "./renewal-form";
 import type { MySubscription } from "./subscriptions";
 import type { RawBlock, BlockItem } from "./subscription-timeline";
@@ -49,6 +51,10 @@ function sub(partial: Partial<MySubscription>): MySubscription {
     deliveryMethod: "택배",
     blocks: [],
     shippedCount: null,
+    shipTo: {
+      isGift: false, method: "택배", name: "홍길동", phone: "01012345678",
+      postcode: "12345", address: "경기 양평군 양평로 1", addressDetail: "101동 202호",
+    },
     ...partial,
   };
 }
@@ -210,5 +216,73 @@ describe("summarizeItems", () => {
 
   it("아무것도 안 담겼으면 빈 문자열 — 화면이 대체 문구를 쓴다", () => {
     expect(summarizeItems(catalog, {})).toBe("");
+  });
+});
+
+describe("shipToView — 연장분이 '실제로' 나갈 곳", () => {
+  const base = {
+    isGift: false,
+    method: "택배",
+    name: "홍길동",
+    phone: "01012345678",
+    postcode: "12345",
+    address: "경기 양평군 양평로 1",
+    addressDetail: "101동 202호",
+  };
+
+  it("택배는 바꿀 수 있다 — 내 정보 수정이 진행 중인 주문에 반영된다", () => {
+    const v = shipToView(base);
+    expect(v.kind).toBe("택배");
+    expect(v.editable).toBe(true);
+    expect(v).toMatchObject({ name: "홍길동", phone: "010-1234-5678" });
+    expect(v.kind === "택배" && v.lines).toEqual(["경기 양평군 양평로 1", "101동 202호 (12345)"]);
+  });
+
+  // ★ 선물은 받는 분 주소다. sync_my_order_shipping 이 선물 주문을 제외하므로
+  //   내 정보를 고쳐도 안 바뀐다 — '바꾸기'를 걸면 손님에게 거짓말이 된다(운영 중 5건).
+  it("선물 배송지는 바꾸기를 걸지 않는다", () => {
+    const v = shipToView({ ...base, isGift: true });
+    expect(v.kind).toBe("선물");
+    expect(v.editable).toBe(false);
+  });
+
+  // 방문수령은 주소가 아예 없다(운영 중 3건, 전부 주소 공란). 주소 자리를 비워 보여주면
+  //   '주소가 빠졌다'로 읽혀 쓸데없는 문의가 생긴다.
+  it("방문수령은 주소를 묻지 않는다", () => {
+    const v = shipToView({ ...base, method: "방문수령", address: "" });
+    expect(v.kind).toBe("방문수령");
+    expect(v.editable).toBe(false);
+    expect("lines" in v).toBe(false);
+  });
+
+  // 택배인데 주소가 비었으면 발송이 안 된다 — 조용히 넘기지 않고 드러낸다.
+  it("택배인데 주소가 비면 경고한다", () => {
+    const v = shipToView({ ...base, address: "   " });
+    expect(v.kind).toBe("주소없음");
+    expect(v.editable).toBe(true);
+  });
+
+  it("상세주소·우편번호가 없으면 그 줄을 만들지 않는다", () => {
+    const v = shipToView({ ...base, addressDetail: "", postcode: "" });
+    expect(v.kind === "택배" && v.lines).toEqual(["경기 양평군 양평로 1"]);
+  });
+
+  it("우편번호만 있으면 괄호로 붙인다", () => {
+    const v = shipToView({ ...base, addressDetail: "" });
+    expect(v.kind === "택배" && v.lines).toEqual(["경기 양평군 양평로 1", "(12345)"]);
+  });
+});
+
+describe("formatPhone", () => {
+  it("휴대폰·지역번호를 끊어 읽기 좋게 만든다", () => {
+    expect(formatPhone("01012345678")).toBe("010-1234-5678");
+    expect(formatPhone("010-1234-5678")).toBe("010-1234-5678");
+    expect(formatPhone("0212345678")).toBe("02-1234-5678");
+    expect(formatPhone("0311234567")).toBe("031-123-4567");
+  });
+
+  it("모르는 형식은 손대지 않는다 — 잘못 끊으면 안 거는 것만 못하다", () => {
+    expect(formatPhone("1588-0000")).toBe("1588-0000");
+    expect(formatPhone("")).toBe("");
   });
 });

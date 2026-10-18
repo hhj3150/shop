@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
@@ -47,6 +47,7 @@ import { WishlistSection } from "@/components/WishlistSection";
 import { ReferralCard } from "@/components/ReferralCard";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { RenewalForm } from "./RenewalForm";
+import { shipToView, type ShipToView } from "@/lib/renewal-form";
 
 type OrderRow = {
   id: string;
@@ -162,6 +163,8 @@ export default function AccountPage() {
   const router = useRouter();
   const { ready, user, profile, signOut, refreshProfile } = useAuth();
   const [editingInfo, setEditingInfo] = useState(false);
+  // 연장 폼에서 '받는 곳 바꾸기'를 눌렀을 때 데려갈 자리.
+  const myInfoRef = useRef<HTMLDivElement>(null);
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [orderItems, setOrderItems] = useState<Record<string, OrderItemRow[]>>({});
   const [shipments, setShipments] = useState<Record<string, ShipmentRow[]>>({});
@@ -453,7 +456,22 @@ export default function AccountPage() {
     }
 
     await refreshProfile();
+    // 연장 폼이 보여주는 '받는 곳'은 프로필이 아니라 구독(원 주문)의 배송지다.
+    //   방금 동기화했어도 다시 읽지 않으면 화면엔 옛 주소가 그대로 남는다 —
+    //   손님은 고쳤는데 안 고쳐진 줄 알고 한 번 더 고치거나, 그냥 신청해 버린다.
+    await reloadSubs();
     setEditingInfo(false);
+  }
+
+  // 연장 폼의 '받는 곳 바꾸기' — 내 정보 카드를 펼치고 그 자리로 데려간다.
+  //   내 정보 카드는 페이지 맨 위, 연장 폼은 한참 아래에 있다. 열기만 하고 두면
+  //   화면에서 아무 일도 일어나지 않은 것처럼 보여 손님이 버튼을 또 누른다.
+  function openShipToEditor() {
+    setEditingInfo(true);
+    // 펼쳐진 뒤에 재야 위치가 맞는다(다음 페인트까지 기다린다).
+    requestAnimationFrame(() => {
+      myInfoRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
   // 연장 신청 취소 — 아직 입금 전이므로 되돌릴 수 있다. 취소해야 구성·요일을 다시 고를 수 있다
@@ -527,7 +545,7 @@ export default function AccountPage() {
       </div>
 
       {profile && (
-        <div className="mt-8 rounded-2xl border border-line bg-cream p-6">
+        <div ref={myInfoRef} className="mt-8 rounded-2xl border border-line bg-cream p-6">
           {editingInfo ? (
             <>
               <p className="mb-4 text-[13px] font-medium text-ink">내 정보 수정</p>
@@ -870,6 +888,10 @@ export default function AccountPage() {
                             <CopyAmount amount={pending.total} />
                           </div>
                           <DepositAccount />
+                          {/* 받는 곳 — 돈을 보내기 직전에, 그리고 입금될 때까지 며칠이고 보인다.
+                              여기서 주소가 틀린 걸 알면 아래 '연장 신청 취소'로 되돌릴 수 있다
+                              (입금 전이라 그냥 취소된다). 추가 클릭 없이 확인시키는 가장 싼 자리다. */}
+                          <PendingShipTo view={shipToView(pending.shipTo)} />
                           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
                             주문번호 <span className="tabular-nums">{pending.orderNo}</span>
                             {pending.deliveryDay
@@ -924,6 +946,7 @@ export default function AccountPage() {
                               busy={busy === s.slotId}
                               onSubmit={(args) => onRenew(s.slotId, args)}
                               onCancel={() => setRenewSlot(null)}
+                              onEditShipTo={openShipToEditor}
                             />
                           ) : (
                             <>
@@ -1217,6 +1240,46 @@ export default function AccountPage() {
       <WishlistSection userId={user.id} />
 
       <RecipientBook userId={user.id} />
+    </div>
+  );
+}
+
+// 입금 안내의 '받는 곳' 한 줄. 연장 폼의 것과 달리 바꾸기 버튼을 두지 않는다 —
+//   이미 연장주문이 만들어져 배송지가 박힌 뒤라, 내 정보를 고쳐도 이 주문은 안 바뀐다.
+//   틀렸으면 아래 '연장 신청 취소'로 되돌린 뒤 주소를 고치고 다시 신청하는 게 맞다.
+function PendingShipTo({ view }: { view: ShipToView }) {
+  if (view.kind === "방문수령") {
+    return (
+      <p className="t-footnote mt-3 text-ink-soft">받는 곳 · 직접 방문수령 — 목장에서 받으십니다</p>
+    );
+  }
+  if (view.kind === "주소없음") {
+    return (
+      <p className="t-footnote mt-3 rounded-xl bg-hey-deep-orange/10 px-3 py-2 text-hey-deep-orange">
+        받는 곳이 비어 있습니다. 입금 전에 아래에서 신청을 취소하고 주소를 넣어 주세요.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-xl bg-cream px-3.5 py-2.5">
+      <p className="t-caption text-mute">받는 곳{view.kind === "선물" && " · 선물"}</p>
+      <p className="t-footnote mt-0.5 text-ink">
+        {view.name}
+        {view.phone && <span className="ml-1.5 tabular-nums text-ink-soft">{view.phone}</span>}
+      </p>
+      {view.lines.map((line) => (
+        <p key={line} className="t-footnote text-ink-soft">
+          {line}
+        </p>
+      ))}
+      <p className="t-caption mt-1 text-mute">
+        {view.kind === "선물"
+          ? // 선물은 취소하고 다시 신청해도 같은 주소가 그대로 복사된다(연장은 원 주문의
+            //   배송지를 승계하고, 선물 주문은 내 정보 동기화 대상에서 빠진다).
+            //   '다시 신청하세요'는 손님을 같은 자리로 되돌려보내는 거짓 안내다.
+            "선물 배송지는 다시 신청해도 같은 곳으로 갑니다. 바꾸시려면 입금 전에 목장으로 알려 주세요."
+          : "주소가 다르면 아래에서 신청을 취소하고 다시 신청해 주세요. 입금 전이라 그냥 취소됩니다."}
+      </p>
     </div>
   );
 }

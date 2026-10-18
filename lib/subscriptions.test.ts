@@ -82,6 +82,12 @@ describe("toMySubscriptions — 연장분 합산", () => {
       order_no: "20260601-0001",
       total_amount: 40000, // 원주문 4만원
       delivery_method: "택배",
+      is_gift: false,
+      ship_name: "홍길동",
+      ship_phone: "01012345678",
+      ship_postcode: "12345",
+      ship_address: "경기 양평군 양평로 1",
+      ship_address_detail: "101동 202호",
     },
   };
 
@@ -262,6 +268,12 @@ describe("shippedCount — 손님 화면이 서버와 같은 회차를 본다", 
       order_no: "20260601-0002",
       total_amount: 80000,
       delivery_method: "택배",
+      is_gift: false,
+      ship_name: "홍길동",
+      ship_phone: "01012345678",
+      ship_postcode: "12345",
+      ship_address: "경기 양평군 양평로 1",
+      ship_address_detail: "101동 202호",
     },
   };
 

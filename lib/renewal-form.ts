@@ -3,7 +3,7 @@
 
 import { PRODUCTS } from "./products";
 import type { DeliveryDay } from "./cart";
-import type { MySubscription } from "./subscriptions";
+import type { MySubscription, ShipTo } from "./subscriptions";
 import {
   normalizeBlocks,
   activeBlockForRound,
@@ -104,4 +104,57 @@ export function summarizeItems(
     .filter((p) => (qtyById[p.id] ?? 0) > 0)
     .map((p) => `${p.name} ${p.volume} ${qtyById[p.id]}개`)
     .join(" · ");
+}
+
+// ─── 받는 곳 ────────────────────────────────────────────────────────────────
+//
+//   [왜 연장 화면에 띄우나]
+//     연장 폼은 품목·요일·기간·금액을 다 보여주면서 '어디로 가는지'는 한 줄도 없었다.
+//     이사하고 내 정보를 안 고친 손님은 옛 주소로 간다는 걸 끝까지 모르고 결제한다.
+//     우유가 엉뚱한 집에 도착하고 나서야 안다 — 되돌릴 수 없는 종류의 사고다.
+//
+//   [왜 프로필 주소가 아니라 주문 배송지인가]
+//     연장분의 주소는 request_renewal 이 '원 구독 주문'에서 승계한다. 프로필이 아니다.
+//     운영 DB 실측(2026-10-18): 활성 구독 97건 중 9건이 프로필 주소와 주문 배송지가
+//     서로 다르다. 프로필을 띄웠다면 그 9명에게 실제와 다른 주소를 보여준 셈이 된다.
+//     화면은 '예쁜 값'이 아니라 '실제로 쓰일 값'을 보여야 한다.
+
+export type ShipToView =
+  // 택배 — 내 정보 수정이 진행 중인 주문에 반영되므로(sync_my_order_shipping) 바꿀 수 있다.
+  | { kind: "택배"; name: string; phone: string; lines: string[]; editable: true }
+  // 선물 — 받는 분 주소다. sync_my_order_shipping 이 선물 주문을 제외하므로 내 정보를
+  //   고쳐도 바뀌지 않는다. 바꾸기 링크를 걸면 거짓말이 된다(운영 중 5건).
+  | { kind: "선물"; name: string; phone: string; lines: string[]; editable: false }
+  // 방문수령 — 목장에서 직접 받는다. 주소 자체가 없다(운영 중 3건, 전부 주소 공란).
+  | { kind: "방문수령"; editable: false }
+  // 주소가 비었는데 택배다 — 이대로 두면 배송이 안 나간다. 숨기지 말고 드러낸다.
+  | { kind: "주소없음"; editable: true };
+
+/** 전화번호를 읽기 좋게. 숫자만 남기고 국내 규칙으로 끊는다(형식이 낯설면 원본 유지). */
+export function formatPhone(raw: string): string {
+  const d = (raw ?? "").replace(/[^0-9]/g, "");
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  if (d.length === 10 && d.startsWith("02")) return `${d.slice(0, 2)}-${d.slice(2, 6)}-${d.slice(6)}`;
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return raw ?? "";
+}
+
+export function shipToView(shipTo: ShipTo): ShipToView {
+  if (shipTo.method === "방문수령") return { kind: "방문수령", editable: false };
+
+  const address = (shipTo.address ?? "").trim();
+  if (address === "") return { kind: "주소없음", editable: true };
+
+  // 주소 한 줄 + 상세주소·우편번호 한 줄. 상세주소를 본주소에 이어 붙이면 길어져
+  //   모바일에서 두 줄로 꺾이는데, 그때 어디까지가 주소인지 읽기 어렵다.
+  const detail = (shipTo.addressDetail ?? "").trim();
+  const postcode = (shipTo.postcode ?? "").trim();
+  const second = [detail, postcode ? `(${postcode})` : ""].filter(Boolean).join(" ");
+  const lines = [address, ...(second ? [second] : [])];
+  const name = (shipTo.name ?? "").trim();
+  const phone = formatPhone(shipTo.phone ?? "");
+
+  return shipTo.isGift
+    ? { kind: "선물", name, phone, lines, editable: false }
+    : { kind: "택배", name, phone, lines, editable: true };
 }

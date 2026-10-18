@@ -77,6 +77,17 @@ export function isWaitlisted(count: DayCount): boolean {
   return count.taken >= count.capacity;
 }
 
+// 연장분이 실제로 나갈 곳 — 원 구독 주문에서 그대로 승계되는 값들.
+export type ShipTo = {
+  isGift: boolean;
+  method: string; // '택배' | '방문수령'
+  name: string;
+  phone: string;
+  postcode: string;
+  address: string;
+  addressDetail: string;
+};
+
 export type MySubscription = {
   slotId: number;
   deliveryDay: DeliveryDay;
@@ -93,6 +104,8 @@ export type MySubscription = {
   orderNo: string | null;
   totalAmount: number;
   deliveryMethod: string;
+  // 연장분이 나갈 곳. 화면이 이걸 그대로 보여줘야 손님이 신청 전에 확인할 수 있다.
+  shipTo: ShipTo;
   // 원주문 + 입금확인류 연장주문을 created_at,id 순으로 조립한 블록 체인.
   // 블록별 환불 미리보기(refundAmount)와 활성 블록 산출에 쓰인다.
   blocks: RawBlock[];
@@ -122,6 +135,15 @@ type SlotJoinRow = {
     order_no: string | null;
     total_amount: number | null;
     delivery_method: string | null;
+    // 연장분이 실제로 나갈 배송지 — request_renewal 이 '원 구독 주문'에서 승계한다.
+    //   프로필 주소가 아니라 이 값을 보여줘야 한다(운영 DB 실측: 활성 97건 중 9건이
+    //   프로필 주소와 주문 배송지가 서로 다르다 — 프로필을 띄우면 그 9명에게 거짓말이 된다).
+    is_gift: boolean | null;
+    ship_name: string | null;
+    ship_phone: string | null;
+    ship_postcode: string | null;
+    ship_address: string | null;
+    ship_address_detail: string | null;
   } | null;
 };
 
@@ -195,6 +217,15 @@ export function toMySubscriptions(
       // 총 납입액 = 원 주문 + 확정 연장주문 합계(회차와 같은 상태 목록)
       totalAmount: (row.orders?.total_amount ?? 0) + (extBySlot[row.id] ?? 0),
       deliveryMethod: row.orders?.delivery_method ?? "택배",
+      shipTo: {
+        isGift: row.orders?.is_gift === true,
+        method: row.orders?.delivery_method ?? "택배",
+        name: row.orders?.ship_name ?? "",
+        phone: row.orders?.ship_phone ?? "",
+        postcode: row.orders?.ship_postcode ?? "",
+        address: row.orders?.ship_address ?? "",
+        addressDetail: row.orders?.ship_address_detail ?? "",
+      },
       // 블록 체인(원주문 먼저, 연장 created_at,id 순) — buildRawBlocks 로 조립.
       blocks,
       shippedCount: shippedBySlot.get(row.id) ?? null,
@@ -214,7 +245,7 @@ export async function getMySubscriptions(): Promise<MySubscription[]> {
   const { data, error } = await sb
     .from("subscription_slots")
     .select(
-      "id, order_id, delivery_day, status, started_at, first_ship_date, paused, paused_at, paused_days, skip_resume_on, extended_weeks, orders(block_weeks, period_months, order_no, total_amount, delivery_method)"
+      "id, order_id, delivery_day, status, started_at, first_ship_date, paused, paused_at, paused_days, skip_resume_on, extended_weeks, orders(block_weeks, period_months, order_no, total_amount, delivery_method, is_gift, ship_name, ship_phone, ship_postcode, ship_address, ship_address_detail)"
     )
     .eq("user_id", uid)
     .neq("status", "해지")
@@ -573,6 +604,10 @@ export type PendingRenewal = {
   periodMonths: number;
   deliveryDay: DeliveryDay | null; // 연장주문 자기 order_items 의 요일(요일 변경 연장 대비)
   createdAt: string;
+  // 이 연장분이 실제로 나갈 곳 — 연장주문 자기 배송지(신청 시점에 원주문에서 승계돼 박힌 값).
+  //   입금 안내는 손님이 돈을 보내기 직전에 보는 화면이고, 입금 전까지 며칠이고 떠 있다.
+  //   여기서 주소가 틀린 걸 알면 '그냥 취소'로 되돌릴 수 있다 — 가장 싼 확인 지점이다.
+  shipTo: ShipTo;
 };
 
 type PendingRenewalRow = {
@@ -583,6 +618,13 @@ type PendingRenewalRow = {
   period_months: number | null;
   renews_slot_id: number;
   created_at: string;
+  is_gift: boolean | null;
+  delivery_method: string | null;
+  ship_name: string | null;
+  ship_phone: string | null;
+  ship_postcode: string | null;
+  ship_address: string | null;
+  ship_address_detail: string | null;
   order_items: { delivery_day: DeliveryDay | null }[] | null;
 };
 
@@ -599,7 +641,7 @@ export async function getPendingRenewals(): Promise<Map<number, PendingRenewal>>
   const { data, error } = await sb
     .from("orders")
     .select(
-      "id, order_no, total_amount, block_weeks, period_months, renews_slot_id, created_at, order_items(delivery_day)"
+      "id, order_no, total_amount, block_weeks, period_months, renews_slot_id, created_at, is_gift, delivery_method, ship_name, ship_phone, ship_postcode, ship_address, ship_address_detail, order_items(delivery_day)"
     )
     .eq("user_id", uid)
     .eq("status", "입금대기")
@@ -619,6 +661,15 @@ export async function getPendingRenewals(): Promise<Map<number, PendingRenewal>>
       periodMonths: row.period_months ?? 0,
       deliveryDay: row.order_items?.[0]?.delivery_day ?? null,
       createdAt: row.created_at,
+      shipTo: {
+        isGift: row.is_gift === true,
+        method: row.delivery_method ?? "택배",
+        name: row.ship_name ?? "",
+        phone: row.ship_phone ?? "",
+        postcode: row.ship_postcode ?? "",
+        address: row.ship_address ?? "",
+        addressDetail: row.ship_address_detail ?? "",
+      },
     });
   }
   return map;
