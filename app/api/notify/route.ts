@@ -15,6 +15,7 @@ import { firstDeliveryRitualNote } from "@/lib/first-delivery";
 import { isNoticeFresh, NOTICE_MAX_DAYS } from "@/lib/notice-freshness";
 import { buildPaymentConfirmedMessage } from "@/lib/payment-confirmed-message";
 import { buildOrderReceivedMessage } from "@/lib/order-received-message";
+import { renewalNoticeTarget } from "@/lib/renewal-notify";
 
 // 정보성 문자 자동 발송. 클라이언트가 세션 토큰과 함께 호출하면 서버에서
 // 토큰을 검증하고, DB의 권위 있는 값으로 수신번호·문구를 구성해 발송한다.
@@ -614,12 +615,27 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
   if (!orderId) return NextResponse.json({ ok: false, reason: "no_order" }, { status: 400 });
   const { data: o } = await sb
     .from("orders")
-    .select("order_no, total_amount, ship_name, ship_phone, block_weeks")
+    .select("order_no, total_amount, ship_name, ship_phone, block_weeks, user_id")
     .eq("id", orderId)
     .single();
   if (!o) return NextResponse.json({ ok: false, reason: "order_not_found" }, { status: 404 });
 
-  const name = (o.ship_name as string) || "고객";
+  // ★ 연장 알림은 '돈 내는 사람'인 회원에게 간다 — ship_phone 이 아니다.
+  //   선물 구독은 ship_phone 이 받는 분 번호라, 신청한 적도 없는 분께 입금 요청이 갔다
+  //   (2026-10 운영 DB 확인: 선물 연장 5건 전부 받는 분에게 발송됨).
+  const { data: buyer } = o.user_id
+    ? await sb.from("profiles").select("name, phone").eq("id", o.user_id as string).single()
+    : { data: null };
+  const target = renewalNoticeTarget(buyer, {
+    name: o.ship_name as string | null,
+    phone: o.ship_phone as string | null,
+  });
+  if (!target) return NextResponse.json({ ok: false, reason: "no_phone" });
+  if (target.fallback) {
+    // 회원 번호를 몰라 배송지 번호로 보냈다. 선물이면 받는 분께 간 것이므로 흔적을 남긴다.
+    console.warn(`[notify] ${kind}: 회원 번호가 없어 배송지 번호로 발송 order=${orderId}`);
+  }
+  const name = target.name;
   // 이번 연장으로 이어지는 회차수. 주당 1회 발송이라 block_weeks 가 곧 "회분"이다.
   //   값이 없으면(레거시) 횟수를 단정하지 않고 "다음 회차분" 으로 안내한다.
   const rounds = (o.block_weeks as number | null) ?? 0;
@@ -633,7 +649,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
       `입금하실 금액 ${formatKRW(o.total_amount as number)}\n` +
       `${account}\n` +
       `입금이 확인되면 같은 요일로 ${roundsLabel}이 더 이어집니다.`;
-    const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
+    const r = await sendAndLog(kind, { orderId }, target.phone, {
       text,
       subject: `[${SHOP}] 구독 연장 접수`,
       alimtalk: {
@@ -656,7 +672,7 @@ async function handleRenewal(sb: SupabaseClient, kind: RenewalKind, orderId?: st
     `[${SHOP}] ${name}님, 구독 연장 입금이 확인되었습니다.\n` +
     `주문번호 ${o.order_no}\n` +
     `같은 요일로 ${roundsLabel}이 더 이어집니다. 변함없이 신선하게 보내드리겠습니다.`;
-  const r = await sendAndLog(kind, { orderId }, o.ship_phone as string, {
+  const r = await sendAndLog(kind, { orderId }, target.phone, {
     text,
     subject: `[${SHOP}] 구독 연장 확인`,
     alimtalk: {
