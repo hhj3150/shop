@@ -60,8 +60,11 @@ export async function addClient(
     if (error) throw error;
     return data as Client;
   } catch (error) {
+    // 사유를 삼키면 관리자 화면에 '실패했습니다'만 남아 고칠 단서가 없다.
+    //   (권한 거부·중복 이름 등은 그대로 보여 줘야 사장님이 다음 행동을 안다)
     console.error("거래처 등록 실패:", error);
-    throw new Error("거래처 등록에 실패했습니다.");
+    const why = error instanceof Error ? error.message : "";
+    throw new Error(why ? `거래처 등록에 실패했습니다. (${why})` : "거래처 등록에 실패했습니다.");
   }
 }
 

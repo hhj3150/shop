@@ -1,4 +1,5 @@
 import { getSupabase } from "./supabase";
+import { withTimeout } from "./with-timeout";
 import { cancelPayActionDeposit } from "./orders";
 import { SUB_DAY_CAP, SUB_PERIODS, type SubPeriod } from "./products";
 import { DELIVERY_DAYS, type DeliveryDay } from "./cart";
@@ -494,12 +495,23 @@ export async function requestRenewal(
   args: RenewalArgs
 ): Promise<RenewalResult> {
   validateRenewalArgs(args);
-  const { data, error } = await getSupabase().rpc("request_renewal", {
-    p_slot_id: slotId,
-    p_items: args.items,
-    p_period: args.period,
-    p_delivery_day: args.deliveryDay,
-  });
+  // 응답이 영영 안 오면 화면이 '처리 중…' 에서 멈춘다 — await 가 거부되지 않아 catch 도
+  //   finally 도 돌지 않기 때문이다. 손님은 버튼이 죽은 줄 알고 다시 누르거나, 신청된 줄
+  //   알고 입금을 기다린다. 그래서 일정 시간이 지나면 '모르는 상태'로 끝낸다.
+  //   ★ 서버에서 이미 주문이 만들어졌을 수도 있으므로 '실패'가 아니라 '확인되지 않음'이다.
+  //     문구가 다시 신청을 권하면 중복 신청이 된다 — 새로고침해서 확인하도록 안내한다.
+  const { data, error } = await withTimeout(
+    getSupabase().rpc("request_renewal", {
+      p_slot_id: slotId,
+      p_items: args.items,
+      p_period: args.period,
+      p_delivery_day: args.deliveryDay,
+    }),
+    RENEWAL_TIMEOUT_MS,
+    "연장 신청이 확인되지 않았습니다. 통신이 느리거나 끊겼을 수 있어요.\n" +
+      "페이지를 새로고침해 '연장 입금 안내'가 떠 있는지 확인해 주세요. " +
+      "떠 있으면 신청은 접수된 것이고, 없으면 다시 신청하시면 됩니다."
+  );
   if (error) throw new Error(error.message);
   const r = (data ?? {}) as { order_id?: string; order_no?: string; total?: number };
   return {
@@ -596,6 +608,10 @@ export function canSkipThisWeek(
 //     request_renewal 이 '이미 연장 입금 대기 중인 주문이 있습니다' 로 거절한다 —
 //     계좌번호를 다시 볼 길이 없어진다. 문자를 지운 분은 전화를 거는 수밖에 없었다.
 //     서버에 남아 있는 사실(입금대기 연장주문)을 읽어 언제든 안내를 되살린다.
+// 연장 신청이 이 시간 안에 답하지 않으면 '모르는 상태'로 끝낸다.
+//   넉넉히 둔다 — 느린 모바일 회선에서 멀쩡한 요청을 끊어 버리면 그게 더 나쁘다.
+const RENEWAL_TIMEOUT_MS = 25_000;
+
 export type PendingRenewal = {
   orderId: string;
   orderNo: string;
