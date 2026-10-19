@@ -61,11 +61,22 @@ export type BaselineRow = {
   confirmedCount: number | null; // 이미 확정했다면 그 값
   confirmedAt: string | null;
   confirmedNote: string | null;
+  // 지금 시스템이 보는 발송 회차 = 확정값 + 확정일 이후 출고 기록.
+  //   확정 뒤에도 매주 늘어난다. 수기 장부로 다시 맞출 때 비교 기준이 되는 숫자다.
+  //   미확정이면 null(= 아직 달력으로 돌고 있다).
+  shippedNow: number | null;
 };
 
 // 아직 확정 안 된 줄이 위로 — 사장님이 할 일만 보이게 한다.
 //   같은 미확정끼리는 '기록과 달력이 많이 벌어진 쪽'이 위다. 틀어진 폭이 클수록
 //   손님이 회차를 잃고 있을 위험이 크기 때문이다.
+// 아직 보내야 할 회차. 확정된 구독은 '지금 값'으로, 미확정은 알 수 없다(null).
+//   확정값만으로 빼면 확정 뒤에 나간 회차가 반영되지 않아 남은 수가 과하게 보인다.
+export function remainingRounds(row: BaselineRow): number | null {
+  if (row.shippedNow == null) return null;
+  return Math.max(0, row.paidRounds - row.shippedNow);
+}
+
 export function sortBaselineRows(rows: readonly BaselineRow[]): BaselineRow[] {
   return [...rows].sort((a, b) => {
     const ac = a.confirmedAt ? 1 : 0;

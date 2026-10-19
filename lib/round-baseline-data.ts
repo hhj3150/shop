@@ -28,9 +28,20 @@ type RawRow = {
 export async function loadBaselineRows(): Promise<BaselineRow[]> {
   try {
     const sb = getSupabase();
-    const { data, error } = await sb.rpc("admin_round_baseline_rows");
-    if (error) throw error;
-    const rows = ((data as RawRow[]) ?? []).map((r) => ({
+    // 두 번 읽는다 — 확정 현황(행)과 '지금 보는 발송 회차'(확정된 슬롯만).
+    //   한 함수로 합치려면 반환 컬럼을 바꿔야 하는데, 그러려면 drop 이 필요하고
+    //   운영에서 drop function 이 반복해 걸렸다. 두 결과를 slot_id 로 합친다.
+    const [rowsRes, shippedRes] = await Promise.all([
+      sb.rpc("admin_round_baseline_rows"),
+      sb.rpc("admin_slot_shipped_rounds"),
+    ]);
+    if (rowsRes.error) throw rowsRes.error;
+    if (shippedRes.error) throw shippedRes.error;
+    const shippedBySlot = new Map<number, number | null>();
+    for (const r of (shippedRes.data ?? []) as { slot_id: number; shipped: number | null }[]) {
+      shippedBySlot.set(Number(r.slot_id), r.shipped == null ? null : Number(r.shipped));
+    }
+    const rows = ((rowsRes.data as RawRow[]) ?? []).map((r) => ({
       slotId: Number(r.slot_id),
       name: r.name ?? "",
       phone: r.phone ?? "",
@@ -44,6 +55,7 @@ export async function loadBaselineRows(): Promise<BaselineRow[]> {
       confirmedCount: r.confirmed_count == null ? null : Number(r.confirmed_count),
       confirmedAt: r.confirmed_at,
       confirmedNote: r.confirmed_note,
+      shippedNow: shippedBySlot.get(Number(r.slot_id)) ?? null,
     }));
     return sortBaselineRows(rows);
   } catch (error) {
