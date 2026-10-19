@@ -3,6 +3,7 @@ import {
   confirmedShippedCount,
   suggestBaseline,
   sortBaselineRows,
+  remainingRounds,
   type BaselineRow,
 } from "./round-baseline";
 
@@ -78,6 +79,7 @@ describe("sortBaselineRows — 할 일만 위로", () => {
     slotId: 1, name: "가", phone: "", deliveryDay: "mon", startedAt: "2026-06-01",
     paused: false, paidRounds: 12, recordedCount: 0, calendarRounds: 0,
     lastShipDate: null, confirmedCount: null, confirmedAt: null, confirmedNote: null,
+    shippedNow: null,
     ...over,
   });
 
@@ -113,3 +115,28 @@ describe("sortBaselineRows — 할 일만 위로", () => {
     expect(input.map((r) => r.slotId)).toEqual([1, 2]);
   });
 });
+
+describe("remainingRounds — 확정 뒤에도 남은 회차가 맞아야 한다", () => {
+  const row = (over: Partial<BaselineRow>): BaselineRow => ({
+    slotId: 1, name: "가", phone: "", deliveryDay: "mon", startedAt: "2026-06-01",
+    paused: false, paidRounds: 12, recordedCount: 0, calendarRounds: 0,
+    lastShipDate: null, confirmedCount: null, confirmedAt: null, confirmedNote: null,
+    shippedNow: null, ...over,
+  });
+
+  // ★ 확정값만으로 빼면 확정 뒤에 나간 회차가 반영되지 않아 남은 수가 과하게 보인다.
+  //   사장님이 그 숫자를 믿고 더 보내면 과배송이고, 그건 돈이 나가는 쪽이다.
+  it("확정 뒤 출고분까지 반영한다", () => {
+    expect(remainingRounds(row({ paidRounds: 12, confirmedCount: 5, shippedNow: 8 }))).toBe(4);
+  });
+
+  it("미확정이면 모른다고 한다 — 0 으로 둘러대지 않는다", () => {
+    expect(remainingRounds(row({}))).toBeNull();
+  });
+
+  it("다 보냈으면 0 이고 음수로 가지 않는다", () => {
+    expect(remainingRounds(row({ paidRounds: 12, shippedNow: 12 }))).toBe(0);
+    expect(remainingRounds(row({ paidRounds: 12, shippedNow: 15 }))).toBe(0);
+  });
+});
+

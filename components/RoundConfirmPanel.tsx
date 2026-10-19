@@ -14,7 +14,7 @@
 //     기록 기준으로 정확해진다. 92명을 하루에 다 처리하지 않아도 된다.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadBaselineRows, confirmSlotRounds } from "@/lib/round-baseline-data";
-import { suggestBaseline, type BaselineRow } from "@/lib/round-baseline";
+import { suggestBaseline, remainingRounds, type BaselineRow } from "@/lib/round-baseline";
 
 const WEEKDAY_LABEL: Record<string, string> = {
   mon: "월", tue: "화", wed: "수", thu: "목", fri: "금", sat: "토", sun: "일",
@@ -79,10 +79,16 @@ export function RoundConfirmPanel() {
     }
     // 되돌릴 수 없는 숫자다 — 남은 회차를 말로 보여주고 한 번 더 묻는다.
     const remain = r.paidRounds - value;
+    const again = r.confirmedAt != null;
     if (
       !window.confirm(
-        `${r.name} 님 — 지금까지 ${value}회 나간 것으로 확정합니다.\n` +
-          `앞으로 ${remain}회 더 보냅니다. (결제 ${r.paidRounds}회)\n\n진행할까요?`
+        `${r.name} 님 — 오늘까지 ${value}회 나간 것으로 ${again ? "다시 " : ""}확정합니다.\n` +
+          `앞으로 ${remain}회 더 보냅니다. (결제 ${r.paidRounds}회)\n` +
+          (again
+            ? `지금 값 ${r.shippedNow ?? r.confirmedCount}회를 ${value}회로 바꾸고, ` +
+              `오늘부터 출고 기록으로 이어서 셉니다.\n`
+            : "") +
+          `\n진행할까요?`
       )
     ) {
       return;
@@ -92,7 +98,9 @@ export function RoundConfirmPanel() {
     setDone(null);
     try {
       await confirmSlotRounds(r.slotId, value, note[r.slotId]);
-      setDone(`${r.name} 님 ${value}회로 확정했습니다. 남은 회차 ${remain}회.`);
+      setDone(
+        `${r.name} 님 ${value}회로 ${again ? "다시 " : ""}확정했습니다. 남은 회차 ${remain}회.`
+      );
       setDraft((p) => ({ ...p, [r.slotId]: "" }));
       setNote((p) => ({ ...p, [r.slotId]: "" }));
       await load();
@@ -109,8 +117,10 @@ export function RoundConfirmPanel() {
         <div>
           <h3 className="text-[15px] font-semibold text-ink">구독 회차 확정</h3>
           <p className="mt-0.5 text-[12.5px] text-mute">
-            고객별로 <b>지금까지 실제로 몇 회 나갔는지</b>를 한 번 확정합니다. 확정한 뒤로는
-            출고 기록으로 정확히 세고, 남은 회차를 다 보낸 뒤에 재구독 안내가 나갑니다.
+            고객별로 <b>오늘까지 실제로 몇 회 나갔는지</b>를 넣습니다. 그 뒤로는 출고 기록으로
+            이어서 세고, 남은 회차를 다 보낸 뒤에 재구독 안내가 나갑니다.
+            <b> 수기 장부와 어긋나면 언제든 다시 넣으시면 됩니다</b> — 넣는 순간 오늘 기준으로
+            다시 맞춰집니다.
           </p>
         </div>
         <div className="flex items-center gap-2 text-[13px] no-print">
@@ -176,11 +186,21 @@ export function RoundConfirmPanel() {
             </thead>
             <tbody>
               {visible.map((r) => {
-                const suggested = suggestBaseline({
-                  paidRounds: r.paidRounds,
-                  recordedCount: r.recordedCount,
-                  courierCount: null,
-                });
+                const confirmed = r.confirmedAt != null;
+                const remain = remainingRounds(r);
+                // 확정 뒤 쌓인 출고분. 사장님이 '내 장부와 몇 차이인지'를 바로 보게 한다.
+                const sinceConfirm =
+                  r.shippedNow != null && r.confirmedCount != null
+                    ? r.shippedNow - r.confirmedCount
+                    : 0;
+                // 확정된 줄의 기본값은 '지금 값' — 장부와 같으면 그대로 두면 된다.
+                const suggested = confirmed
+                  ? (r.shippedNow ?? r.confirmedCount ?? 0)
+                  : suggestBaseline({
+                      paidRounds: r.paidRounds,
+                      recordedCount: r.recordedCount,
+                      courierCount: null,
+                    });
                 const gap = r.calendarRounds - r.recordedCount;
                 return (
                   <tr key={r.slotId} className="border-b border-line/60 align-top">
@@ -218,51 +238,54 @@ export function RoundConfirmPanel() {
                       {r.lastShipDate ?? "—"}
                     </td>
                     <td data-label="확정" className="py-2.5">
-                      {r.confirmedAt != null ? (
-                        <div className="text-[13px]">
+                      {/* 확정한 뒤에도 입력칸을 닫지 않는다 — 목장은 수기 장부로 정확히
+                          세고 있고, 그 숫자를 언제든 다시 넣을 수 있어야 한다.
+                          닫아 두면 오타 하나도 못 고치고, 몇 주 뒤 장부와 어긋나도
+                          손쓸 방법이 없다. */}
+                      {confirmed && (
+                        <p className="t-caption mb-1 text-mute">
                           <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-800 tabular-nums">
-                            {r.confirmedCount}회 확정
+                            지금 {r.shippedNow ?? r.confirmedCount}회
                           </span>
-                          <span className="block tabular-nums text-mute">
-                            {r.confirmedAt} 기준 · 남은 {Math.max(0, r.paidRounds - (r.confirmedCount ?? 0))}회
+                          <span className="ml-1.5 tabular-nums">
+                            {r.confirmedAt} {r.confirmedCount}회 확정
+                            {sinceConfirm > 0 && ` + 이후 ${sinceConfirm}회`}
+                            {remain != null && ` · 남은 ${remain}회`}
                           </span>
-                          {r.confirmedNote && (
-                            <span className="block text-[12.5px] text-mute">{r.confirmedNote}</span>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <input
-                            type="number"
-                            min={0}
-                            max={r.paidRounds}
-                            inputMode="numeric"
-                            value={draft[r.slotId] ?? ""}
-                            placeholder={String(suggested)}
-                            onChange={(e) =>
-                              setDraft((p) => ({ ...p, [r.slotId]: e.target.value }))
-                            }
-                            className="w-16 rounded-lg border border-line bg-cream px-2 py-1.5 text-right tabular-nums text-ink"
-                          />
-                          <input
-                            type="text"
-                            value={note[r.slotId] ?? ""}
-                            placeholder="메모(선택)"
-                            onChange={(e) =>
-                              setNote((p) => ({ ...p, [r.slotId]: e.target.value }))
-                            }
-                            className="w-28 rounded-lg border border-line bg-cream px-2 py-1.5 text-[13px] text-ink"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => void submit(r)}
-                            disabled={busy === r.slotId}
-                            className="rounded-lg bg-ink px-3 py-1.5 text-[13px] font-medium text-cream hover:bg-gold-deep disabled:opacity-40"
-                          >
-                            {busy === r.slotId ? "확정 중…" : "확정"}
-                          </button>
-                        </div>
+                        </p>
                       )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          max={r.paidRounds}
+                          inputMode="numeric"
+                          value={draft[r.slotId] ?? ""}
+                          placeholder={String(suggested)}
+                          aria-label={`${r.name} 지금까지 나간 회차`}
+                          onChange={(e) =>
+                            setDraft((p) => ({ ...p, [r.slotId]: e.target.value }))
+                          }
+                          className="w-16 rounded-lg border border-line bg-cream px-2 py-1.5 text-right tabular-nums text-ink"
+                        />
+                        <input
+                          type="text"
+                          value={note[r.slotId] ?? ""}
+                          placeholder={confirmed ? (r.confirmedNote ?? "메모(선택)") : "메모(선택)"}
+                          onChange={(e) =>
+                            setNote((p) => ({ ...p, [r.slotId]: e.target.value }))
+                          }
+                          className="w-28 rounded-lg border border-line bg-cream px-2 py-1.5 text-[13px] text-ink"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void submit(r)}
+                          disabled={busy === r.slotId}
+                          className="rounded-lg bg-ink px-3 py-1.5 text-[13px] font-medium text-cream hover:bg-gold-deep disabled:opacity-40"
+                        >
+                          {busy === r.slotId ? "저장 중…" : confirmed ? "다시 확정" : "확정"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
