@@ -83,9 +83,23 @@ describe("migration-round-baseline.sql", () => {
     expect(runnable).toMatch(/public\.kst_today\(\)/);
   });
 
-  it("확정 이력을 order_events 에 남긴다 — 나중에 되짚을 수 있어야 한다", () => {
-    expect(runnable).toMatch(/insert into public\.order_events/);
-    expect(runnable).toMatch(/회차확정/);
+  // ★ 실사고(2026-10-19): 컬럼명을 kind · note · created_by 로 짐작해서 적었다가
+  //   확정 버튼이 통째로 실패했다 — 'column "kind" of relation "order_events"
+  //   does not exist'. 사장님이 99명 중 한 명도 확정하지 못했다.
+  //   order_events 의 실제 컬럼은 event · reason · actor_id · meta 다.
+  it("확정 이력을 order_events 의 '실제' 컬럼에 남긴다", () => {
+    expect(runnable).toMatch(/insert into public\.order_events\s*\(([^)]*)\)/);
+    const cols = runnable.match(/insert into public\.order_events\s*\(([^)]*)\)/)![1];
+    for (const ok of ["order_id", "event", "reason", "actor_id"]) {
+      expect(cols, `${ok} 컬럼이 없다`).toContain(ok);
+    }
+    // 존재하지 않는 컬럼명이 다시 들어오면 즉시 잡는다.
+    for (const bad of ["kind", "note", "created_by"]) {
+      expect(
+        new RegExp(`\\b${bad}\\b`).test(cols),
+        `order_events 에 없는 컬럼 '${bad}' 을 쓰고 있다`
+      ).toBe(false);
+    }
   });
 
   // 이 설계의 핵심 — 기존 질서를 건드리지 않는다.

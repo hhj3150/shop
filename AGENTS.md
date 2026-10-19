@@ -20,6 +20,28 @@ select pg_get_functiondef('public.cancel_skip(bigint)'::regprocedure);
 "UTC 버그"로 지목했는데, 운영 DB 는 이미 대부분 KST 였다. 지적을 그대로 받았다면 멀쩡한
 함수를 옛 버전으로 되돌렸을 것이다. 자세한 내용과 함정 목록은 `supabase/README.md` 를 본다.
 
+**테이블 컬럼도 똑같다.** 함수 정의는 운영 DB 에서 읽어 놓고 거기 나오는 테이블의 컬럼명은
+짐작으로 쓰는 일이 실제로 있었다. 2026-10-19 회차 확정 버튼이 통째로 먹통이었는데
+(`column "kind" of relation "order_events" does not exist`), 사장님이 99명 중 한 명도 확정하지
+못한 채 며칠을 보냈다. 컬럼은 쓰기 전에 본다.
+
+```sql
+select column_name, data_type, is_nullable
+  from information_schema.columns
+ where table_schema='public' and table_name='order_events' order by ordinal_position;
+```
+
+그리고 **INSERT·UPDATE 를 새로 쓴 함수는 올리기 전에 운영 DB 에서 한 번 굴려 본다.**
+롤백되는 블록이면 흔적이 남지 않는다 — 이 한 번이면 위 사고는 없었다.
+
+```sql
+do $$ declare v jsonb; begin
+  perform set_config('request.jwt.claims', '{"sub":"<uuid>","role":"authenticated"}', true);
+  v := public.내함수(...);
+  raise exception 'TEST_OK %', v;   -- 예외로 전부 롤백된다
+end $$;
+```
+
 # 이미지·영상 편집은 Higgsfield 로 한다
 
 사진·그림·동영상을 편집할 일이 생기면 **언제나 Higgsfield MCP 를 먼저 쓴다.**

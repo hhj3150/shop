@@ -99,6 +99,7 @@ declare
   v_slot  record;
   v_today date := public.kst_today();
   v_total int;
+  v_note  text;
 begin
   if not public.is_admin() then raise exception '관리자만 가능합니다.'; end if;
   if p_count is null or p_count < 0 then
@@ -122,13 +123,28 @@ begin
          rounds_confirmed_note  = nullif(trim(coalesce(p_note,'')), '')
    where id = p_slot_id;
 
-  insert into public.order_events (order_id, kind, note, created_by)
-    values (v_slot.order_id, '회차확정',
-            format('슬롯 %s · %s회로 확정(기준일 %s)%s',
-                   p_slot_id, p_count, v_today,
-                   case when coalesce(trim(p_note),'') = '' then ''
-                        else ' · ' || trim(p_note) end),
-            auth.uid());
+  v_note := nullif(trim(coalesce(p_note, '')), '');
+
+  -- ★ order_events 의 실제 컬럼은 event · reason · actor_id · meta 다.
+  --   처음엔 kind · note · created_by 로 적었다가 확정 버튼이 통째로 실패했다
+  --   ('column "kind" of relation "order_events" does not exist'). 함수 정의는
+  --   운영 DB 에서 읽어 맞춰 놓고, 이 테이블의 컬럼명만 짐작으로 썼던 탓이다.
+  insert into public.order_events (order_id, event, reason, actor_id, meta)
+    values (
+      v_slot.order_id,
+      'rounds_confirmed',
+      format('슬롯 %s · %s회로 확정(기준일 %s)%s',
+             p_slot_id, p_count, v_today,
+             case when v_note is null then '' else ' · ' || v_note end),
+      auth.uid(),
+      jsonb_build_object(
+        'slot_id', p_slot_id,
+        'confirmed_count', p_count,
+        'confirmed_at', v_today,
+        'total', v_total,
+        'note', v_note
+      )
+    );
 
   return jsonb_build_object(
     'slot_id', p_slot_id, 'confirmed_count', p_count,
