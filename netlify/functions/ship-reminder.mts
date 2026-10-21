@@ -10,6 +10,7 @@ import {
 } from "../../lib/ship-reminder";
 import type { ShipmentReschedule } from "../../lib/shipment-reschedule";
 import { logSms } from "../../lib/sms-log";
+import { isShipSuspended } from "../../lib/ship-suspension";
 
 type Dataset = {
   orders: ReminderOrder[];
@@ -39,6 +40,15 @@ export default async function handler(): Promise<Response> {
   }
 
   const shipDate = tomorrowKST();
+
+  // 배송이 없는 날엔 '내일 발송됩니다' 를 보내지 않는다. 그 문자는 손님을 하루 기다리게
+  //   만들고, 물건이 안 오면 그대로 신뢰가 깎인다. 일정(회차)은 건드리지 않는다 —
+  //   언제 다시 보내는지는 사장님이 직접 안내한다.
+  if (isShipSuspended(shipDate)) {
+    console.log(`[ship-reminder] ${shipDate} 배송 중단일 — 예고를 보내지 않음`);
+    return new Response(`skip: suspended ${shipDate}`);
+  }
+
   const sb = createClient(url, anon);
   const { data, error } = await sb.rpc("ship_reminder_dataset", {
     p_secret: secret,
