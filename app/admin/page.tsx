@@ -8,6 +8,7 @@ import { getSupabase } from "@/lib/supabase";
 import { formatKRW } from "@/lib/products";
 import { computeSchedule } from "@/lib/subscription-schedule";
 import { buildRosterForDate, type DeliveryEntry as RosterEntry } from "@/lib/delivery-roster";
+import { buildBroadcastAudience } from "@/lib/broadcast-audience";
 import {
   cancelledButActiveSlots,
   roundsUsedUpSlots,
@@ -679,6 +680,14 @@ export default function AdminPage() {
         reschedules,
       }),
     [items, confirmedOrderIds, pausedOrderIds, orderById, slotByOrder, blocksBySlot, slotIdByOrder, slotById, slotIdByOrderDay, confirmedShippedBefore, reschedules]
+  );
+
+  // ── 단체문자 수신자 집합 ───────────────────────────────
+  //   요일 필터는 '그 요일에 실제로 받는 사람' 이어야 한다. 슬롯 상태(활성)로 세면
+  //   회차를 다 쓴 옛 구독자까지 잡힌다 — 배송 명단에서 파생한다(lib/broadcast-audience.ts).
+  const broadcastAudience = useMemo(
+    () => buildBroadcastAudience({ todayISO: todayISO(), rosterForDate, slots }),
+    [rosterForDate, slots]
   );
 
   // 임의 날짜의 생산 수요를 정기/단품으로 분리. roster(해지·회차소진·정지 제외)에서
@@ -2335,7 +2344,7 @@ export default function AdminPage() {
       {tab === "회원·구독" && (
         <>
       {/* 단체문자 발송 */}
-      <BroadcastPanel profiles={profiles} slots={slots} />
+      <BroadcastPanel profiles={profiles} slots={slots} audience={broadcastAudience} />
         </>
       )}
 

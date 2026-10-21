@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { DELIVERY_DAYS, DELIVERY_DAY_LABEL, type DeliveryDay } from "@/lib/cart";
 import { SMS_PRESETS, fillPreset } from "@/lib/admin-sms";
+import type { BroadcastAudience } from "@/lib/broadcast-audience";
 
 type ProfileLite = { id: string; name: string; phone: string; marketing_consent?: boolean };
 type SlotLite = { user_id: string; delivery_day: DeliveryDay; status: string };
@@ -29,9 +30,13 @@ function normalizePhone(s: string): string {
 export function BroadcastPanel({
   profiles,
   slots,
+  audience,
 }: {
   profiles: ProfileLite[];
   slots: SlotLite[];
+  // 요일별·활성 수신자 집합. 배송 명단(buildRosterForDate)에서 파생된 것을 받는다 —
+  //   여기서 다시 판정하지 않는다(lib/broadcast-audience.ts 의 사고 기록 참고).
+  audience: BroadcastAudience;
 }) {
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set());
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
@@ -47,19 +52,10 @@ export function BroadcastPanel({
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
-  // 활성 구독자 / 요일별 활성 구독자 user_id 집합.
-  const activeUserIds = useMemo(
-    () => new Set(slots.filter((s) => s.status === "활성").map((s) => s.user_id)),
-    [slots]
-  );
-  const dayUserIds = useMemo(() => {
-    const m = new Map<DeliveryDay, Set<string>>();
-    for (const d of DELIVERY_DAYS) m.set(d, new Set());
-    for (const s of slots) {
-      if (s.status === "활성") m.get(s.delivery_day)?.add(s.user_id);
-    }
-    return m;
-  }, [slots]);
+  // 활성 구독자 / 요일별 수신자 — 배송 명단에서 파생된 집합을 그대로 쓴다.
+  //   ★ slot.status === '활성' 으로 세면 안 된다. 결제 회차를 다 쓴 뒤에도 상태가
+  //     '활성'으로 남아, 몇 달 전 끝난 구독자에게 배송 안내가 나간다(2026-10-22 사고).
+  const { dayUserIds, activeUserIds } = audience;
   // 구독 이력이 한 번이라도 있는 회원(상태 무관 — 해지 포함). '미구독(미전환)' 필터는 이 집합의
   //   여집합 = 구독 슬롯이 전혀 없는 회원만 고른다(과거 구독자=전환 경험자는 제외).
   const everSubscribedUserIds = useMemo(
@@ -247,8 +243,9 @@ export function BroadcastPanel({
     <div className="mt-12 no-print">
       <h2 className="font-serif-kr text-lg text-ink">단체문자 발송</h2>
       <p className="mt-1 text-[13px] text-mute">
-        수신자를 필터로 고르고 개별 해제할 수 있습니다. 광고/홍보는 법에 따라 (광고) 표기·무료수신거부 안내가
-        자동 포함되며, 야간(21~08시)에는 발송되지 않습니다.
+        수신자를 필터로 고르고 개별 해제할 수 있습니다. 요일 필터는 그 요일 배송 명단에 실제로 들어가는
+        구독자만 보여줍니다 — 회차를 다 쓴 구독은 빠집니다. 광고/홍보는 법에 따라 (광고) 표기·무료수신거부
+        안내가 자동 포함되며, 야간(21~08시)에는 발송되지 않습니다.
       </p>
 
       {/* 1. 수신자 필터 */}
