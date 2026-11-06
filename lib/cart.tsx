@@ -79,6 +79,22 @@ export function slotOnCartDay(
   return slots.find((s) => s.delivery_day === cartDays[0]) ?? null;
 }
 
+// 장바구니 요일에는 내 구독이 없는데 '다른 요일'에 활성 구독이 있을 때, 그 활성 슬롯들.
+//   체크아웃이 "기존 구독 연장(요일 변경)"과 "하나 더 받기" 중 고르게 하는 데 쓴다.
+//   (실사고 2026-11: 수요일 구독자가 목요일로 새 구독을 넣어, 옛 구독의 '만료됩니다'
+//    문자와 새 구독의 '12회 중 2번째' 문자를 함께 받았다 — 손님은 연장한 줄 알았다.)
+//   같은 요일 슬롯이 있으면 기존 규칙(같은 요일 연장/차단)이 우선이므로 빈 배열.
+export function otherDayActiveSlots(
+  cartDays: ReadonlyArray<DeliveryDay>,
+  slots: ReadonlyArray<SubscriptionSlotLite>
+): SubscriptionSlotLite[] {
+  if (cartDays.length !== 1) return [];
+  if (slots.some((s) => s.delivery_day === cartDays[0])) return [];
+  return DELIVERY_DAYS.flatMap((d) =>
+    slots.filter((s) => s.delivery_day === d && s.status === "활성")
+  );
+}
+
 export type CartItem = {
   key: string;
   productId: string;
