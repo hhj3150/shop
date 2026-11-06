@@ -9,6 +9,7 @@ import {
   cartDeliveryDays,
   conflictingDeliveryDays,
   slotOnCartDay,
+  otherDayActiveSlots,
   DELIVERY_DAY_LABEL,
   type SubscriptionSlotLite,
 } from "@/lib/cart";
@@ -53,6 +54,9 @@ import {
 } from "@/lib/cash-receipt";
 import type { Recipient } from "@/lib/recipients";
 
+const CROSS_DAY_UNCHOSEN =
+  "이미 받고 계신 구독을 연장할지, 하나 더 받을지 먼저 골라 주세요.";
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { ready, user, profile } = useAuth();
@@ -80,14 +84,31 @@ export default function CheckoutPage() {
   );
   const dayConflict = conflictDays.length > 0;
   const conflictSlot = slotOnCartDay(deliveryDays, mySlots);
-  const renewalMode = conflictSlot?.status === "활성";
+  // 장바구니 요일엔 구독이 없고 다른 요일에 활성 구독이 있다 → 새 구독인지 연장인지 손님이
+  //   직접 고르게 한다. 고르지 않으면 제출하지 않는다 — 연장하려던 손님이 무심코 새 구독을
+  //   만들면, 옛 구독의 '만료됩니다'와 새 구독의 회차 문자가 함께 가 혼란스럽다(2026-11 실사고).
+  //   연장을 고르면 request_renewal 이 요일 변경까지 처리한다(입금 확인 시 슬롯 요일 이동).
+  const otherDaySlots = otherDayActiveSlots(deliveryDays, mySlots);
+  const crossDayPrompt = !multiDay && otherDaySlots.length > 0;
+  const [crossDayChoice, setCrossDayChoice] = useState<number | "new" | null>(null);
+  // 장바구니 요일이 바뀌어 고른 슬롯이 후보에서 빠지면 '안 고름'으로 되돌린다.
+  const crossDayExtendSlot =
+    crossDayPrompt && typeof crossDayChoice === "number"
+      ? (otherDaySlots.find((s) => s.id === crossDayChoice) ?? null)
+      : null;
+  const crossDayUnchosen =
+    crossDayPrompt && crossDayChoice !== "new" && crossDayExtendSlot === null;
+  // 이 체크아웃이 연장하는 슬롯: 같은 요일 활성 구독(자동) 또는 다른 요일 구독(손님 선택).
+  const renewSlot =
+    conflictSlot?.status === "활성" ? conflictSlot : crossDayExtendSlot;
+  const renewalMode = renewSlot !== null;
   // 이 구독에 이미 입금대기 연장이 걸려 있는가. 서버(request_renewal)가 중복을 거절하므로,
   //   제출 순간에 막히기 전에 미리 알려 준다 — 신청(입금 전)·대기 슬롯을 미리 막는 것과 같은 대우다.
   const [pendingRenewalSlots, setPendingRenewalSlots] = useState<ReadonlySet<number>>(
     () => new Set()
   );
   const renewalAlreadyPending =
-    renewalMode && !!conflictSlot && pendingRenewalSlots.has(conflictSlot.id);
+    !!renewSlot && pendingRenewalSlots.has(renewSlot.id);
   // 연장 불가 충돌(신청=입금 전 / 대기): 다요일 안내가 선행되는 경우는 제외.
   const blockedConflict = !multiDay && dayConflict && !renewalMode;
   // 장바구니 항목 중 품절·판매중지가 하나라도 있으면 제출 차단(체크아웃 진입 재검증).
@@ -127,6 +148,8 @@ export default function CheckoutPage() {
   const [useReferralCredit, setUseReferralCredit] = useState(true);
   // 최소주문 미달 시: 죽은 버튼 대신, 클릭하면 금색 안내배너로 스크롤 + 잠깐 강조.
   const minNoticeRef = useRef<HTMLParagraphElement>(null);
+  // 연장/하나 더 선택 카드 — 안 고르고 제출하면 여기로 스크롤해 강조한다.
+  const crossDayRef = useRef<HTMLFieldSetElement>(null);
   const [minFlash, setMinFlash] = useState(false);
 
   // 배송지 우편번호로 배송비를 다시 계산한다. 특수배송지역은 회당 5,000원이며
@@ -136,7 +159,7 @@ export default function CheckoutPage() {
   //   연장에 택배비가 표시되는 어긋남 방지. (조회 실패 시 입력값 기준 폴백 + 안내 문구)
   const isSpecialRegion = isSpecialDeliveryPostcode(ship.postcode);
   const pickup = isPickup(deliveryMethod);
-  const renewalSrc = renewalMode ? conflictSlot?.orders : null;
+  const renewalSrc = renewSlot?.orders ?? null;
   const displayMethod = renewalSrc ? parseDeliveryMethod(renewalSrc.delivery_method) : deliveryMethod;
   const displayPostcode = renewalSrc ? (renewalSrc.ship_postcode ?? "") : ship.postcode;
   const displayPickup = isPickup(displayMethod);
@@ -349,17 +372,23 @@ export default function CheckoutPage() {
       setError(`${PENDING_RENEWAL_TITLE}. ${PENDING_RENEWAL_NOTICE}`);
       return;
     }
-    // ★ 같은 요일 활성 구독 → 이 체크아웃을 연장(재입금)으로 접수한다.
+    if (crossDayUnchosen) {
+      setError(CROSS_DAY_UNCHOSEN);
+      crossDayRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    // ★ 같은 요일 활성 구독(또는 손님이 고른 다른 요일 구독) → 이 체크아웃을 연장(재입금)으로
+    //   접수한다. 요일은 장바구니 요일 — 다른 요일 구독이면 입금 확인 시 그 요일로 옮겨진다.
     //   장바구니 구성·기간이 다음 블록부터 적용되고, 배송지·입금자명은 기존 구독을 승계
     //   (금액·좌석은 서버 request_renewal 이 권위 재계산). 계정 페이지 연장 흐름과 동일하게
     //   PayAction 등록 + 연장 입금 안내 문자 후 완료 페이지로 넘어간다.
-    if (renewalMode && conflictSlot) {
+    if (renewSlot) {
       setBusy(true);
       try {
-        const res = await requestRenewal(conflictSlot.id, {
+        const res = await requestRenewal(renewSlot.id, {
           items: items.map((i) => ({ product_id: i.productId, qty: i.qty })),
           period,
-          deliveryDay: conflictSlot.delivery_day,
+          deliveryDay: deliveryDays[0] ?? renewSlot.delivery_day,
         });
         await registerPayActionDeposit(res.orderNo);
         void notify({ kind: "renewal_guide", orderId: res.orderId });
@@ -373,8 +402,8 @@ export default function CheckoutPage() {
         setError(
           isPendingRenewalError(msg) ? `${PENDING_RENEWAL_TITLE}. ${PENDING_RENEWAL_NOTICE}` : msg
         );
-        if (isPendingRenewalError(msg) && conflictSlot) {
-          setPendingRenewalSlots((prev) => new Set(prev).add(conflictSlot.id));
+        if (isPendingRenewalError(msg)) {
+          setPendingRenewalSlots((prev) => new Set(prev).add(renewSlot.id));
         }
       } finally {
         setBusy(false);
@@ -655,6 +684,73 @@ export default function CheckoutPage() {
 
       {/* 배송지 — 연장(재입금)은 기존 구독의 배송지·입금자명을 승계하므로 입력 칸을 생략한다. */}
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
+        {crossDayPrompt && (
+          <fieldset
+            ref={crossDayRef}
+            className={
+              "rounded-xl border px-4 py-4 " +
+              (crossDayUnchosen && error === CROSS_DAY_UNCHOSEN
+                ? "border-gold-deep ring-2 ring-gold-deep/40"
+                : "border-gold/40")
+            }
+          >
+            <legend className="px-1 t-subhead font-medium text-ink">
+              이미 정기구독을 받고 계세요
+            </legend>
+            <p className="t-footnote leading-relaxed text-ink-soft">
+              지금 받고 계신 구독을 이어 가시는 건가요, 아니면 하나 더 받으시는 건가요?
+            </p>
+            <div className="mt-3 space-y-2">
+              {otherDaySlots.map((s) => (
+                <label
+                  key={s.id}
+                  className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-line bg-cream px-3 py-2.5 t-subhead has-[:checked]:border-gold-deep has-[:checked]:bg-gold/10"
+                >
+                  <input
+                    type="radio"
+                    name="cross-day-choice"
+                    className="mt-1 accent-gold-deep"
+                    checked={crossDayChoice === s.id}
+                    onChange={() => {
+                      setCrossDayChoice(s.id);
+                      setError(null);
+                    }}
+                  />
+                  <span>
+                    <span className="font-medium text-ink">
+                      {DELIVERY_DAY_LABEL[s.delivery_day]} 구독 연장하기
+                    </span>
+                    <span className="block t-caption text-mute">
+                      남은 회차에 이어 붙이고, 배송 요일을{" "}
+                      {DELIVERY_DAY_LABEL[deliveryDays[0]]}로 바꿉니다
+                      {pendingRenewalSlots.has(s.id) && " · 이미 연장 입금 대기 중"}
+                    </span>
+                  </span>
+                </label>
+              ))}
+              <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-line bg-cream px-3 py-2.5 t-subhead has-[:checked]:border-gold-deep has-[:checked]:bg-gold/10">
+                <input
+                  type="radio"
+                  name="cross-day-choice"
+                  className="mt-1 accent-gold-deep"
+                  checked={crossDayChoice === "new"}
+                  onChange={() => {
+                    setCrossDayChoice("new");
+                    setError(null);
+                  }}
+                />
+                <span>
+                  <span className="font-medium text-ink">
+                    {DELIVERY_DAY_LABEL[deliveryDays[0]]} 구독 하나 더 받기
+                  </span>
+                  <span className="block t-caption text-mute">
+                    기존 구독은 그대로 두고 따로 신청합니다 (선물·다른 배송지 포함)
+                  </span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+        )}
         {renewalAlreadyPending ? (
           // 이미 접수된 연장이 있다 — 끝까지 "접수돼요"라고 해 놓고 제출에서 막지 않는다.
           //   마이페이지의 입금 안내를 가리켜, 두 화면이 같은 곳을 말하게 한다.
@@ -667,6 +763,26 @@ export default function CheckoutPage() {
             >
               입금 안내 보러 가기 →
             </Link>
+          </div>
+        ) : crossDayExtendSlot ? (
+          <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 t-subhead leading-relaxed text-gold-deep">
+            <p>
+              이번 신청은 지금 받고 계신{" "}
+              <span className="font-medium text-ink">
+                {DELIVERY_DAY_LABEL[crossDayExtendSlot.delivery_day]}
+              </span>{" "}
+              구독의 <span className="font-medium text-ink">연장(재입금)</span>으로 접수돼요.
+              입금이 확인되면 배송 요일이{" "}
+              <span className="font-medium text-ink">{DELIVERY_DAY_LABEL[deliveryDays[0]]}</span>
+              로 바뀌고, 남은 회차에 이어 {PERIOD_LABEL[period]}({weeks}회)이 끊김 없이 붙습니다.
+            </p>
+            <p className="mt-2 t-footnote text-ink-soft">
+              배송지·연락처·입금자명은 기존 구독 정보를 그대로 사용합니다(변경은{" "}
+              <Link href="/account" className="font-medium text-ink underline underline-offset-2">
+                내 계정
+              </Link>
+              에서). 최종 입금 금액(배송비 포함)은 다음 화면에서 안내드려요.
+            </p>
           </div>
         ) : renewalMode && conflictSlot ? (
           <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">

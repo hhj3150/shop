@@ -3,6 +3,7 @@ import {
   cartDeliveryDays,
   conflictingDeliveryDays,
   slotOnCartDay,
+  otherDayActiveSlots,
   type DeliveryDay,
 } from "./cart";
 
@@ -91,5 +92,34 @@ describe("slotOnCartDay", () => {
     expect(slotOnCartDay(["wed"], [slot(7, "wed", "대기")])).toEqual(
       slot(7, "wed", "대기")
     );
+  });
+});
+
+// 다른 요일 활성 구독이 있으면 "연장(요일 변경) / 하나 더" 선택을 띄운다.
+describe("otherDayActiveSlots", () => {
+  const slot = (id: number, delivery_day: DeliveryDay, status = "활성") => ({ id, delivery_day, status });
+
+  it("수요일 구독자가 목요일을 담으면 수요일 구독을 연장 후보로 준다 (실사고)", () => {
+    expect(otherDayActiveSlots(["thu"], [slot(98, "wed")]).map((s) => s.id)).toEqual([98]);
+  });
+
+  it("같은 요일 슬롯이 있으면 기존 규칙이 우선 — 빈 배열", () => {
+    expect(otherDayActiveSlots(["wed"], [slot(98, "wed"), slot(5, "mon")])).toEqual([]);
+    expect(otherDayActiveSlots(["wed"], [slot(98, "wed", "신청"), slot(5, "mon")])).toEqual([]);
+  });
+
+  it("활성만 후보 — 입금 전(신청)·대기는 연장할 수 없다", () => {
+    expect(otherDayActiveSlots(["thu"], [slot(1, "mon", "신청"), slot(2, "tue", "대기")])).toEqual([]);
+  });
+
+  it("여러 요일이면 월→금 순서", () => {
+    expect(
+      otherDayActiveSlots(["thu"], [slot(3, "fri"), slot(1, "mon")]).map((s) => s.id)
+    ).toEqual([1, 3]);
+  });
+
+  it("다요일 장바구니·구독 없음은 빈 배열", () => {
+    expect(otherDayActiveSlots(["mon", "thu"], [slot(1, "wed")])).toEqual([]);
+    expect(otherDayActiveSlots(["thu"], [])).toEqual([]);
   });
 });
