@@ -1,5 +1,6 @@
 "use client";
 
+import { pickBridgeItem } from "@/lib/once-bridge";
 import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -348,6 +349,9 @@ function OrderOnce() {
       if (finalCredit > 0) params.set("credit", String(finalCredit));
       // 비회원 주문은 '내 주문 보기'(로그인 필요)를 숨기도록 완료 페이지에 표시.
       if (!user) params.set("guest", "1");
+      // 완료 화면의 정기구독 안내를 방금 산 제품으로 보여 주기 위한 표시용 값(선물 주문은 제외).
+      const bridgeItem = isGift ? null : pickBridgeItem(items);
+      if (bridgeItem) params.set("item", bridgeItem);
 
       if (usePortOne) {
         // PortOne 결제창 호출. 모바일은 redirectUrl 로 이동하므로 아래 분기는 PC에서만 도달.
