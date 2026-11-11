@@ -28,10 +28,11 @@ export default function Home() {
       <FarmBand />
       <Provenance />
       <RegenerativeBand />
-      <NewsBand />
-      <NewsRadarBand />
       <SubscriptionBand />
       <FaqSection />
+      {/* 소식은 사는 길 밖으로 — 구독 안내와 질문 답변을 지난 뒤에 읽을거리로 둔다. */}
+      <NewsBand />
+      <NewsRadarBand />
       <VisitStore />
       <Footer />
     </>

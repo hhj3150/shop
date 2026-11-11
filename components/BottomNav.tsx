@@ -173,11 +173,11 @@ export function BottomNav() {
           <li>
             <Link href="/" aria-current={homeActive ? "page" : undefined} className={tabClass(homeActive)}>
               <Image
-                src="/brand/heymilk-logo.png"
+                src="/brand/logo-label.png"
                 alt=""
-                width={800}
-                height={800}
-                className="h-[22px] w-[22px] object-contain"
+                width={942}
+                height={749}
+                className="h-[22px] w-[28px] object-contain"
               />
               쇼핑
             </Link>

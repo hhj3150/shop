@@ -8,7 +8,10 @@ import { DepositAccount } from "@/components/DepositAccount";
 import { CopyAmount } from "@/components/CopyAmount";
 import { ReferralCard } from "@/components/ReferralCard";
 import { DELIVERY_DAY_LABEL, useCart, type DeliveryDay } from "@/lib/cart";
-import { formatKRW } from "@/lib/products";
+import { formatKRW, SUB_PERIODS, discountForPeriod } from "@/lib/products";
+
+// 정기구독 최대 할인율 — 가장 긴 기간 기준. 숫자를 문장에 박아 두면 기간이 늘 때 틀린다.
+const MAX_SUB_DISCOUNT_PCT = Math.round(discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]) * 100);
 import { PENDING_RENEWAL_WHERE } from "@/lib/renewal-prompt";
 import { DEPOSIT } from "@/lib/site";
 
@@ -187,7 +190,7 @@ function Complete() {
           <p className="font-serif-kr text-[18px] font-medium text-ink">다음 주도, 같은 신선함을.</p>
           <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
             정기구독은 회당 최대{" "}
-            <span className="font-semibold text-gold-deep">15% 더 저렴</span>하고, 매주 같은 요일에
+            <span className="font-semibold text-gold-deep">{MAX_SUB_DISCOUNT_PCT}% 더 저렴</span>하고, 매주 같은 요일에
             자동으로 도착합니다. 매번 주문·입금하지 않아도 돼요.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">

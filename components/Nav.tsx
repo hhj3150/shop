@@ -37,12 +37,12 @@ export function Nav() {
           className="tap press flex items-center"
         >
           <Image
-            src="/brand/heymilk-logo.png"
+            src="/brand/logo-label.png"
             alt="송영신목장 A2 저지 헤이밀크"
-            width={800}
-            height={800}
+            width={942}
+            height={749}
             priority
-            sizes="44px"
+            sizes="64px"
             className="h-10 w-auto sm:h-11"
           />
         </Link>

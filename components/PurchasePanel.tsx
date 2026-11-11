@@ -12,6 +12,7 @@ import {
   SUB_PERIODS,
   DEFAULT_SUB_PERIOD,
   minFillQty,
+  discountRangeLabel,
   PERIOD_LABEL,
   PERIOD_BADGE,
   MIN_ORDER_KRW,
@@ -277,7 +278,7 @@ export function PurchasePanel({ product }: { product: Product }) {
             mode === "sub" ? "bg-cream text-ink shadow-sm" : "text-mute hover:text-ink"
           }`}
         >
-          정기구독 <span className="text-gold-deep">−10~15%</span>
+          정기구독 <span className="text-gold-deep">−{discountRangeLabel()}%</span>
         </button>
         <button
           type="button"
@@ -308,7 +309,7 @@ export function PurchasePanel({ product }: { product: Product }) {
       <div className="mt-7">
         <StepLabel n={1} title="구독 기간" hint="선택한 기간만큼 한 번에 입금" />
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-1.5">
+      <div className="mt-3 grid grid-cols-4 gap-1.5">
         {SUB_PERIODS.map((m) => {
           const active = period === m;
           return (

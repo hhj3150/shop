@@ -8,20 +8,11 @@ import { SubscribeFilmCTA } from "./SubscribeFilmCTA";
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-paper">
-      <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 pt-28 pb-16 sm:px-8 sm:pt-32 lg:min-h-[94svh] lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-20">
+      <div className="mx-auto grid max-w-7xl items-center gap-7 px-5 pt-24 pb-16 sm:gap-10 sm:px-8 sm:pt-32 lg:min-h-[94svh] lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-20">
         {/* Copy */}
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-          <Image
-            src="/brand/heymilk-logo.png"
-            alt="송영신목장 A2 저지 헤이밀크 로고"
-            width={800}
-            height={800}
-            priority
-            sizes="112px"
-            className="mb-4 w-[104px] max-w-full sm:w-[112px]"
-          />
-
-          {/* 워드마크 — 로고 아래 브랜드명(국문 + 골드포일 영문). 가볍게·우아하게. */}
+          {/* 워드마크 — 히어로에는 로고를 다시 놓지 않는다(상단 바에 이미 있다). 브랜드명만
+              국문 + 골드포일 영문으로, 가볍게·우아하게. */}
           <p className="mb-7 font-display text-[clamp(1.2rem,5vw,1.7rem)] font-medium leading-snug tracking-[0.01em] text-ink">
             송영신목장{" "}
             <span className="gold-foil">A2 Jersey Hay Milk</span>
@@ -46,14 +37,16 @@ export function Hero() {
           </div>
 
           {/* CTA */}
-          <div className="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:justify-center lg:justify-start">
+          <div className="mt-8 flex w-full flex-col items-center gap-1.5 sm:mt-9 sm:w-auto sm:flex-row sm:justify-center sm:gap-3 lg:justify-start">
             <SubscribeFilmCTA className="w-full rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform duration-300 ease-[var(--ease-soft)] hover:scale-[1.02] active:scale-[0.98] sm:w-auto" />
             <a
               href="https://www.a2jerseymilk.com"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="우리의 철학 보기 (새 창에서 열림)"
-              className="w-full rounded-full border border-ink/12 bg-cream px-9 py-4 text-center text-sm font-medium tracking-wide text-ink-soft transition-[transform,border-color,color] duration-300 ease-[var(--ease-soft)] hover:border-gold hover:text-gold-deep active:scale-[0.98] sm:w-auto"
+              /* 모바일에서는 글자 링크로 낮춘다 — 버튼 두 개가 세로로 쌓이면 첫 화면에서
+                 제품 사진이 밀려 나가고, 사러 온 손님에게 '나가는 문'이 사는 문과 같은 크기로 보인다. */
+              className="flex min-h-11 items-center px-4 text-center text-sm font-medium tracking-wide text-ink-soft underline-offset-4 transition-[transform,border-color,color] duration-300 ease-[var(--ease-soft)] hover:text-gold-deep hover:underline active:scale-[0.98] sm:rounded-full sm:border sm:border-ink/12 sm:bg-cream sm:px-9 sm:py-4 sm:no-underline sm:hover:border-gold sm:hover:no-underline"
             >
               우리의 철학 보기 →
             </a>

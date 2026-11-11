@@ -58,7 +58,7 @@ type Props = {
   onEditShipTo: () => void;
 };
 
-// 기존 periodMonths 가 허용 기간(1/2/3)이면 그대로, 아니면 1(4주)로 기본.
+// 기존 periodMonths 가 허용 기간(SUB_PERIODS)이면 그대로, 아니면 1(4주)로 기본.
 function defaultPeriod(periodMonths: number): SubPeriod {
   return SUB_PERIODS.includes(periodMonths as SubPeriod)
     ? (periodMonths as SubPeriod)
@@ -179,7 +179,7 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel, onEditShipTo 
       {/* 회차수 */}
       <div className="mt-5">
         <p className="text-[13px] font-medium text-ink">회차수</p>
-        <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <div className="mt-2 grid grid-cols-4 gap-1.5">
           {SUB_PERIODS.map((m) => {
             const active = period === m;
             return (

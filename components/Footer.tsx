@@ -9,10 +9,10 @@ export function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <Image
-              src="/brand/heymilk-logo.png"
+              src="/brand/logo-label.png"
               alt="송영신목장 A2 저지 헤이밀크"
-              width={800}
-              height={800}
+              width={942}
+              height={749}
               className="w-[132px]"
             />
             <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-mute">
