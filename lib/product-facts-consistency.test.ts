@@ -8,6 +8,7 @@
 //   [무엇] 숫자·표현을 단일 출처에서 끌어 쓰는지 확인한다. 값 자체를 박아 두지 않고
 //     PRODUCTS/상수와 대조하므로, 가격이나 할인율을 바꿔도 이 테스트는 따라온다.
 import { describe, it, expect } from "vitest";
+import { readFileSync as readSrc } from "node:fs";
 import {
   ONCE_MIN_KRW,
   ONCE_SHIPPING_KRW,
@@ -143,15 +144,55 @@ describe("병 라벨과 데이터가 어긋나지 않는다", () => {
 });
 
 describe("요거트 유산균 수치가 서로 맞는다", () => {
-  it("총 CFU = 1mL당 7.2억 × 용량", () => {
+  // 단위는 세 곳 모두 g 이다(2026-11-11 사장님 확인: 실제 라벨 표시사항이 1 g당).
+  //   예전에는 제품표시·스티커만 mL 여서 한 화면에서 단위가 갈렸다. 다시 갈리지 않게 지킨다.
+  it("유산균 단위는 g — 제품표시·스티커·시그니처 캡션이 같다", () => {
+    for (const p of PUBLIC_PRODUCTS.filter((x) => x.line === "yogurt")) {
+      expect(p.signature?.caption, `${p.id} 캡션`).toContain("1g당 7.2억 CFU");
+      expect(`${p.label.cultures} ${p.sticker?.sub}`, `${p.id}`).not.toMatch(/mL당|CFU\/mL/);
+    }
+  });
+
+  it("총 CFU = 7.2억 × 용량", () => {
     for (const p of PUBLIC_PRODUCTS.filter((x) => x.line === "yogurt")) {
       const mL = Number(p.volume.replace("mL", ""));
       const 총억 = 7.2 * mL; // 억 단위
-      expect(p.label.cultures, `${p.id}`).toContain("1 mL당 7.2억 CFU");
+      expect(p.label.cultures, `${p.id}`).toContain("1 g당 7.2억 CFU");
       expect(p.label.cultures, `${p.id} 총량`).toContain(
         `${총억.toLocaleString("en-US")}억 CFU`
       );
-      expect(p.sticker?.sub, `${p.id} 메모지`).toContain("7.2억 CFU/mL");
+      expect(p.sticker?.sub, `${p.id} 메모지`).toContain("7.2억 CFU/g");
+    }
+  });
+});
+
+describe("희소성 표현 — '0.01%' 대신 범위를 밝힌 '국내 유일'", () => {
+  // 2026-11-11 사장님 결정. 근거 수치(저지 60두 ÷ 젖소 약 40만 두 = 0.015%)와 '0.01%'가 맞지 않았다.
+  const files = [
+    "lib/products.ts",
+    "app/layout.tsx",
+    "lib/assistant/knowledge.ts",
+    "public/llms.txt",
+  ];
+  const strip = (src: string) =>
+    src
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+      .join("\n");
+
+  it("고객에게 보이는 문구에 '0.01%' 가 없다", () => {
+    for (const f of files) {
+      expect(strip(readSrc(new URL(`../${f}`, import.meta.url), "utf8")), f).not.toContain("0.01%");
+    }
+  });
+
+  // '국내 유일의 우유' 처럼 범위 없이 쓰면 근거를 댈 수 없는 말이 된다.
+  it("'국내 유일' 뒤에는 무엇이 유일한지(A2 저지 단일 … 목장)가 따라온다", () => {
+    for (const f of files) {
+      const src = strip(readSrc(new URL(`../${f}`, import.meta.url), "utf8"));
+      for (const m of src.matchAll(/국내 유일[^."`]{0,40}/g)) {
+        expect(m[0].replace(/[\\n*,\s]/g, ""), `${f}: ${m[0]}`).toMatch(/A2저지단일(품종)?목장/);
+      }
     }
   });
 });

@@ -33,6 +33,15 @@ describe("인증 목록의 형식", () => {
   });
 });
 
+describe("'1호' 같은 구별점은 범위를 밝힌다", () => {
+  // '국내 1호'라고만 쓰면 모든 축종·모든 농장 가운데 처음이라는 말이 된다.
+  it("구별점에는 '젖소 목장'이라는 범위가 들어 있다", () => {
+    const withDistinction = CERTIFICATIONS.filter((c) => c.distinction);
+    expect(withDistinction.map((c) => c.id)).toEqual(["animal-welfare", "low-carbon"]);
+    for (const c of withDistinction) expect(c.distinction, c.id).toMatch(/젖소 목장 1호/);
+  });
+});
+
 describe("유효기간 — 지난 인증은 화면에서 빠진다", () => {
   it("끝나는 날 당일까지는 나오고, 다음 날부터 빠진다", () => {
     const ids = (d: string) => activeCertifications(d).map((c) => c.id);
