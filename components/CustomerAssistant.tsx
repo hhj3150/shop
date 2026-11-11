@@ -219,13 +219,13 @@ export function CustomerAssistant() {
       {/* 첫 방문 인사 넛지 — 도우미가 먼저 말 거는 카드(얼굴+이름+예시 질문 칩).
           첫 화면을 지난 뒤 친근하게 등장해 우하단 FAB가 묻히는 문제를 보완한다. */}
       {!open && showNudge && nudgeReady && !addBarOpen && (
-        <div className="fixed bottom-[150px] right-5 z-40 w-[min(280px,calc(100vw-2.5rem))] animate-[rise_0.5s_var(--ease-soft)_both] md:bottom-[88px] md:right-6 no-print">
+        <div role="complementary" aria-label="도우미 안내" className="fixed bottom-[150px] right-5 z-40 w-[min(280px,calc(100vw-2.5rem))] animate-[rise_0.5s_var(--ease-soft)_both] md:bottom-[88px] md:right-6 no-print">
           <div className="relative rounded-2xl border border-gold/30 bg-cream px-3.5 py-3 shadow-xl">
             <button
               type="button"
               onClick={dismissNudge}
               aria-label="안내 닫기"
-              className="absolute right-2 top-2 text-mute hover:text-ink"
+              className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center text-mute hover:text-ink"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
@@ -247,14 +247,14 @@ export function CustomerAssistant() {
                   <button
                     type="button"
                     onClick={() => openChat("어떤 우유가 저에게 맞을까요? 가족 수와 드시는 양으로 추천해 주세요.")}
-                    className="rounded-full border border-gold/40 bg-white px-2.5 py-1 text-[12px] font-medium text-gold-deep transition-colors hover:bg-gold/10"
+                    className="min-h-11 rounded-full border border-gold/40 bg-white px-3.5 text-[13px] font-medium text-gold-deep transition-colors hover:bg-gold/10"
                   >
                     어떤 우유가 맞을까요?
                   </button>
                   <button
                     type="button"
                     onClick={() => openChat()}
-                    className="rounded-full bg-ink px-2.5 py-1 text-[12px] font-medium text-cream transition-colors hover:bg-gold-deep"
+                    className="min-h-11 rounded-full bg-ink px-3.5 text-[13px] font-medium text-cream transition-colors hover:bg-gold-deep"
                   >
                     대화 시작
                   </button>

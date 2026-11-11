@@ -13,6 +13,7 @@ export function Footer() {
               alt="송영신목장 A2 저지 헤이밀크"
               width={900}
               height={1309}
+              sizes="112px"
               className="w-[112px]"
             />
             <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-mute">
@@ -82,7 +83,7 @@ export function Footer() {
           <p className="mt-1">
             대표전화 {BUSINESS.tel} · {BUSINESS.mobile} · 이메일 {BUSINESS.email}
           </p>
-          <p className="mt-4 text-mute/80">
+          <p className="mt-4 text-mute">
             © {new Date().getFullYear()} Song Yeong Shin Farm. All rights reserved.
           </p>
         </div>

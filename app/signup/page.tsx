@@ -242,7 +242,7 @@ export default function SignupPage() {
               type="button"
               onClick={() => setShowPw((v) => !v)}
               aria-label={showPw ? "비밀번호 숨기기" : "비밀번호 표시"}
-              className="px-2 text-[12px] font-medium text-mute transition-colors hover:text-gold-deep"
+              className="flex min-h-11 items-center px-3 text-[12px] font-medium text-mute transition-colors hover:text-gold-deep"
             >
               {showPw ? "숨기기" : "보기"}
             </button>
@@ -295,7 +295,7 @@ export default function SignupPage() {
               setAgree(e.target.checked);
               if (e.target.checked) clearError("agree");
             }}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
+            className="mt-0.5 h-5 w-5 shrink-0 accent-gold-deep"
           />
           <span>
             <Link href="/terms" className="underline hover:text-gold">
@@ -319,7 +319,7 @@ export default function SignupPage() {
             type="checkbox"
             checked={marketingAgree}
             onChange={(e) => setMarketingAgree(e.target.checked)}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-gold-deep"
+            className="mt-0.5 h-5 w-5 shrink-0 accent-gold-deep"
           />
           <span>
             <span className="text-mute">[선택]</span> 할인·이벤트 등{" "}

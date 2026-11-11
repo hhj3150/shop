@@ -95,6 +95,8 @@ export function CartDrawer() {
         aria-modal="true"
         aria-label="장바구니"
         aria-hidden={!isOpen}
+        // 닫혀 있을 때는 inert — aria-hidden 만으로는 Tab 키가 화면 밖 서랍 안 버튼으로 들어간다.
+        inert={!isOpen}
         tabIndex={-1}
         className={`material-thick elev-3 fixed right-0 top-0 z-[70] flex h-full w-full max-w-md flex-col outline-none transition-transform duration-500 ease-[var(--ease-spring)] ${
           isOpen ? "translate-x-0" : "translate-x-full"

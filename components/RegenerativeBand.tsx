@@ -92,7 +92,7 @@ export function RegenerativeBand() {
               href={KTG_HOME}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
             >
               Kiss the Ground 알아보기 ↗
             </a>
@@ -100,7 +100,7 @@ export function RegenerativeBand() {
               href={KTG_PRINCIPLES}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
             >
               재생농업 원칙 가이드 ↗
             </a>

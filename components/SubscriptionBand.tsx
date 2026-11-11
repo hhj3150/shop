@@ -37,6 +37,7 @@ export function SubscriptionBand() {
         aria-hidden
         width={1000}
         height={793}
+        sizes="(max-width:640px) 224px, 320px"
         className="pointer-events-none absolute -bottom-10 -right-8 w-56 opacity-[0.22] sm:-bottom-14 sm:-right-10 sm:w-80"
       />
 

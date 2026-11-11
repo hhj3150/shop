@@ -13,13 +13,16 @@ import { ReferralCapture } from "@/components/ReferralCapture";
 import { JsonLd } from "@/components/JsonLd";
 import { buildOrganization, buildWebSite } from "@/lib/seo/schema";
 
-// 폰트 weight는 실제 사용분만 로드한다(한글 폰트는 weight마다 대용량).
-// 앱 전역 사용: 400(normal)·500(medium)·600(semibold) + <strong>/<b>용 700(sans만).
-// 미사용 300(font-light)·serif/cormorant 700·cormorant 600은 제외 — 불필요한 다운로드 절감.
+// ★ 한글 두 서체는 '가변 글꼴(variable)' 하나로 받는다 — weight 를 나열하지 않는다.
+//   한글 웹폰트는 글자 수가 많아 구글이 약 120조각으로 쪼개 주는데, 굵기를 따로 나열하면
+//   조각 × 굵기만큼 @font-face 가 생긴다. 예전 설정(본문 4굵기·명조 3굵기)은 @font-face 가
+//   870개, 화면을 막는(render-blocking) CSS 가 540KB(전송 173KB)였고, 느린 모바일에서
+//   첫 주요 화면(LCP)이 홈 9.4초까지 밀렸다(Lighthouse 실측).
+//   가변 글꼴은 굵기 전 구간이 한 파일이라 @font-face 가 조각 수만큼만 생긴다.
+//   400·500·600·700 은 그대로 다 쓸 수 있다.
 const notoSans = Noto_Sans_KR({
   variable: "--font-noto-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   display: "swap",
   // 한글 본문 폰트는 latin 서브셋 preload가 무용하고 LCP 이미지와 대역폭을
   // 경쟁한다. preload 해제 → LCP 우선, display:swap이 폴백으로 첫 페인트 보장.
@@ -29,7 +32,6 @@ const notoSans = Noto_Sans_KR({
 const notoSerif = Noto_Serif_KR({
   variable: "--font-noto-serif",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
   display: "swap",
   preload: false,
 });

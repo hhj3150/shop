@@ -1,4 +1,4 @@
-import { BASE_DISCOUNT, SUB_TOTAL_CAP } from "./products";
+import { BASE_DISCOUNT, SUB_TOTAL_CAP, discountRangeLabel } from "./products";
 
 // 신청 결정 지점(가입 폼)에서 다시 보여줄 회원 혜택 카피.
 // 숫자(할인율·정원)는 lib/products.ts SSOT에서만 파생해 표기 드리프트를 막는다.
@@ -12,8 +12,10 @@ export function memberDiscountPercent(rate: number = BASE_DISCOUNT): number {
 export function buildMembershipBenefits(): readonly MembershipBenefit[] {
   return [
     {
-      title: `회원 상시 ${memberDiscountPercent()}% 할인`,
-      desc: "창립 회원께는 첫 병부터 늘 회원가로 모십니다.",
+      // 할인율은 기간에 따라 달라진다(4주 10% ~ 24주 20%). '상시 10%' 한 숫자로 적으면
+      //   긴 기간을 고른 손님에게는 실제보다 적게 약속하는 셈이 된다 — 범위로 적는다.
+      title: `회원 ${discountRangeLabel()}% 할인`,
+      desc: "창립 회원께는 첫 병부터 회원가로 모십니다. 기간이 길수록 할인이 커집니다.",
     },
     {
       title: "갓 짠 우유, 콜드체인 직배송",

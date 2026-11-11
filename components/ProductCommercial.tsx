@@ -45,7 +45,7 @@ export function ProductHeroPrice({ product, maxRate }: { product: Product; maxRa
           </p>
         </div>
         <p className="mt-2 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
-          <span className="inline-flex items-center rounded-full bg-hey-green/12 px-2.5 py-0.5 text-[12.5px] font-semibold text-hey-green lining-nums">
+          <span className="inline-flex items-center rounded-full bg-label-green/10 px-2.5 py-0.5 text-[12.5px] font-semibold text-label-green lining-nums">
             구독 없이 한 번만 · 회원가입 없이 구매 가능
           </span>
           {live.soldOut && <span className="text-[13px] text-mute">· 품절</span>}
@@ -68,7 +68,7 @@ export function ProductHeroPrice({ product, maxRate }: { product: Product; maxRa
       </div>
       {/* 회원 특권 — 브랜드 그린으로 적당히 강조 */}
       <p className="mt-2 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
-        <span className="inline-flex items-center rounded-full bg-hey-green/12 px-2.5 py-0.5 text-[12.5px] font-semibold text-hey-green lining-nums">
+        <span className="inline-flex items-center rounded-full bg-label-green/10 px-2.5 py-0.5 text-[12.5px] font-semibold text-label-green lining-nums">
           창립 500인 회원 특권 · 기간별 −{minRate}~{maxRate}%
         </span>
         {live.soldOut && <span className="text-[13px] text-mute">· 품절</span>}

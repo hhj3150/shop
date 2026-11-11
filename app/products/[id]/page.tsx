@@ -132,7 +132,7 @@ export default async function ProductPage({
       <Track event="view_product" />
       {/* 브레드크럼 */}
       <div className="mx-auto max-w-7xl px-5 pt-24 sm:px-8">
-        <nav className="py-5 text-[13.5px] tracking-wide text-mute">
+        <nav aria-label="현재 위치" className="py-5 text-[13.5px] tracking-wide text-mute">
           <Link href="/" className="hover:text-gold">홈</Link>
           <span className="mx-2">/</span>
           <Link href="/#products" className="hover:text-gold">제품</Link>

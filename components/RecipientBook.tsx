@@ -111,7 +111,7 @@ export function RecipientBook({ userId }: { userId: string }) {
         {!showForm && (
           <button
             onClick={openAdd}
-            className="rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+            className="min-h-11 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
           >
             + 받는 분 추가
           </button>

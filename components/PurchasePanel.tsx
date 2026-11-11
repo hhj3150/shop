@@ -426,7 +426,7 @@ export function PurchasePanel({ product }: { product: Product }) {
           type="button"
           onClick={() => setExtrasOpen((o) => !o)}
           aria-expanded={extrasOpen}
-          className="flex w-full items-center justify-between"
+          className="-my-2.5 flex min-h-11 w-full items-center justify-between"
         >
           <StepLabel n={4} title="함께 담기" hint="같은 요일 배송 · 선택사항" />
           <svg

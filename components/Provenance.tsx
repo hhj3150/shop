@@ -90,7 +90,7 @@ export function Provenance() {
             <p className="mt-4 text-[12.5px] leading-relaxed text-mute">
               모든 인증은 정식 인증번호를 보유하고 있으며, 요청 시 확인해 드립니다.
             </p>
-            <p className="mt-3 text-[11.5px] leading-relaxed text-mute/80">
+            <p className="mt-3 text-[11.5px] leading-relaxed text-mute">
               ※ A2·헤이밀크 관련 설명은 공개된 연구 자료에 근거한 일반 정보이며, 질병의
               예방·치료 효과를 의미하지 않습니다.
             </p>

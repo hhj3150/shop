@@ -539,7 +539,7 @@ export default function AccountPage() {
         </div>
         <button
           onClick={() => signOut().then(() => router.push("/"))}
-          className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+          className="min-h-11 rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
         >
           로그아웃
         </button>
@@ -568,7 +568,7 @@ export default function AccountPage() {
                 <p className="tabular-nums">{formatPhoneKR(profile.phone)}</p>
                 <button
                   onClick={() => setEditingInfo(true)}
-                  className="shrink-0 rounded-full border border-line px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+                  className="flex min-h-11 shrink-0 items-center rounded-full border border-line px-4 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
                 >
                   정보 수정
                 </button>
@@ -835,7 +835,7 @@ export default function AccountPage() {
                             <button
                               onClick={() => dayPick && onChangeDay(s, dayPick)}
                               disabled={!dayPick || dayPick === s.deliveryDay || busy === s.slotId}
-                              className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-40"
+                              className="min-h-11 rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-40"
                             >
                               {busy === s.slotId ? "처리 중…" : "요일 변경"}
                             </button>
@@ -861,7 +861,7 @@ export default function AccountPage() {
                               setDayEdit(s.slotId);
                               setDayPick(null);
                             }}
-                            className="shrink-0 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+                            className="min-h-11 shrink-0 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
                           >
                             요일 변경
                           </button>
@@ -1070,7 +1070,7 @@ export default function AccountPage() {
                       ) : (
                         <button
                           onClick={() => openCancel(s.slotId)}
-                          className="text-[13px] text-mute underline transition-colors hover:text-ink"
+                          className="-my-2 inline-flex min-h-11 items-center text-[13px] text-mute underline transition-colors hover:text-ink"
                         >
                           구독 해지 · 남은 회차 환불
                         </button>

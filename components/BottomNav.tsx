@@ -126,6 +126,7 @@ export function BottomNav() {
         aria-modal="true"
         aria-label="브랜드 채널 더보기"
         aria-hidden={!moreOpen}
+        inert={!moreOpen}
         className={`material-thick elev-3 fixed inset-x-0 bottom-0 z-[70] mx-auto max-w-md rounded-t-2xl border-t border-line/70 p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] outline-none transition-transform duration-300 ease-[var(--ease-spring)] md:hidden ${
           moreOpen ? "translate-y-0" : "translate-y-full"
         }`}
@@ -183,6 +184,7 @@ export function BottomNav() {
                 alt=""
                 width={1000}
                 height={793}
+                sizes="28px"
                 className="h-[22px] w-[28px] object-contain"
               />
               쇼핑

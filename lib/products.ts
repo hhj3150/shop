@@ -314,7 +314,7 @@ export const PRODUCTS: Product[] = [
     price: 3500,
     taxFree: true,
     image: "/products/milk-180-bottle.webp",
-    accent: "#c9a46b", // 라벨 4254C
+    accent: "#816536", // 라벨 4254C 를 글자로 쓸 수 있게 어둡게(카드 위 4.8:1). 원색 #c9a46b 은 2.2:1 이라 읽히지 않는다
   },
   {
     id: "milk-750",
@@ -369,7 +369,7 @@ export const PRODUCTS: Product[] = [
     price: 12000,
     taxFree: true,
     image: "/products/milk-750-bottle.webp",
-    accent: "#96763f", // 라벨 4254C 의 어두운 변주(750mL)
+    accent: "#6b532c", // 라벨 4254C 의 더 어두운 변주(750mL)
   },
   {
     id: "yogurt-180",
@@ -554,7 +554,7 @@ export const PRODUCTS: Product[] = [
       { src: "/products/aftermilk-1l-label.webp", label: "제품 정보" },
       { src: "/products/aftermilk-1l-steps.webp", label: "사용법" },
     ],
-    accent: "#4f9d3d",
+    accent: "#3a7a2c",
   },
 ];
 

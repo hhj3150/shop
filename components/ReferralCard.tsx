@@ -122,7 +122,7 @@ export function ReferralCard() {
           <button
             type="button"
             onClick={onShare}
-            className="rounded-full bg-hey-green px-4 py-1.5 text-[13px] font-semibold text-cream transition-transform hover:scale-[1.03] active:scale-95"
+            className="min-h-11 rounded-full bg-label-green px-4 py-1.5 text-[13px] font-semibold text-cream transition-transform hover:scale-[1.03] active:scale-95"
           >
             추천 링크 공유
           </button>

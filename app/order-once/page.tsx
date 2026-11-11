@@ -436,7 +436,7 @@ function OrderOnce() {
           비회원으로 바로 주문하실 수 있습니다.{" "}
           <Link
             href="/login?next=/order-once"
-            className="font-medium text-gold-deep underline-offset-4 hover:underline"
+            className="font-medium text-gold-deep underline underline-offset-4"
           >
             로그인
           </Link>
@@ -474,7 +474,7 @@ function OrderOnce() {
                   type="button"
                   onClick={() => setQty(p.id, q - 1)}
                   disabled={q === 0}
-                  className="px-3.5 py-2 text-mute transition-colors hover:text-ink disabled:opacity-30"
+                  className="flex h-11 w-11 items-center justify-center text-mute transition-colors hover:text-ink disabled:opacity-30"
                   aria-label={`${p.name} 수량 감소`}
                 >
                   −
@@ -484,7 +484,7 @@ function OrderOnce() {
                   type="button"
                   onClick={() => setQty(p.id, q + 1)}
                   disabled={p.soldOut}
-                  className="px-3.5 py-2 text-mute transition-colors hover:text-ink disabled:opacity-30"
+                  className="flex h-11 w-11 items-center justify-center text-mute transition-colors hover:text-ink disabled:opacity-30"
                   aria-label={`${p.name} 수량 증가`}
                 >
                   +
@@ -686,7 +686,7 @@ function OrderOnce() {
         </p>
         <p className="text-center text-[13px] text-mute">
           매주 받아보고 싶으시면{" "}
-          <Link href="/#subscribe" className="text-gold-deep underline-offset-4 hover:underline">
+          <Link href="/#subscribe" className="text-gold-deep underline underline-offset-4">
             정기구독
           </Link>
           도 있습니다.
