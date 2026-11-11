@@ -12,7 +12,6 @@ import { PurchasePanel } from "@/components/PurchasePanel";
 import { WishlistButton } from "@/components/WishlistButton";
 import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
-import { StickyBuyBar } from "@/components/StickyBuyBar";
 import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights";
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
@@ -21,7 +20,7 @@ import { ProductGallery } from "@/components/ProductGallery";
 import { ProductSignature } from "@/components/ProductSignature";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
-import { SwipeNav } from "@/components/SwipeNav";
+import { SwipeNav, SwipeArrows } from "@/components/SwipeNav";
 import { JsonLd } from "@/components/JsonLd";
 import { ProductSticker } from "@/components/ProductSticker";
 import { buildProduct } from "@/lib/seo/schema";
@@ -174,10 +173,13 @@ export default async function ProductPage({
                   height={1200}
                   priority
                   sizes="(max-width:1024px) 92vw, 46vw"
-                  className="h-full w-full object-contain p-6 sm:p-10"
+                  className="product-cut h-full w-full object-contain p-6 sm:p-10"
                 />
               </div>
             )}
+            {/* 모바일 전용 이전/다음 제품 — 사진 타일 안에 둔다. 화면 가운데에 고정해 두면
+                스크롤하는 내내 따라와 구매 패널의 글자와 금액을 가린다. */}
+            <SwipeArrows prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`} />
           </div>
 
           {/* 오른쪽 구매 컬럼 — 구매 결정에 필요한 것만(제품명·별점·가격·구매). 설명은 아래로. */}
@@ -204,7 +206,7 @@ export default async function ProductPage({
                 <span className="underline underline-offset-2">{rating.count}건 리뷰</span>
               </a>
             )}
-            {/* 가격 블록 — StickyBuyBar(모바일)가 이 블록의 노출 여부로 표시를 판단한다(#hero-cta). */}
+            {/* 가격 블록 — 구매 패널에서 고른 기간을 따라간다. */}
             <div id="hero-cta">
               <ProductHeroPrice product={product} maxRate={maxRate} />
             </div>
@@ -405,7 +407,6 @@ export default async function ProductPage({
       <Footer />
 
       {/* 모바일 전용 하단 구매 바 — 스크롤 시 나타나 언제든 한 탭 구매 */}
-      <StickyBuyBar product={product} maxRate={maxRate} />
     </SwipeNav>
   );
 }

@@ -98,6 +98,11 @@ export function BottomNav() {
   const homeActive = pathname === "/";
   const accountActive = pathname.startsWith("/account");
 
+  // 제품 상세에서는 물러난다 — 거기서는 하단 구매 바가 이 자리를 쓴다.
+  //   탭바 + 구매 바 + 채팅 버튼이 세 겹으로 쌓이면 390×844 화면의 30%가 고정 요소다.
+  //   홈·로그인·장바구니는 상단 바에 그대로 있어 길을 잃지 않는다.
+  if (pathname.startsWith("/products/")) return null;
+
   return (
     <>
       {/* 더보기 시트 — 외부 브랜드 채널 */}

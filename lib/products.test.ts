@@ -11,11 +11,13 @@ import {
   BASE_DISCOUNT,
   MIN_ORDER_KRW,
   ONCE_MIN_KRW,
-  PRODUCTS,
   PUBLIC_PRODUCTS,
   getProduct,
   getPublicProduct,
   type SubPeriod,
+  minFillQty,
+  DEFAULT_SUB_PERIOD,
+  PRODUCTS,
 } from "./products";
 
 describe("회당 최소 결제금액 정책", () => {
@@ -123,5 +125,27 @@ describe("기간별 입금 합계 산식(대표 1품목: 정가 12,000 × 3병)"
   });
   it("12주(15%) → 415,200", () => {
     expect(periodTotal(3)).toBe(415200);
+  });
+});
+
+describe("구매 패널의 출발 수량 — 들어오자마자 살 수 있어야 한다", () => {
+  // 1 로 시작하면 750mL 한 병(12,000원)이 최소금액에 못 미쳐 '바로 구매'가 죽은 채로 열린다.
+  it("구독으로 파는 모든 제품의 출발 수량은 최소 주문금액을 채운다", () => {
+    for (const p of PRODUCTS.filter((x) => !x.onceOnly)) {
+      const q = minFillQty(p.price);
+      expect(p.price * q, `${p.id}: 출발 수량이 최소금액 미달`).toBeGreaterThanOrEqual(MIN_ORDER_KRW);
+      // 꼭 필요한 만큼만 — 한 병 덜어도 채워진다면 과하게 잡은 것이다.
+      if (q > 1) expect(p.price * (q - 1)).toBeLessThan(MIN_ORDER_KRW);
+    }
+  });
+
+  it("이미 같은 요일로 담아 둔 금액은 빼고 센다", () => {
+    expect(minFillQty(12000, 0)).toBe(2);
+    expect(minFillQty(12000, 12000)).toBe(1);
+    expect(minFillQty(12000, 50000)).toBe(1); // 이미 채웠어도 0 병이 되지는 않는다
+  });
+
+  it("상세 상단 가격과 구매 패널은 같은 기간(8주)에서 출발한다", () => {
+    expect(DEFAULT_SUB_PERIOD).toBe(2);
   });
 });

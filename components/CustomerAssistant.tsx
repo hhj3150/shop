@@ -128,6 +128,12 @@ export function CustomerAssistant() {
   // 관리자 화면에선 노출하지 않는다(관리자 전용 AI 비서가 따로 있음).
   if (pathname?.startsWith("/admin")) return null;
 
+  // 제품 상세에는 하단 탭바가 없다(BottomNav 가 물러난다) — 그 높이만큼 띄울 이유가 없으니
+  //   모바일에서도 화면 아래에 붙인다. 그 밖의 화면은 탭바(68px) 위.
+  const mobileBottom = pathname?.startsWith("/products/")
+    ? "bottom-[calc(env(safe-area-inset-bottom)+1.25rem)]"
+    : "bottom-[84px]";
+
   async function send(text: string, opts?: { speak?: boolean }) {
     const q = text.trim();
     if (!q || loading) return;
@@ -270,7 +276,7 @@ export function CustomerAssistant() {
           type="button"
           onClick={() => openChat()}
           aria-label="송영신목장 도우미 — 채팅 열기"
-          className="fixed bottom-[84px] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-cream shadow-xl transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
+          className={`fixed ${mobileBottom} right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-cream shadow-xl transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6`}
         >
           {/* 시선 끌기 — 첫 방문(넛지 활성) 동안만 잔잔한 펄스 링. 클릭 가로채지 않음. */}
           {showNudge && nudgeReady && (
@@ -291,7 +297,7 @@ export function CustomerAssistant() {
 
       {/* 채팅 패널 */}
       {open && (
-        <div className="fixed inset-x-3 bottom-[84px] z-40 mx-auto flex h-[min(560px,72vh)] max-w-[380px] flex-col overflow-hidden rounded-2xl border border-line bg-cream shadow-2xl md:inset-x-auto md:right-6 md:bottom-6 md:mx-0 md:w-[380px]">
+        <div className={`fixed inset-x-3 ${mobileBottom} z-40 mx-auto flex h-[min(560px,72vh)] max-w-[380px] flex-col overflow-hidden rounded-2xl border border-line bg-cream shadow-2xl md:inset-x-auto md:right-6 md:bottom-6 md:mx-0 md:w-[380px]`}>
           <div className="flex items-center justify-between border-b border-line bg-ink px-4 py-3 text-cream">
             <div>
               <p className="text-[14px] font-medium">송영신목장 도우미</p>

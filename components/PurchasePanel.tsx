@@ -10,6 +10,8 @@ import {
   type SubPeriod,
   PRODUCTS,
   SUB_PERIODS,
+  DEFAULT_SUB_PERIOD,
+  minFillQty,
   PERIOD_LABEL,
   PERIOD_BADGE,
   MIN_ORDER_KRW,
@@ -33,8 +35,13 @@ export function PurchasePanel({ product }: { product: Product }) {
   const router = useRouter();
   const { add, setPeriod, close, items } = useCart();
   const [deliveryDay, setDeliveryDay] = useState<DeliveryDay>("mon");
-  const [period, setPeriodLocal] = useState<SubPeriod>(2); // 8주 기본('인기')
-  const [qty, setQty] = useState(1);
+  const [period, setPeriodLocal] = useState<SubPeriod>(DEFAULT_SUB_PERIOD); // 8주 기본('인기')
+  // 회당 수량 — 최소 주문금액(정가 24,000원)을 채우는 수량으로 시작한다(1회 구매와 같은 규칙).
+  //   1 로 시작하면 750mL 한 병(12,000원)이 최소금액에 못 미쳐, 들어오자마자 '바로 구매'가
+  //   회색으로 죽어 있고 경고문부터 읽게 된다. 정책은 그대로 두고 출발점만 맞춘다.
+  const [qty, setQty] = useState(() => minFillQty(product.price));
+  // 손님이 수량을 직접 만진 뒤에는 자동 보정이 덮어쓰지 않는다.
+  const qtyTouchedRef = useRef(false);
   const [extras, setExtras] = useState<Record<string, number>>({});
   const [counts, setCounts] = useState<DayCounts | null>(null);
   // '함께 담기'는 기본 접힘 — 결정 단계를 줄여 핵심 구매 동선을 짧게 유지한다.
@@ -52,8 +59,9 @@ export function PurchasePanel({ product }: { product: Product }) {
   );
   // 사용자가 요일을 직접 고른 뒤에는 자동 추천이 선택을 덮어쓰지 않는다.
   const dayTouchedRef = useRef(false);
-  // 모바일 하단 고정 '담기' 바 — 메인 담기 버튼이 화면 밖으로 나가면 노출한다.
-  const addBtnRef = useRef<HTMLButtonElement>(null);
+  // 모바일 하단 고정 구매 바 — 패널 안으로 들어왔는데 구매 버튼이 화면에 없을 때 노출한다.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const ctaRef = useRef<HTMLDivElement>(null);
   const [showStickyBar, setShowStickyBar] = useState(false);
 
   useEffect(() => {
@@ -85,28 +93,41 @@ export function PurchasePanel({ product }: { product: Product }) {
     setDeliveryDay(best);
   }, [counts, cartDay]);
 
-  // 메인 담기 버튼의 화면 노출 여부를 관찰 — 보이지 않을 때만 하단 바를 띄운다.
-  //   (1회 구매 모드에선 버튼이 언마운트되므로 mode 전환 시 재관찰; 바는 구독 모드 전용)
+  // 하단 구매 바의 노출 판정.
+  //   · 구매 버튼이 화면에 보이면 숨긴다(같은 버튼이 두 벌 보이지 않게).
+  //   · 아직 패널에 닿지 않았으면(제품 사진·이름을 보는 중) 숨긴다 — 첫 화면은 제품만.
+  //   · 패널을 고르는 중이거나 지나쳐 내려갔으면 띄운다 — 합계와 구매를 언제든 한 탭에.
+  //   예전에는 '상단 가격을 지나면 뜨는 바'와 '담기 버튼을 지나면 뜨는 바' 두 벌이 따로
+  //   있어서, 구매 버튼이 화면에 있는데도 바가 떠 있거나 두 바가 같은 자리에 겹쳤다.
   useEffect(() => {
-    const el = addBtnRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(
-      // 버튼을 '지나쳐 위로 스크롤한' 경우(top < 0)에만 띄운다. 아직 도달 전(아래)엔 숨김.
-      ([entry]) =>
-        setShowStickyBar(!entry.isIntersecting && entry.boundingClientRect.top < 0),
-      { rootMargin: "0px 0px -10% 0px" }
-    );
-    io.observe(el);
-    return () => io.disconnect();
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const panel = panelRef.current?.getBoundingClientRect();
+      const cta = ctaRef.current?.getBoundingClientRect();
+      if (!panel || !cta) return setShowStickyBar(false);
+      const vh = window.innerHeight;
+      const ctaVisible = cta.top < vh - 72 && cta.bottom > 72;
+      const reachedPanel = panel.top < vh * 0.4;
+      setShowStickyBar(reachedPanel && !ctaVisible);
+    };
+    const onScroll = () => {
+      if (!raf) raf = window.requestAnimationFrame(measure);
+    };
+    measure();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, [mode]);
 
-  // 하단 담기 바가 떠 있는 동안엔 고객 채팅 FAB가 겹치지 않도록 신호를 보낸다.
-  //   (바는 구독 모드 전용 — 1회 구매 모드로 바꾸면 즉시 복구 신호)
+  // 하단 구매 바가 떠 있는 동안엔 고객 채팅 FAB가 겹치지 않도록 신호를 보낸다.
   useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent("shop:addbar", { detail: showStickyBar && mode === "sub" })
-    );
-  }, [showStickyBar, mode]);
+    window.dispatchEvent(new CustomEvent("shop:addbar", { detail: showStickyBar }));
+  }, [showStickyBar]);
   // 페이지 이탈(언마운트) 시 FAB를 반드시 복구.
   useEffect(
     () => () => {
@@ -114,6 +135,11 @@ export function PurchasePanel({ product }: { product: Product }) {
     },
     []
   );
+
+  // 고른 기간을 상세 상단 가격(ProductHeroPrice)에 알린다 — 위아래 값이 늘 같게.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("shop:subperiod", { detail: period }));
+  }, [period]);
 
   const { map, loading: catalogLoading } = useStorefrontCatalog();
   const liveMain = mergeProduct(product, map.get(product.id));
@@ -155,6 +181,17 @@ export function PurchasePanel({ product }: { product: Product }) {
   const projectedList = cartListSameDay + origPerDelivery;
   const belowMin = projectedList < MIN_ORDER_KRW;
   const minShort = MIN_ORDER_KRW - projectedList;
+
+  // 같은 요일로 이미 담아 둔 것이 있으면 그만큼은 빼고 출발 수량을 잡는다
+  //   (장바구니는 마운트 뒤에 복원되므로 여기서 한 번 더 맞춘다). 직접 만진 뒤엔 건드리지 않는다.
+  const fitQty = minFillQty(liveMain.price, cartListSameDay);
+  useEffect(() => {
+    if (!qtyTouchedRef.current) setQty(fitQty);
+  }, [fitQty]);
+  const changeQty = (next: number) => {
+    qtyTouchedRef.current = true;
+    setQty(Math.max(1, next));
+  };
 
   const shipPerDelivery = subShippingFee(perDelivery);
   const shipTotal = shipPerDelivery * weeks;
@@ -221,7 +258,7 @@ export function PurchasePanel({ product }: { product: Product }) {
 
   return (
     <>
-    <div className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
+    <div ref={panelRef} className="rounded-3xl border border-line bg-cream p-6 sm:p-8">
       <VacationNotice className="mb-5" />
       {/* 구매 방식 탭 — 정기구독(할인) | 1회 구매(정가·비회원 가능).
           1회 구매 전용 제품은 탭 대신 안내 헤더만 노출한다. */}
@@ -271,7 +308,7 @@ export function PurchasePanel({ product }: { product: Product }) {
       <div className="mt-7">
         <StepLabel n={1} title="구독 기간" hint="선택한 기간만큼 한 번에 입금" />
       </div>
-      <div className="mt-3 grid grid-cols-4 gap-1.5">
+      <div className="mt-3 grid grid-cols-3 gap-1.5">
         {SUB_PERIODS.map((m) => {
           const active = period === m;
           return (
@@ -365,7 +402,7 @@ export function PurchasePanel({ product }: { product: Product }) {
         <StepLabel n={3} title="회당 수량" />
         <div className="flex items-center rounded-full border border-line">
           <button
-            onClick={() => setQty((q) => Math.max(1, q - 1))}
+            onClick={() => changeQty(qty - 1)}
             className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-[transform,colors] hover:text-ink active:scale-90"
             aria-label="수량 감소"
           >
@@ -373,7 +410,7 @@ export function PurchasePanel({ product }: { product: Product }) {
           </button>
           <span className="min-w-8 text-center text-sm tabular-nums text-ink">{qty}</span>
           <button
-            onClick={() => setQty((q) => q + 1)}
+            onClick={() => changeQty(qty + 1)}
             className="flex h-11 w-11 items-center justify-center text-lg text-mute transition-[transform,colors] hover:text-ink active:scale-90"
             aria-label="수량 증가"
           >
@@ -518,9 +555,8 @@ export function PurchasePanel({ product }: { product: Product }) {
           </p>
         )}
 
-        <div className="mt-5 grid grid-cols-2 gap-2.5">
+        <div ref={mode === "sub" ? ctaRef : undefined} className="mt-5 grid grid-cols-2 gap-2.5">
           <button
-            ref={addBtnRef}
             onClick={handleAdd}
             disabled={catalogLoading || liveMain.soldOut}
             className="rounded-full border border-ink/30 bg-cream py-4 text-sm font-medium tracking-wide text-ink transition-[transform,colors] hover:border-gold hover:text-gold-deep active:scale-[0.99] disabled:opacity-40"
@@ -610,6 +646,7 @@ export function PurchasePanel({ product }: { product: Product }) {
               </p>
             ))}
 
+          <div ref={mode === "once" ? ctaRef : undefined}>
           <button
             onClick={handleBuyOnce}
             disabled={catalogLoading || liveMain.soldOut}
@@ -617,6 +654,7 @@ export function PurchasePanel({ product }: { product: Product }) {
           >
             {liveMain.soldOut ? "품절" : catalogLoading ? "확인 중…" : "1회 구매 계속하기"}
           </button>
+          </div>
           <p className="mt-4 text-center text-[11.5px] leading-relaxed text-mute">
             다음 화면에서 배송지만 입력하면 완료 · 회원가입 없이도 구매 가능
           </p>
@@ -624,35 +662,67 @@ export function PurchasePanel({ product }: { product: Product }) {
       )}
     </div>
 
-    {/* 모바일 하단 고정 담기 바 — 구독 모드에서 메인 버튼이 화면 밖일 때만. BottomNav(68px) 위. */}
-    {showStickyBar && mode === "sub" && !liveMain.hidden && (
-      <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+68px)] z-30 border-t border-line bg-cream/95 px-5 py-2.5 backdrop-blur-sm md:hidden no-print">
+    {/* 모바일 하단 고정 구매 바 — 제품 상세에서는 전역 하단 탭바 대신 이 바 한 겹만 둔다
+        (BottomNav 가 /products 에서 물러난다). 화면 맨 아래에 붙고 홈바 영역만큼 띄운다. */}
+    {!liveMain.hidden && (
+      <div
+        aria-hidden={!showStickyBar}
+        className={`material-chrome fixed inset-x-0 bottom-0 z-30 border-t border-line/70 px-5 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+0.625rem)] transition-[transform,opacity] duration-300 ease-[var(--ease-soft)] md:hidden no-print ${
+          showStickyBar ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"
+        }`}
+      >
         <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-[11.5px] text-mute">
-              매주 {DELIVERY_DAY_LABEL[deliveryDay]} · {PERIOD_LABEL[period]}분
+              {mode === "sub"
+                ? `매주 ${DELIVERY_DAY_LABEL[deliveryDay]} · ${PERIOD_LABEL[period]}분`
+                : "1회 구매 · 배송비 포함"}
             </p>
             <p className="font-serif-kr text-lg leading-tight text-ink tabular-nums">
-              {formatKRW(perDelivery)}
-              <span className="ml-1 text-[12px] font-sans text-mute">/ 회</span>
+              {formatKRW(mode === "sub" ? perDelivery : onceTotal)}
+              {mode === "sub" && <span className="ml-1 text-[12px] font-sans text-mute">/ 회</span>}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          {mode === "sub" ? (
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={handleAdd}
+                tabIndex={showStickyBar ? 0 : -1}
+                disabled={catalogLoading || liveMain.soldOut}
+                className="min-h-11 rounded-full border border-ink/30 px-4 text-sm font-medium tracking-wide text-ink transition-colors hover:border-gold hover:text-gold-deep active:scale-[0.99] disabled:opacity-40"
+              >
+                담기
+              </button>
+              {belowMin ? (
+                /* 최소금액 미달이면 죽은 버튼 대신, 고칠 수 있는 자리(수량)로 데려간다. */
+                <a
+                  href="#configure"
+                  tabIndex={showStickyBar ? 0 : -1}
+                  className="flex min-h-11 items-center rounded-full bg-ink px-5 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
+                >
+                  수량 채우기
+                </a>
+              ) : (
+                <button
+                  onClick={handleBuyNow}
+                  tabIndex={showStickyBar ? 0 : -1}
+                  disabled={catalogLoading || liveMain.soldOut}
+                  className="min-h-11 rounded-full bg-ink px-5 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-ink"
+                >
+                  {liveMain.soldOut ? "품절" : "바로 구매"}
+                </button>
+              )}
+            </div>
+          ) : (
             <button
-              onClick={handleAdd}
+              onClick={handleBuyOnce}
+              tabIndex={showStickyBar ? 0 : -1}
               disabled={catalogLoading || liveMain.soldOut}
-              className="rounded-full border border-ink/30 px-4 py-3 text-sm font-medium tracking-wide text-ink transition-colors hover:border-gold hover:text-gold-deep active:scale-[0.99] disabled:opacity-40"
+              className="min-h-11 shrink-0 rounded-full bg-ink px-5 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-ink"
             >
-              담기
+              {liveMain.soldOut ? "품절" : "1회 구매 계속하기"}
             </button>
-            <button
-              onClick={handleBuyNow}
-              disabled={catalogLoading || liveMain.soldOut || belowMin}
-              className="rounded-full bg-ink px-5 py-3 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep active:scale-[0.99] disabled:opacity-40 disabled:hover:bg-ink"
-            >
-              {liveMain.soldOut ? "품절" : "바로 구매"}
-            </button>
-          </div>
+          )}
         </div>
       </div>
     )}
@@ -663,11 +733,12 @@ export function PurchasePanel({ product }: { product: Product }) {
 // 애플 구매 페이지식 단계(STEP) 헤더 — 번호 + 제목 + 짧은 보조설명.
 function StepLabel({ n, title, hint }: { n: number; title: string; hint?: string }) {
   return (
-    <div className="flex items-baseline gap-2.5">
+    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
       <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gold/15 text-[11px] font-semibold tabular-nums text-gold-deep">
         {n}
       </span>
-      <span className="text-[15px] font-medium text-ink">{title}</span>
+      {/* 좁은 화면에서 제목이 두 줄로 쪼개지지 않게 — 넘치면 보조설명이 다음 줄로 내려간다. */}
+      <span className="whitespace-nowrap text-[15px] font-medium text-ink">{title}</span>
       {hint && <span className="text-[12px] text-mute">{hint}</span>}
     </div>
   );

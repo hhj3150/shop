@@ -209,6 +209,22 @@ export const PERIOD_BADGE: Partial<Record<SubPeriod, string>> = {
   2: "인기",
   3: "최대 할인",
 };
+// 최소 주문금액(정가 기준)을 채우는 가장 적은 수량. 이미 담아 둔 금액(already)은 빼고 센다.
+//   구매 패널의 출발 수량이다 — 1 로 시작하면 한 병이 최소금액에 못 미치는 제품은
+//   들어오자마자 구매 버튼이 죽어 있다. 정책(MIN_ORDER_KRW)은 건드리지 않는다.
+export function minFillQty(
+  unitListPrice: number,
+  already: number = 0,
+  min: number = MIN_ORDER_KRW
+): number {
+  if (unitListPrice <= 0) return 1;
+  return Math.max(1, Math.ceil((min - already) / unitListPrice));
+}
+
+// 구매 패널이 처음 열릴 때 잡혀 있는 기간(8주 · '인기').
+//   상세 상단 가격과 구매 패널이 같은 기간을 기준으로 삼아야 한 화면에서 같은 제품의
+//   값이 둘로 보이지 않는다 — 두 곳 모두 이 상수 하나를 본다.
+export const DEFAULT_SUB_PERIOD: SubPeriod = 2;
 export function discountForPeriod(months: SubPeriod): number {
   return PERIOD_DISCOUNT[months];
 }
