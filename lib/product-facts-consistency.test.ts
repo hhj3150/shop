@@ -197,3 +197,28 @@ describe("희소성 표현 — '0.01%' 대신 범위를 밝힌 '국내 유일'",
     }
   });
 });
+
+describe("건강 효능으로 읽힐 수 있는 표현 — 화면에 두지 않는다", () => {
+  // 2026-11-11: /story 의 'BCM-7을 만들지 않습니다'(단정)와 장–뇌 축 상자(소화·면역·기분)를 뺐다.
+  // 식품 판매 화면에서 소화·면역·기분 효과로 읽힐 수 있는 문구는 표시광고 검토 없이 되살리지 않는다.
+  const files = [
+    "components/Provenance.tsx",
+    "components/RegenerativeBand.tsx",
+    "components/WhyBand.tsx",
+    "lib/products.ts",
+    "lib/seo/faq.ts",
+    "public/llms.txt",
+  ];
+  const strip = (src: string) =>
+    src
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\{\/\*)/.test(l))
+      .join("\n");
+
+  it("BCM-7 · 장–뇌 축 · 면역 문구가 없다", () => {
+    for (const f of files) {
+      const src = strip(readSrc(new URL(`../${f}`, import.meta.url), "utf8"));
+      expect(src, f).not.toMatch(/BCM|장[-–]뇌|Gut.Brain|면역/);
+    }
+  });
+});
