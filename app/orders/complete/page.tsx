@@ -14,6 +14,7 @@ import { formatKRW, SUB_PERIODS, discountForPeriod } from "@/lib/products";
 const MAX_SUB_DISCOUNT_PCT = Math.round(discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]) * 100);
 import { PENDING_RENEWAL_WHERE } from "@/lib/renewal-prompt";
 import { DEPOSIT } from "@/lib/site";
+import { onceBridge } from "@/lib/once-bridge";
 
 export default function OrderCompletePage() {
   return (
@@ -38,6 +39,8 @@ function Complete() {
   const isPortOne = sp.get("pay") === "portone";
   // 비회원 주문: '내 주문 보기'(로그인 필요) 대신 주문번호 보관 안내를 노출한다.
   const isGuest = sp.get("guest") === "1";
+  // 1회 구매에서 방금 산 대표 제품(표시용) — 공개 제품이 아니면 null → 일반 문구.
+  const bridge = onceBridge(sp.get("item"));
   // 구독 연장(재입금): 체크아웃에서 같은 요일 활성 구독이 감지돼 연장으로 접수된 경우.
   //   새 슬롯·선착순 순번이 없고, 입금 확인 시 다음 회차 블록부터 이어진다.
   const isRenew = sp.get("renew") === "1";
@@ -188,17 +191,26 @@ function Complete() {
         {/* 단품 → 구독 브리지 — 이미 한 번 산 분을 가장 싸게 전환. AI 상담으로 핸드오프. */}
         <div className="mt-9 rounded-2xl border border-gold/40 bg-gold/5 p-6 text-left">
           <p className="font-serif-kr text-[18px] font-medium text-ink">다음 주도, 같은 신선함을.</p>
-          <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
-            정기구독은 회당 최대{" "}
-            <span className="font-semibold text-gold-deep">{MAX_SUB_DISCOUNT_PCT}% 더 저렴</span>하고, 매주 같은 요일에
-            자동으로 도착합니다. 매번 주문·입금하지 않아도 돼요.
-          </p>
+          {bridge ? (
+            <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
+              방금 주문하신 <span className="font-medium text-ink">{bridge.name}</span>, 정기구독이면 병당{" "}
+              <span className="font-semibold tabular-nums text-gold-deep">{formatKRW(bridge.fromPrice)}</span>부터입니다
+              (정가 <span className="tabular-nums">{formatKRW(bridge.listPrice)}</span>). 매주 같은 요일에 도착하고,
+              매번 주문·입금하지 않아도 돼요.
+            </p>
+          ) : (
+            <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
+              정기구독은 회당 최대{" "}
+              <span className="font-semibold text-gold-deep">{MAX_SUB_DISCOUNT_PCT}% 더 저렴</span>하고, 매주 같은 요일에
+              자동으로 도착합니다. 매번 주문·입금하지 않아도 돼요.
+            </p>
+          )}
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
-              href="/#subscribe"
+              href={bridge ? bridge.href : "/#subscribe"}
               className="rounded-full bg-ink px-5 py-2.5 text-[14px] font-medium text-cream transition-[transform,colors] hover:bg-gold-deep active:scale-[0.98]"
             >
-              정기구독 보기
+              {bridge ? "이 제품 정기구독 보기" : "정기구독 보기"}
             </Link>
             <button
               type="button"
