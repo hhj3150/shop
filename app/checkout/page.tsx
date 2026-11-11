@@ -39,6 +39,7 @@ import { idempotencyKeyFor } from "@/lib/idempotency";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
+import { FlowSteps } from "@/components/FlowSteps";
 import { StickySubmitBar, useFieldError, useRevealOnError } from "@/components/CheckoutAssist";
 import { AddressSearch } from "@/components/AddressSearch";
 import { Track } from "@/components/Track";
@@ -533,6 +534,7 @@ export default function CheckoutPage() {
   return (
     <div className="mx-auto max-w-2xl px-5 pb-24 pt-28 sm:px-8">
       <Track event="begin_checkout" once />
+      {!renewalMode && <FlowSteps current={3} className="mb-7" />}
       <p className="eyebrow text-gold-deep">Checkout</p>
       <h1 className="mt-3 font-serif-kr text-[clamp(1.7rem,5vw,2.3rem)] font-medium text-ink">
         {PERIOD_LABEL[period]} 정기구독 {renewalMode ? "연장" : "신청"}

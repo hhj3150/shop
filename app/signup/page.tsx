@@ -10,6 +10,7 @@ import { KakaoLoginButton } from "@/components/KakaoLoginButton";
 import { AddressSearch } from "@/components/AddressSearch";
 import { MembershipAssurance } from "@/components/MembershipAssurance";
 import { SocialProof } from "@/components/SocialProof";
+import { FlowSteps } from "@/components/FlowSteps";
 import { formatPhoneKR } from "@/lib/signup-format";
 import { validateSignup } from "@/lib/signup-validation";
 import { WELCOME_PENDING_KEY } from "@/lib/post-signup";
@@ -156,6 +157,7 @@ export default function SignupPage() {
 
   return (
     <div className="mx-auto max-w-md px-5 pb-24 pt-28 sm:px-8">
+      <FlowSteps current={1} className="mb-7" />
       <p className="eyebrow text-gold-deep">Membership</p>
       <h1 className="mt-3 font-serif-kr text-[clamp(1.7rem,5vw,2.3rem)] font-medium text-ink">
         귀한 분으로 모십니다.
@@ -165,6 +167,14 @@ export default function SignupPage() {
         닿습니다. 정기구독은 선착순 500명 한정 — 한 분 한 분을 기억하고, 입금이
         확인되면 문자로 발송을 안내드립니다.
       </p>
+
+      {/* 카카오 — 3초 가입(이름·연락처는 결제 시 한 번만). 한국 사용자 주력 동선.
+          혜택 카드보다 위에 둔다 — 아래에 있으면 모바일 첫 화면에서 가입 버튼이 보이지 않는다. */}
+      {configured && (
+        <div className="mt-6">
+          <KakaoLoginButton />
+        </div>
+      )}
 
       <MembershipAssurance />
       <SocialProof />
@@ -176,18 +186,12 @@ export default function SignupPage() {
         </p>
       )}
 
-      {/* 카카오 — 3초 가입(이름·연락처는 결제 시 한 번만). 한국 사용자 주력 동선. */}
       {configured && (
-        <>
-          <div className="mt-7">
-            <KakaoLoginButton />
-          </div>
-          <div className="mt-7 flex items-center gap-3 text-[12px] text-mute">
-            <span className="h-px flex-1 bg-line" />
-            또는 이메일로 가입
-            <span className="h-px flex-1 bg-line" />
-          </div>
-        </>
+        <div className="mt-7 flex items-center gap-3 text-[12px] text-mute">
+          <span className="h-px flex-1 bg-line" />
+          또는 이메일로 가입
+          <span className="h-px flex-1 bg-line" />
+        </div>
       )}
 
       <form onSubmit={onSubmit} className="mt-6 space-y-5">
