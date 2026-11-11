@@ -3,7 +3,15 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { PRODUCTS, PERIOD_LABEL, formatKRW, subscribePrice, type ProductLine } from "@/lib/products";
+import {
+  PRODUCTS,
+  SUB_PERIODS,
+  discountForPeriod,
+  discountRangeLabel,
+  formatKRW,
+  subscribePrice,
+  type ProductLine,
+} from "@/lib/products";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts } from "@/lib/storefront-merge";
 import { Reveal } from "./Reveal";
@@ -32,6 +40,9 @@ const PRODUCTS_CONFETTI: ConfettiItem[] = [
 // 노출 제품 수 → 한글 수사. 판매중지(숨김)로 개수가 바뀌어도 제목이 어긋나지 않게.
 const COUNT_KR = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열"];
 
+// 정기구독 최저가(가장 긴 기간)의 할인율 — 카드의 '정기구독 ○○원~' 표기에 쓴다.
+const maxRate = discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]);
+
 export function ProductShowcase() {
   const [filter, setFilter] = useState<Filter>("all");
   const { map } = useStorefrontCatalog();
@@ -45,23 +56,24 @@ export function ProductShowcase() {
   return (
     <section id="products" className="relative scroll-mt-20 overflow-hidden">
       <Scatter items={PRODUCTS_CONFETTI} />
-      <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
+      <div className="mx-auto max-w-7xl px-5 pt-8 pb-16 sm:px-8 sm:pt-10 sm:pb-24">
       {/* Store greeting — 우아한 serif·절제된 크기로(상품 히어로와 통일, 덜 투박) */}
       <Reveal>
-        <p className="eyebrow text-gold-deep">Collection</p>
-        <h2 className="mt-3 font-serif-kr text-[clamp(1.9rem,4.5vw,3rem)] font-medium leading-[1.2] tracking-[-0.015em] text-ink">
+        {/* 모바일에서는 제목을 한 줄로 줄인다 — 첫 화면에 상품 카드가 걸려야 한다. */}
+        <p className="eyebrow hidden text-gold-deep sm:block">Collection</p>
+        <h2 className="text-center font-serif-kr text-[clamp(1.2rem,3.2vw,2.2rem)] font-medium leading-[1.25] tracking-[-0.015em] text-ink sm:mt-3 sm:text-left">
           단 {COUNT_KR[live.length] ?? live.length} 가지.
-          <br />
+          <br className="hidden sm:block" />{" "}
           <span className="text-mute">곁에 둘 가치가 있는 것만.</span>
         </h2>
-        <p className="mt-4 text-[15px] leading-relaxed text-ink-soft sm:text-[15.5px]">
+        <p className="mt-4 hidden text-[15px] leading-relaxed text-ink-soft sm:block sm:text-[15.5px]">
           아침에 짜서, 다음 날 도착.{" "}
           <span className="text-gold-deep">우유는 신선함이 생명입니다.</span>
         </p>
       </Reveal>
 
       {/* Category chips */}
-      <div className="mt-10 flex justify-center">
+      <div className="mt-5 flex justify-center sm:mt-7">
         <div className="inline-flex gap-1.5 rounded-full border border-line bg-cream/70 p-1.5 backdrop-blur-sm">
           {filters.map((f) => (
             <button
@@ -80,7 +92,7 @@ export function ProductShowcase() {
       </div>
 
       {/* 모바일도 2열 — 한 화면에 한 병씩이면 네 가지를 견주려고 네 화면을 넘겨야 한다. */}
-      <div className="mt-10 grid grid-cols-2 gap-3 sm:mt-12 sm:gap-6">
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:mt-8 sm:gap-6">
         {shown.map((p, i) => (
           <Reveal key={p.id} delay={(i % 2) * 80}>
             <article className="group flex h-full flex-col items-center rounded-[22px] bg-cream/60 px-3 pt-6 pb-5 text-center transition-all duration-500 hover:-translate-y-1.5 hover:bg-cream hover:shadow-[0_44px_90px_-34px_rgba(40,30,15,0.32)] sm:rounded-[32px] sm:px-8 sm:pt-12 sm:pb-9">
@@ -139,11 +151,15 @@ export function ProductShowcase() {
               ) : (
                 <>
                   <p className="mt-4 text-[clamp(1.1rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums sm:mt-7">
-                    {formatKRW(subscribePrice(p.price))}
-                    <span className="t-caption ml-1 align-baseline font-normal text-mute sm:ml-1.5">{PERIOD_LABEL[1]} 회원가</span>
+                    {/* 정가가 대표 가격이다 — 누구나 이 값에 한 번 살 수 있다. 예전에는 회원가(4주)를
+                        크게 적어, 1회 구매 손님이 상세에 들어가서야 실제 값을 알았다. */}
+                    {formatKRW(p.price)}
                   </p>
-                  <p className="t-caption mt-1.5 leading-snug text-mute tabular-nums lining-nums">
-                    정가 {formatKRW(p.price)} · {p.taxFree ? "면세품" : "부가세 포함"}
+                  <p className="t-caption mt-2 font-medium leading-snug text-gold-deep tabular-nums lining-nums">
+                    정기구독 {formatKRW(subscribePrice(p.price, maxRate))}~
+                  </p>
+                  <p className="t-caption mt-0.5 leading-snug text-mute tabular-nums lining-nums">
+                    {discountRangeLabel()}% 할인 · {p.taxFree ? "면세품" : "부가세 포함"}
                   </p>
                 </>
               )}
@@ -161,7 +177,7 @@ export function ProductShowcase() {
                     href={`/products/${p.id}`}
                     className="flex min-h-11 w-full items-center justify-center rounded-full bg-ink px-3 text-center t-footnote font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98] sm:px-6"
                   >
-                    {p.onceOnly ? "구매하기" : "구독 신청"}
+                    구매하기
                   </Link>
                 )}
               </div>

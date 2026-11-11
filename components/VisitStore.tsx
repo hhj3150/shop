@@ -20,7 +20,7 @@ export function VisitStore() {
             직접 찾아오시는 분께.
           </h2>
           <p className="mt-5 max-w-xl text-[14px] leading-loose text-ink-soft">
-            온라인은 회원께만 엽니다. 그래도 목장의 우유가 궁금하시다면, 직접 두 곳에서
+            온라인 정기구독은 회원께만 엽니다. 목장의 우유가 궁금하시다면, 직접 두 곳에서도
             만나보실 수 있습니다.
           </p>
         </Reveal>

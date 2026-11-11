@@ -15,16 +15,21 @@ export function FaqSection() {
           A2·저지·헤이밀크가 처음이시라면, 아래에서 차근히 살펴보세요.
         </p>
 
-        <dl className="mt-10 divide-y divide-line/70">
+        <div className="mt-8 divide-y divide-line/70 border-y border-line/70">
           {FAQ_ITEMS.map((it) => (
-            <div key={it.question} className="py-5">
-              <dt className="font-serif-kr text-[16px] font-medium leading-snug text-ink">
+            // 접어 둔다 — 열두 문답이 다 펼쳐져 있으면 모바일에서 화면 다섯 장이다.
+            //   <details> 라 답은 HTML 에 그대로 있어 검색·구조화데이터와 내용이 일치한다.
+            <details key={it.question} className="group py-1">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-3 font-serif-kr text-[16px] font-medium leading-snug text-ink [&::-webkit-details-marker]:hidden">
                 {it.question}
-              </dt>
-              <dd className="mt-2 text-[14px] leading-relaxed text-ink-soft">{it.answer}</dd>
-            </div>
+                <svg aria-hidden className="h-4 w-4 shrink-0 text-mute transition-transform duration-300 group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <p className="pb-4 text-[14px] leading-relaxed text-ink-soft">{it.answer}</p>
+            </details>
           ))}
-        </dl>
+        </div>
       </div>
     </section>
   );

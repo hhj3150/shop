@@ -58,6 +58,12 @@ export function PurchasePanel({ product }: { product: Product }) {
   const [onceQty, setOnceQty] = useState(() =>
     product.onceOnly ? 1 : Math.max(1, Math.ceil(ONCE_MIN_KRW / product.price))
   );
+  // 주소에 ?mode=once 가 붙어 오면 1회 구매 탭으로 연다(홈·안내에서 '1회 구매'로 들어온 손님).
+  //   정적으로 만들어 둔 화면이라 서버에서는 주소를 모른다 — 마운트 뒤에 한 번 맞춘다.
+  useEffect(() => {
+    if (product.onceOnly) return;
+    if (new URLSearchParams(window.location.search).get("mode") === "once") setMode("once");
+  }, [product.onceOnly]);
   // 사용자가 요일을 직접 고른 뒤에는 자동 추천이 선택을 덮어쓰지 않는다.
   const dayTouchedRef = useRef(false);
   // 모바일 하단 고정 구매 바 — 패널 안으로 들어왔는데 구매 버튼이 화면에 없을 때 노출한다.
@@ -522,6 +528,19 @@ export function PurchasePanel({ product }: { product: Product }) {
 
         <p className="mt-2 text-[12px] text-mute">
           {product.taxFree ? "면세품 · 부가세 없음" : "과세품 · 부가세 포함 가격"}
+        </p>
+
+        {/* 고른 것을 한 문장으로 되읽어 준다 — 몇 병을, 언제, 몇 번, 지금 얼마.
+            숫자 표만 있으면 손님이 조건을 머릿속에서 다시 조립해야 한다. */}
+        <p className="t-footnote mt-4 leading-relaxed text-ink-soft" aria-live="polite">
+          매주 <span className="font-medium text-ink">{DELIVERY_DAY_LABEL[deliveryDay]}</span>에{" "}
+          <span className="font-medium text-ink">
+            {liveMain.name} {liveMain.volume} {qty}개
+            {extrasCount > 0 && ` + ${extrasCount}개`}
+          </span>
+          씩, <span className="font-medium text-ink">{weeks}번</span> 보내 드립니다. 지금 한 번에{" "}
+          <span className="font-medium text-ink tabular-nums">{formatKRW(periodTotal)}</span>(배송비 포함)을
+          입금하시면 됩니다.
         </p>
 
         <div className="mt-3 rounded-2xl bg-paper-2 px-4 py-3">

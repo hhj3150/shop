@@ -1,70 +1,68 @@
 import Image from "next/image";
+import Link from "next/link";
 import { MembershipCounter } from "./MembershipCounter";
 import { SubscribeFilmCTA } from "./SubscribeFilmCTA";
 
-// 바탕은 종이색이다. 예전엔 히어로만 흰 밴드였는데, 내비게이션은 종이 위에 떠 있고
-//   히어로만 희면 브랜드 색이 첫 화면에서 한 번 끊긴다. 제품컷의 흰 배경은
-//   .media-plate(곱셈 합성)로 녹여 병만 종이 위에 남긴다.
+// 쇼핑몰의 첫 화면은 '사러 온 사람'의 화면이다.
+//   예전 히어로는 화면 한 장을 통째로 썼고(슬로건·생산량·회원 수·버튼·제품 정렬컷),
+//   실제로 살 수 있는 상품 카드는 그 아래 '이름 풀이' 밴드까지 지나야 나왔다.
+//   2026-10-28~11-10 퍼널: 방문 756 세션 중 상품을 본 세션 313(41%).
+//
+//   · 모바일: 인사는 짧게 끝내고 바로 아래 상품 목록이 첫 화면에 걸리게 한다.
+//     제품 정렬컷은 싣지 않는다 — 바로 밑 카드가 같은 병을 '살 수 있는 모양'으로 보여 준다.
+//   · 데스크톱: 정렬컷을 옆에 두되 높이를 화면 한 장으로 잡지 않는다.
+//   바탕은 종이색, 제품컷의 흰 배경은 .media-plate(곱셈 합성)로 녹인다.
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-paper">
-      <div className="mx-auto grid max-w-7xl items-center gap-7 px-5 pt-24 pb-16 sm:gap-10 sm:px-8 sm:pt-32 lg:min-h-[94svh] lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-20">
-        {/* Copy */}
+      <div className="mx-auto grid max-w-7xl items-center gap-7 px-5 pt-24 pb-2 sm:px-8 sm:pt-28 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-2 lg:pt-28">
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-          {/* 워드마크 — 히어로에는 로고를 다시 놓지 않는다(상단 바에 이미 있다). 브랜드명만
-              국문 + 골드포일 영문으로, 가볍게·우아하게. */}
-          <p className="mb-7 font-display text-[clamp(1.2rem,5vw,1.7rem)] font-medium leading-snug tracking-[0.01em] text-ink">
+          {/* 워드마크 — 로고는 상단 바에 이미 있다. 브랜드명만 국문 + 골드포일 영문으로. */}
+          <p className="mb-3 font-display text-[clamp(1.05rem,4.4vw,1.5rem)] font-medium leading-snug tracking-[0.01em] text-ink lg:mb-6">
             송영신목장{" "}
             <span className="gold-foil">A2 Jersey Hay Milk</span>
           </p>
 
-          {/* 센터 슬로건 — 페이지 위계의 중심. 가볍고 우아한 serif(애플식, 덜 투박). */}
-          <h1 className="max-w-2xl text-balance font-serif-kr text-[clamp(1.8rem,4.5vw,3.05rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
+          <h1 className="max-w-2xl text-balance font-serif-kr text-[clamp(1.45rem,3.4vw,2.5rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
             소중한 분들에게 최상의 우유를.
             <br />
             그리고 지속가능한 지구를.
           </h1>
 
-          {/* 서브 한 줄 */}
-          <p className="mt-6 max-w-md text-[14.5px] leading-relaxed text-mute sm:text-[15px]">
+          {/* 데스크톱 전용 — 모바일에서는 이 두 줄만큼 상품 목록이 올라온다. */}
+          <p className="mt-5 hidden max-w-md text-[15px] leading-relaxed text-mute lg:block">
             하루 500리터만 생산합니다.
             <br />더 만들 수 있지만, 그러지 않습니다.
           </p>
 
-          {/* 라이브 카운터 */}
-          <div className="mt-8">
+          <div className="mt-4 lg:mt-7">
             <MembershipCounter />
           </div>
 
-          {/* CTA */}
-          <div className="mt-8 flex w-full flex-col items-center gap-1.5 sm:mt-9 sm:w-auto sm:flex-row sm:justify-center sm:gap-3 lg:justify-start">
-            <SubscribeFilmCTA className="w-full rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform duration-300 ease-[var(--ease-soft)] hover:scale-[1.02] active:scale-[0.98] sm:w-auto" />
-            <a
-              href="https://www.a2jerseymilk.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="우리의 철학 보기 (새 창에서 열림)"
-              /* 모바일에서는 글자 링크로 낮춘다 — 버튼 두 개가 세로로 쌓이면 첫 화면에서
-                 제품 사진이 밀려 나가고, 사러 온 손님에게 '나가는 문'이 사는 문과 같은 크기로 보인다. */
-              className="flex min-h-11 items-center px-4 text-center text-sm font-medium tracking-wide text-ink-soft underline-offset-4 transition-[transform,border-color,color] duration-300 ease-[var(--ease-soft)] hover:text-gold-deep hover:underline active:scale-[0.98] sm:rounded-full sm:border sm:border-ink/12 sm:bg-cream sm:px-9 sm:py-4 sm:no-underline sm:hover:border-gold sm:hover:no-underline"
+          {/* 데스크톱: 사는 문이 먼저(제품 보기), 구독 안내는 그다음.
+              모바일: 버튼을 두지 않는다 — 상품 카드가 바로 아래에 있다. */}
+          <div className="mt-6 hidden items-center gap-3 lg:flex">
+            <Link
+              href="/#products"
+              className="rounded-full bg-ink px-9 py-4 text-center text-sm font-medium tracking-wide text-cream transition-transform duration-300 ease-[var(--ease-soft)] hover:scale-[1.02] active:scale-[0.98]"
             >
-              우리의 철학 보기 →
-            </a>
+              제품 보기
+            </Link>
+            <SubscribeFilmCTA className="rounded-full border border-ink/15 bg-cream px-9 py-4 text-center text-sm font-medium tracking-wide text-ink-soft transition-[transform,border-color,color] duration-300 ease-[var(--ease-soft)] hover:border-gold hover:text-gold-deep active:scale-[0.98]" />
           </div>
         </div>
 
-        {/* Product visual — 흰배경 정렬샷(1487×1058).
-            ※ width/height 는 실제 파일 크기와 맞춘다. 어긋나면 로딩 중 예약 공간이
-              틀려 첫 페인트 뒤 레이아웃이 밀린다(CLS). */}
-        <div className="flex justify-center">
+        {/* 제품 정렬컷(1487×1058) — 데스크톱 전용.
+            ※ width/height 는 실제 파일 크기와 맞춘다(어긋나면 CLS). 모바일에서는 그리지 않으므로
+              priority 를 걸지 않는다 — 걸면 보이지도 않는 그림을 모바일이 먼저 내려받는다. */}
+        <div className="hidden justify-center lg:flex">
           <Image
             src="/brand/hero-row-white.webp"
             alt="송영신목장 A2 저지 헤이밀크 180mL·750mL 와 A2 저지 플레인요거트 180mL·500mL 제품 라인업"
             width={1487}
             height={1058}
-            priority
-            sizes="(max-width:1024px) 86vw, 50vw"
-            className="media-plate h-auto w-[86%] max-w-[520px] object-contain lg:w-full lg:max-w-[600px]"
+            sizes="(max-width:1024px) 1px, 45vw"
+            className="media-plate h-auto w-full max-w-[420px] object-contain"
           />
         </div>
       </div>

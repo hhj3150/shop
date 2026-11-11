@@ -163,9 +163,18 @@ export default function SignupPage() {
         귀한 분으로 모십니다.
       </h1>
       <p className="mt-3 text-[14px] leading-relaxed text-mute">
-        송영신목장의 우유는 <span className="text-ink-soft">회원으로 모신 분께만</span>{" "}
-        닿습니다. 정기구독은 선착순 500명 한정 — 한 분 한 분을 기억하고, 입금이
+        매주 받는 정기구독은 <span className="text-ink-soft">회원으로 모신 분께만</span>{" "}
+        닿습니다. 선착순 500명 한정 — 한 분 한 분을 기억하고, 입금이
         확인되면 문자로 발송을 안내드립니다.
+      </p>
+      {/* 가입하지 않아도 살 수 있다는 사실을 가입 화면에서 숨기지 않는다.
+          예전 문장("우유는 회원으로 모신 분께만 닿습니다")은 실제(비회원 1회 구매 가능)와 달랐다. */}
+      <p className="t-footnote mt-2 text-mute">
+        먼저 한 번만 드셔 보시려면{" "}
+        <Link href="/order-once" className="text-gold-deep underline underline-offset-4">
+          회원가입 없이 1회 구매
+        </Link>
+        도 됩니다.
       </p>
 
       {/* 카카오 — 3초 가입(이름·연락처는 결제 시 한 번만). 한국 사용자 주력 동선.
