@@ -78,6 +78,23 @@ export function roundsUsedUpSlots<
     .filter((x) => x.paid > 0 && x.shipped >= x.paid);
 }
 
+// (2-1) 위 목록을 '끝난 구독'과 '과배송'으로 가른다.
+//   ★ 왜 가르는가: 결제한 회차를 정확히 다 받은 구독(발송 = 결제)은 이상이 아니다 —
+//     약속한 만큼 보내고 끝난 것이다. 그런데 슬롯을 '종료'로 내려 주는 자동 처리가 없어
+//     이런 구독이 전부 빨간 경고에 쌓였다(2026-11 기준 25건). 매일 같은 25줄이 떠 있으면
+//     정작 봐야 할 경고가 그 사이에 묻힌다. 사장님: "다 처리됐으니 경고 보내지 마".
+//   · finished   — 발송 = 결제. 끝난 구독. 경고가 아니라 '연장 안내 대상' 목록이다.
+//   · overShipped — 발송 > 결제. 결제한 것보다 더 나갔다. 이것만 경고다.
+//   더 보내지 않게 막는 일은 여전히 배송 시트의 '발송금지'가 한다(두 경우 모두).
+export function splitRoundsUsedUp<T extends { paid: number; shipped: number }>(
+  used: readonly T[]
+): { finished: T[]; overShipped: T[] } {
+  return {
+    finished: used.filter((x) => x.shipped === x.paid),
+    overShipped: used.filter((x) => x.shipped > x.paid),
+  };
+}
+
 // 출고 기록 누락으로 볼 최소 차이. 1회는 '오늘·이번 주 분을 아직 출고 처리하지 않음'일 수
 //   있어 정상 운영에서도 흔하다. 2회 이상 벌어지면 기록이 실제를 못 따라가고 있는 것이다.
 export const SHIPMENT_GAP_THRESHOLD = 2;
