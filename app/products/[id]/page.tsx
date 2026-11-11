@@ -15,6 +15,9 @@ import { ProductHeroPrice } from "@/components/ProductCommercial";
 import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights";
 import { ProductReviews } from "@/components/ProductReviews";
 import { TrustBadges } from "@/components/TrustBadges";
+import { CertList } from "@/components/CertList";
+import { activeCertifications } from "@/lib/certifications";
+import { kstYmd } from "@/lib/kst";
 import { AftermilkAssurance } from "@/components/AftermilkAssurance";
 import { ProductGallery } from "@/components/ProductGallery";
 import { ProductSignature } from "@/components/ProductSignature";
@@ -115,6 +118,7 @@ export default async function ProductPage({
   const priceValidUntil = `${new Date().getFullYear()}-12-31`;
 
   const related = PUBLIC_PRODUCTS.filter((p) => p.id !== product.id);
+  const certIds = activeCertifications(kstYmd(new Date().toISOString())).map((c) => c.id);
 
   const idx = PUBLIC_PRODUCTS.findIndex((p) => p.id === product.id);
   const prev =
@@ -243,7 +247,17 @@ export default async function ProductPage({
             <AftermilkAssurance />
           </div>
         ) : (
-          <TrustBadges />
+          <>
+            <TrustBadges />
+            {/* 보유 인증 — 목장(사육·착유 단계)에 대한 인증임을 제목에 밝힌다. */}
+            <div className="mt-10">
+              <p className="eyebrow text-gold-deep">Certified Farm</p>
+              <p className="t-footnote mt-2 text-ink-soft">이 우유를 짜는 목장이 받은 인증입니다.</p>
+              <div className="mt-4">
+                <CertList initialIds={certIds} compact />
+              </div>
+            </div>
+          </>
         )}
       </div>
 
