@@ -54,25 +54,6 @@ export function RegenerativeBand() {
           미생물이 건강해야 땅이, 소가, 우리가 건강합니다.
         </p>
 
-        {/* 장-뇌 축(gut–brain axis) 간단 소개 — 일반 과학 개념 + 효능 단정 금지 */}
-        <div className="mt-8 rounded-2xl border border-gold/40 bg-gold/5 p-6">
-          <p className="flex items-center gap-2 text-[13px] uppercase tracking-[0.18em] text-gold-deep">
-            <span
-              aria-hidden
-              style={{ backgroundColor: "var(--color-hey-blue)" }}
-              className="h-1.5 w-1.5 rounded-full"
-            />
-            Gut–Brain Axis · 장–뇌 축
-          </p>
-          <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">
-            장 속 미생물과 뇌는 서로 신호를 주고받습니다. 건강한 미생물 생태계가 소화·면역·기분에
-            영향을 준다고 알려져 있습니다. 그래서 우리는 흙의 미생물부터 돌봅니다.
-          </p>
-          <p className="mt-3 text-[11.5px] text-mute">
-            ※ 식품으로서의 이야기이며, 특정 질병의 예방·치료 효능을 뜻하지 않습니다.
-          </p>
-        </div>
-
         {/* 함께 보면 좋은 곳 — Kiss the Ground (출처 링크, 제휴 아님) */}
         <div className="mt-10 rounded-2xl border border-line bg-cream p-6">
           <p className="flex items-center gap-2 text-[13px] uppercase tracking-[0.18em] text-gold-deep">
