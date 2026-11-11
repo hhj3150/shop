@@ -15,10 +15,10 @@ import { SubscribeFilmCTA } from "./SubscribeFilmCTA";
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-paper">
-      <div className="mx-auto grid max-w-7xl items-center gap-7 px-5 pt-24 pb-2 sm:px-8 sm:pt-28 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-2 lg:pt-28">
+      <div className="mx-auto grid max-w-7xl items-center gap-7 px-5 pt-20 pb-2 sm:px-8 sm:pt-28 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-2 lg:pt-28">
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
           {/* 워드마크 — 로고는 상단 바에 이미 있다. 브랜드명만 국문 + 골드포일 영문으로. */}
-          <p className="mb-3 font-display text-[clamp(1.05rem,4.4vw,1.5rem)] font-medium leading-snug tracking-[0.01em] text-ink lg:mb-6">
+          <p className="mb-2 font-display text-[clamp(1.05rem,4.4vw,1.5rem)] font-medium leading-snug tracking-[0.01em] text-ink lg:mb-6">
             송영신목장{" "}
             <span className="gold-foil">A2 Jersey Hay Milk</span>
           </p>
