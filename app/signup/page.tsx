@@ -217,6 +217,7 @@ export default function SignupPage() {
           id="phone"
           label="휴대폰 번호"
           hint="입금 확인 후 발송 안내 문자를 받는 번호입니다."
+          type="tel"
           inputMode="numeric"
           autoComplete="tel"
           placeholder="010-1234-5678"
@@ -264,6 +265,7 @@ export default function SignupPage() {
               id="postcode"
               label="우편번호"
               inputMode="numeric"
+              autoComplete="postal-code"
               required
               error={errors.postcode}
               value={form.postcode}
@@ -283,7 +285,7 @@ export default function SignupPage() {
         <Field
           id="address"
           label="주소"
-          autoComplete="street-address"
+          autoComplete="address-line1"
           required
           error={errors.address}
           value={form.address}
@@ -292,6 +294,7 @@ export default function SignupPage() {
         <Field
           id="addressDetail"
           label="상세 주소"
+          autoComplete="address-line2"
           value={form.addressDetail}
           onChange={(e) => update("addressDetail", e.target.value)}
         />

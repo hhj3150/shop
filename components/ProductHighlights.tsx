@@ -28,7 +28,7 @@ function renderRich(text: string, strongClass: string) {
     });
 }
 
-// 한 줄 선언(국내 유일 · A2 저지 단일 목장) — 제목 바로 아래(태그라인 자리). 브랜드의 한 줄.
+// 한 줄 선언(국내 유일 A2 저지 목장) — 제목 바로 아래(태그라인 자리). 브랜드의 한 줄.
 export function ProductKicker({ highlights }: { highlights?: Highlights }) {
   if (!highlights) return null;
 

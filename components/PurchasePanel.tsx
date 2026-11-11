@@ -22,7 +22,6 @@ import {
   subscribePrice,
   discountForPeriod,
   periodWeeks,
-  SUB_SHIPPING_KRW,
   subShippingFee,
 } from "@/lib/products";
 import { useCart, DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
@@ -521,32 +520,9 @@ export function PurchasePanel({ product }: { product: Product }) {
 
       {/* 금액 */}
       <div className="mt-7 border-t border-line pt-6">
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="text-[14px] text-mute line-through tabular-nums">
-              {formatKRW(origPerDelivery)} / 회
-            </p>
-            <p className="font-serif-kr text-2xl text-ink tabular-nums">
-              {formatKRW(perDelivery)}
-              <span className="ml-1 text-[14px] font-sans text-mute">/ 회</span>
-            </p>
-          </div>
-          <p className="text-right text-[13px] text-ink-soft">
-            매주 {DELIVERY_DAY_LABEL[deliveryDay]}
-            <br />
-            <span className="text-gold-deep">
-              배송비 {formatKRW(SUB_SHIPPING_KRW)} / 회
-            </span>
-          </p>
-        </div>
-
-        <p className="mt-2 text-[12px] text-mute">
-          {product.taxFree ? "면세품 · 부가세 없음" : "과세품 · 부가세 포함 가격"}
-        </p>
-
         {/* 고른 것을 한 문장으로 되읽어 준다 — 몇 병을, 언제, 몇 번, 지금 얼마.
             숫자 표만 있으면 손님이 조건을 머릿속에서 다시 조립해야 한다. */}
-        <p className="t-footnote mt-4 leading-relaxed text-ink-soft" aria-live="polite">
+        <p className="t-footnote leading-relaxed text-ink-soft" aria-live="polite">
           매주 <span className="font-medium text-ink">{DELIVERY_DAY_LABEL[deliveryDay]}</span>에{" "}
           <span className="font-medium text-ink">
             {liveMain.name} {liveMain.volume} {qty}개
@@ -557,28 +533,40 @@ export function PurchasePanel({ product }: { product: Product }) {
           입금하시면 됩니다.
         </p>
 
-        <div className="mt-3 rounded-2xl bg-paper-2 px-4 py-3">
-          <div className="flex items-center justify-between text-[13px] text-ink-soft">
-            <span>
-              상품 {PERIOD_LABEL[period]} · 매주 {weeks}회
-            </span>
-            <span className="text-[12px] text-mute line-through tabular-nums">
-              {formatKRW(origPeriodTotal)}
-            </span>
+        {/* 영수증 한 장 — 한 번 받을 때 얼마(회당) → 몇 번 → 지금 내는 돈, 위에서 아래로 더해진다.
+            예전에는 회당 금액 블록과 기간 합계 상자가 따로 있었고, 상자의 상품 줄에는 할인 전
+            금액(취소선)만 있어 '상품 + 배송비 = 합계'가 눈으로 맞지 않았다(192,000 + 32,000 ≠ 200,960). */}
+        <dl className="mt-3 rounded-2xl bg-paper-2 px-4 py-3 text-[13px] text-ink-soft">
+          <div className="flex items-baseline justify-between gap-3">
+            <dt>한 번 받을 때 상품</dt>
+            <dd className="tabular-nums">
+              <span className="mr-1.5 text-[12px] text-mute line-through">{formatKRW(origPerDelivery)}</span>
+              <span className="font-medium text-ink">{formatKRW(perDelivery)}</span>
+            </dd>
           </div>
-          <div className="mt-1 flex items-center justify-between text-[13px] text-ink-soft">
-            <span>배송비 ({weeks}회)</span>
-            <span className="tabular-nums">
-              {formatKRW(shipTotal)}
-            </span>
+          <div className="mt-1 flex items-baseline justify-between gap-3">
+            <dt>한 번 받을 때 배송비</dt>
+            <dd className="tabular-nums">{formatKRW(shipPerDelivery)}</dd>
           </div>
-          <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5">
-            <span className="text-[13px] text-mute">한 번에 입금</span>
-            <span className="font-serif-kr text-xl text-ink tabular-nums">
-              {formatKRW(periodTotal)}
-            </span>
+          <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-line pt-2">
+            <dt>
+              상품 {weeks}회분 <span className="text-mute">({PERIOD_LABEL[period]} · −{Math.round(rate * 100)}%)</span>
+            </dt>
+            <dd className="tabular-nums">{formatKRW(perDelivery * weeks)}</dd>
           </div>
-        </div>
+          <div className="mt-1 flex items-baseline justify-between gap-3">
+            <dt>배송비 {weeks}회분</dt>
+            <dd className="tabular-nums">{formatKRW(shipTotal)}</dd>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3 border-t border-line pt-2">
+            <dt className="font-medium text-ink">지금 한 번에 입금</dt>
+            <dd className="font-serif-kr text-xl text-ink tabular-nums">{formatKRW(periodTotal)}</dd>
+          </div>
+        </dl>
+        <p className="mt-2 text-[12px] text-mute">
+          {product.taxFree ? "면세품 · 부가세 없음" : "과세품 · 부가세 포함 가격"} · 정가로는{" "}
+          <span className="tabular-nums">{formatKRW(origPeriodTotal + shipTotal)}</span>
+        </p>
 
         {/* 최소주문 사전 안내 — 결제 단계에서야 막히는 대신 여기서 미리(정가 기준, 장바구니 합산). */}
         {belowMin && (
