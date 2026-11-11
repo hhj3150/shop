@@ -39,8 +39,8 @@ export function Nav() {
           <Image
             src="/brand/logo-label.png"
             alt="송영신목장 A2 저지 헤이밀크"
-            width={942}
-            height={749}
+            width={1000}
+            height={793}
             priority
             sizes="64px"
             className="h-10 w-auto sm:h-11"

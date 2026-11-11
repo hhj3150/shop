@@ -39,6 +39,7 @@ import { idempotencyKeyFor } from "@/lib/idempotency";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
+import { StickySubmitBar, useFieldError, useRevealOnError } from "@/components/CheckoutAssist";
 import { AddressSearch } from "@/components/AddressSearch";
 import { Track } from "@/components/Track";
 import { VacationNotice } from "@/components/VacationNotice";
@@ -107,6 +108,8 @@ export default function CheckoutPage() {
     memo: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const { failField, clearField, clearAll, errorFor } = useFieldError();
+  const errorRef = useRevealOnError(error);
   const [busy, setBusy] = useState(false);
   // 더블서밋 방어용 멱등키: 체크아웃당 1회 생성, 빠른 더블탭·재시도 때 같은 키를 재사용한다.
   //   주문이 완료(결제 성공·무통장 등록)되면 회전 → 다음 주문은 새 키를 쓴다.
@@ -229,6 +232,7 @@ export default function CheckoutPage() {
 
   function update<K extends keyof typeof ship>(key: K, value: string) {
     setShip((prev) => ({ ...prev, [key]: value }));
+    clearField(key);
   }
 
   // 회원정보 불러오기: 가입 시 저장한 이름·연락처·주소·입금자명을 한 번에 채운다(재구매 편의).
@@ -319,6 +323,7 @@ export default function CheckoutPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    clearAll();
     if (!user) return;
     // 최소 상품금액 미달은 가장 먼저 안내한다(클레임: 죽은 버튼 → 능동 안내). 정가 기준.
     if (belowMin) {
@@ -381,25 +386,22 @@ export default function CheckoutPage() {
       }
       return;
     }
-    if (!ship.name.trim() || !ship.phone.trim() || (!pickup && !ship.address.trim())) {
-      setError(pickup ? "받는 분, 연락처를 입력해 주세요." : "받는 분, 연락처, 주소를 입력해 주세요.");
-      return;
-    }
+    // 빈 칸은 그 칸으로 데려가 바로 아래에 말한다(맨 아래 상자 하나에 모으지 않는다).
+    if (!ship.name.trim()) return failField("name", "받는 분 성함을 입력해 주세요.");
+    if (!ship.phone.trim()) return failField("phone", "연락처를 입력해 주세요.");
+    if (!pickup && !ship.address.trim())
+      return failField("address", "주소를 입력해 주세요. '주소 검색'으로 찾으면 우편번호까지 함께 채워져요.");
     // 연락처 자릿수 — 서버(숫자 10자리 이상)와 동일 기준으로 제출 전에 콕 집어 안내한다.
     //   (없으면 서버의 일반 오류 문구만 떠서 어느 칸이 문제인지 알 수 없다)
-    if (normalizePhone(ship.phone).length < 10) {
-      setError("연락처를 확인해 주세요. 휴대폰 번호 숫자 10~11자리를 입력해야 발송 안내 문자를 받을 수 있어요.");
-      return;
-    }
+    if (normalizePhone(ship.phone).length < 10)
+      return failField("phone", "휴대폰 번호 숫자 10~11자리를 입력해 주세요. 발송 안내 문자를 이 번호로 보내드려요.");
     if (!pickup && isSpecialRegion && !acceptFresh) {
       setError("제주·도서산간 등 특수배송지역은 신선도 안내에 동의하셔야 신청할 수 있습니다.");
       return;
     }
     // 무통장입금은 입금자명이 있어야 PayAction 자동매칭이 가능하다.
-    if (!usePortOne && !ship.depositorName.trim()) {
-      setError("무통장입금은 입금자명을 입력해 주세요. (입금 자동 확인에 필요합니다)");
-      return;
-    }
+    if (!usePortOne && !ship.depositorName.trim())
+      return failField("depositorName", "입금자명을 입력해 주세요. 입금을 자동으로 확인하는 데 필요합니다.");
     const receiptError = validateCashReceipt(cashReceiptType, cashReceiptId);
     if (receiptError) {
       setError(receiptError);
@@ -550,17 +552,19 @@ export default function CheckoutPage() {
             if (!p) return null;
             const lp = mergeProduct(p, map.get(p.id));
             return (
-              <li key={item.key} className="flex justify-between py-3 text-[14px]">
-                <span className="text-ink-soft">
-                  {p.name} {p.volume}
-                  <span className="ml-2 text-[13px] text-gold-deep">
-                    정기구독 · 매주 {DELIVERY_DAY_LABEL[item.deliveryDay]}
+              <li key={item.key} className="flex items-start justify-between gap-4 py-3 text-[14px]">
+                {/* 이름 한 줄, 조건 한 줄 — 한 문장으로 이으면 좁은 화면에서 아무 데서나 꺾인다. */}
+                <span className="min-w-0 text-ink-soft">
+                  <span className="block text-ink">
+                    {p.name} {p.volume}
                   </span>
-                  <span className="ml-2 text-mute">× {item.qty}</span>
-                  {lp.hidden && <span className="ml-2 text-red-600">판매 중지</span>}
-                  {lp.soldOut && <span className="ml-2 text-red-600">품절</span>}
+                  <span className="t-caption mt-0.5 block text-gold-deep">
+                    매주 {DELIVERY_DAY_LABEL[item.deliveryDay]} · {item.qty}개
+                    {lp.hidden && <span className="ml-2 text-red-600">판매 중지</span>}
+                    {lp.soldOut && <span className="ml-2 text-red-600">품절</span>}
+                  </span>
                 </span>
-                <span className="tabular-nums text-ink">
+                <span className="shrink-0 tabular-nums text-ink">
                   {formatKRW(weeklyPrice(item.productId) * item.qty)}
                 </span>
               </li>
@@ -654,7 +658,7 @@ export default function CheckoutPage() {
       </div>
 
       {/* 배송지 — 연장(재입금)은 기존 구독의 배송지·입금자명을 승계하므로 입력 칸을 생략한다. */}
-      <form onSubmit={onSubmit} className="mt-8 space-y-5">
+      <form id="checkout-form" onSubmit={onSubmit} className="mt-8 space-y-5">
         {renewalAlreadyPending ? (
           // 이미 접수된 연장이 있다 — 끝까지 "접수돼요"라고 해 놓고 제출에서 막지 않는다.
           //   마이페이지의 입금 안내를 가리켜, 두 화면이 같은 곳을 말하게 한다.
@@ -705,13 +709,13 @@ export default function CheckoutPage() {
             {!pickup && !isGift && (
               <LoadMyInfoButton profile={profile} onLoad={fillFromProfile} disabled={busy} />
             )}
-            <Field id="name" label={isGift ? "받는 분 (선물 받으실 분)" : "받는 분"} required value={ship.name} onChange={(e) => update("name", e.target.value)} />
-            <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." inputMode="numeric" required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
+            <Field id="name" label={isGift ? "받는 분 (선물 받으실 분)" : "받는 분"} required autoComplete={isGift ? "off" : "name"} error={errorFor("name")} value={ship.name} onChange={(e) => update("name", e.target.value)} />
+            <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." type="tel" inputMode="numeric" autoComplete={isGift ? "off" : "tel"} error={errorFor("phone")} required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
             {!pickup && (
               <>
                 <div className="flex items-end gap-3">
                   <div className="flex-1">
-                    <Field id="postcode" label="우편번호" inputMode="numeric" value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
+                    <Field id="postcode" label="우편번호" inputMode="numeric" autoComplete={isGift ? "off" : "postal-code"} value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
                   </div>
                   <div className="pb-1">
                     <AddressSearch
@@ -721,8 +725,8 @@ export default function CheckoutPage() {
                     />
                   </div>
                 </div>
-                <Field id="address" label="주소" required value={ship.address} onChange={(e) => update("address", e.target.value)} />
-                <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
+                <Field id="address" label="주소" required autoComplete={isGift ? "off" : "address-line1"} error={errorFor("address")} value={ship.address} onChange={(e) => update("address", e.target.value)} />
+                <Field id="addressDetail" label="상세 주소" autoComplete={isGift ? "off" : "address-line2"} value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
 
                 {isSpecialRegion && (
                   <div className="rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
@@ -745,7 +749,7 @@ export default function CheckoutPage() {
               </>
             )}
 
-            <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
+            <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." error={errorFor("depositorName")} value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
             <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
             <CashReceiptFields
@@ -813,7 +817,7 @@ export default function CheckoutPage() {
         )}
 
         {error && (
-          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
+          <p ref={errorRef} role="alert" className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
             {error}
           </p>
         )}
@@ -833,6 +837,7 @@ export default function CheckoutPage() {
         )}
 
         <button
+          id="checkout-submit"
           type="submit"
           disabled={
             busy ||
@@ -865,6 +870,21 @@ export default function CheckoutPage() {
           신선식품 특성상 단순 변심에 의한 청약철회·교환·환불은 제한될 수 있습니다. 입금 후 발송 준비 전 취소는 전액 환불되며, 상품 하자·오배송은 교환·환불해 드립니다.
         </p>
       </form>
+      <StickySubmitBar
+        formId="checkout-form"
+        watchId="checkout-submit"
+        caption={`${PERIOD_LABEL[period]}분(${weeks}회) 입금액`}
+        amount={finalPayable}
+        label={busy ? "접수 중…" : renewalMode ? "연장 신청" : usePortOne ? "결제하기" : "신청하기"}
+        disabled={
+          busy ||
+          hasBlocked ||
+          multiDay ||
+          blockedConflict ||
+          renewalAlreadyPending ||
+          (!renewalMode && !pickup && isSpecialRegion && !acceptFresh)
+        }
+      />
     </div>
   );
 }

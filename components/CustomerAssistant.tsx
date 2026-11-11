@@ -123,7 +123,9 @@ export function CustomerAssistant() {
 
   // 제품 상세에는 하단 탭바가 없다(BottomNav 가 물러난다) — 그 높이만큼 띄울 이유가 없으니
   //   모바일에서도 화면 아래에 붙인다. 그 밖의 화면은 탭바(68px) 위.
-  const mobileBottom = pathname?.startsWith("/products/")
+  const noTabBar =
+    pathname?.startsWith("/products/") || pathname === "/checkout" || pathname === "/order-once";
+  const mobileBottom = noTabBar
     ? "bottom-[calc(env(safe-area-inset-bottom)+1.25rem)]"
     : "bottom-[84px]";
 
