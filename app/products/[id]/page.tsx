@@ -202,7 +202,7 @@ export default async function ProductPage({
             {rating.count > 0 && (
               <a
                 href="#reviews"
-                className="mt-2 inline-flex items-center gap-1.5 text-[13.5px] text-ink-soft transition-colors hover:text-gold-deep"
+                className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-[13.5px] text-ink-soft transition-colors hover:text-gold-deep"
               >
                 <span className="text-gold" aria-hidden>★</span>
                 <span className="font-semibold tabular-nums text-ink">{rating.value.toFixed(1)}</span>

@@ -15,7 +15,7 @@ import { SubscribeFilmCTA } from "./SubscribeFilmCTA";
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-paper">
-      <div className="mx-auto grid max-w-7xl items-center gap-7 px-5 pt-20 pb-2 sm:px-8 sm:pt-28 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-2 lg:pt-28">
+      <div className="mx-auto grid max-w-7xl items-center gap-7 px-5 pt-20 pb-2 sm:px-8 sm:pt-28 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-0 lg:pt-24">
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
           {/* 워드마크 — 로고는 상단 바에 이미 있다. 브랜드명만 국문 + 골드포일 영문으로. */}
           <p className="mb-2 font-display text-[clamp(1.05rem,4.4vw,1.5rem)] font-medium leading-snug tracking-[0.01em] text-ink lg:mb-6">
@@ -29,12 +29,10 @@ export function Hero() {
             그리고 지속가능한 지구를.
           </h1>
 
-          {/* 데스크톱 전용 — 모바일에서는 이 두 줄만큼 상품 목록이 올라온다. */}
-          <p className="mt-5 hidden max-w-md text-[15px] leading-relaxed text-mute lg:block">
-            하루 500리터만 생산합니다.
-            <br />더 만들 수 있지만, 그러지 않습니다.
-          </p>
-
+          {/* 인사는 여기까지 — 워드마크·슬로건·회원 수·버튼. 1440×900 에서 상품 카드 사진이
+              첫 화면에 들어오는 높이로 맞췄다. 문단을 더하거나 정렬컷을 키우면 다시 밀린다.
+              ("하루 500리터만 생산합니다 …"는 지우지 않고 이름 풀이 밴드(WhyBand)로 옮겼다 —
+              모바일에서는 #221 부터 이 자리에 보이지 않았다.) */}
           <div className="mt-4 lg:mt-7">
             <MembershipCounter />
           </div>
@@ -62,7 +60,7 @@ export function Hero() {
             width={1487}
             height={1058}
             sizes="(max-width:1024px) 1px, 45vw"
-            className="media-plate h-auto w-full max-w-[420px] object-contain"
+            className="media-plate h-auto w-full max-w-[330px] object-contain"
           />
         </div>
       </div>

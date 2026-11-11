@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     template: "%s · 송영신목장",
   },
   description:
-    "국내 유일의 A2 저지 단일 품종 목장, 사일리지 없이 건초만 먹은 헤이밀크. 송영신목장이 직접 짓고, 직접 발효하고, 직접 보냅니다.",
+    "국내 유일 A2 저지 목장, 사일리지 없이 건초만 먹은 헤이밀크. 송영신목장이 직접 짓고, 직접 발효하고, 직접 보냅니다.",
   openGraph: {
     title: "송영신목장 · A2 Jersey Hay Milk",
     description: "한 잔의 정직함. 경기도 안성, 송영신목장의 A2 저지 헤이밀크와 플레인 요거트.",

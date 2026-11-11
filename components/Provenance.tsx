@@ -9,7 +9,7 @@ import { kstYmd } from "@/lib/kst";
 const STATS = [
   { v: "약 40만 두", l: "국내 젖소 · 대부분 홀스타인" },
   { v: "약 1,200두", l: "그중 저지" },
-  { v: "단 한 곳", l: "약 5,000 목장 중 · 100% A2 저지 착유목장" },
+  { v: "단 한 곳", l: "국내 유일 A2 저지 목장" },
 ];
 
 export function Provenance() {

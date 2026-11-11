@@ -26,6 +26,11 @@ export function WhyBand() {
         <h2 className="t-title2 mt-3 text-center font-serif-kr font-medium text-ink">
           이름에 다 적어 두었습니다.
         </h2>
+        {/* 히어로에 있던 문장. 첫 화면을 상품에 내주면서 이리로 옮겼다 — 지우지 않는다. */}
+        <p className="t-footnote mt-4 text-center leading-relaxed text-ink-soft">
+          하루 500리터만 생산합니다.
+          <br />더 만들 수 있지만, 그러지 않습니다.
+        </p>
 
         <dl className="mt-9 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-4">
           {WORDS.map(({ word, lead, sub }) => (
