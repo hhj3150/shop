@@ -76,7 +76,7 @@ export function VisitStore() {
                 href={CAFE_HOME}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-5 inline-flex text-[14px] tracking-wide text-gold-deep underline-offset-4 hover:underline"
+                className="mt-3 inline-flex min-h-11 items-center text-[14px] tracking-wide text-gold-deep underline underline-offset-4"
               >
                 카페 안내 보기 →
               </a>

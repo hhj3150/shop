@@ -126,7 +126,7 @@ export function ProductReviews({ productId }: { productId: string }) {
       ) : (
         <p className="mt-6 rounded-2xl border border-line bg-paper px-5 py-4 text-[14px] text-mute">
           후기는 회원만 작성할 수 있습니다.{" "}
-          <Link href="/login" className="text-gold-deep underline-offset-4 hover:underline">
+          <Link href="/login" className="text-gold-deep underline underline-offset-4">
             로그인
           </Link>
           하고 별점과 후기를 남겨 주세요.

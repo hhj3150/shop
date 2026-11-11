@@ -34,6 +34,7 @@ import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone
 import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
+import { StickySubmitBar, useFieldError, useRevealOnError } from "@/components/CheckoutAssist";
 import { AddressSearch } from "@/components/AddressSearch";
 import { Track } from "@/components/Track";
 import { VacationNotice } from "@/components/VacationNotice";
@@ -78,6 +79,8 @@ function OrderOnce() {
     memo: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const { failField, clearField, clearAll, errorFor } = useFieldError();
+  const errorRef = useRevealOnError(error);
   const [busy, setBusy] = useState(false);
   // 더블서밋 방어용 멱등키: 주문당 1회 생성, 빠른 더블탭·재시도 때 같은 키를 재사용한다.
   //   주문이 완료(결제 성공·무통장 등록)되면 회전 → 다음 주문은 새 키를 쓴다.
@@ -198,6 +201,7 @@ function OrderOnce() {
 
   function update<K extends keyof typeof ship>(key: K, value: string) {
     setShip((prev) => ({ ...prev, [key]: value }));
+    clearField(key);
   }
 
   // 회원정보 불러오기: 가입 시 저장한 이름·연락처·주소·입금자명을 한 번에 채운다(재구매 편의).
@@ -263,30 +267,28 @@ function OrderOnce() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    clearAll();
     // 수량 미선택·최소금액 미달은 가장 먼저 안내한다(클레임: 죽은 버튼 → 능동 안내).
     if (count === 0 || belowMin) {
       nudgeMinNotice();
       return;
     }
-    if (!ship.name.trim() || !ship.phone.trim() || (!pickup && !ship.address.trim())) {
-      setError(pickup ? "받는 분, 연락처를 입력해 주세요." : "받는 분, 연락처, 주소를 입력해 주세요.");
-      return;
-    }
+    // 빈 칸은 그 칸으로 데려가 바로 아래에 말한다(맨 아래 상자 하나에 모으지 않는다).
+    if (!ship.name.trim()) return failField("name", "받는 분 성함을 입력해 주세요.");
+    if (!ship.phone.trim()) return failField("phone", "연락처를 입력해 주세요.");
+    if (!pickup && !ship.address.trim())
+      return failField("address", "주소를 입력해 주세요. '주소 검색'으로 찾으면 우편번호까지 함께 채워져요.");
     // 연락처 자릿수 — 서버(숫자 10자리 이상)와 동일 기준으로 제출 전에 콕 집어 안내한다.
     //   (없으면 서버의 일반 오류 문구만 떠서 어느 칸이 문제인지 알 수 없다)
-    if (normalizePhone(ship.phone).length < 10) {
-      setError("연락처를 확인해 주세요. 휴대폰 번호 숫자 10~11자리를 입력해야 발송 안내 문자를 받을 수 있어요.");
-      return;
-    }
+    if (normalizePhone(ship.phone).length < 10)
+      return failField("phone", "휴대폰 번호 숫자 10~11자리를 입력해 주세요. 발송 안내 문자를 이 번호로 보내드려요.");
     if (!pickup && isSpecialRegion && !acceptFresh) {
       setError("제주·도서산간 등 특수배송지역은 신선도 안내에 동의하셔야 주문할 수 있습니다.");
       return;
     }
     // 무통장입금은 입금자명이 있어야 PayAction 자동매칭이 가능하다.
-    if (!usePortOne && !ship.depositorName.trim()) {
-      setError("무통장입금은 입금자명을 입력해 주세요. (입금 자동 확인에 필요합니다)");
-      return;
-    }
+    if (!usePortOne && !ship.depositorName.trim())
+      return failField("depositorName", "입금자명을 입력해 주세요. 입금을 자동으로 확인하는 데 필요합니다.");
     const receiptError = validateCashReceipt(cashReceiptType, cashReceiptId);
     if (receiptError) {
       setError(receiptError);
@@ -434,7 +436,7 @@ function OrderOnce() {
           비회원으로 바로 주문하실 수 있습니다.{" "}
           <Link
             href="/login?next=/order-once"
-            className="font-medium text-gold-deep underline-offset-4 hover:underline"
+            className="font-medium text-gold-deep underline underline-offset-4"
           >
             로그인
           </Link>
@@ -472,7 +474,7 @@ function OrderOnce() {
                   type="button"
                   onClick={() => setQty(p.id, q - 1)}
                   disabled={q === 0}
-                  className="px-3.5 py-2 text-mute transition-colors hover:text-ink disabled:opacity-30"
+                  className="flex h-11 w-11 items-center justify-center text-mute transition-colors hover:text-ink disabled:opacity-30"
                   aria-label={`${p.name} 수량 감소`}
                 >
                   −
@@ -482,7 +484,7 @@ function OrderOnce() {
                   type="button"
                   onClick={() => setQty(p.id, q + 1)}
                   disabled={p.soldOut}
-                  className="px-3.5 py-2 text-mute transition-colors hover:text-ink disabled:opacity-30"
+                  className="flex h-11 w-11 items-center justify-center text-mute transition-colors hover:text-ink disabled:opacity-30"
                   aria-label={`${p.name} 수량 증가`}
                 >
                   +
@@ -575,7 +577,7 @@ function OrderOnce() {
       </div>
 
       {/* 배송지 */}
-      <form onSubmit={onSubmit} className="mt-8 space-y-5">
+      <form id="once-form" onSubmit={onSubmit} className="mt-8 space-y-5">
         <DeliveryMethodSelect value={deliveryMethod} onChange={changeDeliveryMethod} />
         {!pickup && user && (
           <GiftOptions
@@ -590,13 +592,13 @@ function OrderOnce() {
         {!pickup && !isGift && (
           <LoadMyInfoButton profile={profile} onLoad={fillFromProfile} disabled={busy} />
         )}
-        <Field id="name" label={isGift ? "받는 분 (선물 받으실 분)" : "받는 분"} required value={ship.name} onChange={(e) => update("name", e.target.value)} />
-        <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." inputMode="numeric" required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
+        <Field id="name" label={isGift ? "받는 분 (선물 받으실 분)" : "받는 분"} required autoComplete={isGift ? "off" : "name"} error={errorFor("name")} value={ship.name} onChange={(e) => update("name", e.target.value)} />
+        <Field id="phone" label="연락처" hint="발송 안내 문자를 받는 번호." type="tel" inputMode="numeric" autoComplete={isGift ? "off" : "tel"} error={errorFor("phone")} required value={ship.phone} onChange={(e) => update("phone", e.target.value)} />
         {!pickup && (
           <>
             <div className="flex items-end gap-3">
               <div className="flex-1">
-                <Field id="postcode" label="우편번호" inputMode="numeric" value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
+                <Field id="postcode" label="우편번호" inputMode="numeric" autoComplete={isGift ? "off" : "postal-code"} value={ship.postcode} onChange={(e) => update("postcode", e.target.value)} />
               </div>
               <div className="pb-1">
                 <AddressSearch
@@ -606,8 +608,8 @@ function OrderOnce() {
                 />
               </div>
             </div>
-            <Field id="address" label="주소" required value={ship.address} onChange={(e) => update("address", e.target.value)} />
-            <Field id="addressDetail" label="상세 주소" value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
+            <Field id="address" label="주소" required autoComplete={isGift ? "off" : "address-line1"} error={errorFor("address")} value={ship.address} onChange={(e) => update("address", e.target.value)} />
+            <Field id="addressDetail" label="상세 주소" autoComplete={isGift ? "off" : "address-line2"} value={ship.addressDetail} onChange={(e) => update("addressDetail", e.target.value)} />
 
             {isSpecialRegion && (
               <div className="rounded-xl border border-gold/50 bg-gold/10 px-4 py-3">
@@ -630,7 +632,7 @@ function OrderOnce() {
           </>
         )}
 
-        <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
+        <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." error={errorFor("depositorName")} value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
         <CashReceiptFields
@@ -641,7 +643,7 @@ function OrderOnce() {
         />
 
         {error && (
-          <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
+          <p ref={errorRef} role="alert" className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
             {error}
           </p>
         )}
@@ -661,6 +663,7 @@ function OrderOnce() {
         )}
 
         <button
+          id="once-submit"
           type="submit"
           disabled={busy || (!pickup && isSpecialRegion && !acceptFresh)}
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
@@ -683,12 +686,20 @@ function OrderOnce() {
         </p>
         <p className="text-center text-[13px] text-mute">
           매주 받아보고 싶으시면{" "}
-          <Link href="/#subscribe" className="text-gold-deep underline-offset-4 hover:underline">
+          <Link href="/#subscribe" className="text-gold-deep underline underline-offset-4">
             정기구독
           </Link>
           도 있습니다.
         </p>
       </form>
+      <StickySubmitBar
+        formId="once-form"
+        watchId="once-submit"
+        caption={count === 0 ? "수량을 먼저 골라 주세요" : usePortOne ? "결제 금액 · 배송비 포함" : "입금 금액 · 배송비 포함"}
+        amount={finalPayable}
+        label={busy ? "접수 중…" : "주문하기"}
+        disabled={busy || (!pickup && isSpecialRegion && !acceptFresh)}
+      />
     </div>
   );
 }

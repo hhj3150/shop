@@ -45,6 +45,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { RecipientBook } from "@/components/RecipientBook";
 import { WishlistSection } from "@/components/WishlistSection";
 import { ReferralCard } from "@/components/ReferralCard";
+import { formatPhoneKR } from "@/lib/signup-format";
 import { ProfileEditor, type ProfileEditValues } from "@/components/ProfileEditor";
 import { RenewalForm } from "./RenewalForm";
 import { shipToView, type ShipToView } from "@/lib/renewal-form";
@@ -281,7 +282,7 @@ export default function AccountPage() {
     const nextLine = plan.nextDate ? `\n다음 배송: ${fmtDate(plan.nextDate)}` : "";
     if (
       !confirm(
-        `배송 요일을 ${DELIVERY_DAY_LABEL[sub.deliveryDay]}요일 → ${DELIVERY_DAY_LABEL[newDay]}요일로 바꿀까요?${nextLine}\n남은 ${plan.remaining}회는 그대로 모두 받으십니다.`
+        `배송 요일을 ${DELIVERY_DAY_LABEL[sub.deliveryDay]} → ${DELIVERY_DAY_LABEL[newDay]}로 바꿀까요?${nextLine}\n남은 ${plan.remaining}회는 그대로 모두 받으십니다.`
       )
     )
       return;
@@ -538,7 +539,7 @@ export default function AccountPage() {
         </div>
         <button
           onClick={() => signOut().then(() => router.push("/"))}
-          className="rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+          className="min-h-11 rounded-full border border-line px-4 py-2 text-[14px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
         >
           로그아웃
         </button>
@@ -564,10 +565,10 @@ export default function AccountPage() {
           ) : (
             <div className="text-[14px] leading-relaxed text-ink-soft">
               <div className="flex items-start justify-between gap-3">
-                <p>{profile.phone}</p>
+                <p className="tabular-nums">{formatPhoneKR(profile.phone)}</p>
                 <button
                   onClick={() => setEditingInfo(true)}
-                  className="shrink-0 rounded-full border border-line px-3.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
+                  className="flex min-h-11 shrink-0 items-center rounded-full border border-line px-4 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold"
                 >
                   정보 수정
                 </button>
@@ -593,8 +594,6 @@ export default function AccountPage() {
           )}
         </div>
       )}
-
-      <ReferralCard />
 
       {subs.length > 0 && (
         <>
@@ -671,20 +670,11 @@ export default function AccountPage() {
                   </div>
 
                   {sch.started ? (
-                    <dl className="mt-4 grid grid-cols-2 gap-y-2 text-[14px] sm:grid-cols-4">
-                      <div>
-                        <dt className="text-[12px] text-mute">발송 완료</dt>
-                        <dd className="tabular-nums text-ink">
-                          {sch.delivered} / {sch.total}회
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-[12px] text-mute">남은 횟수</dt>
-                        <dd className="tabular-nums text-ink">{sch.remaining}회</dd>
-                      </div>
-                      <div>
+                    <dl className="mt-4 grid grid-cols-3 gap-y-3 text-[14px] sm:grid-cols-4">
+                      {/* 가장 먼저 찾는 것 — 다음에 언제 오는지. 카드 맨 위 한 줄을 통째로 쓴다. */}
+                      <div className="col-span-3 border-b border-line pb-3 sm:col-span-4">
                         <dt className="text-[12px] text-mute">다음 발송</dt>
-                        <dd className="text-ink">
+                        <dd className="t-title3 mt-0.5 font-serif-kr text-ink">
                           {skipping
                             ? "이번 주 건너뜀"
                             : sch.paused
@@ -698,6 +688,16 @@ export default function AccountPage() {
                             </span>
                           )}
                         </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[12px] text-mute">발송 완료</dt>
+                        <dd className="tabular-nums text-ink">
+                          {sch.delivered} / {sch.total}회
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[12px] text-mute">남은 횟수</dt>
+                        <dd className="tabular-nums text-ink">{sch.remaining}회</dd>
                       </div>
                       <div>
                         <dt className="text-[12px] text-mute">종료 예정</dt>
@@ -835,7 +835,7 @@ export default function AccountPage() {
                             <button
                               onClick={() => dayPick && onChangeDay(s, dayPick)}
                               disabled={!dayPick || dayPick === s.deliveryDay || busy === s.slotId}
-                              className="rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-40"
+                              className="min-h-11 rounded-full bg-ink px-5 py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-40"
                             >
                               {busy === s.slotId ? "처리 중…" : "요일 변경"}
                             </button>
@@ -854,14 +854,14 @@ export default function AccountPage() {
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-[13px] text-ink-soft">
                             <span className="text-mute">받는 요일 · </span>
-                            매주 {DELIVERY_DAY_LABEL[s.deliveryDay]}요일
+                            매주 {DELIVERY_DAY_LABEL[s.deliveryDay]}
                           </p>
                           <button
                             onClick={() => {
                               setDayEdit(s.slotId);
                               setDayPick(null);
                             }}
-                            className="shrink-0 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
+                            className="min-h-11 shrink-0 rounded-full border border-line px-4 py-2 text-[13px] text-ink-soft transition-colors hover:border-gold hover:text-gold-deep"
                           >
                             요일 변경
                           </button>
@@ -895,7 +895,7 @@ export default function AccountPage() {
                           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
                             주문번호 <span className="tabular-nums">{pending.orderNo}</span>
                             {pending.deliveryDay
-                              ? ` · ${DELIVERY_DAY_LABEL[pending.deliveryDay]}요일로 이어집니다`
+                              ? ` · ${DELIVERY_DAY_LABEL[pending.deliveryDay]}로 이어집니다`
                               : ""}
                             . 입금이 확인되면
                             {pendingWeeks > 0 ? ` ${pendingWeeks}회분이` : " 신청하신 회차가"} 더
@@ -1070,7 +1070,7 @@ export default function AccountPage() {
                       ) : (
                         <button
                           onClick={() => openCancel(s.slotId)}
-                          className="text-[13px] text-mute underline transition-colors hover:text-ink"
+                          className="-my-2 inline-flex min-h-11 items-center text-[13px] text-mute underline transition-colors hover:text-ink"
                         >
                           구독 해지 · 남은 회차 환불
                         </button>
@@ -1236,6 +1236,10 @@ export default function AccountPage() {
           })}
         </ul>
       )}
+
+      {/* 추천 혜택은 구독·주문 아래에 둔다 — 위에 있으면 '다음 발송이 언제인지'가
+          화면 한 장 아래로 밀린다. 마이페이지에 오는 이유는 대개 내 구독이다. */}
+      <ReferralCard />
 
       <WishlistSection userId={user.id} />
 

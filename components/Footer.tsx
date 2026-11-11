@@ -9,11 +9,12 @@ export function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2 lg:col-span-1">
             <Image
-              src="/brand/heymilk-logo.png"
+              src="/brand/logo-lockup.png"
               alt="송영신목장 A2 저지 헤이밀크"
-              width={800}
-              height={800}
-              className="w-[132px]"
+              width={900}
+              height={1309}
+              sizes="112px"
+              className="w-[112px]"
             />
             <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-mute">
               경기도 안성에서 A2 저지 헤이밀크를 직접 짓고 발효합니다.
@@ -82,7 +83,7 @@ export function Footer() {
           <p className="mt-1">
             대표전화 {BUSINESS.tel} · {BUSINESS.mobile} · 이메일 {BUSINESS.email}
           </p>
-          <p className="mt-4 text-mute/80">
+          <p className="mt-4 text-mute">
             © {new Date().getFullYear()} Song Yeong Shin Farm. All rights reserved.
           </p>
         </div>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Reveal } from "./Reveal";
 import { SlotAvailability } from "./SlotAvailability";
 import { SocialProof } from "./SocialProof";
+import { discountRangeLabel, periodWeeksList } from "@/lib/products";
 
 const STEPS = [
   {
@@ -14,13 +15,13 @@ const STEPS = [
   {
     n: "02",
     t: "기간만큼, 한 번에",
-    d: "4·8·12주분을 한 번 입금. 약속한 요일마다 채워 드립니다. 매번 결제는 없습니다.",
+    d: `${periodWeeksList()}주분을 한 번 입금. 약속한 요일마다 채워 드립니다. 매번 결제는 없습니다.`,
     color: "var(--color-hey-green)",
   },
   {
     n: "03",
     t: "창립 500인의 특권",
-    d: "기간이 길수록 커지는 회원가 10–15%. 부담 없이, 원하는 만큼.",
+    d: `기간이 길수록 커지는 회원가 ${discountRangeLabel("–")}%. 부담 없이, 원하는 만큼.`,
     color: "var(--color-hey-blue)",
   },
 ];
@@ -31,11 +32,12 @@ export function SubscriptionBand() {
       <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-gold/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-gold/10 blur-3xl" />
       <Image
-        src="/brand/haymil_log.png"
+        src="/brand/logo-label.png"
         alt=""
         aria-hidden
-        width={800}
-        height={800}
+        width={1000}
+        height={793}
+        sizes="(max-width:640px) 224px, 320px"
         className="pointer-events-none absolute -bottom-10 -right-8 w-56 opacity-[0.22] sm:-bottom-14 sm:-right-10 sm:w-80"
       />
 

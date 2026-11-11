@@ -6,9 +6,14 @@
   --color-paper-3: #ece2cd;
   --color-ink: #17120c;
   --color-ink-soft: #2b2620;
-  --color-mute: #8a7e68;
+  /* 보조 글자색. 예전 값 #8a7e68 은 종이색 위 명암비가 3.7:1 로, 본문 글자 기준(WCAG AA
+     4.5:1)에 못 미쳤다 — 안내문·날짜·보조 설명이 햇빛 아래 휴대폰이나 노안에는 흐렸다.
+     같은 색조를 어둡게 해 가장 어두운 바탕(paper-2)에서도 4.69:1 을 넘긴다. */
+  --color-mute: #716755;
   --color-gold: #c9a46b;
-  --color-gold-deep: #96763f;
+  /* 글자로 쓰는 골드. 예전 값 #96763f 은 종이색 위 3.93:1 이었다. 라벨 골드(4254 C)의
+     색조는 그대로 두고 어둡게 — paper-2 위에서도 4.59:1. */
+  --color-gold-deep: #816536;
   --color-line: #e6ddca;
   --color-cream: #fffdf8;
   /* ── 스튜디오 배경 ───────────────────────────────────────────────────
@@ -80,6 +85,15 @@
 
   /* 고정 헤더 높이 — 앵커로 이동했을 때 제목이 헤더 뒤로 숨지 않게 하는 기준값. */
   --header-h: 72px;
+}
+
+/* 어두운 바탕(bg-ink) 위에서는 위 두 색이 거꾸로 묻힌다 — 밝은 변주로 바꿔 준다.
+   (ink 위 명암비: #a99d87 7.0:1 · gold 8.0:1) */
+:where(.bg-ink) .text-mute {
+  color: #a99d87;
+}
+:where(.bg-ink) .text-gold-deep {
+  color: var(--color-gold);
 }
 
 :root {
@@ -375,6 +389,38 @@ body {
     filter: brightness(1.008);
     mix-blend-mode: multiply;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   병 사진의 가장자리를 타일에 녹이기(product-cut)
+
+   ★ 문제: 병 사진 네 장의 배경은 한 가지 색이 아니다. 테두리는 (247,240,231)인데
+     안쪽은 (252,244,236) — 사진 안에서도 5 가 차이 나고, 타일 바탕(--color-studio)
+     과도 어긋난다. 그래서 둥근 타일 안에 '사진의 네모'가 얼룩처럼 비친다
+     (압축을 거치면 그 경계가 계단 모양으로 더 도드라진다).
+   ★ 배경색을 하나로 맞출 수 없으니 경계를 없앤다 — 사진 가장자리를 투명으로
+     서서히 빼서 타일 바탕으로 이어 붙인다.
+   ★ 기준은 요소 상자가 아니라 '실제 사진'이어야 한다. object-contain 은 사진을
+     content-box 가운데에 정사각형으로 앉히므로, content-box 기준 closest-side 원이
+     곧 사진에 내접하는 원이다(여백·타일 비율이 바뀌어도 따라간다).
+     병은 가로 34~65%·세로 7~91% 안에만 있어(네 장 실측) 가장 먼 모서리가 반지름의
+     89% — 원은 90% 부터 빼고, 좌우는 병에서 10%p 떨어진 자리부터 뺀다.
+   ═══════════════════════════════════════════════════════════════════════ */
+.product-cut {
+  -webkit-mask-image:
+    radial-gradient(circle closest-side at center, #000 90%, transparent 100%),
+    linear-gradient(to right, transparent 0, #000 24%, #000 76%, transparent 100%);
+  mask-image:
+    radial-gradient(circle closest-side at center, #000 90%, transparent 100%),
+    linear-gradient(to right, transparent 0, #000 24%, #000 76%, transparent 100%);
+  -webkit-mask-origin: content-box;
+  mask-origin: content-box;
+  -webkit-mask-clip: content-box;
+  mask-clip: content-box;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
 }
 
 /* 앵커로 이동했을 때 제목이 고정 헤더 뒤로 숨지 않게.

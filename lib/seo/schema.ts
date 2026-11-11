@@ -11,7 +11,7 @@ export function buildOrganization() {
     "@type": "Organization",
     name: BUSINESS.company,
     url: SITE_URL,
-    logo: `${SITE_URL}/brand/heymilk-logo.png`,
+    logo: `${SITE_URL}/brand/logo-label.png`,
     sameAs: [BRAND_HOME],
   } as const;
 }

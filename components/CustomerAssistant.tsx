@@ -38,8 +38,7 @@ export function CustomerAssistant() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showNudge, setShowNudge] = useState(false);
-  // 넛지를 첫 페인트에 띄우지 않는다 — 첫 화면을 제품만으로 채우기 위해, 사용자가
-  //   첫 화면의 60%를 스크롤하거나 6초가 지난 뒤(먼저 도달하는 쪽)에만 등장시킨다.
+  // 넛지를 첫 화면에 띄우지 않는다 — 첫 화면의 60%를 스크롤한 뒤에만 등장시킨다.
   const [nudgeReady, setNudgeReady] = useState(false);
   // 제품 상세의 모바일 하단 담기 바가 떠 있으면 FAB·넛지를 숨겨 겹침을 피한다.
   const [addBarOpen, setAddBarOpen] = useState(false);
@@ -60,7 +59,7 @@ export function CustomerAssistant() {
 
   // 메인화면(홈 '/')에 올 때마다 인사 넛지를 다시 띄운다 — 홈 진입·새로고침·다른 곳에서
   //   홈으로 복귀할 때마다 매번. 그 외 페이지에서는 띄우지 않는다(따라다니지 않게).
-  //   nudgeReady 를 false 로 되돌려 등장 타이머(2.5초)를 매번 새로 무장한다.
+  //   nudgeReady 를 false 로 되돌려 등장 게이트(스크롤)를 매번 새로 무장한다.
   useEffect(() => {
     if (pathname === "/") {
       setShowNudge(true);
@@ -90,27 +89,21 @@ export function CustomerAssistant() {
     return () => window.removeEventListener("shop:assistant-open", onOpen);
   }, []);
 
-  // 넛지 등장 게이트: 첫 화면을 가리지 않도록, 첫 화면 60% 스크롤 또는 6초 경과 중
-  //   먼저 도달하는 시점에만 노출한다. 둘 중 하나가 충족되면 리스너·타이머를 정리한다.
+  // 넛지 등장 게이트: 첫 화면을 넘겨 내려온 뒤에만 띄운다.
+  //   예전에는 2.5초 타이머도 함께 걸려 있어, 가만히 첫 화면을 읽는 손님 앞에서 말풍선이
+  //   '정기구독 신청하기' 버튼 위를 덮었다(모바일 390px 실측). 첫 화면의 주인은 제품과
+  //   버튼이다 — 넛지는 손님이 더 알아보려고 내려왔을 때 말을 건다.
   useEffect(() => {
     if (!showNudge || nudgeReady) return;
-    let done = false;
-    const reveal = () => {
-      if (done) return;
-      done = true;
-      setNudgeReady(true);
-      window.removeEventListener("scroll", onScroll);
-      clearTimeout(timer);
-    };
     const onScroll = () => {
-      if (window.scrollY > window.innerHeight * 0.25) reveal();
+      if (window.scrollY > window.innerHeight * 0.6) {
+        setNudgeReady(true);
+        window.removeEventListener("scroll", onScroll);
+      }
     };
-    const timer = setTimeout(reveal, 2500);
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      clearTimeout(timer);
-    };
+    return () => window.removeEventListener("scroll", onScroll);
   }, [showNudge, nudgeReady]);
 
   // 이번 표시만 닫는다(영속 저장 안 함) — 홈으로 다시 오면 위 effect 가 또 띄운다.
@@ -127,6 +120,14 @@ export function CustomerAssistant() {
 
   // 관리자 화면에선 노출하지 않는다(관리자 전용 AI 비서가 따로 있음).
   if (pathname?.startsWith("/admin")) return null;
+
+  // 제품 상세에는 하단 탭바가 없다(BottomNav 가 물러난다) — 그 높이만큼 띄울 이유가 없으니
+  //   모바일에서도 화면 아래에 붙인다. 그 밖의 화면은 탭바(68px) 위.
+  const noTabBar =
+    pathname?.startsWith("/products/") || pathname === "/checkout" || pathname === "/order-once";
+  const mobileBottom = noTabBar
+    ? "bottom-[calc(env(safe-area-inset-bottom)+1.25rem)]"
+    : "bottom-[84px]";
 
   async function send(text: string, opts?: { speak?: boolean }) {
     const q = text.trim();
@@ -216,15 +217,15 @@ export function CustomerAssistant() {
   return (
     <>
       {/* 첫 방문 인사 넛지 — 도우미가 먼저 말 거는 카드(얼굴+이름+예시 질문 칩).
-          빠르게(2.5초)·친근하게 등장해 우하단 FAB가 묻히는 문제를 보완한다. */}
+          첫 화면을 지난 뒤 친근하게 등장해 우하단 FAB가 묻히는 문제를 보완한다. */}
       {!open && showNudge && nudgeReady && !addBarOpen && (
-        <div className="fixed bottom-[150px] right-5 z-40 w-[min(280px,calc(100vw-2.5rem))] animate-[rise_0.5s_var(--ease-soft)_both] md:bottom-[88px] md:right-6 no-print">
+        <div role="complementary" aria-label="도우미 안내" className="fixed bottom-[150px] right-5 z-40 w-[min(280px,calc(100vw-2.5rem))] animate-[rise_0.5s_var(--ease-soft)_both] md:bottom-[88px] md:right-6 no-print">
           <div className="relative rounded-2xl border border-gold/30 bg-cream px-3.5 py-3 shadow-xl">
             <button
               type="button"
               onClick={dismissNudge}
               aria-label="안내 닫기"
-              className="absolute right-2 top-2 text-mute hover:text-ink"
+              className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center text-mute hover:text-ink"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
@@ -246,14 +247,14 @@ export function CustomerAssistant() {
                   <button
                     type="button"
                     onClick={() => openChat("어떤 우유가 저에게 맞을까요? 가족 수와 드시는 양으로 추천해 주세요.")}
-                    className="rounded-full border border-gold/40 bg-white px-2.5 py-1 text-[12px] font-medium text-gold-deep transition-colors hover:bg-gold/10"
+                    className="min-h-11 rounded-full border border-gold/40 bg-white px-3.5 text-[13px] font-medium text-gold-deep transition-colors hover:bg-gold/10"
                   >
                     어떤 우유가 맞을까요?
                   </button>
                   <button
                     type="button"
                     onClick={() => openChat()}
-                    className="rounded-full bg-ink px-2.5 py-1 text-[12px] font-medium text-cream transition-colors hover:bg-gold-deep"
+                    className="min-h-11 rounded-full bg-ink px-3.5 text-[13px] font-medium text-cream transition-colors hover:bg-gold-deep"
                   >
                     대화 시작
                   </button>
@@ -270,7 +271,7 @@ export function CustomerAssistant() {
           type="button"
           onClick={() => openChat()}
           aria-label="송영신목장 도우미 — 채팅 열기"
-          className="fixed bottom-[84px] right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-cream shadow-xl transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
+          className={`fixed ${mobileBottom} right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-cream shadow-xl transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6`}
         >
           {/* 시선 끌기 — 첫 방문(넛지 활성) 동안만 잔잔한 펄스 링. 클릭 가로채지 않음. */}
           {showNudge && nudgeReady && (
@@ -291,7 +292,7 @@ export function CustomerAssistant() {
 
       {/* 채팅 패널 */}
       {open && (
-        <div className="fixed inset-x-3 bottom-[84px] z-40 mx-auto flex h-[min(560px,72vh)] max-w-[380px] flex-col overflow-hidden rounded-2xl border border-line bg-cream shadow-2xl md:inset-x-auto md:right-6 md:bottom-6 md:mx-0 md:w-[380px]">
+        <div className={`fixed inset-x-3 ${mobileBottom} z-40 mx-auto flex h-[min(560px,72vh)] max-w-[380px] flex-col overflow-hidden rounded-2xl border border-line bg-cream shadow-2xl md:inset-x-auto md:right-6 md:bottom-6 md:mx-0 md:w-[380px]`}>
           <div className="flex items-center justify-between border-b border-line bg-ink px-4 py-3 text-cream">
             <div>
               <p className="text-[14px] font-medium">송영신목장 도우미</p>

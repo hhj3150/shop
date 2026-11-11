@@ -3,12 +3,11 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { PRODUCTS, formatKRW, subscribePrice, type ProductLine } from "@/lib/products";
+import { PRODUCTS, PERIOD_LABEL, formatKRW, subscribePrice, type ProductLine } from "@/lib/products";
 import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts } from "@/lib/storefront-merge";
 import { Reveal } from "./Reveal";
 import { Scatter, HEY, type ConfettiItem } from "./Confetti";
-import { LogoBubbles } from "./LogoBubbles";
 import { ProductSticker } from "./ProductSticker";
 
 type Filter = "all" | ProductLine;
@@ -46,7 +45,6 @@ export function ProductShowcase() {
   return (
     <section id="products" className="relative scroll-mt-20 overflow-hidden">
       <Scatter items={PRODUCTS_CONFETTI} />
-      <LogoBubbles />
       <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
       {/* Store greeting — 우아한 serif·절제된 크기로(상품 히어로와 통일, 덜 투박) */}
       <Reveal>
@@ -71,7 +69,7 @@ export function ProductShowcase() {
               type="button"
               onClick={() => setFilter(f.key)}
               aria-pressed={filter === f.key}
-              className={`rounded-full px-5 py-2 text-[14px] font-medium tracking-wide transition-colors ${
+              className={`min-h-11 rounded-full px-5 py-2 text-[14px] font-medium tracking-wide transition-colors ${
                 filter === f.key ? "bg-ink text-cream" : "text-ink-soft hover:text-hey-blue"
               }`}
             >
@@ -81,17 +79,18 @@ export function ProductShowcase() {
         </div>
       </div>
 
-      <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2">
+      {/* 모바일도 2열 — 한 화면에 한 병씩이면 네 가지를 견주려고 네 화면을 넘겨야 한다. */}
+      <div className="mt-10 grid grid-cols-2 gap-3 sm:mt-12 sm:gap-6">
         {shown.map((p, i) => (
           <Reveal key={p.id} delay={(i % 2) * 80}>
-            <article className="group flex h-full flex-col items-center rounded-[28px] bg-cream/60 px-6 pt-10 pb-8 text-center transition-all duration-500 hover:-translate-y-1.5 hover:bg-cream hover:shadow-[0_44px_90px_-34px_rgba(40,30,15,0.32)] sm:rounded-[32px] sm:px-8 sm:pt-12 sm:pb-9">
+            <article className="group flex h-full flex-col items-center rounded-[22px] bg-cream/60 px-3 pt-6 pb-5 text-center transition-all duration-500 hover:-translate-y-1.5 hover:bg-cream hover:shadow-[0_44px_90px_-34px_rgba(40,30,15,0.32)] sm:rounded-[32px] sm:px-8 sm:pt-12 sm:pb-9">
               <p
-                className="text-[13px] font-semibold uppercase tracking-[0.18em]"
+                className="t-caption font-semibold uppercase tracking-[0.18em]"
                 style={{ color: p.accent }}
               >
                 {p.badge}
               </p>
-              <h3 className="mt-2 font-serif-kr text-[clamp(1.3rem,2.4vw,1.6rem)] font-medium leading-snug tracking-[-0.01em] text-ink">
+              <h3 className="mt-2 font-serif-kr text-[clamp(1.02rem,2.4vw,1.6rem)] font-medium leading-snug tracking-[-0.01em] text-ink">
                 {p.name}
               </h3>
               <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[14px] text-mute">
@@ -105,14 +104,14 @@ export function ProductShowcase() {
 
               <Link
                 href={`/products/${p.id}`}
-                className="mt-8 flex w-full flex-1 flex-col items-center"
+                className="mt-4 flex w-full flex-1 flex-col items-center sm:mt-8"
               >
-                <div className="relative h-72 w-full overflow-hidden rounded-[20px] bg-studio sm:h-80">
+                <div className="relative h-44 w-full overflow-hidden rounded-[16px] bg-studio sm:h-80 sm:rounded-[20px]">
                   {p.sticker && (
                     <ProductSticker
                       title={p.sticker.title}
                       sub={p.sticker.sub}
-                      className="left-3 top-3 sm:left-4 sm:top-4"
+                      className="left-3 top-3 max-sm:hidden sm:left-4 sm:top-4"
                     />
                   )}
                   <Image
@@ -120,8 +119,8 @@ export function ProductShowcase() {
                     alt={`${p.name} ${p.volume}`}
                     width={720}
                     height={720}
-                    sizes="(max-width:640px) 88vw, 40vw"
-                    className="h-full w-full object-contain p-3 transition-transform duration-700 group-hover:scale-[1.04] sm:p-4"
+                    sizes="(max-width:640px) 44vw, 40vw"
+                    className="product-cut h-full w-full object-contain p-2 transition-transform duration-700 group-hover:scale-[1.04] sm:p-4"
                   />
                 </div>
               </Link>
@@ -129,27 +128,27 @@ export function ProductShowcase() {
               {/* 1회 구매 전용(애프터밀크)은 구독 회원가가 없으니 정가만 노출한다. */}
               {p.onceOnly ? (
                 <>
-                  <p className="mt-7 text-[clamp(1.35rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums">
+                  <p className="mt-4 text-[clamp(1.1rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums sm:mt-7">
                     {formatKRW(p.price)}
                     <span className="ml-1.5 align-baseline text-[13px] font-normal text-mute">정가</span>
                   </p>
-                  <p className="mt-1.5 text-[12.5px] text-mute tabular-nums lining-nums">
+                  <p className="t-caption mt-1.5 leading-snug text-mute tabular-nums lining-nums">
                     1회 구매 전용 · {p.taxFree ? "면세품" : "부가세 포함"}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="mt-7 text-[clamp(1.35rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums">
+                  <p className="mt-4 text-[clamp(1.1rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums sm:mt-7">
                     {formatKRW(subscribePrice(p.price))}
-                    <span className="ml-1.5 align-baseline text-[13px] font-normal text-mute">회원가</span>
+                    <span className="t-caption ml-1 align-baseline font-normal text-mute sm:ml-1.5">{PERIOD_LABEL[1]} 회원가</span>
                   </p>
-                  <p className="mt-1.5 text-[12.5px] text-mute tabular-nums lining-nums">
+                  <p className="t-caption mt-1.5 leading-snug text-mute tabular-nums lining-nums">
                     정가 {formatKRW(p.price)} · {p.taxFree ? "면세품" : "부가세 포함"}
                   </p>
                 </>
               )}
 
-              <div className="mt-7 w-full max-w-xs">
+              <div className="mt-4 w-full max-w-xs sm:mt-7">
                 {p.soldOut ? (
                   <span
                     aria-disabled="true"
@@ -160,7 +159,7 @@ export function ProductShowcase() {
                 ) : (
                   <Link
                     href={`/products/${p.id}`}
-                    className="block w-full rounded-full bg-ink px-6 py-3 text-center text-[15px] font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98]"
+                    className="flex min-h-11 w-full items-center justify-center rounded-full bg-ink px-3 text-center t-footnote font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98] sm:px-6"
                   >
                     {p.onceOnly ? "구매하기" : "구독 신청"}
                   </Link>

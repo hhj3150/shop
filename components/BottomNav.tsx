@@ -98,6 +98,17 @@ export function BottomNav() {
   const homeActive = pathname === "/";
   const accountActive = pathname.startsWith("/account");
 
+  // 제품 상세에서는 물러난다 — 거기서는 하단 구매 바가 이 자리를 쓴다.
+  //   탭바 + 구매 바 + 채팅 버튼이 세 겹으로 쌓이면 390×844 화면의 30%가 고정 요소다.
+  //   홈·로그인·장바구니는 상단 바에 그대로 있어 길을 잃지 않는다.
+  //   결제·1회 구매 양식도 같다 — 거기서는 합계·제출 바가 이 자리를 쓴다.
+  if (
+    pathname.startsWith("/products/") ||
+    pathname === "/checkout" ||
+    pathname === "/order-once"
+  )
+    return null;
+
   return (
     <>
       {/* 더보기 시트 — 외부 브랜드 채널 */}
@@ -115,6 +126,7 @@ export function BottomNav() {
         aria-modal="true"
         aria-label="브랜드 채널 더보기"
         aria-hidden={!moreOpen}
+        inert={!moreOpen}
         className={`material-thick elev-3 fixed inset-x-0 bottom-0 z-[70] mx-auto max-w-md rounded-t-2xl border-t border-line/70 p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] outline-none transition-transform duration-300 ease-[var(--ease-spring)] md:hidden ${
           moreOpen ? "translate-y-0" : "translate-y-full"
         }`}
@@ -168,11 +180,12 @@ export function BottomNav() {
           <li>
             <Link href="/" aria-current={homeActive ? "page" : undefined} className={tabClass(homeActive)}>
               <Image
-                src="/brand/heymilk-logo.png"
+                src="/brand/logo-label.png"
                 alt=""
-                width={800}
-                height={800}
-                className="h-[22px] w-[22px] object-contain"
+                width={1000}
+                height={793}
+                sizes="28px"
+                className="h-[22px] w-[28px] object-contain"
               />
               쇼핑
             </Link>

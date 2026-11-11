@@ -24,11 +24,12 @@ export function FarmBand() {
 
           {/* 브랜드 로고 */}
           <Image
-            src="/brand/haymil_log.png"
+            src="/brand/logo-label.png"
             alt=""
             aria-hidden
-            width={800}
-            height={800}
+            width={1000}
+            height={793}
+            sizes="64px"
             className="pointer-events-none absolute right-4 top-5 z-10 w-14 drop-shadow-[0_6px_16px_rgba(0,0,0,0.35)] sm:right-6 sm:top-6 sm:w-16"
           />
 

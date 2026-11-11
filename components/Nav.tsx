@@ -30,19 +30,19 @@ export function Nav() {
           : "bg-transparent border-b border-transparent"
       }`}
     >
-      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+      <nav aria-label="주 메뉴" className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
         <Link
           href="/"
           aria-label="송영신목장 A2 저지 헤이밀크 홈"
           className="tap press flex items-center"
         >
           <Image
-            src="/brand/heymilk-logo.png"
+            src="/brand/logo-label.png"
             alt="송영신목장 A2 저지 헤이밀크"
-            width={800}
-            height={800}
+            width={1000}
+            height={793}
             priority
-            sizes="44px"
+            sizes="64px"
             className="h-10 w-auto sm:h-11"
           />
         </Link>
@@ -82,7 +82,7 @@ export function Nav() {
 
           <button
             onClick={open}
-            aria-label="장바구니 열기"
+            aria-label={`장바구니 열기, 담긴 수량 ${count}`}
             className="tap press group relative flex min-h-11 items-center gap-2 rounded-full border border-line bg-cream/60 px-4 text-[13px] tracking-wide text-ink transition-colors hover:border-gold hover:text-gold"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">

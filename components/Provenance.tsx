@@ -1,4 +1,7 @@
 import { Reveal } from "./Reveal";
+import { CertList } from "./CertList";
+import { activeCertifications } from "@/lib/certifications";
+import { kstYmd } from "@/lib/kst";
 
 const STATS = [
   { v: "38만 두", l: "국내 젖소 · 대부분 홀스타인" },
@@ -6,15 +9,8 @@ const STATS = [
   { v: "단 한 곳", l: "100% A2 저지 착유목장" },
 ];
 
-const CERTS = [
-  "저탄소 인증 1호",
-  "동물복지 인증 1호",
-  "HACCP 인증",
-  "경기도 가축행복농장",
-  "깨끗한목장 인증",
-];
-
 export function Provenance() {
+  const certIds = activeCertifications(kstYmd(new Date().toISOString())).map((c) => c.id);
   return (
     <section id="provenance" className="border-y border-line bg-paper-2/40">
       <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
@@ -77,20 +73,15 @@ export function Provenance() {
             <p className="text-[13px] uppercase tracking-[0.2em] text-mute">
               국가·기관 인증
             </p>
-            <ul className="mt-4 flex flex-wrap gap-2.5">
-              {CERTS.map((c) => (
-                <li
-                  key={c}
-                  className="rounded-full border border-gold/40 bg-gold/8 px-4 py-2 text-[14px] font-medium text-gold-deep"
-                >
-                  {c}
-                </li>
-              ))}
-            </ul>
+            {/* 이름만 적은 칩에서 '명칭·발급기관·번호·유효기간'으로 — 인증은 확인할 수 있어야 인증이다.
+                목록은 lib/certifications.ts 한 곳에서 오고, 기간이 지난 것은 저절로 빠진다. */}
+            <div className="mt-4">
+              <CertList initialIds={certIds} />
+            </div>
             <p className="mt-4 text-[12.5px] leading-relaxed text-mute">
-              모든 인증은 정식 인증번호를 보유하고 있으며, 요청 시 확인해 드립니다.
+              모두 목장(젖소 사육·착유 단계)에 대한 인증이며, 인증서 원본은 요청하시면 보여 드립니다.
             </p>
-            <p className="mt-3 text-[11.5px] leading-relaxed text-mute/80">
+            <p className="mt-3 text-[11.5px] leading-relaxed text-mute">
               ※ A2·헤이밀크 관련 설명은 공개된 연구 자료에 근거한 일반 정보이며, 질병의
               예방·치료 효과를 의미하지 않습니다.
             </p>

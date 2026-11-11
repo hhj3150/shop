@@ -165,8 +165,8 @@ const YOGURT_SIGNATURE_500: ProductSignature = {
 
 // ───────── 정기구독 정책 ─────────
 // 매주 1회 배송(신선도 유지), 요일은 월–금 중 하나 선택.
-// 구독 기간은 4·8·12주 중 선택. 1개월 = 4주(= 4회 배송)분을 한 번에 무통장입금(4회분 선납).
-// 회원 할인율 10/12/15%. 다음 달도 받으시려면 매월 연장(재입금)한다.
+// 구독 기간은 4·8·12·24주 중 선택. 1개월 = 4주(= 4회 배송)분을 한 번에 무통장입금(4회분 선납).
+// 회원 할인율 10/12/15/20%. 다음 달도 받으시려면 매월 연장(재입금)한다.
 export const WEEKS_PER_MONTH = 4;
 export const MIN_ORDER_KRW = 24000; // 1회(매주) 배송 최소 상품 금액 (단품과 동일). 750mL 12,000원 × 2병.
 export const SUB_SHIPPING_KRW = 4000; // 회당(매주) 배송비
@@ -184,13 +184,16 @@ export function subShippingFee(
     : SUB_SHIPPING_KRW;
 }
 
-// 구독 기간(개월): 1=4주, 2=8주, 3=12주. 사용자에겐 '주'로 노출(PERIOD_LABEL).
-export type SubPeriod = 1 | 2 | 3;
-export const SUB_PERIODS: SubPeriod[] = [1, 2, 3];
+// 구독 기간(개월): 1=4주, 2=8주, 3=12주, 6=24주. 사용자에겐 '주'로 노출(PERIOD_LABEL).
+//   값은 서버와 같은 '개월' 단위다 — 서버는 p_period * 4 로 주 수를, period_discount(p_period)
+//   로 할인율을 정한다. 24주가 4 가 아니라 6 인 이유다(4·5 는 서버가 거절한다).
+export type SubPeriod = 1 | 2 | 3 | 6;
+export const SUB_PERIODS: SubPeriod[] = [1, 2, 3, 6];
 export const PERIOD_LABEL: Record<SubPeriod, string> = {
   1: "4주",
   2: "8주",
   3: "12주",
+  6: "24주",
 };
 
 // 기간(개월) → 총 배송 회수(= 주분). 1개월 = 4주(= 4회분 선납).
@@ -198,17 +201,36 @@ export function periodWeeks(months: SubPeriod): number {
   return months * WEEKS_PER_MONTH;
 }
 
-// 기간(개월) → 할인율. 4주 10% / 8주 12% / 12주 15%.
+// 기간(개월) → 할인율. 4주 10% / 8주 12% / 12주 15% / 24주 20%.
+//   ★ 서버 public.period_discount 와 반드시 같은 값이어야 한다(서버가 금액의 단일 권위).
+//     여기만 바꾸면 화면 금액과 실제 주문 금액이 어긋난다 — supabase/migration-period-24weeks.sql.
 export const PERIOD_DISCOUNT: Record<SubPeriod, number> = {
   1: 0.10,
   2: 0.12,
   3: 0.15,
+  6: 0.20,
 };
-// 기간 배지(표시용). 8주=인기 기본, 12주=최대 할인. 4주는 배지 없음.
+// 기간 배지(표시용). 8주=인기 기본, 24주=최대 할인. 4·12주는 배지 없음.
 export const PERIOD_BADGE: Partial<Record<SubPeriod, string>> = {
   2: "인기",
-  3: "최대 할인",
+  6: "최대 할인",
 };
+// 최소 주문금액(정가 기준)을 채우는 가장 적은 수량. 이미 담아 둔 금액(already)은 빼고 센다.
+//   구매 패널의 출발 수량이다 — 1 로 시작하면 한 병이 최소금액에 못 미치는 제품은
+//   들어오자마자 구매 버튼이 죽어 있다. 정책(MIN_ORDER_KRW)은 건드리지 않는다.
+export function minFillQty(
+  unitListPrice: number,
+  already: number = 0,
+  min: number = MIN_ORDER_KRW
+): number {
+  if (unitListPrice <= 0) return 1;
+  return Math.max(1, Math.ceil((min - already) / unitListPrice));
+}
+
+// 구매 패널이 처음 열릴 때 잡혀 있는 기간(8주 · '인기').
+//   상세 상단 가격과 구매 패널이 같은 기간을 기준으로 삼아야 한 화면에서 같은 제품의
+//   값이 둘로 보이지 않는다 — 두 곳 모두 이 상수 하나를 본다.
+export const DEFAULT_SUB_PERIOD: SubPeriod = 2;
 export function discountForPeriod(months: SubPeriod): number {
   return PERIOD_DISCOUNT[months];
 }
@@ -292,7 +314,7 @@ export const PRODUCTS: Product[] = [
     price: 3500,
     taxFree: true,
     image: "/products/milk-180-bottle.webp",
-    accent: "#c9a46b", // 라벨 4254C
+    accent: "#816536", // 라벨 4254C 를 글자로 쓸 수 있게 어둡게(카드 위 4.8:1). 원색 #c9a46b 은 2.2:1 이라 읽히지 않는다
   },
   {
     id: "milk-750",
@@ -347,7 +369,7 @@ export const PRODUCTS: Product[] = [
     price: 12000,
     taxFree: true,
     image: "/products/milk-750-bottle.webp",
-    accent: "#96763f", // 라벨 4254C 의 어두운 변주(750mL)
+    accent: "#6b532c", // 라벨 4254C 의 더 어두운 변주(750mL)
   },
   {
     id: "yogurt-180",
@@ -532,7 +554,7 @@ export const PRODUCTS: Product[] = [
       { src: "/products/aftermilk-1l-label.webp", label: "제품 정보" },
       { src: "/products/aftermilk-1l-steps.webp", label: "사용법" },
     ],
-    accent: "#4f9d3d",
+    accent: "#3a7a2c",
   },
 ];
 
@@ -566,7 +588,17 @@ export function formatWon(value: number): string {
   return value.toLocaleString("ko-KR") + "원";
 }
 
-// 기간별 할인 안내 문구 — "4주 10% · 8주 12% · 12주 15%".
+// 할인율 범위 "10~20" — 탭·배지·안내문이 숫자를 따로 적지 않게 여기서 만든다.
+export function discountRangeLabel(sep = "~"): string {
+  const pcts = SUB_PERIODS.map((m) => Math.round(PERIOD_DISCOUNT[m] * 100));
+  return `${Math.min(...pcts)}${sep}${Math.max(...pcts)}`;
+}
+// 기간 나열 "4·8·12·24" — 약관·안내·구독 소개가 같은 목록을 쓴다.
+export function periodWeeksList(sep = "·"): string {
+  return SUB_PERIODS.map((m) => periodWeeks(m)).join(sep);
+}
+
+// 기간별 할인 안내 문구 — "4주 10% · 8주 12% · 12주 15% · 24주 20%".
 //   FAQ·도우미·구독 화면이 같은 문장을 쓰도록 여기서 한 번만 만든다.
 //   할인율을 PERIOD_DISCOUNT 에서만 바꾸면 손님에게 보이는 모든 문구가 함께 따라온다.
 export function periodDiscountSentence(sep = " · "): string {

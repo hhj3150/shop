@@ -50,7 +50,7 @@ export function WishlistButton({ productId }: { productId: string }) {
       type="button"
       onClick={toggle}
       aria-pressed={wished}
-      className={`inline-flex items-center gap-1.5 text-[13px] transition-colors ${
+      className={`inline-flex min-h-11 items-center gap-1.5 px-3 text-[13px] transition-colors ${
         wished ? "text-gold-deep" : "text-mute hover:text-ink"
       }`}
     >

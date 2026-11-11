@@ -36,7 +36,7 @@ export function ProductKicker({ highlights }: { highlights?: Highlights }) {
     <p className="mx-auto mt-3 max-w-md font-serif-kr text-[clamp(1rem,2.1vw,1.18rem)] font-medium leading-snug tracking-[-0.015em] text-ink lg:mx-0">
       {highlights.kicker.split("\n").map((line, i) => (
         <span key={i} className="block">
-          {renderRich(line, "font-medium text-gold")}
+          {renderRich(line, "font-medium text-gold-deep")}
         </span>
       ))}
     </p>
@@ -54,7 +54,7 @@ export function ProductHighlights({ highlights }: { highlights?: Highlights }) {
       <dl className="space-y-1.5">
         {rows.map((row) => (
           <div key={row.k} className="flex items-baseline gap-4">
-            <dt className="w-12 flex-none pt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink/35">
+            <dt className="w-12 flex-none pt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-mute">
               {row.k}
             </dt>
             <dd className="text-[13.5px] leading-snug text-ink-soft">
@@ -67,7 +67,7 @@ export function ProductHighlights({ highlights }: { highlights?: Highlights }) {
         ))}
       </dl>
 
-      <p className="mt-3 text-[10.5px] tracking-wide text-ink/35">{proof}</p>
+      <p className="mt-3 text-[10.5px] tracking-wide text-mute">{proof}</p>
     </div>
   );
 }

@@ -114,7 +114,7 @@ describe("계층이 다시 흩어지지 않게 — 톱니바퀴(ratchet)", () =>
   //
   //   한 번에 다 고칠 수는 없다. 대신 '늘어나지만 않게' 막는다 — 고칠 때마다
   //   이 숫자를 내려 적으면 된다. 올리는 방향으로는 테스트가 막는다.
-  const BASELINE = 1118;
+  const BASELINE = 1109;
 
   function walk(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
