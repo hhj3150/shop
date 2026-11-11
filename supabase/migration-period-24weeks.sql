@@ -6,6 +6,7 @@
 --   ⚠ migration-period-weeks-tiers.sql 을 대체(supersede)한다. 4·5 는 일부러 열지 않는다
 --     (16주·20주 상품은 없다).
 --   기존 값(1·2·3)은 그대로라 진행 중인 주문·연장에 영향 없음. 멱등: create or replace.
+--   ✅ 2026-11-11 운영 DB 적용 완료(적용 후 0.10 / 0.12 / 0.15 / null / null / 0.20 확인).
 --   ★ 화면(lib/products.ts 의 PERIOD_DISCOUNT)보다 먼저 적용한다 — 화면이 먼저 나가면
 --     24주를 고른 손님의 주문이 서버에서 거절된다.
 create or replace function public.period_discount(p_months int)

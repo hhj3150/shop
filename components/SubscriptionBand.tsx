@@ -32,11 +32,11 @@ export function SubscriptionBand() {
       <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-gold/20 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-gold/10 blur-3xl" />
       <Image
-        src="/brand/haymil_log.png"
+        src="/brand/logo-label.png"
         alt=""
         aria-hidden
-        width={800}
-        height={800}
+        width={1000}
+        height={793}
         className="pointer-events-none absolute -bottom-10 -right-8 w-56 opacity-[0.22] sm:-bottom-14 sm:-right-10 sm:w-80"
       />
 
