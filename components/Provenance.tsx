@@ -12,7 +12,7 @@ const STATS = [
 export function Provenance() {
   const certIds = activeCertifications(kstYmd(new Date().toISOString())).map((c) => c.id);
   return (
-    <section id="provenance" className="border-y border-line bg-paper-2/40">
+    <section id="rarity" className="border-y border-line bg-paper-2/40">
       <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
         <Reveal className="max-w-2xl">
           <p className="eyebrow text-gold-deep">Rarity</p>
@@ -33,7 +33,7 @@ export function Provenance() {
                 <p className="font-serif-kr text-[clamp(1.8rem,4vw,2.6rem)] font-medium text-gold-deep tabular-nums">
                   {s.v}
                 </p>
-                <p className="mt-2 text-[14px] tracking-wide text-mute">{s.l}</p>
+                <p className="mt-2 text-[14px] tracking-wide text-ink-soft">{s.l}</p>
               </div>
             </Reveal>
           ))}
