@@ -8,6 +8,7 @@
 //   [무엇] 숫자·표현을 단일 출처에서 끌어 쓰는지 확인한다. 값 자체를 박아 두지 않고
 //     PRODUCTS/상수와 대조하므로, 가격이나 할인율을 바꿔도 이 테스트는 따라온다.
 import { describe, it, expect } from "vitest";
+import { readFileSync as readSrc } from "node:fs";
 import {
   ONCE_MIN_KRW,
   ONCE_SHIPPING_KRW,
@@ -161,6 +162,37 @@ describe("요거트 유산균 수치가 서로 맞는다", () => {
         `${총억.toLocaleString("en-US")}억 CFU`
       );
       expect(p.sticker?.sub, `${p.id} 메모지`).toContain("7.2억 CFU/g");
+    }
+  });
+});
+
+describe("희소성 표현 — '0.01%' 대신 범위를 밝힌 '국내 유일'", () => {
+  // 2026-11-11 사장님 결정. 근거 수치(저지 60두 ÷ 젖소 약 40만 두 = 0.015%)와 '0.01%'가 맞지 않았다.
+  const files = [
+    "lib/products.ts",
+    "app/layout.tsx",
+    "lib/assistant/knowledge.ts",
+    "public/llms.txt",
+  ];
+  const strip = (src: string) =>
+    src
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+      .join("\n");
+
+  it("고객에게 보이는 문구에 '0.01%' 가 없다", () => {
+    for (const f of files) {
+      expect(strip(readSrc(new URL(`../${f}`, import.meta.url), "utf8")), f).not.toContain("0.01%");
+    }
+  });
+
+  // '국내 유일의 우유' 처럼 범위 없이 쓰면 근거를 댈 수 없는 말이 된다.
+  it("'국내 유일' 뒤에는 무엇이 유일한지(A2 저지 단일 … 목장)가 따라온다", () => {
+    for (const f of files) {
+      const src = strip(readSrc(new URL(`../${f}`, import.meta.url), "utf8"));
+      for (const m of src.matchAll(/국내 유일[^."`]{0,40}/g)) {
+        expect(m[0].replace(/[\\n*,\s]/g, ""), `${f}: ${m[0]}`).toMatch(/A2저지단일(품종)?목장/);
+      }
     }
   });
 });
