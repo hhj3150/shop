@@ -143,15 +143,24 @@ describe("병 라벨과 데이터가 어긋나지 않는다", () => {
 });
 
 describe("요거트 유산균 수치가 서로 맞는다", () => {
-  it("총 CFU = 1mL당 7.2억 × 용량", () => {
+  // 단위는 세 곳 모두 g 이다(2026-11-11 사장님 확인: 실제 라벨 표시사항이 1 g당).
+  //   예전에는 제품표시·스티커만 mL 여서 한 화면에서 단위가 갈렸다. 다시 갈리지 않게 지킨다.
+  it("유산균 단위는 g — 제품표시·스티커·시그니처 캡션이 같다", () => {
+    for (const p of PUBLIC_PRODUCTS.filter((x) => x.line === "yogurt")) {
+      expect(p.signature?.caption, `${p.id} 캡션`).toContain("1g당 7.2억 CFU");
+      expect(`${p.label.cultures} ${p.sticker?.sub}`, `${p.id}`).not.toMatch(/mL당|CFU\/mL/);
+    }
+  });
+
+  it("총 CFU = 7.2억 × 용량", () => {
     for (const p of PUBLIC_PRODUCTS.filter((x) => x.line === "yogurt")) {
       const mL = Number(p.volume.replace("mL", ""));
       const 총억 = 7.2 * mL; // 억 단위
-      expect(p.label.cultures, `${p.id}`).toContain("1 mL당 7.2억 CFU");
+      expect(p.label.cultures, `${p.id}`).toContain("1 g당 7.2억 CFU");
       expect(p.label.cultures, `${p.id} 총량`).toContain(
         `${총억.toLocaleString("en-US")}억 CFU`
       );
-      expect(p.sticker?.sub, `${p.id} 메모지`).toContain("7.2억 CFU/mL");
+      expect(p.sticker?.sub, `${p.id} 메모지`).toContain("7.2억 CFU/g");
     }
   });
 });

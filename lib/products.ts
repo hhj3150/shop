@@ -140,11 +140,13 @@ const MILK_SIGNATURE: ProductSignature = {
 //   180mL → 7.2억×180 = 1,296억 ≈ 약 1,300억 / 500mL → 3,600억.
 //   실제 요거트 밀도는 1g/mL 초과라 실측은 이보다 많음(과장 아님).
 //
-//   ※ 기준 단위가 두 가지로 보이는 건 의도한 것이다 — 고치지 말 것.
-//     · 여기 caption 은 "1g당"  — 공인 시험성적서가 g 기준으로 측정했으므로 출처를 그대로 인용한다.
-//     · label.cultures 는 "1 mL당" — 발효유 표시기준이 mL 당 유산균수를 요구한다.
-//     밀도가 1g/mL 를 넘으므로 같은 수치를 mL 기준으로 옮기면 오히려 과소 표기다(보수적·안전).
-//     한쪽에 맞춰 통일하면 출처를 잘못 인용하거나 표시기준을 어기게 된다.
+//   ※ 단위는 전부 'g' 다 — caption · label.cultures · 카드 스티커 세 곳 모두.
+//     2026-11-11 사장님 확인: 실제 병 라벨의 표시사항이 '1 g당'이다. 시험성적서도 g 기준이다.
+//     예전에는 제품표시(label.cultures)와 스티커만 'mL당'으로 적어(발효유 기준규격이 mL 기준이라는
+//     판단), 한 화면에서 같은 숫자의 단위가 g 과 mL 로 갈렸다. 화면의 표시사항은 손님이 손에 든
+//     병 라벨과 같아야 한다 — 라벨을 따른다. 라벨 인쇄본이 바뀌면 여기 세 곳을 함께 고친다.
+//     병당 총량(1,296억·3,600억)은 7.2억 × 용량(mL)로 잡은 값이다. 요거트는 1mL 가 1g 을
+//     넘으므로 g 기준으로는 실제보다 적게 적은 쪽이다(과장 아님).
 const YOGURT_SIGNATURE_180: ProductSignature = {
   topLabel: "병당 총 유산균",
   pre: "약",
@@ -403,7 +405,7 @@ export const PRODUCTS: Product[] = [
       sterilization: "원유 살균 85~90℃, 25~30분",
       reportNo: "202603750182",
       milkSolids: "무지유고형분 8.4%",
-      cultures: "1 mL당 7.2억 CFU · 총 1,296억 CFU",
+      cultures: "1 g당 7.2억 CFU · 총 1,296억 CFU",
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관)",
     },
@@ -426,7 +428,7 @@ export const PRODUCTS: Product[] = [
     price: 4300,
     taxFree: false,
     image: "/products/yogurt-180-bottle.webp",
-    sticker: { title: "드링킹 타입", sub: "유산균 7.2억 CFU/mL" },
+    sticker: { title: "드링킹 타입", sub: "유산균 7.2억 CFU/g" },
     accent: "#00694e", // 라벨 3425C — 병 라벨의 요거트 제품명과 같은 초록
   },
   {
@@ -461,7 +463,7 @@ export const PRODUCTS: Product[] = [
       sterilization: "원유 살균 85~90℃, 25~30분",
       reportNo: "202603750182",
       milkSolids: "무지유고형분 8.4%",
-      cultures: "1 mL당 7.2억 CFU · 총 3,600억 CFU",
+      cultures: "1 g당 7.2억 CFU · 총 3,600억 CFU",
       maker: "농업회사법인 주식회사 디투오 · 경기도 안성시 미양면 미양로 466",
       shelf: "제품에 별도 표기 (냉장 보관)",
     },
@@ -484,7 +486,7 @@ export const PRODUCTS: Product[] = [
     price: 10000,
     taxFree: false,
     image: "/products/yogurt-500-bottle.webp",
-    sticker: { title: "드링킹 타입", sub: "유산균 7.2억 CFU/mL" },
+    sticker: { title: "드링킹 타입", sub: "유산균 7.2억 CFU/g" },
     accent: "#005a42", // 라벨 3425C 의 어두운 변주(500mL)
   },
   {

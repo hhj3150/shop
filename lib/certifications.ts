@@ -20,6 +20,12 @@ export type Certification = {
   number: string;
   /** 무엇에 대한 인증인지 — 손님이 오해하지 않게 한 줄로 */
   scope: string;
+  /**
+   * '몇 호' 같은 구별점. 범위를 반드시 함께 적는다('국내 1호' ✕ → '국내 젖소 목장 1호' ○).
+   *   ★ 인증서에 적힌 내용이 아니다 — 사장님이 확인해 준 사실이다(2026-11-11).
+   *     외부에서 근거를 물으면 인증기관 확인서·보도자료 등으로 답해야 한다.
+   */
+  distinction?: string;
   /** 유효기간 시작(없으면 최초 인증일). YYYY-MM-DD */
   validFrom: string;
   /** 유효기간 끝. 인증서에 유효기간이 없으면 null */
@@ -34,6 +40,7 @@ export const CERTIFICATIONS: readonly Certification[] = [
     number: "동물복지-10-30-6-1호",
     // 인증서의 '자유방목 기준 충족 여부'는 '부'다 — 방목·자유방목이라는 말을 붙이지 않는다.
     scope: "젖소 사육 농장",
+    distinction: "국내 젖소 목장 1호",
     validFrom: "2026-04-28",
     validUntil: "2029-04-27",
   },
@@ -43,6 +50,7 @@ export const CERTIFICATIONS: readonly Certification[] = [
     issuer: "축산물품질평가원",
     number: "제2024-2-068호",
     scope: "젖소 사육 농장",
+    distinction: "국내 젖소 목장 1호",
     validFrom: "2024-10-10",
     validUntil: "2027-10-09",
   },

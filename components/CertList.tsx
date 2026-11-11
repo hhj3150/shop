@@ -28,7 +28,10 @@ export function CertList({
       <ul className="divide-y divide-line border-y border-line">
         {certs.map((c) => (
           <li key={c.id} className="flex items-baseline justify-between gap-4 py-3">
-            <span className="t-footnote font-medium text-ink">{c.name}</span>
+            <span className="t-footnote font-medium text-ink">
+              {c.name}
+              {c.distinction && <span className="t-caption ml-1.5 font-semibold text-gold-deep">{c.distinction}</span>}
+            </span>
             <span className="t-caption shrink-0 text-right text-mute tabular-nums">{c.issuer}</span>
           </li>
         ))}
@@ -41,6 +44,9 @@ export function CertList({
       {certs.map((c) => (
         <li key={c.id} className="rounded-2xl border border-gold/35 bg-cream/70 px-5 py-4">
           <p className="t-callout font-medium text-ink">{c.name}</p>
+          {c.distinction && (
+            <p className="t-caption mt-1 font-semibold text-gold-deep">{c.distinction}</p>
+          )}
           <p className="t-caption mt-1 text-ink-soft">
             {c.issuer} · {c.scope}
           </p>

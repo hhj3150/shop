@@ -3,10 +3,13 @@ import { CertList } from "./CertList";
 import { activeCertifications } from "@/lib/certifications";
 import { kstYmd } from "@/lib/kst";
 
+// 수치의 근거(2026-11-11 사장님 제공): 국내 젖소 약 40만 두 · 그중 저지 약 1,200두 ·
+//   낙농 목장 약 5,000곳 중 A2 저지 단일 품종 착유목장은 송영신목장 한 곳(저지 60두).
+//   공식 통계 출처·기준 연도는 아직 붙이지 않았다 — '약'을 붙여 적는다.
 const STATS = [
-  { v: "38만 두", l: "국내 젖소 · 대부분 홀스타인" },
-  { v: "1,000여 두", l: "그중 저지" },
-  { v: "단 한 곳", l: "100% A2 저지 착유목장" },
+  { v: "약 40만 두", l: "국내 젖소 · 대부분 홀스타인" },
+  { v: "약 1,200두", l: "그중 저지" },
+  { v: "단 한 곳", l: "약 5,000 목장 중 · 100% A2 저지 착유목장" },
 ];
 
 export function Provenance() {
@@ -20,7 +23,7 @@ export function Provenance() {
             드문 데는, 이유가 있습니다.
           </h2>
           <p className="mt-5 text-[14px] leading-loose text-ink-soft sm:text-[15px]">
-            국내 젖소 38만 두는 대부분 홀스타인입니다. 저지는 1,000여 두.
+            국내 젖소 약 40만 두는 대부분 홀스타인입니다. 저지는 약 1,200두.
             그중 100% A2 저지만 골라, 사일리지 없이 풀과 건초로 기릅니다 —
             알프스가 수백 년 이어온 헤이밀크의 방식 그대로.
           </p>
