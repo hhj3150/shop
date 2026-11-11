@@ -143,6 +143,12 @@ export function PurchasePanel({ product }: { product: Product }) {
     []
   );
 
+  // 고른 구매 방식도 상단 가격에 알린다 — 1회 구매 탭에서는 정가가, 정기구독 탭에서는
+  //   회원가가 대표 가격이어야 위(가격)와 아래(합계)가 같은 이야기를 한다.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("shop:buymode", { detail: mode }));
+  }, [mode]);
+
   // 고른 기간을 상세 상단 가격(ProductHeroPrice)에 알린다 — 위아래 값이 늘 같게.
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("shop:subperiod", { detail: period }));
@@ -274,28 +280,32 @@ export function PurchasePanel({ product }: { product: Product }) {
           1회 구매 <span className="text-mute">· 구독 없이 부담 없이</span>
         </div>
       ) : (
-      <div className="grid grid-cols-2 gap-1 rounded-full bg-paper-2 p-1" role="tablist">
+      /* 두 방식이 무엇이 다른지 탭 안에 한 줄씩 적는다 — 이름만으로는 '1회 구매는 얼마고
+         가입이 필요한지', '정기구독은 얼마나 싼지'를 눌러 보기 전에 알 수 없다. */
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-paper-2 p-1" role="tablist" aria-label="구매 방식">
         <button
           type="button"
           role="tab"
           aria-selected={mode === "sub"}
           onClick={() => setMode("sub")}
-          className={`rounded-full py-2.5 text-[13.5px] font-medium transition-colors ${
+          className={`flex min-h-14 flex-col items-center justify-center rounded-xl px-2 py-2 transition-colors ${
             mode === "sub" ? "bg-cream text-ink shadow-sm" : "text-mute hover:text-ink"
           }`}
         >
-          정기구독 <span className="text-gold-deep">−{discountRangeLabel()}%</span>
+          <span className="t-footnote font-medium">정기구독</span>
+          <span className="t-caption mt-0.5 text-gold-deep">매주 · {discountRangeLabel()}% 할인</span>
         </button>
         <button
           type="button"
           role="tab"
           aria-selected={mode === "once"}
           onClick={() => setMode("once")}
-          className={`rounded-full py-2.5 text-[13.5px] font-medium transition-colors ${
+          className={`flex min-h-14 flex-col items-center justify-center rounded-xl px-2 py-2 transition-colors ${
             mode === "once" ? "bg-cream text-ink shadow-sm" : "text-mute hover:text-ink"
           }`}
         >
-          1회 구매
+          <span className="t-footnote font-medium">1회 구매</span>
+          <span className="t-caption mt-0.5">정가 · 가입 없이</span>
         </button>
       </div>
       )}
@@ -337,6 +347,10 @@ export function PurchasePanel({ product }: { product: Product }) {
               <span>{PERIOD_LABEL[m]}</span>
               <span className="mt-0.5 text-[10px] tabular-nums text-gold-deep">
                 −{Math.round(discountForPeriod(m) * 100)}%
+              </span>
+              {/* 기간마다 병당 얼마가 되는지 — 할인율만으로는 손님이 직접 계산해야 한다. */}
+              <span className="mt-0.5 text-[10px] tabular-nums text-ink-soft">
+                {formatKRW(subscribePrice(liveMain.price, discountForPeriod(m)))}
               </span>
             </button>
           );
