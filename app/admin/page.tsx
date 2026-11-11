@@ -12,6 +12,7 @@ import { buildBroadcastAudience } from "@/lib/broadcast-audience";
 import {
   cancelledButActiveSlots,
   roundsUsedUpSlots,
+  splitRoundsUsedUp,
   shipmentGapSlots,
   stalePendingRenewals,
 } from "@/lib/slot-integrity";
@@ -488,7 +489,11 @@ export default function AdminPage() {
     //   결제 회차는 어디서나 '확정 블록 체인'의 합이다(손님 화면·서버 환불과 같은 기준).
     const shippedBySlot = countShippedRoundsBySlot(shippedKeys, slotIdByOrder);
     const cancelledButActive = cancelledButActiveSlots(slots, orderById);
-    const roundsUsedUp = roundsUsedUpSlots(slots, orderById, shippedBySlot, blocksBySlot);
+    // 결제 회차를 다 쓴 활성 구독을 둘로 가른다: 약속한 만큼 보내고 끝난 구독(finishedSubs)은
+    //   이상이 아니라 '연장 안내 대상'이고, 결제보다 더 나간 구독(roundsUsedUp)만 경고다.
+    const { finished: finishedSubs, overShipped: roundsUsedUp } = splitRoundsUsedUp(
+      roundsUsedUpSlots(slots, orderById, shippedBySlot, blocksBySlot)
+    );
     // (6) 출고 기록이 실제 발송을 못 따라가는 구독 → 과배송 방어선이 무력해진다.
     const shipmentGaps = shipmentGapSlots(
       slots,
@@ -507,6 +512,7 @@ export default function AdminPage() {
       emptyItems,
       cancelledButActive,
       roundsUsedUp,
+      finishedSubs,
       shipmentGaps,
       pausedHistory,
       staleRenewals,
@@ -1350,7 +1356,7 @@ export default function AdminPage() {
     }
     if (
       !confirm(
-        `${order.ship_name} 님 구독을 ${DELIVERY_DAY_LABEL[slot.delivery_day]}요일 → ${DELIVERY_DAY_LABEL[newDay]}요일로 옮길까요?\n` +
+        `${order.ship_name} 님 구독을 ${DELIVERY_DAY_LABEL[slot.delivery_day]} → ${DELIVERY_DAY_LABEL[newDay]}로 옮길까요?\n` +
           `다음 배송 ${plan.nextDate ?? "—"} · 남은 ${plan.remaining}회 유지 · 종료 예정 ${plan.endDate ?? "—"}`
       )
     )
@@ -1631,6 +1637,45 @@ export default function AdminPage() {
         <Stat label="대기자" value={`${waitlist.length}명`} />
       </section>
 
+      {/* 끝난 구독 — 경고가 아니다. 결제한 회차를 약속대로 다 받은 구독이며, 연장을 권할 대상이다.
+          접어 두고 숫자만 보인다(매일 같은 줄이 빨갛게 떠 있으면 진짜 경고가 묻힌다).
+          더 보내지 않게 막는 일은 배송 시트의 '발송금지'가 그대로 한다. */}
+      {anomalies.finishedSubs.length > 0 && (
+        <details className="mt-6 rounded-2xl border border-line bg-cream/60 px-5 py-4 no-print">
+          <summary className="t-footnote cursor-pointer font-medium text-ink">
+            회차를 모두 받은 구독 {anomalies.finishedSubs.length}건
+            <span className="t-caption ml-1.5 font-normal text-mute">
+              — 정상 종료 · 연장 안내 대상 (펼쳐 보기)
+            </span>
+          </summary>
+          <p className="t-caption mt-3 leading-relaxed text-mute">
+            결제한 회차만큼 발송을 마친 구독입니다. 배송 명단에는 오르지 않습니다. 이어 받으실
+            분께는 연장 안내를, 완전히 끝난 구독은 해지 처리하시면 이 목록에서 빠집니다.
+          </p>
+          <ul className="mt-3 space-y-1">
+            {anomalies.finishedSubs.map(({ slot: s, paid }) => {
+              const o = s.order_id ? orderById.get(s.order_id) : undefined;
+              return (
+                <li key={s.id} className="t-caption flex flex-wrap items-center gap-x-3 text-ink-soft">
+                  {o && (
+                    <button
+                      onClick={() => focusOrderInManageTab(o.order_no)}
+                      className="tabular-nums text-ink-soft underline decoration-line underline-offset-2 hover:text-ink"
+                    >
+                      {o.order_no}
+                    </button>
+                  )}
+                  <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
+                  <span className="text-mute">
+                    {DELIVERY_DAY_LABEL[s.delivery_day]} · {paid}회 완료
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
+
       {/* 데이터 점검 — 결제상태/품목 이상 자동 탐지 */}
       {(anomalies.paymentNoEvidence.length > 0 ||
         anomalies.emptyItems.length > 0 ||
@@ -1718,7 +1763,7 @@ export default function AdminPage() {
                       )}
                       <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">
-                        {DELIVERY_DAY_LABEL[s.delivery_day]}요일 · 슬롯 {s.id} · {s.status}
+                        {DELIVERY_DAY_LABEL[s.delivery_day]} · 슬롯 {s.id} · {s.status}
                       </span>
                       {o && (
                         <button
@@ -1759,7 +1804,7 @@ export default function AdminPage() {
                       )}
                       <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
                       <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[12px] text-ink-soft">
-                        {DELIVERY_DAY_LABEL[s.delivery_day]}요일 · 슬롯 {s.id}
+                        {DELIVERY_DAY_LABEL[s.delivery_day]} · 슬롯 {s.id}
                       </span>
                       <span className="tabular-nums text-mute">
                         예상 {expected}회 · 기록 {shipped}회 · <span className="text-red-700">누락 {gap}회</span>
@@ -1773,10 +1818,10 @@ export default function AdminPage() {
           {anomalies.roundsUsedUp.length > 0 && (
             <div className="mt-4">
               <p className="text-[14px] font-medium text-red-700">
-                ⛔ 결제한 회차를 이미 다 보낸 활성 구독 ({anomalies.roundsUsedUp.length}건)
+                ⛔ 결제한 회차보다 더 발송된 구독 ({anomalies.roundsUsedUp.length}건)
                 <span className="ml-1.5 text-[12px] font-normal text-mute">
-                  — 더 보내면 과배송입니다. 배송 시트에서 발송이 막혀 있습니다. 연장 결제가 확인된
-                  건이면 연장 처리를, 끝난 구독이면 해지 처리를 해 주세요.
+                  — 결제한 것보다 많이 나갔습니다. 배송 시트에서 발송이 막혀 있습니다. 연장 결제가
+                  확인된 건이면 연장 처리를, 아니면 출고 기록과 실제 발송을 대조해 주세요.
                 </span>
               </p>
               <ul className="mt-2 space-y-1">
@@ -1796,7 +1841,7 @@ export default function AdminPage() {
                       <span className="rounded-full bg-red-100 px-2 py-0.5 text-[12px] font-semibold text-red-700">
                         결제 {paid}회 · 발송 {shipped}회
                       </span>
-                      <span className="text-mute">{DELIVERY_DAY_LABEL[s.delivery_day]}요일</span>
+                      <span className="text-mute">{DELIVERY_DAY_LABEL[s.delivery_day]}</span>
                     </li>
                   );
                 })}
@@ -1854,7 +1899,7 @@ export default function AdminPage() {
                     <li key={s.id} className="flex flex-wrap items-center gap-x-3 text-[13px] text-ink-soft">
                       <span className="text-ink">{nameByUser.get(s.user_id) ?? o?.ship_name ?? "—"}</span>
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[12px] text-amber-800">
-                        {DELIVERY_DAY_LABEL[s.delivery_day]}요일 · 정지 {s.paused_days}일
+                        {DELIVERY_DAY_LABEL[s.delivery_day]} · 정지 {s.paused_days}일
                       </span>
                     </li>
                   );

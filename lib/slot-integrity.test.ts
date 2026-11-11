@@ -3,6 +3,7 @@ import {
   cancelledButActiveSlots,
   paidRoundsForSlot,
   roundsUsedUpSlots,
+  splitRoundsUsedUp,
   shipmentGapSlots,
   SHIPMENT_GAP_THRESHOLD,
   stalePendingRenewals,
@@ -244,5 +245,29 @@ describe("stalePendingRenewals", () => {
 
   it("기준일이 이상하면 아무것도 보고하지 않는다(조용히 비운다)", () => {
     expect(stalePendingRenewals([renewalOrder("A", "2026-09-01T01:00:00Z")], "not-a-date")).toEqual([]);
+  });
+});
+
+describe("splitRoundsUsedUp — 끝난 구독은 경고가 아니다", () => {
+  const used = [
+    { id: "a", paid: 4, shipped: 4 }, // 약속한 만큼 보내고 끝남
+    { id: "b", paid: 8, shipped: 8 },
+    { id: "c", paid: 4, shipped: 5 }, // 결제보다 한 번 더 나감
+  ];
+
+  it("발송 = 결제 는 끝난 구독으로, 발송 > 결제 만 과배송 경고로 가른다", () => {
+    const { finished, overShipped } = splitRoundsUsedUp(used);
+    expect(finished.map((x) => x.id)).toEqual(["a", "b"]);
+    expect(overShipped.map((x) => x.id)).toEqual(["c"]);
+  });
+
+  it("어느 건도 빠뜨리거나 두 번 세지 않는다", () => {
+    const { finished, overShipped } = splitRoundsUsedUp(used);
+    expect(finished.length + overShipped.length).toBe(used.length);
+  });
+
+  // ★ 경고를 줄이려다 진짜 이상을 숨기면 안 된다 — 과배송은 반드시 남는다.
+  it("과배송은 한 건이라도 경고 쪽에 남는다", () => {
+    expect(splitRoundsUsedUp([{ paid: 12, shipped: 13 }]).overShipped).toHaveLength(1);
   });
 });
