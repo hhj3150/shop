@@ -17,6 +17,8 @@ import { buildAboutPage } from "@/lib/seo/schema";
 //   (지우지 않고 자리를 옮겼다). 홈은 상품과 사는 방법에 집중한다.
 const storyCopy = storySeo(activeCertifications(kstYmd(new Date().toISOString())));
 export const metadata: Metadata = pageMetadata({ ...storyCopy, path: "/story" });
+// 목장 소식(NewsBand)을 서버에서 읽어 HTML 에 넣는다 — 1시간마다 다시 만든다(소식 고유 페이지·RSS 와 같은 주기).
+export const revalidate = 3600;
 
 export default function StoryPage() {
   return (
