@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/meta";
+import { PAGE_SEO } from "@/lib/seo/copy";
+import { LEGAL_UPDATED } from "@/lib/seo/lastmod";
 import { LegalLayout, Article } from "@/components/LegalLayout";
 import { BUSINESS } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "개인정보처리방침",
-  alternates: { canonical: "/privacy" },
-};
+export const metadata: Metadata = pageMetadata({ ...PAGE_SEO.privacy, path: "/privacy" });
 
 export default function PrivacyPage() {
   return (
-    <LegalLayout eyebrow="Privacy" title="개인정보처리방침" updated="2026-06-06">
+    <LegalLayout eyebrow="Privacy" title="개인정보처리방침" updated={LEGAL_UPDATED.privacy}>
       <Article heading="1. 수집하는 개인정보 항목">
         <p>회사는 회원가입 및 주문·배송을 위하여 다음의 개인정보를 수집합니다.</p>
         <p>- 필수: 이름, 휴대폰 번호, 이메일(로그인 계정), 비밀번호, 배송지 주소</p>

@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/meta";
+import { PAGE_SEO } from "@/lib/seo/copy";
+import { LEGAL_UPDATED } from "@/lib/seo/lastmod";
 import { LegalLayout, Article } from "@/components/LegalLayout";
 import { BUSINESS } from "@/lib/site";
 import { periodWeeksList } from "@/lib/products";
 
-export const metadata: Metadata = {
-  title: "이용약관",
-  alternates: { canonical: "/terms" },
-};
+export const metadata: Metadata = pageMetadata({ ...PAGE_SEO.terms, path: "/terms" });
 
 export default function TermsPage() {
   return (
-    <LegalLayout eyebrow="Terms" title="이용약관" updated="2026-06-06">
+    <LegalLayout eyebrow="Terms" title="이용약관" updated={LEGAL_UPDATED.terms}>
       <Article heading="제1조 (목적)">
         <p>
           본 약관은 {BUSINESS.company}(이하 “회사”)가 운영하는 온라인 쇼핑몰(이하

@@ -26,29 +26,35 @@ import { Reveal } from "@/components/Reveal";
 import { SwipeNav, SwipeArrows } from "@/components/SwipeNav";
 import { JsonLd } from "@/components/JsonLd";
 import { ProductSticker } from "@/components/ProductSticker";
-import { buildProduct } from "@/lib/seo/schema";
+import { buildProduct, buildBreadcrumb } from "@/lib/seo/schema";
+import { pageMetadata } from "@/lib/seo/meta";
+import { productSeo } from "@/lib/seo/copy";
 import { createClient } from "@supabase/supabase-js";
 import { reviewSummary, type ReviewRow } from "@/lib/reviews";
+import { mergeProduct, type CommercialRow } from "@/lib/storefront-merge";
 
-// 서버 컴포넌트에서 별점 집계를 위해 후기를 읽는다. lib/supabase.ts 의 getSupabase()는
+// 서버 컴포넌트에서 별점 집계·상업 상태(가격·재고)를 읽는다. lib/supabase.ts 의 getSupabase()는
 // "use client" 브라우저 전용 클라이언트(persistSession)라 서버에서 쓸 수 없으므로,
 // anon 키로 최소 서버 클라이언트를 인라인 생성한다(service_role 사용 금지).
+function serverAnonClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) {
+    throw new Error(
+      "Supabase 환경변수가 없습니다. NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY를 설정하세요."
+    );
+  }
+  return createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 // list_reviews 는 SECURITY DEFINER RPC 라 anon 으로도 호출 가능.
 async function fetchRatingSummary(
   productId: string
 ): Promise<{ value: number; count: number }> {
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !anonKey) {
-      throw new Error(
-        "Supabase 환경변수가 없습니다. NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY를 설정하세요."
-      );
-    }
-    const supabase = createClient(url, anonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { data, error } = await supabase.rpc("list_reviews", {
+    const { data, error } = await serverAnonClient().rpc("list_reviews", {
       p_product_id: productId,
     });
     if (error) throw new Error(error.message);
@@ -58,6 +64,24 @@ async function fetchRatingSummary(
     // 후기 조회 실패가 제품 페이지를 깨뜨리지 않도록 별점 없이 계속 진행.
     console.error("제품 별점 집계 실패:", err);
     return { value: 0, count: 0 };
+  }
+}
+
+// 화면 가격·품절 표시는 product_catalog(DB)를 따른다(ProductCommercial — 클라이언트에서 덮어씀).
+//   구조화데이터(가격·재고)도 같은 값을 써야 구글 판매자 정보가 '화면과 다른 가격'으로 경고하지 않는다.
+//   스토어프론트와 같은 anon select(price·stock·active). 실패하면 정적 값으로 폴백(row 없음).
+async function fetchCommercialRow(productId: string): Promise<CommercialRow | undefined> {
+  try {
+    const { data, error } = await serverAnonClient()
+      .from("product_catalog")
+      .select("id, price, stock, active")
+      .eq("id", productId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as CommercialRow | null) ?? undefined;
+  } catch (err) {
+    console.error("제품 상업 상태 조회 실패:", err);
+    return undefined;
   }
 }
 
@@ -80,28 +104,18 @@ export async function generateMetadata({
   const { id } = await params;
   const product = getPublicProduct(id);
   if (!product) return { title: "제품을 찾을 수 없습니다" };
-  const title = `${product.name} ${product.volume}`;
-  const url = `/products/${product.id}`;
-  // 제품별 canonical + OG/트위터 이미지. metadataBase(SITE_URL)가 상대경로를 절대화한다.
-  return {
-    title,
-    description: product.shortDesc,
-    alternates: { canonical: url },
-    openGraph: {
-      title,
-      description: product.shortDesc,
-      type: "website",
-      locale: "ko_KR",
-      url,
-      images: [product.image],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description: product.shortDesc,
-      images: [product.image],
-    },
-  };
+  // 제목·설명은 라벨·영양 SSOT 로 조립한다(lib/seo/copy.ts) — 카드용 감성 문구(shortDesc)만으로는
+  //   검색어(우유·요거트·A2/A2·살균 방식)가 하나도 없었다.
+  // 공유 이미지는 같은 폴더의 opengraph-image.tsx(1200×630 PNG)가 만든다 → ogImage: null 로
+  //   images 키를 두지 않는다(키가 있으면 파일 이미지가 무시된다). 예전 og:image 는 1000×1000 WEBP 라
+  //   카카오톡 미리보기에서 빠지거나 잘렸다.
+  const seo = productSeo(product);
+  return pageMetadata({
+    title: seo.title,
+    description: seo.description,
+    path: `/products/${product.id}`,
+    ogImage: null,
+  });
 }
 
 export default async function ProductPage({
@@ -114,8 +128,13 @@ export default async function ProductPage({
   if (!product) notFound();
 
   // 별점 집계(서버) + 가격 유효일(올해 말). buildProduct 는 순수 함수라 날짜를 여기서 계산해 주입한다.
-  const rating = await fetchRatingSummary(product.id);
+  const [rating, commercialRow] = await Promise.all([
+    fetchRatingSummary(product.id),
+    fetchCommercialRow(product.id),
+  ]);
   const priceValidUntil = `${new Date().getFullYear()}-12-31`;
+  // 구조화데이터용 '라이브' 제품 — 가격·재고를 화면과 같은 DB 값으로(ISR 1시간 주기로 갱신).
+  const live = mergeProduct(product, commercialRow);
 
   const related = PUBLIC_PRODUCTS.filter((p) => p.id !== product.id);
   const certIds = activeCertifications(kstYmd(new Date().toISOString())).map((c) => c.id);
@@ -132,7 +151,19 @@ export default async function ProductPage({
 
   return (
     <SwipeNav prevHref={`/products/${prev.id}`} nextHref={`/products/${next.id}`}>
-      <JsonLd data={buildProduct(product, { rating, priceValidUntil })} />
+      <JsonLd
+        data={buildProduct(live, {
+          rating,
+          priceValidUntil,
+          inStock: !live.soldOut && !live.hidden,
+        })}
+      />
+      <JsonLd
+        data={buildBreadcrumb([
+          { name: "송영신목장", path: "/" },
+          { name: `${product.name} ${product.volume}`, path: `/products/${product.id}` },
+        ])}
+      />
       <Track event="view_product" />
       {/* 브레드크럼 */}
       <div className="mx-auto max-w-7xl px-5 pt-24 sm:px-8">
@@ -193,8 +224,9 @@ export default async function ProductPage({
               {product.nameEn}
             </p>
             <h1 className="mt-1.5 font-serif-kr text-[clamp(1.5rem,3vw,2.1rem)] font-medium leading-[1.16] tracking-[-0.01em] text-ink">
-              {product.name}
-              <span className="ml-2 align-baseline text-[0.62em] font-semibold tracking-tight text-gold-deep lining-nums tabular-nums">
+              {/* 이름과 용량 사이 공백 — 없으면 검색·AI 가 'A2 저지 헤이밀크180mL' 한 낱말로 읽는다. */}
+              {product.name}{" "}
+              <span className="ml-1 align-baseline text-[0.62em] font-semibold tracking-tight text-gold-deep lining-nums tabular-nums">
                 {product.volume}
               </span>
             </h1>

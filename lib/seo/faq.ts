@@ -13,8 +13,11 @@ import {
   SUB_TOTAL_CAP,
   formatWon,
   periodDiscountSentence,
+  PUBLIC_PRODUCTS,
 } from "@/lib/products";
 import { SPECIAL_DELIVERY_SHIPPING_KRW } from "@/lib/regions";
+import { BUSINESS, FARM_HOURS } from "@/lib/site";
+import { certValidityLabel, type Certification } from "@/lib/certifications";
 
 export type FaqItem = { question: string; answer: string };
 
@@ -42,7 +45,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
   {
     question: "A2 저지 헤이밀크가 무엇인가요?",
     answer:
-      "A2 단백질만 내는 저지 품종 젖소에서 짠 우유로, 사일리지 없이 신선한 풀과 건초만 먹여 기릅니다. 경기도 안성 송영신목장에서 직접 짓고 발효해 보냅니다.",
+      "A2 베타카제인만 내는 A2/A2 저지 젖소에서 짠 우유로, 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹여 기릅니다. 경기도 안성 송영신목장에서 직접 짓고 발효해 보냅니다.",
   },
   {
     question: "A2 우유는 일반 우유와 무엇이 다른가요? 왜 어떤 분은 우유를 마시면 속이 불편할까요?",
@@ -57,7 +60,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
   {
     question: "저지(Jersey) 우유는 일반 우유와 무엇이 다른가요?",
     answer:
-      "저지젖소 우유는 유고형분과 유지방이 풍부해 더 진하고 고소하며, 베타카로틴이 많아 옅은 황금빛을 띱니다. 송영신목장은 사일리지(발효사료) 없이 신선한 풀과 건초만 먹여 기른 헤이밀크(건초우유)로, HTST로 살균하고 균질은 최소화해 우유 본연의 풍미를 살립니다.",
+      "저지젖소 우유는 유고형분과 유지방이 풍부해 더 진하고 고소하며, 베타카로틴이 많아 옅은 황금빛을 띱니다. 송영신목장은 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹여 기른 헤이밀크(건초우유)로, HTST로 살균하고 균질은 최소화해 우유 본연의 풍미를 살립니다.",
   },
   {
     question: "아이에게 먹여도 될까요?",
@@ -70,3 +73,68 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
       `네. 정기구독과 별개로 단품(1회) 구매가 가능합니다. 회당 최소 상품 금액 ${formatWon(ONCE_MIN_KRW)} 이상부터 주문하실 수 있으며, 배송비는 ${formatWon(ONCE_SHIPPING_KRW)}입니다(제주·도서산간 등은 ${formatWon(SPECIAL_DELIVERY_SHIPPING_KRW)}).`,
   },
 ] as const;
+
+// ───────── /faq 페이지 전용 추가 문답(검색·AI 가 실제로 묻는 질문) ─────────
+//   홈(FaqSection)·고객 도우미는 위 FAQ_ITEMS 만 쓴다. 아래는 /faq 에서 FAQ_ITEMS 뒤에 이어 붙인다.
+//   ★ 모든 숫자·이름·주소·인증은 SSOT 에서 만든다(lib/site.ts · lib/products.ts · lib/certifications.ts).
+//   ★ 인증은 '농장' 인증으로만 적는다 — '동물복지 우유'·'HACCP 우유'처럼 제품 인증으로 쓰지 않는다.
+//   ★ 인증 목록은 호출부가 오늘(KST) 기준 activeCertifications 로 넘긴다(만료 인증 자동 제외).
+
+const firstLabelPart = (s: string | undefined) => (s ?? "").split(" · ")[0].trim();
+
+export function moreFaqItems(certs: readonly Certification[]): FaqItem[] {
+  const yogurts = PUBLIC_PRODUCTS.filter((p) => p.line === "yogurt");
+  const yogurtVolumes = yogurts.map((p) => p.volume.replace(/mL$/i, "")).join("·");
+  const certList = certs
+    .map((c) => `${c.name}(${c.issuer}, ${c.number}, ${certValidityLabel(c)})`)
+    .join(", ");
+  const priceList = PUBLIC_PRODUCTS.map((p) => `${p.name} ${p.volume} ${formatWon(p.price)}`).join(", ");
+
+  return [
+    {
+      question: "송영신목장 A2 저지 우유는 어디서 살 수 있나요?",
+      answer: `공식 온라인몰(shop.a2jerseymilk.com)에서 회원 정기구독과 단품(1회) 주문으로 판매합니다. ${BUSINESS.address} 목장 판매장(${FARM_HOURS})과 안성팜랜드 안 Hey Hay Milk Café(입장 후 바로 좌측)에서도 만나실 수 있습니다.`,
+    },
+    {
+      question: "헤이밀크(Hay Milk)는 무엇인가요?",
+      answer:
+        "사일리지(발효사료)를 먹이지 않고 풀과 건초를 중심으로 소를 기르는 유럽 알프스 지역의 전통 낙농 방식(독일어 Heumilch), 또는 그렇게 얻은 우유를 말합니다. 송영신목장은 이 방식을 따라 A2/A2 저지를 기릅니다. 유럽연합이 전통특산물(TSG)로 등록한 방식이지만, 송영신목장 제품이 EU 인증을 받은 것은 아닙니다.",
+    },
+    ...(certs.length > 0
+      ? [
+          {
+            question: "어떤 인증을 받은 목장인가요? 유기농 우유인가요?",
+            answer: `송영신목장은 ${certList}을 받은 젖소 목장입니다. 모두 목장(젖소 사육·착유 단계)에 대한 인증이며 제품 인증이 아닙니다. 유기(유기농) 인증은 받지 않았습니다.`,
+          },
+        ]
+      : []),
+    {
+      question: "우유 위에 크림층이 생겨요. 괜찮은가요?",
+      answer:
+        "균질을 최소한으로 해서, 시간이 지나면 병 위쪽에 크림이 떠오를 수 있습니다. 우유 성분이 자연스럽게 나뉜 것이니 드시기 전에 병을 가볍게 흔들어 주세요.",
+    },
+    ...(yogurts.length > 0
+      ? [
+          {
+            question: "요거트는 떠먹는 타입인가요?",
+            answer: `아니요. 송영신목장 A2 저지 플레인 요거트(${yogurtVolumes}mL)는 병째 흔들어 마시는 드링킹 타입입니다. 원재료는 ${firstLabelPart(
+              yogurts[0].label.ingredients
+            )}이며 설탕을 넣지 않았습니다.`,
+          },
+        ]
+      : []),
+    {
+      question: "보관과 소비기한은 어떻게 되나요?",
+      answer:
+        "0~10℃에서 냉장 보관해 주세요. 소비기한은 병에 따로 표기되어 있습니다. 신선식품이라 받으신 뒤 가능한 한 빨리 드시길 권합니다.",
+    },
+    {
+      question: "가격은 얼마인가요?",
+      answer: `정가는 ${priceList}입니다. 정기구독 회원가는 기간에 따라 ${periodDiscountSentence(
+        "·"
+      )} 할인되며, 배송비는 회당 ${formatWon(SUB_SHIPPING_KRW)}(제주·도서산간 등 ${formatWon(
+        SPECIAL_DELIVERY_SHIPPING_KRW
+      )})입니다. 회원이 아니어도 상품 합계 ${formatWon(ONCE_MIN_KRW)}부터 단품으로 주문하실 수 있습니다.`,
+    },
+  ];
+}

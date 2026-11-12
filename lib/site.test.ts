@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { subscribeStartHref } from "./site";
+import {
+  subscribeStartHref,
+  FARM_HOURS,
+  FARM_HOURS_SPEC,
+  CS_HOURS,
+  ADDRESS_PARTS,
+  BUSINESS,
+} from "./site";
 
 // 상단 메뉴 '정기구독'과 히어로 필름 CTA 가 같은 곳으로 가야 한다.
 //   과거 상단 메뉴는 '/#subscribe'(SubscriptionBand) 로 갔는데, 그 섹션은 정원·3단계를
@@ -18,5 +25,28 @@ describe("subscribeStartHref — 정기구독 시작 지점", () => {
     for (const isMember of [true, false]) {
       expect(subscribeStartHref(isMember)).not.toBe("/#subscribe");
     }
+  });
+});
+
+// 화면 문자열과 구조화데이터용 스펙이 어긋나면 검색·AI 가 서로 다른 영업시간을 인용한다.
+describe("영업시간·주소 — 사람용 문자열과 기계용 스펙이 같다", () => {
+  it("판매장 시간: FARM_HOURS 문자열에 스펙의 여닫는 시각이 그대로 있다", () => {
+    expect(FARM_HOURS).toContain(FARM_HOURS_SPEC.opens);
+    expect(FARM_HOURS).toContain(FARM_HOURS_SPEC.closes);
+    expect(FARM_HOURS).toContain("월–금");
+    expect(FARM_HOURS_SPEC.days).toHaveLength(5);
+  });
+
+  it("고객센터 시간: 라벨에 두 구간의 시각이 모두 있다", () => {
+    for (const s of CS_HOURS.spec) {
+      expect(CS_HOURS.label).toContain(s.opens);
+      expect(CS_HOURS.label).toContain(s.closes);
+    }
+  });
+
+  it("주소 분해값을 이으면 사업자 표시 주소와 같다", () => {
+    expect(`${ADDRESS_PARTS.region} ${ADDRESS_PARTS.locality} ${ADDRESS_PARTS.street}`).toBe(
+      BUSINESS.address
+    );
   });
 });

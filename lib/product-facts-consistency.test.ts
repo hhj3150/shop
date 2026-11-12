@@ -172,7 +172,7 @@ describe("희소성 표현 — '0.01%' 대신 범위를 밝힌 '국내 유일'",
     "lib/products.ts",
     "app/layout.tsx",
     "lib/assistant/knowledge.ts",
-    "public/llms.txt",
+    "lib/seo/llms.ts",
   ];
   const strip = (src: string) =>
     src
@@ -207,7 +207,7 @@ describe("건강 효능으로 읽힐 수 있는 표현 — 화면에 두지 않�
     "components/WhyBand.tsx",
     "lib/products.ts",
     "lib/seo/faq.ts",
-    "public/llms.txt",
+    "lib/seo/llms.ts",
   ];
   const strip = (src: string) =>
     src

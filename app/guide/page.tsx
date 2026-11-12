@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/meta";
+import { PAGE_SEO } from "@/lib/seo/copy";
+import { LEGAL_UPDATED } from "@/lib/seo/lastmod";
 import { LegalLayout, Article } from "@/components/LegalLayout";
-import { BUSINESS } from "@/lib/site";
+import { BUSINESS, CS_HOURS } from "@/lib/site";
 import { periodWeeksList, periodDiscountSentence, SUB_PERIODS, PERIOD_LABEL } from "@/lib/products";
 
-export const metadata: Metadata = {
-  title: "배송 · 교환/환불 안내",
-  alternates: { canonical: "/guide" },
-};
+export const metadata: Metadata = pageMetadata({ ...PAGE_SEO.guide, path: "/guide" });
 
 export default function GuidePage() {
   return (
-    <LegalLayout eyebrow="Guide" title="배송 · 교환/환불 안내" updated="2026-05-30">
+    <LegalLayout eyebrow="Guide" title="배송 · 교환/환불 안내" updated={LEGAL_UPDATED.guide}>
       <Article heading="주문 및 결제">
         <p>본 몰은 회원에게만 판매하며, 결제는 무통장입금으로만 진행됩니다.</p>
         <p>주문을 완료하시면 다음 화면에서 정확한 입금 금액과 계좌를 안내해 드립니다. 안내된 금액 그대로 입금해 주시면, 목장에서 입금을 확인한 뒤 발송을 준비하고 등록하신 번호로 문자 안내를 보내 드립니다.</p>
@@ -36,7 +36,7 @@ export default function GuidePage() {
 
       <Article heading="고객센터">
         <p>전화: {BUSINESS.tel} · {BUSINESS.mobile}</p>
-        <p>운영시간: 평일 10:00–17:00 (점심 12:00–13:00, 주말·공휴일 휴무)</p>
+        <p>운영시간: {CS_HOURS.label}</p>
       </Article>
     </LegalLayout>
   );

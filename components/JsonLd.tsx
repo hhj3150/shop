@@ -1,10 +1,12 @@
+import { serializeJsonLd } from "@/lib/seo/serialize";
+
 // JSON-LD 한 덩어리를 <script type="application/ld+json">로 렌더한다.
-// data는 내부 SSOT에서 파생되는 객체이며 사용자 입력을 포함하지 않는다.
+//   직렬화는 serializeJsonLd — '<' 를 이스케이프해 값이 </script> 를 품어도 태그를 닫지 못한다.
 export function JsonLd({ data }: { data: object }) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: serializeJsonLd(data) }}
     />
   );
 }

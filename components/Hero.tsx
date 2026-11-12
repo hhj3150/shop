@@ -17,17 +17,20 @@ export function Hero() {
     <section className="relative overflow-hidden bg-paper">
       <div className="mx-auto grid max-w-7xl items-center gap-7 px-5 pt-20 pb-2 sm:px-8 sm:pt-28 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pb-0 lg:pt-24">
         <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-          {/* 워드마크 — 로고는 상단 바에 이미 있다. 브랜드명만 국문 + 골드포일 영문으로. */}
-          <p className="mb-2 font-display text-[clamp(1.05rem,4.4vw,1.5rem)] font-medium leading-snug tracking-[0.01em] text-ink lg:mb-6">
+          {/* 워드마크 — 로고는 상단 바에 이미 있다. 브랜드명만 국문 + 골드포일 영문으로.
+              ★ 이 워드마크가 홈의 h1(문서 제목)이다. 검색·AI 가 홈을 '송영신목장 A2 저지 헤이밀크'로
+                읽게 한다 — 예전 h1 은 아래 슬로건이라 브랜드·품목 낱말이 하나도 없었다.
+                모양은 클래스가 정하므로 화면은 그대로다. */}
+          <h1 className="mb-2 font-display text-[clamp(1.05rem,4.4vw,1.5rem)] font-medium leading-snug tracking-[0.01em] text-ink lg:mb-6">
             송영신목장{" "}
             <span className="gold-foil">A2 Jersey Hay Milk</span>
-          </p>
+          </h1>
 
-          <h1 className="max-w-2xl text-balance font-serif-kr text-[clamp(1.45rem,3.4vw,2.5rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
+          <p className="max-w-2xl text-balance font-serif-kr text-[clamp(1.45rem,3.4vw,2.5rem)] font-medium leading-[1.32] tracking-[-0.015em] text-ink">
             소중한 분들에게 최상의 우유를.
             <br />
             그리고 지속가능한 지구를.
-          </h1>
+          </p>
 
           {/* 인사는 여기까지 — 워드마크·슬로건·회원 수·버튼. 1440×900 에서 상품 카드 사진이
               첫 화면에 들어오는 높이로 맞췄다. 문단을 더하거나 정렬컷을 키우면 다시 밀린다.
