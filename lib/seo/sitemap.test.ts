@@ -53,7 +53,8 @@ describe("lastmod 표 — 빠진 날짜가 없다", () => {
   });
   it("약관류 날짜는 화면 '시행일'과 같은 상수", () => {
     expect(PAGE_UPDATED["/guide"]).toBe(LEGAL_UPDATED.guide);
-    expect(PAGE_UPDATED["/terms"]).toBe(LEGAL_UPDATED.terms);
+    // /terms 는 개정 공지 게시일(시행 전 공지도 내용 변경) — 시행일과 다를 수 있다.
+    expect(PAGE_UPDATED["/terms"] >= LEGAL_UPDATED.terms).toBe(true);
     expect(PAGE_UPDATED["/privacy"]).toBe(LEGAL_UPDATED.privacy);
   });
 });

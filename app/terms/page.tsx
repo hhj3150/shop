@@ -5,12 +5,42 @@ import { LEGAL_UPDATED } from "@/lib/seo/lastmod";
 import { LegalLayout, Article } from "@/components/LegalLayout";
 import { BUSINESS } from "@/lib/site";
 import { periodWeeksList } from "@/lib/products";
+import { TERMS_REVISION, revisedTermsInEffect } from "@/lib/terms-revision";
+import { kstYmd } from "@/lib/kst";
 
 export const metadata: Metadata = pageMetadata({ ...PAGE_SEO.terms, path: "/terms" });
 
+// 개정 약관이 시행일(TERMS_REVISION.effective)에 저절로 적용되도록 1시간마다 다시 만든다.
+export const revalidate = 3600;
+
+const DEF_USER_CURRENT = "2. “이용자”란 몰에 접속하여 본 약관에 따라 서비스를 받는 회원을 말합니다.";
+const DEF_USER_REVISED =
+  "2. “이용자”란 몰에 접속하여 본 약관에 따라 서비스를 받는 회원 및 비회원을 말합니다.";
+const DEF_GUEST =
+  "4. “비회원”이란 회원가입을 하지 않고 단품(1회) 구매 등 회사가 제공하는 서비스를 이용하는 자를 말합니다.";
+const SALE_CURRENT =
+  "2. 본 몰은 회원에게만 재화를 판매합니다. 회원가입 시 제공한 연락처는 입금 확인 및 배송 안내에 사용됩니다.";
+const SALE_REVISED =
+  "2. 정기구독은 회원에게만 판매합니다. 단품(1회) 구매는 회원가입 없이도 할 수 있습니다. 회원가입 또는 주문 시 제공한 연락처는 입금 확인 및 배송 안내에 사용됩니다.";
+
 export default function TermsPage() {
+  const revised = revisedTermsInEffect(kstYmd(new Date().toISOString()));
   return (
-    <LegalLayout eyebrow="Terms" title="이용약관" updated={LEGAL_UPDATED.terms}>
+    <LegalLayout
+      eyebrow="Terms"
+      title="이용약관"
+      updated={revised ? TERMS_REVISION.effective : LEGAL_UPDATED.terms}
+    >
+      {!revised && (
+        <Article heading={`이용약관 개정 안내 (공지 ${TERMS_REVISION.announced})`}>
+          <p>
+            {TERMS_REVISION.effective}부터 아래와 같이 이용약관이 바뀝니다. 개정 사유: {TERMS_REVISION.reason}
+          </p>
+          <p>- 제2조 제2항: “이용자”의 범위에 비회원을 포함하고, 제4항에 “비회원”의 정의를 더합니다.</p>
+          <p>- 제4조 제2항(현행): {SALE_CURRENT.slice(3)}</p>
+          <p>- 제4조 제2항(개정): {SALE_REVISED.slice(3)}</p>
+        </Article>
+      )}
       <Article heading="제1조 (목적)">
         <p>
           본 약관은 {BUSINESS.company}(이하 “회사”)가 운영하는 온라인 쇼핑몰(이하
@@ -21,8 +51,9 @@ export default function TermsPage() {
 
       <Article heading="제2조 (정의)">
         <p>1. “몰”이란 회사가 재화를 이용자에게 제공하기 위하여 설정한 가상의 영업장을 말합니다.</p>
-        <p>2. “이용자”란 몰에 접속하여 본 약관에 따라 서비스를 받는 회원을 말합니다.</p>
+        <p>{revised ? DEF_USER_REVISED : DEF_USER_CURRENT}</p>
         <p>3. “회원”이란 회사에 개인정보를 제공하여 회원등록을 한 자로, 몰의 정보를 지속적으로 제공받으며 서비스를 이용할 수 있는 자를 말합니다.</p>
+        {revised && <p>{DEF_GUEST}</p>}
       </Article>
 
       <Article heading="제3조 (약관의 명시와 개정)">
@@ -32,7 +63,7 @@ export default function TermsPage() {
 
       <Article heading="제4조 (회원가입)">
         <p>1. 이용자는 회사가 정한 가입 양식에 따라 회원정보를 기입한 후 본 약관에 동의함으로써 회원가입을 신청합니다.</p>
-        <p>2. 본 몰은 회원에게만 재화를 판매합니다. 회원가입 시 제공한 연락처는 입금 확인 및 배송 안내에 사용됩니다.</p>
+        <p>{revised ? SALE_REVISED : SALE_CURRENT}</p>
       </Article>
 
       <Article heading="제5조 (구매 신청 및 결제 방법)">

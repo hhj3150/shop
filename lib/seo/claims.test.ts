@@ -13,6 +13,7 @@ import { buildLlmsTxt, buildLlmsFullTxt } from "./llms";
 import { FAQ_ITEMS, moreFaqItems } from "./faq";
 import { buildOrganization, buildLocalBusiness, buildProduct } from "./schema";
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import { buildCustomerSystemPrompt } from "@/lib/assistant/knowledge";
 import { join } from "node:path";
 
 // 검색 결과·AI 답변으로 퍼지는 문구(제목·설명·구조화데이터·llms·문답)에 금지 표현이 없는지 — 래칫.
@@ -32,7 +33,7 @@ const FACT_BANNED: [string, RegExp][] = [
   ["grass-fed(사실과 다름)", /grass[- ]?fed/i],
 ];
 // 비교·근거 없는 최상급 — 이번에 새로 쓴 표면(제목·설명·구조화데이터·llms 요약·추가 문답)에서 금지.
-//   기존 FAQ_ITEMS 의 '일반 우유' 문항은 문구 결정(사장님·표시광고 검토) 전이라 이 목록에서 뺀다.
+//   ('국내 유일'은 상세 페이지에서 범위를 밝혀 쓰는 사장님 결정 문구라 FAQ 검사에는 넣지 않는다.)
 const AUTHORED_BANNED: [string, RegExp][] = [
   ...FACT_BANNED,
   ["비교(일반 우유·~보다)", /일반\s*우유|보다\s*(더|진하|건강|맛)/],
@@ -65,9 +66,17 @@ describe("검색·AI 표면 금지 표현 — 새로 쓴 문구", () => {
 });
 
 describe("검색·AI 표면 금지 표현 — 기존 문답과 llms-full", () => {
-  it("FAQ_ITEMS 에 사실과 다른 표현·효능 표현이 없다", () => {
+  it("FAQ_ITEMS 에 사실과 다른 표현·효능 표현·비교 표현이 없다", () => {
     const t = JSON.stringify(FAQ_ITEMS);
     for (const [why, re] of FACT_BANNED) expect(t, why).not.toMatch(re);
+    // 2026-11-12 문항 교체: '일반 우유'(비교), '속이 불편'(증상 프레이밍), 근거 없는 '베타카로틴'.
+    expect(t).not.toMatch(/일반\s*우유|속이\s*불편|베타카로틴/);
+  });
+
+  it("FAQ 의 해지·판매 대상 안내가 약관(제7조)·실제 운영과 같다", () => {
+    const t = JSON.stringify(FAQ_ITEMS);
+    expect(t).not.toMatch(/최소\s*4\s*회/);
+    expect(t).not.toMatch(/회원에게만\s*판매/);
   });
   it("llms-full.txt", () => {
     const t = buildLlmsFullTxt(input);
@@ -142,5 +151,18 @@ describe("공개 화면 소스 — 사실과 다른 표현 없음", () => {
     expect(files.length, "검사 대상 파일을 찾지 못했다").toBeGreaterThan(50);
     const re = FACT_BANNED[0][1];
     for (const f of files) expect(strip(readFileSync(f, "utf8")), f).not.toMatch(re);
+  });
+});
+
+// 고객 도우미(AI 상담)의 지식도 같은 사실 기준을 따른다 — 손님에게 직접 하는 말이다.
+describe("고객 도우미 지식 — 사실 기준", () => {
+  const prompt = buildCustomerSystemPrompt();
+  it("건초만·자연 방목·다른 우유 비교·외부 연구 배수·최소 4회 해지가 없다", () => {
+    for (const bad of [/건초만\s*먹/, /자연\s*방목/, /일반\s*우유보다/, /홀스타인보다/, /약\s*두\s*배|약\s*2배/, /최소\s*4\s*회/, /기준\s*그대로/, /grass-fed/i]) {
+      expect(prompt).not.toMatch(bad);
+    }
+  });
+  it("단품은 회원이 아니어도 산다고 안내한다", () => {
+    expect(prompt).toContain("단품(1회) 구매는 회원이 아니어도");
   });
 });

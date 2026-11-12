@@ -85,7 +85,7 @@ export function Footer() {
             대표전화 {BUSINESS.tel} · {BUSINESS.mobile} · 이메일 {BUSINESS.email}
           </p>
           <p className="mt-4 text-mute">
-            © {new Date().getFullYear()} Song Yeong Shin Farm. All rights reserved.
+            © {new Date().getFullYear()} Song Young Shin Farm. All rights reserved.
           </p>
         </div>
       </div>

@@ -65,12 +65,17 @@ export const BRAND_CHANNELS = [
 ] as const;
 
 // 브랜드 표기 — 검색·AI 가 같은 주체로 묶도록 한 곳에서 쓴다.
-//   영문 표준명은 아직 하나로 정해지지 않았다(푸터 'Song Yeong Shin Farm' / 사내 문서 'Song Young Shin Farm').
-//   그래서 둘 다 별칭으로 둔다 — 표준명이 정해지면 그 하나를 맨 앞에 둔다.
+//   영문 표준명: 'Song Young Shin Farm'(2026-11-12 확정, 맨 앞). 예전 표기 'Song Yeong Shin Farm'
+//   (구 푸터)·'Song Young Shin Dairy Farm'(브랜드 홈)은 검색·AI 가 같은 주체로 묶도록 별칭으로 남긴다.
 export const BRAND = {
   name: "송영신목장",
   productLine: "A2 저지 헤이밀크",
-  alternateNames: ["Song Young Shin Farm", "Song Yeong Shin Farm", "A2 Jersey Hay Milk"],
+  alternateNames: [
+    "Song Young Shin Farm",
+    "Song Yeong Shin Farm",
+    "Song Young Shin Dairy Farm",
+    "A2 Jersey Hay Milk",
+  ],
 } as const;
 
 // 정기구독을 '시작하는' 자리 — 상단 메뉴의 '정기구독'과 히어로 필름 CTA 가 같은 곳으로 간다.

@@ -8,7 +8,7 @@ import Image from "next/image";
 //   모바일·데스크톱 캡션이 두 벌이지만 한쪽은 화면 폭에 따라 숨겨져 손님은 하나만 본다.
 export function FarmBand({ titleAs: Title = "h2" }: { titleAs?: "h1" | "h2" } = {}) {
   const EYEBROW = "Anseong · Made by Soil";
-  const SUB = "갓 짜낸 그대로, 다음 날 식탁으로.";
+  const SUB = "아침에 짠 원유, 다음 날 콜드체인으로.";
 
   return (
     <section className="relative w-full overflow-hidden bg-ink">
