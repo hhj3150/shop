@@ -1,11 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "@/components/Footer";
 
 // 없는 주소(사이트 전체)와 notFound() 의 공통 404 화면.
 //   [왜] 이 파일이 없으면 Next 기본 404 가 자기 <title>('404: This page could not be found.')을 하나 더 넣어
-//        <head> 에 제목이 둘이었다(2026-11-12 운영 감사). 여기서는 <title> 을 따로 그리지 않는다 —
-//        루트 레이아웃의 기본 제목 하나만 나가고, noindex 는 Next 가 404 응답에 자동으로 붙인다.
+//        <head> 에 제목이 둘이었다(2026-11-12 운영 감사). 제목은 metadata 로만 준다(레이아웃 템플릿이
+//        ' · 송영신목장'을 붙여 <title> 하나) — 컴포넌트 안에서 <title> 을 그리지 않는다.
+//        noindex 는 Next 가 404 응답에 자동으로 붙인다.
 //   길 잃은 손님이 바로 돌아갈 수 있게 주요 입구를 건다.
+export const metadata: Metadata = { title: "페이지를 찾을 수 없습니다" };
+
 const EXITS = [
   { href: "/#products", label: "제품 보기" },
   { href: "/story", label: "목장 이야기" },

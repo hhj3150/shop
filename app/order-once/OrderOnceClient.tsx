@@ -28,11 +28,11 @@ import { getSupabase } from "@/lib/supabase";
 import { usableBalance, redeemableCoupons, type RewardLite } from "@/lib/referral-credit";
 import { backfillProfileShipping } from "@/lib/profile";
 import { useStorefrontCatalog } from "@/lib/storefront";
-import { visibleProducts, isCatalogRejection } from "@/lib/storefront-merge";
+import { visibleProducts, isCatalogRejection, type CommercialRow } from "@/lib/storefront-merge";
 import { notify, notifyGuestOrder } from "@/lib/notify";
 import { idempotencyKeyFor } from "@/lib/idempotency";
 import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
-import { nextDispatchDate, formatDispatch } from "@/lib/ship-date";
+import { nextDispatchDate, formatDispatch, ONCE_DISPATCH_RULE } from "@/lib/ship-date";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { StickySubmitBar, useFieldError, useRevealOnError } from "@/components/CheckoutAssist";
@@ -54,15 +54,19 @@ import type { Recipient } from "@/lib/recipients";
 //   [왜] useSearchParams 때문에 이 컴포넌트는 서버 HTML 에서 Suspense 대체 화면으로 나간다. 예전 대체
 //        화면은 '불러오는 중…' 한 줄이라 검색·AI 로봇이 이 주소에서 제목도 제품도 읽지 못했다(2026-11-12 운영 감사).
 //        대체 화면과 !ready 화면을 같은 정적 소개로 두면, 로봇은 내용을 읽고 손님은 같은 머리글을 보다가 주문서로 넘어간다.
-export default function OrderOnceClient({ staticView }: { staticView: React.ReactNode }) {
+//   initialCatalog: 서버가 소개를 그릴 때 읽은 product_catalog 행. 브라우저 조회가 끝나기 전(또는 실패 시)
+//   주문서도 같은 가격·노출을 쓴다 — 소개(DB 가격) → 주문서(정적 가격) → DB 가격으로 튀지 않게.
+type Props = { staticView: React.ReactNode; initialCatalog: CommercialRow[] };
+
+export default function OrderOnceClient({ staticView, initialCatalog }: Props) {
   return (
     <Suspense fallback={staticView}>
-      <OrderOnce staticView={staticView} />
+      <OrderOnce staticView={staticView} initialCatalog={initialCatalog} />
     </Suspense>
   );
 }
 
-function OrderOnce({ staticView }: { staticView: React.ReactNode }) {
+function OrderOnce({ staticView, initialCatalog }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const { ready, user, profile } = useAuth();
@@ -109,7 +113,12 @@ function OrderOnce({ staticView }: { staticView: React.ReactNode }) {
   const minNoticeRef = useRef<HTMLParagraphElement>(null);
   const [minFlash, setMinFlash] = useState(false);
 
-  const { map, refresh } = useStorefrontCatalog();
+  const { map: liveMap, refresh } = useStorefrontCatalog();
+  const initialMap = useMemo(
+    () => new Map(initialCatalog.map((r) => [r.id, r] as const)),
+    [initialCatalog]
+  );
+  const map = liveMap.size > 0 ? liveMap : initialMap;
 
   // 카드·간편결제(PortOne)는 PortOne 설정 시·선물이 아닐 때만 선택 가능하다.
   //   선물은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 무통장(PayAction) 흐름으로 고정한다.
@@ -421,7 +430,7 @@ function OrderOnce({ staticView }: { staticView: React.ReactNode }) {
         {pickup ? "방문수령 — 배송비 무료" : `배송비 ${formatKRW(ONCE_SHIPPING_KRW)}`}. 입금이 확인되면{" "}
         <span className="text-ink-soft">{dispatch}</span>에 발송됩니다.{" "}
         <br className="hidden sm:block" />
-        평일(월–목) 자정 전 주문은 다음 날, 금·토·일 주문은 월요일 발송. (발송 월–금)
+        {ONCE_DISPATCH_RULE}
       </p>
 
       <VacationNotice className="mt-5" />

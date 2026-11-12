@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { ONCE_MIN_KRW, ONCE_SHIPPING_KRW, formatKRW } from "@/lib/products";
 import { SPECIAL_DELIVERY_SHIPPING_KRW } from "@/lib/regions";
-import { livePublicProducts } from "@/lib/seo/live-catalog";
+import { fetchCatalogRows, livePublicProducts } from "@/lib/seo/live-catalog";
+import { ONCE_DISPATCH_RULE } from "@/lib/ship-date";
 import type { LiveProduct } from "@/lib/storefront-merge";
 import OrderOnceClient from "./OrderOnceClient";
 
@@ -11,8 +12,13 @@ import OrderOnceClient from "./OrderOnceClient";
 export const revalidate = 3600;
 
 export default async function OrderOncePage() {
-  const products = await livePublicProducts();
-  return <OrderOnceClient staticView={<OrderOnceIntro products={products} />} />;
+  const [products, rows] = await Promise.all([livePublicProducts(), fetchCatalogRows()]);
+  return (
+    <OrderOnceClient
+      staticView={<OrderOnceIntro products={products} />}
+      initialCatalog={[...rows.values()]}
+    />
+  );
 }
 
 // 주문서 머리글(OrderOnceClient 의 제목·안내문)과 같은 모양 — 넘어갈 때 화면이 튀지 않게.
@@ -26,9 +32,10 @@ function OrderOnceIntro({ products }: { products: LiveProduct[] }) {
       <p className="mt-3 text-[14px] leading-relaxed text-mute">
         구독 없이, 원하는 것만 한 번. 회원이 아니어도 주문하실 수 있습니다. 상품 합계{" "}
         <span className="text-ink-soft">{formatKRW(ONCE_MIN_KRW)} 이상</span> · 배송비{" "}
-        {formatKRW(ONCE_SHIPPING_KRW)}(제주·도서산간 등 {formatKRW(SPECIAL_DELIVERY_SHIPPING_KRW)}).{" "}
+        {formatKRW(ONCE_SHIPPING_KRW)}(제주·도서산간 등 {formatKRW(SPECIAL_DELIVERY_SHIPPING_KRW)}, 목장
+        방문수령은 무료). 입금이 확인되면 발송합니다.{" "}
         <br className="hidden sm:block" />
-        평일(월–목) 자정 전 주문은 다음 날, 금·토·일 주문은 월요일 발송. (발송 월–금)
+        {ONCE_DISPATCH_RULE}
       </p>
 
       <ul className="mt-8 space-y-3">

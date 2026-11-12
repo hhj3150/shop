@@ -66,8 +66,9 @@ describe("요거트 당류 강조 문구 — 표시사항 값과 같다(비교 �
       const basis = p.nutrition?.basis ?? "";
       const row = p.nutrition?.rows.find((r) => r.label === "당류");
       const per = Number(basis.match(/(\d+)mL/)?.[1]);
-      const per100 = (parseFloat(row?.amount ?? "NaN") / per) * 100;
-      expect(Math.abs(per100 - Number(m![1]))).toBeLessThan(0.06);
+      // 문구가 밝힌 기준(m[2] mL)으로 환산해 비교한다 — 기준을 바꿔 적어도 숫자가 맞아야 통과.
+      const expected = (parseFloat(row?.amount ?? "NaN") / per) * Number(m![2]);
+      expect(Math.abs(expected - Number(m![1]))).toBeLessThan(0.06);
     });
   }
 });
@@ -76,8 +77,8 @@ describe("홈·스토리 카피 — 비교·효능 암시·용어 통일", () =>
   it("홈 이름 풀이에 비교('더 진하고')·영양 암시('풀의 영양')가 없다", () => {
     expect(src("components/WhyBand.tsx").replace(/^\s*\/\/.*$/gm, "")).not.toMatch(/더\s*진하|풀의\s*영양/);
   });
-  it("목장 집사 소개에 '소화'가 없다", () => {
-    expect(src("components/ConciergeInvite.tsx")).not.toMatch(/소화/);
+  it("목장 집사 소개·대화 칩에 '소화'·증상·비교 표현이 없다", () => {
+    expect(src("components/ConciergeInvite.tsx")).not.toMatch(/소화|속이\s*(불)?편|일반\s*우유|보다\s*(더|좋)/);
   });
   it("베타카제인으로 통일한다(화면·도우미)", () => {
     expect(src("components/Provenance.tsx")).not.toMatch(/베타카세인/);
@@ -98,13 +99,20 @@ describe("크롤링 — 서버 HTML 에 내용이 있다", () => {
     const client = src("app/order-once/OrderOnceClient.tsx");
     expect(client).toMatch(/fallback=\{staticView\}/);
     expect(client).toMatch(/if \(!ready\) return <>\{staticView\}<\/>/);
+    // 소개와 주문서가 같은 카탈로그 스냅샷에서 출발한다(가격이 DB→정적→DB 로 튀지 않게).
+    expect(page).toMatch(/initialCatalog=/);
+    expect(client).toMatch(/liveMap\.size > 0 \? liveMap : initialMap/);
+    // 서버 소개도 '입금 확인 후 발송'을 밝힌다(색인되는 문장).
+    expect(page).toMatch(/입금이 확인되면/);
   });
   it("FarmBand 캡션 제목은 한 벌이다(/story 의 h1 이 둘이 되지 않게)", () => {
     expect(src("components/FarmBand.tsx").match(/<Title\b/g)?.length).toBe(1);
   });
   it("루트 404 화면이 있고 자기 <title> 을 그리지 않는다(제목 중복 방지)", () => {
     expect(existsSync(join(root, "app/not-found.tsx"))).toBe(true);
-    expect(src("app/not-found.tsx").replace(/^\s*\/\/.*$/gm, "")).not.toMatch(/<title/);
+    const nf = src("app/not-found.tsx");
+    expect(nf.replace(/^\s*\/\/.*$/gm, "")).not.toMatch(/<title/);
+    expect(nf).toMatch(/export const metadata/);
   });
 });
 
