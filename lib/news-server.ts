@@ -25,6 +25,7 @@ export const NEWS_FETCH_LIMIT = 500;
 /** 빌드·재생성이 DB 응답을 무한정 기다리지 않게. */
 const TIMEOUT_MS = 8000;
 
+/** 환경변수가 없으면 null. 만들기 실패(예: Node 20 의 realtime WebSocket 검사)는 던진다 — 호출부의 try 안에서 부른다. */
 function anonClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -44,9 +45,9 @@ function onFetchError<T>(what: string, err: unknown, fallback: T): T {
 
 /** 게시된 소식 전체(최신 먼저). 미설정이면 []. 실패는 빌드 중에만 [] (그 밖에는 throw). */
 export const fetchPublishedNews = cache(async (): Promise<NewsRow[]> => {
-  const sb = anonClient();
-  if (!sb) return [];
   try {
+    const sb = anonClient();
+    if (!sb) return [];
     const { data, error } = await sb
       .from("news")
       .select(COLUMNS)
@@ -63,9 +64,9 @@ export const fetchPublishedNews = cache(async (): Promise<NewsRow[]> => {
 
 /** 최근 게시글 N건(최신 먼저) — /story 소식 띠·글 아래 '다른 소식'용. 전체를 읽지 않는다. */
 export const fetchLatestNews = cache(async (limit: number): Promise<NewsRow[]> => {
-  const sb = anonClient();
-  if (!sb) return [];
   try {
+    const sb = anonClient();
+    if (!sb) return [];
     const { data, error } = await sb
       .from("news")
       .select(COLUMNS)
@@ -88,9 +89,9 @@ export const fetchLatestNews = cache(async (limit: number): Promise<NewsRow[]> =
  */
 export const fetchNewsById = cache(async (id: string): Promise<NewsRow | null> => {
   if (!isNewsId(id)) return null;
-  const sb = anonClient();
-  if (!sb) return null;
   try {
+    const sb = anonClient();
+    if (!sb) return null;
     const { data, error } = await sb
       .from("news")
       .select(COLUMNS)
