@@ -1,12 +1,20 @@
 // 제품 상세 구매 지점의 신뢰 단서 — 텍스트 나열 대신 시각 배지로 안심을 준다.
-// 카피 근거: lib/products 제품 데이터(A2/A2 저지 원유 100%, 냉장 0–10℃) + 단일목장(경기 안성).
-// 제품마다 원산지·온도가 동일해 현재는 공통 상수. 차후 제품별 분기가 필요하면 props로 받는다.
+// 카피 근거: lib/products 제품 데이터(냉장 0–10℃) + 단일목장(경기 안성).
+//   원유 배지는 제품 라인에 따라 다르다 — 우유는 원유 100%, 요거트는 원유 99.997% + 유산균이라
+//   '원유 100%'를 쓰지 않는다(같은 화면의 표시사항·구조화데이터와 어긋나지 않게).
 
 type Badge = {
   title: string;
   desc: string;
   icon: React.ReactNode;
 };
+
+const RAW_MILK_TITLE = "A2 / A2 저지 원유 100%";
+
+/** 원유 배지 제목 — 원재료가 원유 100% 인 우유만 '100%'. */
+export function rawMilkBadgeTitle(line: "milk" | "yogurt"): string {
+  return line === "milk" ? RAW_MILK_TITLE : "A2 / A2 저지 원유";
+}
 
 const BADGES: Badge[] = [
   {
@@ -22,7 +30,7 @@ const BADGES: Badge[] = [
     ),
   },
   {
-    title: "A2 / A2 저지 원유 100%",
+    title: RAW_MILK_TITLE,
     desc: "사일리지 없이 풀과 건초로",
     icon: (
       // 물방울 + 체크
@@ -47,10 +55,13 @@ const BADGES: Badge[] = [
   },
 ];
 
-export function TrustBadges() {
+export function TrustBadges({ line }: { line: "milk" | "yogurt" }) {
+  const badges = BADGES.map((b) =>
+    b.title === RAW_MILK_TITLE ? { ...b, title: rawMilkBadgeTitle(line) } : b
+  );
   return (
     <ul className="grid grid-cols-1 divide-y divide-line border-y border-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-      {BADGES.map((b) => (
+      {badges.map((b) => (
         <li
           key={b.title}
           className="flex items-center gap-4 py-5 sm:flex-col sm:items-start sm:gap-3 sm:px-6 sm:py-7 sm:first:pl-0 sm:last:pr-0"

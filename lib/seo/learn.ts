@@ -193,7 +193,7 @@ export const LEARN_PAGES: readonly LearnPage[] = [
     description:
       "헤이밀크는 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹인 소의 우유입니다. EU가 2016년 전통특산물보증(TSG)으로 등록한 기준과, 송영신목장이 EU 인증 제품이 아닌 점을 정리했습니다.",
     published: "2026-11-12",
-    updated: "2026-11-12",
+    updated: "2026-11-13",
     intro:
       "헤이밀크(독일어 Heumilch, 영어 Haymilk)는 사일리지(발효사료)를 먹이지 않고, 풀이 자라는 철에는 신선한 풀을, 겨울에는 건초를 중심으로 먹인 소에게서 짠 우유입니다. 유럽연합(EU)은 2016년 오스트리아의 신청을 받아 'Heumilch/Haymilk'를 전통특산물보증(TSG)으로 등록했습니다. 송영신목장은 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹이는 헤이밀크 방식을 따르지만, EU TSG 인증 제품은 아니며 EU 사양의 세부 기준(조사료 비율·GM 사료·부산물 등)을 검증받은 것도 아닙니다.",
     sections: [
@@ -228,7 +228,7 @@ export const LEARN_PAGES: readonly LearnPage[] = [
     ],
     sources: [
       {
-        name: "Commission Implementing Regulation (EU) 2016/304 of 2 March 2016 — Heumilch/Haymilk (TSG) 등록, OJ L 58, 4.3.2016, p. 5 (EUR-Lex)",
+        name: "Commission Implementing Regulation (EU) 2016/304 of 2 March 2016 — Heumilch/Haymilk (TSG) 등록, OJ L 58, 4.3.2016, pp. 28–34 (EUR-Lex)",
         url: "https://eur-lex.europa.eu/eli/reg_impl/2016/304/oj",
         year: 2016,
       },

@@ -20,11 +20,11 @@ export const LEGAL_UPDATED = {
 
 /** 고정 경로 → 마지막 내용 변경일. */
 export const PAGE_UPDATED: Record<string, string> = {
-  "/": "2026-11-12",
-  "/story": "2026-11-12",
-  "/faq": "2026-11-12",
-  "/signup": "2026-11-11",
-  "/order-once": "2026-11-11",
+  "/": "2026-11-13",
+  "/story": "2026-11-13",
+  "/faq": "2026-11-13",
+  "/signup": "2026-11-13",
+  "/order-once": "2026-11-13",
   "/guide": LEGAL_UPDATED.guide,
   // 개정 공지를 게시한 날(시행 전 공지도 내용 변경이다).
   "/terms": "2026-11-12",
@@ -35,7 +35,7 @@ export const PAGE_UPDATED: Record<string, string> = {
 export const PRODUCT_UPDATED: Record<string, string> = {
   "milk-180": "2026-11-12",
   "milk-750": "2026-11-12",
-  "yogurt-180": "2026-11-12",
-  "yogurt-500": "2026-11-12",
+  "yogurt-180": "2026-11-13",
+  "yogurt-500": "2026-11-13",
   "aftermilk-1l": "2026-11-11",
 };

@@ -24,6 +24,9 @@
 
 import { isDispatchBlockedISO } from "./holidays";
 
+/** 단품 발송 규칙 안내문 — /order-once 의 서버 소개와 주문서 머리글이 같은 문장을 쓴다(입금 확인이 전제). */
+export const ONCE_DISPATCH_RULE = "평일(월–목) 자정 전 주문은 다음 날, 금·토·일 주문은 월요일 발송. (발송 월–금)";
+
 const WEEKDAY_KR = ["일", "월", "화", "수", "목", "금", "토"] as const;
 
 /** 토·일·공휴일·목장 휴무일이면 다음 영업일까지 전진시킨다(d 를 직접 수정). */
