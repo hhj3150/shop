@@ -263,7 +263,7 @@ export default async function ProductPage({
           </div>
         ) : (
           <>
-            <TrustBadges />
+            <TrustBadges line={product.line} />
             {/* 보유 인증 — 목장(사육·착유 단계)에 대한 인증임을 제목에 밝힌다. */}
             <div className="mt-10">
               <p className="eyebrow text-gold-deep">Certified Farm</p>

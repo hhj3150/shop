@@ -49,7 +49,7 @@ export function Provenance() {
                 A2 / A2
               </p>
               <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
-                A2 베타카세인만 지닌 원유입니다. A1 베타카세인은 들어 있지 않습니다.
+                A2 베타카제인만 지닌 원유입니다. A1 베타카제인은 들어 있지 않습니다.
               </p>
             </div>
             <div>

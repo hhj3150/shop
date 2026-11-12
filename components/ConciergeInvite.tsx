@@ -41,7 +41,7 @@ export function ConciergeInvite() {
           물어보시면, 맞는 한 병을 찾아드립니다.
         </h2>
         <p className="mx-auto mt-5 max-w-md text-[14.5px] leading-relaxed text-mute">
-          진열대를 헤매지 마세요. 가족 수·드시는 양·아이의 소화까지, 대화 한 번이면 목장 집사가
+          진열대를 헤매지 마세요. 가족 수·드시는 양·드시는 분까지, 대화 한 번이면 목장 집사가
           나에게 꼭 맞는 정기구독을 골라드립니다.
         </p>
 

@@ -228,7 +228,7 @@ export const LEARN_PAGES: readonly LearnPage[] = [
     ],
     sources: [
       {
-        name: "Commission Implementing Regulation (EU) 2016/304 of 2 March 2016 — Heumilch/Haymilk (TSG) 등록, OJ L 58, 4.3.2016, p. 5 (EUR-Lex)",
+        name: "Commission Implementing Regulation (EU) 2016/304 of 2 March 2016 — Heumilch/Haymilk (TSG) 등록, OJ L 58, 4.3.2016, pp. 28–34 (EUR-Lex)",
         url: "https://eur-lex.europa.eu/eli/reg_impl/2016/304/oj",
         year: 2016,
       },
