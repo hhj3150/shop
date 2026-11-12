@@ -11,17 +11,20 @@
 | 메타데이터 헬퍼 | `lib/seo/meta.ts` | `pageMetadata`(공개), `privateMetadata`(noindex), `searchVerification`(소유확인 env) |
 | 구조화데이터(JSON-LD) | `lib/seo/schema.ts` | Organization·WebSite·Store·Product·BreadcrumbList·AboutPage·FAQPage, `@id` 로 연결 |
 | robots.txt | `lib/seo/robots.ts` → `app/robots.txt/route.ts` | AI 답변·학습 봇 명시 허용, `/admin`·`/api` 만 차단, 다음 인증줄 env |
-| sitemap.xml | `lib/seo/sitemap.ts` + `lib/seo/lastmod.ts` | **실제 내용 변경일**. 제품 이미지 포함 |
-| llms.txt / llms-full.txt | `lib/seo/llms.ts` → `app/llms*.txt/route.ts` | SSOT 에서 생성, 하루 1회 갱신. `public/llms.txt` 를 다시 만들지 말 것(라우트를 가림) |
+| sitemap.xml | `lib/seo/sitemap.ts` + `lib/seo/lastmod.ts` | **실제 내용 변경일**. 이미지 항목은 넣지 않음(Next 직렬화 순서가 XSD 위반 — 제품 사진은 구조화데이터가 알림) |
+| llms.txt / llms-full.txt | `lib/seo/llms.ts` → `app/llms*.txt/route.ts` | SSOT 에서 생성(가격은 DB), 하루 1회 갱신. llmstxt.org 형식(H2 아래는 링크만). `public/llms.txt` 를 다시 만들지 말 것(라우트를 가림) |
+| 검색·AI 문구의 가격 | `lib/seo/live-catalog.ts` | product_catalog(DB) 가격 — 메타 설명·Product 구조화데이터·/faq 가격 문답·llms 가 같은 값. 조회 실패 시 정적 값 |
 | 문답 | `lib/seo/faq.ts` | `FAQ_ITEMS`(홈·도우미·/faq 공용) + `moreFaqItems()`(/faq 전용) |
 | 제품 공유 카드 | `app/products/[id]/opengraph-image.tsx` | 1200×630 PNG, 빌드 때 생성(카카오톡은 WEBP 를 못 읽는다) |
-| IndexNow | `lib/seo/indexnow.ts`, `public/<키>.txt`, `netlify/functions/indexnow.mts`, `scripts/indexnow.mjs` | Bing·네이버 등에 변경 알림 |
+| IndexNow | `lib/seo/indexnow.ts`, `public/<키>.txt`, `netlify/functions/indexnow.mts`, `scripts/indexnow.mjs` | Bing·네이버 등에 변경 알림(공용 엔드포인트 1곳 → 참여 엔진에 공유) |
 | 비공개 noindex | `app/{login,account,checkout,orders,admin,forgot-password,reset-password}/layout.tsx` | robots.txt 로 막지 않는다(막으면 noindex 를 못 읽음) |
 
 ## 2. 평소 운영 규칙
 
-1. **손님이 읽는 내용(본문·가격·정책)을 바꾸면** `lib/seo/lastmod.ts` 의 그 페이지 날짜를 그날로 고친다.
-   → 다음 날 06:20 KST 에 IndexNow 예약 함수가 바뀐 주소만 Bing·네이버에 알린다.
+1. **손님이 읽는 내용(본문·가격·정책·구조화데이터)을 바꾸면** `lib/seo/lastmod.ts` 의 그 페이지 날짜를 **배포되는 날**로 고친다.
+   → 다음 날 06:20 KST 에 IndexNow 예약 함수가 lastmod 가 '어제'인 주소만 Bing·네이버에 한 번 알린다(중복 없음).
+   → PR 이 늦게 머지돼 lastmod 보다 늦게 배포됐다면, 배포 후 `node scripts/indexnow.mjs --since <그 날짜>` 를 한 번 돌린다.
+   → 관리자 화면에서 DB 가격을 바꿨을 때도 해당 제품 날짜를 올린다(검색 문구는 1시간 안에 DB 가격으로 바뀐다).
 2. **새 공개 페이지·제품**을 만들면: `lastmod.ts` 에 날짜, `lib/seo/sitemap.ts` 의 `SITEMAP_PAGES`(페이지), 메타데이터는 `pageMetadata` 로.
    제품 누끼 PNG 는 `public/products/<id>.png` 규칙(공유 카드가 읽는다).
 3. **제목은 자주 바꾸지 않는다**(네이버 불이익). 제목 안에서 같은 낱말을 되풀이하지 않는다(테스트가 잡는다).

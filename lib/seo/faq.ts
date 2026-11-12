@@ -14,6 +14,7 @@ import {
   formatWon,
   periodDiscountSentence,
   PUBLIC_PRODUCTS,
+  type Product,
 } from "@/lib/products";
 import { SPECIAL_DELIVERY_SHIPPING_KRW } from "@/lib/regions";
 import { BUSINESS, FARM_HOURS } from "@/lib/site";
@@ -45,7 +46,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
   {
     question: "A2 저지 헤이밀크가 무엇인가요?",
     answer:
-      "A2 베타카제인만 내는 A2/A2 저지 젖소에서 짠 우유로, 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹여 기릅니다. 경기도 안성 송영신목장에서 직접 짓고 발효해 보냅니다.",
+      "A2 베타카제인만 내는 A2/A2 저지 젖소에서 짠 우유로, 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹여 기릅니다. 경기도 안성 송영신목장에서 직접 짜서 HTST로 살균해 보냅니다.",
   },
   {
     question: "A2 우유는 일반 우유와 무엇이 다른가요? 왜 어떤 분은 우유를 마시면 속이 불편할까요?",
@@ -82,13 +83,17 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
 
 const firstLabelPart = (s: string | undefined) => (s ?? "").split(" · ")[0].trim();
 
-export function moreFaqItems(certs: readonly Certification[]): FaqItem[] {
-  const yogurts = PUBLIC_PRODUCTS.filter((p) => p.line === "yogurt");
+export function moreFaqItems(
+  certs: readonly Certification[],
+  // 가격은 DB 값이어야 한다 — /faq 는 lib/seo/live-catalog.ts 의 livePublicProducts() 를 넘긴다.
+  products: readonly Product[] = PUBLIC_PRODUCTS
+): FaqItem[] {
+  const yogurts = products.filter((p) => p.line === "yogurt");
   const yogurtVolumes = yogurts.map((p) => p.volume.replace(/mL$/i, "")).join("·");
   const certList = certs
     .map((c) => `${c.name}(${c.issuer}, ${c.number}, ${certValidityLabel(c)})`)
     .join(", ");
-  const priceList = PUBLIC_PRODUCTS.map((p) => `${p.name} ${p.volume} ${formatWon(p.price)}`).join(", ");
+  const priceList = products.map((p) => `${p.name} ${p.volume} ${formatWon(p.price)}`).join(", ");
 
   return [
     {

@@ -244,7 +244,8 @@ export function buildProduct(p: Product, opts: BuildProductOpts = {}) {
     offers: {
       "@type": "Offer",
       url,
-      // 정가(누구나 살 수 있는 단품가). 구독 회원가는 구글이 지원하는 표기가 없어 본문·FAQ 에서 설명한다.
+      // 정가(회원이 아니어도 사는 1회 구매 단가, DB 가격). 정기구독가는 4–24주 선납 구독을 사야 적용되는
+      //   가격이라 구글 로열티 회원가(validForMemberTier)에 해당하지 않고 구독가 표기도 없다 → 본문·FAQ 에서 설명.
       price: String(p.price), // schema.org/Google 권장: price는 문자열
       priceCurrency: "KRW",
       availability:

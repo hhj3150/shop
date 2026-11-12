@@ -53,6 +53,12 @@ describe("buildRobotsTxt", () => {
     expect(txt).not.toContain("DaumWebMasterTool");
   });
 
+  it("실제 다음 PIN 모양(64자리 16진수 : Base64 '=='·'+'·'/')도 그대로 낸다", () => {
+    const pin = `${"de990a9b".repeat(8)}:7x7o+K9j/rwZAIo2A992FSMg==`;
+    const t = buildRobotsTxt({ siteUrl: SITE, daumVerification: pin });
+    expect(t.trimEnd().split("\n").at(-1)).toBe(`#DaumWebMasterTool:${pin}`);
+  });
+
   it("다음 인증값이 있으면 정확한 형식의 주석 한 줄", () => {
     const withDaum = buildRobotsTxt({ siteUrl: SITE, daumVerification: "abc123:XyZ9" });
     expect(withDaum.trimEnd().split("\n").at(-1)).toBe("#DaumWebMasterTool:abc123:XyZ9");

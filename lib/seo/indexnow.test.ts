@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { INDEXNOW_KEY, parseSitemap, recentUrls, indexNowPayload } from "./indexnow";
+import {
+  INDEXNOW_KEY,
+  INDEXNOW_ENDPOINT,
+  parseSitemap,
+  recentUrls,
+  urlsChangedOn,
+  indexNowPayload,
+} from "./indexnow";
 
 const root = join(__dirname, "..", "..");
 const SITE = "https://shop.a2jerseymilk.com";
@@ -46,6 +53,21 @@ describe("parseSitemap / recentUrls", () => {
   it("기준일 이후에 바뀐 주소만 고른다(수정일 없는 주소 제외)", () => {
     expect(recentUrls(parseSitemap(xml), "2026-11-12")).toEqual([`${SITE}/products/milk-180`]);
     expect(recentUrls(parseSitemap(xml), "2026-11-01")).toHaveLength(2);
+  });
+});
+
+describe("매일 예약 제출 — 그날 바뀐 주소만 한 번", () => {
+  const entries = [
+    { loc: `${SITE}/a`, lastmod: "2026-11-11" },
+    { loc: `${SITE}/b`, lastmod: "2026-11-12" },
+    { loc: `${SITE}/c` },
+  ];
+  it("lastmod 가 정확히 그날인 주소만 — 이틀 연속 같은 주소를 보내지 않는다", () => {
+    expect(urlsChangedOn(entries, "2026-11-12")).toEqual([`${SITE}/b`]);
+    expect(urlsChangedOn(entries, "2026-11-13")).toEqual([]);
+  });
+  it("엔드포인트는 하나(받은 엔진이 참여 엔진 모두에 공유 — 여러 곳에 보내면 중복 수신)", () => {
+    expect(INDEXNOW_ENDPOINT).toBe("https://api.indexnow.org/indexnow");
   });
 });
 

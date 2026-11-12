@@ -40,6 +40,8 @@ export type LlmsInput = {
   certifications: readonly Certification[];
   /** 카드·간편결제(PortOne)가 켜져 있으면 true — 결제 수단 안내가 실제와 같도록. */
   cardPayment: boolean;
+  /** 손님에게 보이는 제품(가격은 DB 값 — lib/seo/live-catalog.ts). 생략하면 정적 PUBLIC_PRODUCTS. */
+  products?: readonly Product[];
 };
 
 const url = (path: string) => `${SITE_URL}${path}`;
@@ -72,8 +74,12 @@ function paymentSentence(cardPayment: boolean): string {
     : "결제는 무통장입금으로 하며, 콜드체인 냉장 택배로 발송합니다.";
 }
 
-/** /llms.txt — 요약판. */
+/** /llms.txt — 요약판.
+ *  llmstxt.org 형식: H1 → 인용 요약 → (제목 없는) 머리말 → H2 '파일 목록'(항목마다 [이름](주소)) → Optional.
+ *  링크가 없는 사실(구매 조건·연락처·인용 안내·영문 요약)은 반드시 첫 H2 앞 머리말에 둔다 —
+ *  H2 아래에 링크 없는 줄이 있으면 사양을 따르는 파서가 멈춘다(lib/seo/llms.test.ts 가 검사). */
 export function buildLlmsTxt(input: LlmsInput): string {
+  const products = input.products ?? PUBLIC_PRODUCTS;
   const shipNote = `배송비 회당 ${formatWon(SUB_SHIPPING_KRW)}(제주·도서산간 등 ${formatWon(
     SPECIAL_DELIVERY_SHIPPING_KRW
   )})`;
@@ -86,46 +92,58 @@ export function buildLlmsTxt(input: LlmsInput): string {
       input.certifications
     )}`,
     "",
-    "## 제품",
-    ...PUBLIC_PRODUCTS.map(productLine),
+    "**구매 방법**",
     "",
-    "## 구매 방법",
-    `- [정기구독 신청](${url("/signup")}): 회원 전용. 요일별 ${SUB_DAY_CAP}명·총 ${SUB_TOTAL_CAP}명 선착순. 월–금 중 하루를 골라 매주 1회 발송. ${periodWeeksList()}주분 선납, 기간별 할인 ${periodDiscountSentence(
+    `- 정기구독: 회원 전용. 요일별 ${SUB_DAY_CAP}명·총 ${SUB_TOTAL_CAP}명 선착순. 월–금 중 하루를 골라 매주 1회 발송. ${periodWeeksList()}주분 선납, 기간별 할인 ${periodDiscountSentence(
       "·"
     )}. ${shipNote}. 회당 최소 상품 금액 ${formatWon(MIN_ORDER_KRW)}.`,
-    `- [단품(1회) 구매](${url("/order-once")}): 회원이 아니어도 주문할 수 있습니다. 상품 합계 ${formatWon(
+    `- 단품(1회) 구매: 회원이 아니어도 주문할 수 있습니다. 상품 합계 ${formatWon(
       ONCE_MIN_KRW
     )} 이상, 배송비 ${formatWon(ONCE_SHIPPING_KRW)}(제주·도서산간 등 ${formatWon(SPECIAL_DELIVERY_SHIPPING_KRW)}).`,
     `- ${paymentSentence(input.cardPayment)}`,
-    `- [자주 묻는 질문](${url("/faq")}): A2 우유·유당, 저지, 헤이밀크, 인증, 보관, 가격`,
-    `- [배송·교환/환불 안내](${url("/guide")})`,
-    "",
-    "## 목장과 오프라인",
-    `- [목장 이야기](${url("/story")}): 사육 방식, 재생농업, 목장 소식`,
-    `- [브랜드 홈페이지](${BRAND_HOME})`,
-    `- [안성팜랜드 Hey Hay Milk Café](${CAFE_HOME}): 안성팜랜드 입장 후 바로 좌측`,
     `- 목장 판매장: ${BUSINESS.address}, ${FARM_HOURS}`,
     `- 문의: ${BUSINESS.tel} · 고객센터 ${CS_HOURS.label}`,
     "",
-    "## 정확한 인용을 위한 안내",
+    "**정확한 인용을 위한 안내**",
+    "",
     "- 사육 방식은 '사일리지(발효사료) 없는 유럽 전통 헤이밀크 방식'이며 풀과 건초를 중심으로 먹입니다. 유기(유기농) 인증·자유방목 인증 제품이 아닙니다.",
     "- 인증은 모두 농장 인증입니다. '동물복지 인증 우유'·'HACCP 인증 우유'처럼 제품 인증으로 표현하지 않습니다.",
     "- A2 우유는 A2형 베타카제인만 있는 우유입니다. 유당(락토스)은 그대로 들어 있어 무유당 제품이 아닙니다. 송영신목장은 제품의 소화·건강 효능을 표시하지 않습니다.",
     "- 헤이밀크는 유럽연합이 전통특산물(TSG)로 등록한 방식이지만, 송영신목장 제품이 EU 인증을 받은 것은 아닙니다.",
     "",
+    `**English summary** — ${BRAND.alternateNames[0]} (${BRAND.name}) in Anseong, Gyeonggi-do, South Korea raises A2/A2 Jersey cows on a silage-free, European-style hay-milk regime (forage of grass and hay). It sells A2 Jersey Hay Milk (pasteurized cow's milk) and a drinkable plain yogurt with no added sugar at ${SITE_URL} through a weekly members-only subscription (capped at ${SUB_TOTAL_CAP} members) and one-off orders. Operator: ${BUSINESS.company} (D2O). Certifications are farm-level, not product-level; not organic-certified.`,
+    "",
+    "## 제품",
+    "",
+    ...products.map(productLine),
+    "",
+    "## 구매·안내",
+    "",
+    `- [정기구독 신청](${url("/signup")}): 회원 전용 정기구독(요일별 ${SUB_DAY_CAP}명·총 ${SUB_TOTAL_CAP}명)`,
+    `- [단품(1회) 구매](${url("/order-once")}): 회원이 아니어도 주문`,
+    `- [자주 묻는 질문](${url("/faq")}): A2 우유·유당, 저지, 헤이밀크, 인증, 보관, 가격`,
+    `- [배송·교환/환불 안내](${url("/guide")}): 콜드체인 배송, 배송비, 교환·환불 기준`,
+    "",
+    "## 목장",
+    "",
+    `- [목장 이야기](${url("/story")}): 사육 방식, 재생농업, 목장 소식`,
+    `- [브랜드 홈페이지](${BRAND_HOME}): 송영신목장 소개`,
+    `- [안성팜랜드 Hey Hay Milk Café](${CAFE_HOME}): 안성팜랜드 입장 후 바로 좌측`,
+    "",
     "## Optional",
-    `- [전체 문답·제품 표시사항(llms-full.txt)](${url("/llms-full.txt")})`,
-    `- [이용약관](${url("/terms")})`,
-    `- [개인정보처리방침](${url("/privacy")})`,
-    `- English: ${BRAND.alternateNames[0]} (${BRAND.name}) in Anseong, Gyeonggi-do, South Korea raises A2/A2 Jersey cows on a silage-free, European-style hay-milk regime (forage of grass and hay). It sells A2 Jersey Hay Milk (pasteurized cow's milk) and a drinkable plain yogurt with no added sugar at ${SITE_URL} through a weekly members-only subscription (capped at ${SUB_TOTAL_CAP} members) and one-off orders. Operator: ${BUSINESS.company} (D2O). Certifications are farm-level, not product-level; not organic-certified.`,
+    "",
+    `- [전체 문답·제품 표시사항](${url("/llms-full.txt")}): 모든 FAQ 와 제품 라벨·영양정보`,
+    `- [이용약관](${url("/terms")}): 회원가입·결제·배송·청약철회`,
+    `- [개인정보처리방침](${url("/privacy")}): 수집 항목·보유 기간·이용자 권리`,
   ];
   return lines.join("\n") + "\n";
 }
 
 /** /llms-full.txt — 요약판 + 전체 문답 + 제품별 표시사항·영양정보. */
 export function buildLlmsFullTxt(input: LlmsInput): string {
-  const faq = [...FAQ_ITEMS, ...moreFaqItems(input.certifications)];
-  const productBlocks = PUBLIC_PRODUCTS.flatMap((p) => [
+  const products = input.products ?? PUBLIC_PRODUCTS;
+  const faq = [...FAQ_ITEMS, ...moreFaqItems(input.certifications, products)];
+  const productBlocks = products.flatMap((p) => [
     `### ${p.name} ${p.volume}`,
     `- 주소: ${url(`/products/${p.id}`)}`,
     `- 식품유형: ${p.label.type}`,

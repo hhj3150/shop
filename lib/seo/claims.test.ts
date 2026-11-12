@@ -12,6 +12,8 @@ import {
 import { buildLlmsTxt, buildLlmsFullTxt } from "./llms";
 import { FAQ_ITEMS, moreFaqItems } from "./faq";
 import { buildOrganization, buildLocalBusiness, buildProduct } from "./schema";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 // 검색 결과·AI 답변으로 퍼지는 문구(제목·설명·구조화데이터·llms·문답)에 금지 표현이 없는지 — 래칫.
 //   근거: docs/브랜드-카피-가이드.md(금지어·'사실과 다른 표현'), 식품표시광고법(효능 표현),
@@ -23,7 +25,7 @@ const input = { certifications: certs, cardPayment: false };
 
 // 사실과 다른 표현·폐기 수치·효능 — 모든 표면에서 금지.
 const FACT_BANNED: [string, RegExp][] = [
-  ["건초만/풀만(사실과 다름)", /건초만|풀만|100%\s*건초|곡물\s*무급여/],
+  ["건초만/풀만(사실과 다름)", /건초(?:로)?만|풀(?:로)?만|100%\s*건초|곡물\s*무급여/],
   ["방목(자유방목 인증 '부')", /방목(?!\s*인증)/],
   ["폐기된 0.01%", /0\.01\s*%/],
   ["효능 표현", /BCM|면역|장[-–]뇌|소화가\s*잘|소화에\s*좋|속이\s*편/],
@@ -105,5 +107,40 @@ describe("길이 — 검색 결과에서 잘리지 않게", () => {
 
   it("페이지마다 설명이 다르다(네이버: 중복 설명은 불이익)", () => {
     expect(new Set(descs.map(([, d]) => d)).size).toBe(descs.length);
+  });
+});
+
+describe("우유 문답은 '발효'를 말하지 않는다(우유는 살균, 발효는 요거트)", () => {
+  it("헤이밀크 문답(요거트 제외) 답변에 발효(사료 제외)가 없다", () => {
+    const milkQs = [...FAQ_ITEMS, ...moreFaqItems(certs)].filter(
+      (f) => f.question.includes("헤이밀크") && !f.question.includes("요거트")
+    );
+    expect(milkQs.length).toBeGreaterThan(0);
+    for (const f of milkQs) expect(f.answer, f.question).not.toMatch(/발효(?!사료)/);
+  });
+});
+
+// 손님 화면 소스(공개 페이지·컴포넌트)도 사실과 다른 표현을 쓰지 않는다 — 문자열 리터럴 기준.
+//   lib/assistant/knowledge.ts(고객 도우미 지식)는 별도 정리 대상이라 여기서 뺀다(docs/seo-geo-운영가이드.md §4).
+describe("공개 화면 소스 — 사실과 다른 표현 없음", () => {
+  const root = join(__dirname, "..", "..");
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((f) => {
+      const p = join(dir, f);
+      return statSync(p).isDirectory() ? walk(p) : /\.(tsx?|mts)$/.test(f) ? [p] : [];
+    });
+  const files = [
+    ...walk(join(root, "components")),
+    ...walk(join(root, "app")).filter((f) => !f.includes(`${join("app", "admin")}`) && !f.includes(`${join("app", "api")}`)),
+  ];
+  const strip = (src: string) =>
+    src
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\{\/\*)/.test(l))
+      .join("\n");
+  it("건초만·풀만·풀로만·건초로만이 없다", () => {
+    expect(files.length, "검사 대상 파일을 찾지 못했다").toBeGreaterThan(50);
+    const re = FACT_BANNED[0][1];
+    for (const f of files) expect(strip(readFileSync(f, "utf8")), f).not.toMatch(re);
   });
 });

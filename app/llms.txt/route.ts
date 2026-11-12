@@ -5,8 +5,8 @@ import { llmsInputNow } from "@/lib/seo/llms-input";
 //   ★ public/llms.txt 를 다시 만들지 않는다 — public 파일이 이 라우트보다 먼저 서빙돼 조용히 가린다.
 export const revalidate = 86400;
 
-export function GET() {
-  return new Response(buildLlmsTxt(llmsInputNow()), {
+export async function GET() {
+  return new Response(buildLlmsTxt(await llmsInputNow()), {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   });
 }

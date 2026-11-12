@@ -18,6 +18,17 @@ describe("llms.txt — 형식(llmstxt.org)", () => {
     expect(lines[0]).toMatch(/^# /);
     expect(lines[2]).toMatch(/^> /);
   });
+  it("H2 아래 목록은 모두 [이름](주소) 링크 — 링크 없는 사실은 첫 H2 앞 머리말에(사양 파서가 멈추지 않게)", () => {
+    const lines = txt.split("\n");
+    const firstH2 = lines.findIndex((l) => l.startsWith("## "));
+    expect(firstH2).toBeGreaterThan(0);
+    for (const l of lines.slice(firstH2).filter((x) => x.startsWith("- "))) {
+      expect(l, l).toMatch(/^- \[[^\]]+\]\([^)]+\)/);
+    }
+    // 머리말에는 제목(#)이 없다(H1 제외).
+    for (const l of lines.slice(1, firstH2)) expect(l.startsWith("#"), l).toBe(false);
+  });
+
   it("Optional 섹션이 마지막 H2", () => {
     const h2 = txt.split("\n").filter((l) => l.startsWith("## "));
     expect(h2.at(-1)).toBe("## Optional");
@@ -49,6 +60,13 @@ describe("llms.txt — 사실은 SSOT 에서", () => {
       expect(txt).not.toContain(c.number);
     }
   });
+  it("가격은 넘겨받은 제품 목록(DB 가격)을 따른다 — 정적 값만 말하지 않는다", () => {
+    const changed = PUBLIC_PRODUCTS.map((p) => (p.id === "milk-180" ? { ...p, price: 3800 } : p));
+    const t = buildLlmsTxt({ ...input, products: changed });
+    expect(t).toContain(formatWon(3800));
+    expect(buildLlmsFullTxt({ ...input, products: changed })).toContain("180mL 3,800원");
+  });
+
   it("결제 수단 안내가 실제 설정을 따른다", () => {
     expect(txt).not.toContain("카드");
     expect(buildLlmsTxt({ ...input, cardPayment: true })).toContain("카드·간편결제");

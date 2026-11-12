@@ -11,7 +11,7 @@ import { getPublicProduct, PUBLIC_PRODUCTS } from "@/lib/products";
 //        제목·설명은 카드가 따로 보여 주고, 한글 폰트 파일 없이도 결정적으로 그려진다.
 //   ★ 같은 세그먼트의 generateMetadata 에 openGraph.images 가 있으면 이 파일이 무시된다
 //     (app/products/[id]/page.tsx 는 pageMetadata({ ogImage: null }) 로 키를 두지 않는다).
-export const alt = "송영신목장 A2 저지 헤이밀크·플레인 요거트 제품 사진";
+export const alt = "송영신목장 제품 사진과 목장 로고";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -22,6 +22,7 @@ const PAPER = "#faf6ee";
 export function generateStaticParams() {
   return PUBLIC_PRODUCTS.map((p) => ({ id: p.id }));
 }
+
 
 async function dataUri(publicPath: string, opts: { trim?: boolean } = {}): Promise<string | null> {
   const file = join(process.cwd(), "public", publicPath);
@@ -44,8 +45,11 @@ async function dataUri(publicPath: string, opts: { trim?: boolean } = {}): Promi
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const product = getPublicProduct(id);
+  // 없는·미공개 제품은 404 — 임의 주소마다 카드를 만들어 캐시에 쌓지 않는다(400 이상 응답은 캐시되지 않는다).
+  //   ※ 메타데이터 이미지 라우트에는 dynamicParams 설정이 먹지 않아 여기서 직접 막는다(실측 2026-11-12).
+  if (!product) return new Response("Not Found", { status: 404 });
   // 누끼 PNG 는 public/products/<id>.png 규칙(상세용 webp 와 별개). 없으면 로고만 있는 카드.
-  const bottle = product ? await dataUri(`/products/${product.id}.png`, { trim: true }) : null;
+  const bottle = await dataUri(`/products/${product.id}.png`, { trim: true });
   const logo = await dataUri("/brand/logo-label.png");
 
   return new ImageResponse(

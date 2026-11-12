@@ -31,7 +31,7 @@ import { pageMetadata } from "@/lib/seo/meta";
 import { productSeo } from "@/lib/seo/copy";
 import { createClient } from "@supabase/supabase-js";
 import { reviewSummary, type ReviewRow } from "@/lib/reviews";
-import { mergeProduct, type CommercialRow } from "@/lib/storefront-merge";
+import { liveProduct } from "@/lib/seo/live-catalog";
 
 // 서버 컴포넌트에서 별점 집계·상업 상태(가격·재고)를 읽는다. lib/supabase.ts 의 getSupabase()는
 // "use client" 브라우저 전용 클라이언트(persistSession)라 서버에서 쓸 수 없으므로,
@@ -67,24 +67,6 @@ async function fetchRatingSummary(
   }
 }
 
-// 화면 가격·품절 표시는 product_catalog(DB)를 따른다(ProductCommercial — 클라이언트에서 덮어씀).
-//   구조화데이터(가격·재고)도 같은 값을 써야 구글 판매자 정보가 '화면과 다른 가격'으로 경고하지 않는다.
-//   스토어프론트와 같은 anon select(price·stock·active). 실패하면 정적 값으로 폴백(row 없음).
-async function fetchCommercialRow(productId: string): Promise<CommercialRow | undefined> {
-  try {
-    const { data, error } = await serverAnonClient()
-      .from("product_catalog")
-      .select("id, price, stock, active")
-      .eq("id", productId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return (data as CommercialRow | null) ?? undefined;
-  } catch (err) {
-    console.error("제품 상업 상태 조회 실패:", err);
-    return undefined;
-  }
-}
-
 // 미공개 제품은 프리렌더하지 않는다 — 출시 전 상세 페이지가 정적으로 배포되면
 //   링크 없이도 주소만 알면 열리므로.
 export function generateStaticParams() {
@@ -109,7 +91,8 @@ export async function generateMetadata({
   // 공유 이미지는 같은 폴더의 opengraph-image.tsx(1200×630 PNG)가 만든다 → ogImage: null 로
   //   images 키를 두지 않는다(키가 있으면 파일 이미지가 무시된다). 예전 og:image 는 1000×1000 WEBP 라
   //   카카오톡 미리보기에서 빠지거나 잘렸다.
-  const seo = productSeo(product);
+  // 가격은 DB(product_catalog) 값 — 같은 페이지의 Product 구조화데이터와 같은 출처(cache 로 한 번만 조회).
+  const seo = productSeo(await liveProduct(product));
   return pageMetadata({
     title: seo.title,
     description: seo.description,
@@ -128,13 +111,13 @@ export default async function ProductPage({
   if (!product) notFound();
 
   // 별점 집계(서버) + 가격 유효일(올해 말). buildProduct 는 순수 함수라 날짜를 여기서 계산해 주입한다.
-  const [rating, commercialRow] = await Promise.all([
+  // 화면 가격·품절 표시는 product_catalog(DB)를 따른다(ProductCommercial — 클라이언트에서 덮어씀).
+  //   구조화데이터·메타 설명도 같은 DB 값을 쓴다(lib/seo/live-catalog.ts, ISR 1시간 주기로 갱신).
+  const [rating, live] = await Promise.all([
     fetchRatingSummary(product.id),
-    fetchCommercialRow(product.id),
+    liveProduct(product),
   ]);
   const priceValidUntil = `${new Date().getFullYear()}-12-31`;
-  // 구조화데이터용 '라이브' 제품 — 가격·재고를 화면과 같은 DB 값으로(ISR 1시간 주기로 갱신).
-  const live = mergeProduct(product, commercialRow);
 
   const related = PUBLIC_PRODUCTS.filter((p) => p.id !== product.id);
   const certIds = activeCertifications(kstYmd(new Date().toISOString())).map((c) => c.id);

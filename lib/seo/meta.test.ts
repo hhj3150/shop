@@ -14,6 +14,12 @@ describe("pageMetadata — 공유 카드가 페이지마다 '완전한 모양'",
   const m = pageMetadata({ title: "목장 이야기", description: "설명", path: "/story" });
   const og = m.openGraph as OG;
 
+  it("공개 페이지는 색인 허용 + 구글 큰 이미지 미리보기(루트가 아니라 여기서 — 404 와 충돌하지 않게)", () => {
+    const r = m.robots as { index?: boolean; googleBot?: Record<string, unknown> };
+    expect(r.index).toBe(true);
+    expect(r.googleBot?.["max-image-preview"]).toBe("large");
+  });
+
   it("canonical 과 og:url 이 같은 경로", () => {
     expect(m.alternates?.canonical).toBe("/story");
     expect(og.url).toBe("/story");

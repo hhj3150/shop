@@ -23,6 +23,19 @@ export const DEFAULT_OG_IMAGE: OgImage = {
   alt: "송영신목장 A2 저지 헤이밀크와 플레인 요거트",
 };
 
+// 공개 페이지 robots — 색인 허용 + 구글 큰 이미지 미리보기·전체 스니펫.
+export const PUBLIC_ROBOTS = {
+  index: true,
+  follow: true,
+  googleBot: {
+    index: true,
+    follow: true,
+    "max-image-preview": "large",
+    "max-snippet": -1,
+    "max-video-preview": -1,
+  },
+} as const;
+
 export type PageSeo = {
   /** 접미사(' · 송영신목장') 앞부분. absoluteTitle 이면 전체 제목. */
   title: string;
@@ -46,6 +59,7 @@ export function pageMetadata(seo: PageSeo): Metadata {
     title: seo.absoluteTitle ? { absolute: seo.title } : seo.title,
     description: seo.description,
     alternates: { canonical: seo.path },
+    robots: PUBLIC_ROBOTS,
     openGraph: {
       type: "website",
       locale: OG_LOCALE,

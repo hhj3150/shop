@@ -73,18 +73,8 @@ export const metadata: Metadata = {
     images: [DEFAULT_OG_IMAGE],
   },
   twitter: { card: "summary_large_image" },
-  // 큰 이미지 미리보기·전체 스니펫 허용(구글). 비공개 페이지는 각 layout 의 noindex 가 덮어쓴다.
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-      "max-video-preview": -1,
-    },
-  },
+  // robots(index·큰 이미지 미리보기)는 공개 페이지가 pageMetadata 로 직접 받는다(lib/seo/meta.ts).
+  //   루트에 두면 404 화면에 Next 기본 noindex 와 'index' 가 함께 나간다.
   // 검색엔진 소유확인 — 값은 Netlify 환경변수(GOOGLE_/NAVER_/BING_SITE_VERIFICATION)로 넣는다.
   verification: searchVerification(process.env),
 };

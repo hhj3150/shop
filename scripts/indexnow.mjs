@@ -10,7 +10,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SITE = "https://shop.a2jerseymilk.com";
-const ENDPOINTS = ["https://api.indexnow.org/indexnow", "https://searchadvisor.naver.com/indexnow"];
+// 공용 엔드포인트 하나 — 참여 엔진(네이버·Bing 등)에 공유된다(lib/seo/indexnow.ts 와 같은 값).
+const ENDPOINTS = ["https://api.indexnow.org/indexnow"];
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const keyFile = readdirSync(join(root, "public")).find((f) => /^[0-9a-f]{32}\.txt$/.test(f));

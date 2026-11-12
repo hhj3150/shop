@@ -39,7 +39,8 @@ export const AI_TRAINING_BOTS = [
 export function daumVerificationLine(raw: string | undefined): string | null {
   const v = raw?.trim().replace(/^#?DaumWebMasterTool:/, "");
   if (!v) return null;
-  if (!/^[0-9a-zA-Z]+:[0-9a-zA-Z]+$/.test(v)) return null; // 형식이 다르면 내보내지 않는다
+  // 실제 PIN 은 '<64자리 16진수>:<Base64>==' 모양이다('+'·'/'·'=' 패딩 포함). 공백·줄바꿈은 거부(주입 방지).
+  if (!/^[0-9A-Za-z]+:[A-Za-z0-9+/]+={0,2}$/.test(v)) return null;
   return `#DaumWebMasterTool:${v}`;
 }
 

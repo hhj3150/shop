@@ -8,6 +8,7 @@ import { pageMetadata } from "@/lib/seo/meta";
 import { PAGE_SEO } from "@/lib/seo/copy";
 import { activeCertifications } from "@/lib/certifications";
 import { kstYmd } from "@/lib/kst";
+import { livePublicProducts } from "@/lib/seo/live-catalog";
 
 // 자주 묻는 질문 — 문답 전체를 한 주소에 모은 페이지(GEO).
 //   검색·AI 가 '송영신목장 A2 우유는 어디서 사나', '헤이밀크란', '어떤 인증인가' 같은 질문의
@@ -17,10 +18,16 @@ import { kstYmd } from "@/lib/kst";
 //   · 인증은 빌드 시점(KST) 기준 유효한 것만.
 export const metadata: Metadata = pageMetadata({ ...PAGE_SEO.faq, path: "/faq" });
 
-export default function FaqPage() {
+// 가격 문답은 DB(product_catalog) 가격 — 1시간마다 다시 만든다(제품 상세와 같은 주기).
+export const revalidate = 3600;
+
+export default async function FaqPage() {
   const items = [
     ...FAQ_ITEMS,
-    ...moreFaqItems(activeCertifications(kstYmd(new Date().toISOString()))),
+    ...moreFaqItems(
+      activeCertifications(kstYmd(new Date().toISOString())),
+      await livePublicProducts()
+    ),
   ];
   return (
     <>

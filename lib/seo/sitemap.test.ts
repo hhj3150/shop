@@ -38,11 +38,8 @@ describe("sitemap.xml", () => {
     }
   });
 
-  it("제품 항목에 절대 주소 이미지를 단다", () => {
-    for (const e of sm.filter((x) => x.url.includes("/products/"))) {
-      expect(e.images?.length, e.url).toBeGreaterThan(0);
-      for (const i of e.images ?? []) expect(i.startsWith(SITE_URL)).toBe(true);
-    }
+  it("이미지 항목을 넣지 않는다 — Next 가 <image> 를 <lastmod> 앞에 써서 sitemap XSD 를 어긴다", () => {
+    for (const e of sm) expect(e.images, e.url).toBeUndefined();
   });
 
   it("주소에 XML 특수문자(&·<·>)가 없다 — Next 직렬화기가 이스케이프하지 않는다", () => {
