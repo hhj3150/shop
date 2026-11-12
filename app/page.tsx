@@ -25,6 +25,7 @@ export const metadata: Metadata = pageMetadata({
   ...homeCopy,
   path: "/",
   absoluteTitle: true,
+  rss: true,
 });
 
 export default function Home() {

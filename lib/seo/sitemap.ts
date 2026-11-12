@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site";
 import { PUBLIC_PRODUCTS } from "@/lib/products";
 import { PAGE_UPDATED, PRODUCT_UPDATED } from "./lastmod";
+import { learnSitemapEntries } from "./learn";
 
 // sitemap.xml 항목 — 공개 페이지 + 공개 제품. 비공개(로그인·결제·주문·관리자)와 미공개 제품은 넣지 않는다.
 //   lastModified = 실제 내용 변경일(lib/seo/lastmod.ts). 날짜를 모르는 주소는 생략한다(틀린 날짜보다 낫다).
@@ -31,5 +32,7 @@ export function buildSitemap(): MetadataRoute.Sitemap {
     url: abs(`/products/${p.id}`),
     ...(PRODUCT_UPDATED[p.id] ? { lastModified: PRODUCT_UPDATED[p.id] } : {}),
   }));
-  return [...pages, ...products];
+  // 해설 페이지(/learn, /learn/<slug>) — 날짜는 lib/seo/learn.ts 의 updated.
+  const learn = learnSitemapEntries().map((e) => ({ url: abs(e.path), lastModified: e.updated }));
+  return [...pages, ...products, ...learn];
 }

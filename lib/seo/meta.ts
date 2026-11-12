@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RSS_PATH, RSS_TITLE } from "@/lib/news-feed";
 
 // 페이지 메타데이터(제목·설명·대표주소·공유 카드)를 한 모양으로 만든다.
 //
@@ -49,6 +50,8 @@ export type PageSeo = {
    * 키가 없어야 한다(같은 세그먼트에 openGraph.images 가 있으면 파일 이미지가 무시된다).
    */
   ogImage?: OgImage | null;
+  /** 목장 소식 RSS(<link rel="alternate" type="application/rss+xml">)를 알린다 — 홈·/story·소식 글. */
+  rss?: boolean;
 };
 
 /** 공개 페이지용 메타데이터. canonical = og:url = path, 사이트명·로케일·카드 형식 고정. */
@@ -58,7 +61,11 @@ export function pageMetadata(seo: PageSeo): Metadata {
   return {
     title: seo.absoluteTitle ? { absolute: seo.title } : seo.title,
     description: seo.description,
-    alternates: { canonical: seo.path },
+    // alternates 는 병합이 아니라 통째 교체라 RSS 링크도 여기서 함께 둔다.
+    alternates: {
+      canonical: seo.path,
+      ...(seo.rss ? { types: { "application/rss+xml": [{ url: RSS_PATH, title: RSS_TITLE }] } } : {}),
+    },
     robots: PUBLIC_ROBOTS,
     openGraph: {
       type: "website",

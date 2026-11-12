@@ -76,6 +76,38 @@ describe("llms.txt — 사실은 SSOT 에서", () => {
   });
 });
 
+describe("llms.txt — 알아보기·목장 소식", () => {
+  it("해설 페이지 링크 섹션이 있다", () => {
+    expect(txt).toContain("## 알아보기");
+    expect(txt).toContain(`${SITE_URL}/learn/a2-milk`);
+  });
+  it("게시된 소식이 없으면 '목장 소식' 섹션을 내지 않는다(빈 H2 금지)", () => {
+    expect(txt).not.toContain("## 목장 소식");
+  });
+  it("소식이 있으면 링크 목록으로 넣는다 — H2 아래는 링크만", () => {
+    const news = [
+      {
+        id: "0b6f2a1e-1111-4222-8333-944455556666",
+        title: "첫 풀베기 [건조]",
+        body: "올해 첫 풀을 베어 말렸습니다.",
+        cover_url: null,
+        youtube_id: null,
+        published: true,
+        created_at: "2026-11-11T01:00:00Z",
+        updated_at: "2026-11-11T01:00:00Z",
+      },
+    ];
+    const t = buildLlmsTxt({ ...input, news });
+    expect(t).toContain("## 목장 소식");
+    expect(t).toContain(`${SITE_URL}/story/news/${news[0].id}`);
+    const lines = t.split("\n");
+    const firstH2 = lines.findIndex((l) => l.startsWith("## "));
+    for (const l of lines.slice(firstH2).filter((x) => x.startsWith("- "))) {
+      expect(l, l).toMatch(/^- \[[^\]]+\]\([^)]+\)/);
+    }
+  });
+});
+
 describe("llms-full.txt", () => {
   it("요약판 전체 + 모든 FAQ 문답 + 제품 표시사항", () => {
     expect(full.startsWith(txt.trimEnd())).toBe(true);
