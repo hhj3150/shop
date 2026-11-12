@@ -9,7 +9,8 @@ import { isNewsId, newsSitemapEntries, type NewsSitemapEntry } from "@/lib/news-
 //   lib/supabase.ts 의 getSupabase()는 "use client" 브라우저 클라이언트(persistSession)라 서버에서 쓰지 않는다
 //   (lib/seo/live-catalog.ts 와 같은 방식). service_role 은 쓰지 않는다.
 //   환경변수가 없으면(로컬 빌드) 빈 결과.
-//   ★ 조회 실패(DB 오류·시간 초과)는 '빌드 중'에만 빈 결과로 넘긴다(배포가 DB 장애에 막히지 않게).
+//   ★ 목록 조회 실패(DB 오류·시간 초과)는 '빌드 중'에만 빈 결과로 넘긴다(배포가 DB 장애에 막히지 않게).
+//     단, 글 1건 조회(fetchNewsById)는 빌드 중에도 던진다 — 아래 함수 주석.
 //     빌드가 끝난 뒤의 ISR 재생성에서는 오류를 던진다 — 그래야 Next 가 마지막 정상본을 계속 보여 준다.
 //     빈 결과로 넘기면 '있는 글이 404', '글 0개짜리 RSS' 가 1시간 동안 캐시된다
 //     (node_modules/next/dist/docs/01-app/02-guides/incremental-static-regeneration.md — Handling uncaught exceptions).
@@ -79,7 +80,12 @@ export const fetchLatestNews = cache(async (limit: number): Promise<NewsRow[]> =
   }
 });
 
-/** 게시된 소식 한 건. id 모양이 uuid 가 아니거나, 없거나, 미게시면 null. 실패는 빌드 중에만 null. */
+/**
+ * 게시된 소식 한 건. id 모양이 uuid 가 아니거나, 없거나, 미게시면 null.
+ * 조회 실패는 빌드 중에도 던진다 — 이 함수는 generateStaticParams 가 목록을 받아 온 '있는 글'에만
+ * 빌드 때 불린다. 여기서 null 을 돌려주면 게시된 글이 404 로 미리 만들어져 배포 후 최대 1시간
+ * 캐시된다(사이트맵에는 그 주소가 올라가 있다). 빌드가 실패하면 직전 배포가 그대로 서 있으니 그쪽이 안전하다.
+ */
 export const fetchNewsById = cache(async (id: string): Promise<NewsRow | null> => {
   if (!isNewsId(id)) return null;
   const sb = anonClient();
@@ -96,7 +102,7 @@ export const fetchNewsById = cache(async (id: string): Promise<NewsRow | null> =
     const row = data as NewsRow | null;
     return row && row.published === true ? row : null;
   } catch (err) {
-    return onFetchError("목장 소식 1건 조회 실패", err, null);
+    throw err instanceof Error ? err : new Error(String(err));
   }
 });
 

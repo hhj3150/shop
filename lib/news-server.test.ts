@@ -51,7 +51,8 @@ describe("news-server — 환경변수 없음", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const m = await import("./news-server");
     await expect(m.fetchPublishedNews()).resolves.toEqual([]);
-    await expect(m.fetchNewsById("0b6f1c2a-3d4e-4f50-8a1b-2c3d4e5f6a7b")).resolves.toBeNull();
+    // 1건 조회는 빌드 중에도 던진다 — 있는 글이 404 로 미리 만들어지면 안 된다(빌드 실패 = 직전 배포 유지).
+    await expect(m.fetchNewsById("0b6f1c2a-3d4e-4f50-8a1b-2c3d4e5f6a7b")).rejects.toThrow();
     await expect(m.fetchLatestNews(4)).resolves.toEqual([]);
     expect(err).toHaveBeenCalled();
     fetchSpy.mockRestore();

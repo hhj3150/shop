@@ -19,7 +19,7 @@
 | IndexNow | `lib/seo/indexnow.ts`, `public/<키>.txt`, `netlify/functions/indexnow.mts`, `scripts/indexnow.mjs` | Bing·네이버 등에 변경 알림(공용 엔드포인트 1곳 → 참여 엔진에 공유) |
 | 비공개 noindex | `app/{login,account,checkout,orders,admin,forgot-password,reset-password}/layout.tsx` | robots.txt 로 막지 않는다(막으면 noindex 를 못 읽음) |
 | 해설 페이지 | `lib/seo/learn.ts`(+`learn-schema.ts`) → `/learn`, `/learn/<slug>` | 첫 문단 = 결론, 출처 필수, `learn.test.ts` 가 금지어·사실 검사. 내용을 고치면 그 글의 `updated` 를 바꾼다 |
-| 목장 소식 | `lib/news-server.ts`·`lib/news-feed.ts` → `/story/news/<id>`, `/rss.xml` | 관리자(/admin/news)에서 게시하면 1시간 안에 글 주소·RSS·사이트맵·llms 에 반영 |
+| 목장 소식 | `lib/news-server.ts`·`lib/news-feed.ts` → `/story/news/<id>`, `/rss.xml` | 관리자(/admin/news)에서 게시하면 글 주소·RSS·사이트맵에는 1시간 안에, llms 에는 하루 안에 반영. **내릴 때도 같다** — 관리자 화면에는 즉시 갱신 수단이 없으니, 급히 내려야 하는 글은 게시 해제 뒤 재배포(Netlify "Clear cache and deploy")로 바로 지운다 |
 
 ## 2. 평소 운영 규칙
 

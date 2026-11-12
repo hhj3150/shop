@@ -45,14 +45,22 @@ const OTHER_NEWS_MAX = 3;
 
 export default async function NewsPostPage({ params }: Props) {
   const { id } = await params;
-  const row = await fetchNewsById(id);
+  // 본문과 '다른 소식'을 함께 시작한다(차례로 기다리면 최악 8초+8초).
+  //   '다른 소식'은 덧붙이는 목록이라, 그 조회만 실패하면 목록 없이 글을 그린다(글 전체를 500 으로 만들지 않는다).
+  const [row, latest] = await Promise.all([
+    fetchNewsById(id),
+    fetchLatestNews(OTHER_NEWS_MAX + 1).catch((err: unknown) => {
+      console.error("다른 목장 소식 조회 실패 — 목록 없이 그림:", err);
+      return [];
+    }),
+  ]);
   if (!row) notFound();
 
   const title = formatTitle(row.title);
   const paragraphs = toParagraphs(row.body);
   const published = toIsoOrNull(row.created_at);
   const youtube = safeYoutubeId(row.youtube_id);
-  const others = (await fetchLatestNews(OTHER_NEWS_MAX + 1))
+  const others = latest
     .filter((r) => r.id !== row.id)
     .slice(0, OTHER_NEWS_MAX);
 
