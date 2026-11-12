@@ -12,6 +12,16 @@ import { Track } from "@/components/Track";
 import { ReferralCapture } from "@/components/ReferralCapture";
 import { JsonLd } from "@/components/JsonLd";
 import { buildOrganization, buildWebSite } from "@/lib/seo/schema";
+import {
+  SITE_NAME,
+  TITLE_SUFFIX,
+  OG_LOCALE,
+  DEFAULT_OG_IMAGE,
+  searchVerification,
+} from "@/lib/seo/meta";
+import { SITE_TITLE_DEFAULT, SITE_DESCRIPTION } from "@/lib/seo/copy";
+import { activeCertifications } from "@/lib/certifications";
+import { kstYmd } from "@/lib/kst";
 
 // ★ 한글 두 서체는 '가변 글꼴(variable)' 하나로 받는다 — weight 를 나열하지 않는다.
 //   한글 웹폰트는 글자 수가 많아 구글이 약 120조각으로 쪼개 주는데, 굵기를 따로 나열하면
@@ -44,27 +54,29 @@ const cormorant = Cormorant_Garamond({
   display: "swap",
 });
 
+// 루트 메타데이터 — 개별 문구가 없는 페이지의 기본값.
+//   ★ openGraph·twitter 에 title/description 을 넣지 않는다. 넣으면 개별 openGraph 가 없는 페이지까지
+//     홈 문구로 공유 카드가 나간다(예전 /story·/guide 등). 비워 두면 각 페이지의 <title>·설명이
+//     자동으로 들어간다. 공개 페이지는 lib/seo/meta.ts 의 pageMetadata 로 전부를 직접 받는다.
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "송영신목장 · A2 Jersey Hay Milk",
-    template: "%s · 송영신목장",
+    default: SITE_TITLE_DEFAULT,
+    template: `%s${TITLE_SUFFIX}`,
   },
-  description:
-    "국내 유일 A2 저지 목장, 사일리지 없이 건초만 먹은 헤이밀크. 송영신목장이 직접 짓고, 직접 발효하고, 직접 보냅니다.",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
   openGraph: {
-    title: "송영신목장 · A2 Jersey Hay Milk",
-    description: "한 잔의 정직함. 경기도 안성, 송영신목장의 A2 저지 헤이밀크와 플레인 요거트.",
     type: "website",
-    locale: "ko_KR",
-    images: [{ url: "/brand/og-default.jpg", width: 1200, height: 630 }],
+    locale: OG_LOCALE,
+    siteName: SITE_NAME,
+    images: [DEFAULT_OG_IMAGE],
   },
-  twitter: {
-    card: "summary_large_image",
-    title: "송영신목장 · A2 Jersey Hay Milk",
-    description: "한 잔의 정직함. 경기도 안성, 송영신목장의 A2 저지 헤이밀크와 플레인 요거트.",
-    images: ["/brand/og-default.jpg"],
-  },
+  twitter: { card: "summary_large_image" },
+  // robots(index·큰 이미지 미리보기)는 공개 페이지가 pageMetadata 로 직접 받는다(lib/seo/meta.ts).
+  //   루트에 두면 404 화면에 Next 기본 noindex 와 'index' 가 함께 나간다.
+  // 검색엔진 소유확인 — 값은 Netlify 환경변수(GOOGLE_/NAVER_/BING_SITE_VERIFICATION)로 넣는다.
+  verification: searchVerification(process.env),
 };
 
 // viewport-fit=cover라야 env(safe-area-inset-*)가 노치/홈바 영역으로 채워진다.
@@ -88,7 +100,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-paper text-ink-soft">
         <AuthProvider>
-          <JsonLd data={buildOrganization()} />
+          {/* 인증은 빌드 시점(KST) 기준 유효한 것만 — 배포마다 다시 계산된다. */}
+          <JsonLd
+            data={buildOrganization({
+              certifications: activeCertifications(kstYmd(new Date().toISOString())),
+            })}
+          />
           <JsonLd data={buildWebSite()} />
           <CartProvider>
             <Nav />

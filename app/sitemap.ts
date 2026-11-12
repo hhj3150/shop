@@ -1,13 +1,7 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/site";
-import { PUBLIC_PRODUCTS } from "@/lib/products";
+import { buildSitemap } from "@/lib/seo/sitemap";
 
+// 항목·수정일·이미지는 lib/seo/sitemap.ts · lib/seo/lastmod.ts 가 단일 출처.
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
-  const staticPaths = ["", "/order-once", "/signup", "/story", "/guide", "/terms", "/privacy"];
-  const productPaths = PUBLIC_PRODUCTS.map((p) => `/products/${p.id}`);
-  return [...staticPaths, ...productPaths].map((path) => ({
-    url: `${SITE_URL}${path}`,
-    lastModified: now,
-  }));
+  return buildSitemap();
 }

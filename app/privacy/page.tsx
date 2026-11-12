@@ -1,19 +1,20 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/meta";
+import { PAGE_SEO } from "@/lib/seo/copy";
+import { LEGAL_UPDATED } from "@/lib/seo/lastmod";
 import { LegalLayout, Article } from "@/components/LegalLayout";
 import { BUSINESS } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "개인정보처리방침",
-  alternates: { canonical: "/privacy" },
-};
+export const metadata: Metadata = pageMetadata({ ...PAGE_SEO.privacy, path: "/privacy" });
 
 export default function PrivacyPage() {
   return (
-    <LegalLayout eyebrow="Privacy" title="개인정보처리방침" updated="2026-06-06">
+    <LegalLayout eyebrow="Privacy" title="개인정보처리방침" updated={LEGAL_UPDATED.privacy}>
       <Article heading="1. 수집하는 개인정보 항목">
         <p>회사는 회원가입 및 주문·배송을 위하여 다음의 개인정보를 수집합니다.</p>
         <p>- 필수: 이름, 휴대폰 번호, 이메일(로그인 계정), 비밀번호, 배송지 주소</p>
         <p>- 주문 시: 받는 분 정보(이름·연락처·주소), 입금자명, 배송 메모</p>
+        <p>- 비회원 단품(1회) 주문 시: 주문자 이름·휴대폰 번호(주문 조회·입금 확인·발송 안내용), 받는 분 정보(이름·연락처·주소), 입금자명, 배송 메모</p>
         <p>- 구독 해지·환불 시: 환불 계좌 정보(은행명, 계좌번호, 예금주)</p>
         <p>- 선택(동의 시): 광고성 정보 수신 동의 여부</p>
         <p>- AI 음성 안내 이용 시: 이용자가 입력한 음성(음성 인식·답변 생성을 위해 처리되며 별도 저장하지 않습니다)</p>
@@ -21,12 +22,12 @@ export default function PrivacyPage() {
 
       <Article heading="2. 개인정보의 수집 및 이용 목적">
         <p>- 회원 식별 및 회원제 서비스 제공</p>
-        <p>- 무통장입금 주문의 접수, 입금 확인, 배송 및 발송 안내(문자) 발송</p>
+        <p>- 무통장입금 주문(회원·비회원)의 접수, 입금 확인, 배송 및 발송 안내(문자) 발송, 비회원 주문 조회</p>
         <p>- 고객 문의 응대 및 분쟁 처리</p>
       </Article>
 
       <Article heading="3. 개인정보의 보유 및 이용 기간">
-        <p>회원 탈퇴 시 지체 없이 파기함을 원칙으로 합니다. 다만 관련 법령에 따라 보존이 필요한 경우 해당 기간 동안 보관합니다.</p>
+        <p>회원 탈퇴 시(비회원은 거래 완료 후) 지체 없이 파기함을 원칙으로 합니다. 다만 관련 법령에 따라 보존이 필요한 경우 해당 기간 동안 보관합니다.</p>
         <p>- 계약 또는 청약철회 등에 관한 기록: 5년 (전자상거래법)</p>
         <p>- 대금결제 및 재화 등의 공급에 관한 기록: 5년 (전자상거래법)</p>
         <p>- 소비자의 불만 또는 분쟁처리에 관한 기록: 3년 (전자상거래법)</p>

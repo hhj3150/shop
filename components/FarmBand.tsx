@@ -4,9 +4,11 @@ import Image from "next/image";
 //   - 모바일: 풀폭 이미지 + 하단 그라데이션 위 캡션 오버레이(에디토리얼).
 //   - 데스크톱: 이미지 | 캡션 2단 분할 — 세로 사진을 넓은 화면에서 안정적으로 배치
 //     (가운데 다크 여백이 크게 비지 않도록), 애플식 집중 구도.
-export function FarmBand() {
+// titleAs: 캡션 제목 태그. /story 에서는 이 띠가 첫 화면이라 h1(페이지 제목)로 쓴다.
+//   모바일·데스크톱 캡션이 두 벌이지만 한쪽은 화면 폭에 따라 숨겨져 손님은 하나만 본다.
+export function FarmBand({ titleAs: Title = "h2" }: { titleAs?: "h1" | "h2" } = {}) {
   const EYEBROW = "Anseong · Made by Soil";
-  const SUB = "갓 짜낸 그대로, 다음 날 식탁으로.";
+  const SUB = "아침에 짠 원유, 다음 날 콜드체인으로.";
 
   return (
     <section className="relative w-full overflow-hidden bg-ink">
@@ -39,11 +41,11 @@ export function FarmBand() {
             <p className="font-display text-[13px] uppercase tracking-[0.32em] text-cream/75 sm:text-[14px]">
               {EYEBROW}
             </p>
-            <h2 className="mt-3 font-serif-kr text-[clamp(1.7rem,6vw,2.4rem)] font-medium leading-[1.16] text-cream">
+            <Title className="mt-3 font-serif-kr text-[clamp(1.7rem,6vw,2.4rem)] font-medium leading-[1.16] text-cream">
               풀과 건초로 기른
               <br />
               <span className="text-gold">100% A2 저지.</span>
-            </h2>
+            </Title>
             <p className="mt-3 text-[14px] tracking-wide text-cream/65">{SUB}</p>
           </div>
         </div>
@@ -53,11 +55,11 @@ export function FarmBand() {
           <p className="font-display text-[14px] uppercase tracking-[0.34em] text-cream/70">
             {EYEBROW}
           </p>
-          <h2 className="mt-5 font-serif-kr text-[clamp(2rem,3vw,3rem)] font-medium leading-[1.18] text-cream">
+          <Title className="mt-5 font-serif-kr text-[clamp(2rem,3vw,3rem)] font-medium leading-[1.18] text-cream">
             풀과 건초로 기른
             <br />
             <span className="text-gold">100% A2 저지.</span>
-          </h2>
+          </Title>
           <p className="mt-5 max-w-sm text-[15px] leading-relaxed text-cream/65">{SUB}</p>
         </div>
       </div>
