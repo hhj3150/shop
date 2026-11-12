@@ -5,6 +5,7 @@ import { buildSitemap, SITEMAP_PAGES } from "./sitemap";
 import { PAGE_UPDATED, PRODUCT_UPDATED, LEGAL_UPDATED } from "./lastmod";
 import { PUBLIC_PRODUCTS, PRODUCTS } from "@/lib/products";
 import { SITE_URL } from "@/lib/site";
+import { learnSitemapEntries } from "./learn";
 
 const root = join(__dirname, "..", "..");
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -18,6 +19,13 @@ describe("sitemap.xml", () => {
     for (const p of PRODUCTS.filter((x) => x.unpublished)) {
       expect(urls).not.toContain(`${SITE_URL}/products/${p.id}`);
     }
+  });
+
+  it("해설 페이지(/learn 허브 + 글)가 실제 수정일과 함께 들어 있다", () => {
+    for (const e of learnSitemapEntries()) {
+      expect(urls).toContain(`${SITE_URL}${e.path}`);
+    }
+    expect(urls).toContain(`${SITE_URL}/learn`);
   });
 
   it("비공개 경로는 넣지 않는다", () => {

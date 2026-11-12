@@ -34,6 +34,9 @@ import {
 import { certValidityLabel, type Certification } from "@/lib/certifications";
 import { ORG_DESCRIPTION } from "./copy";
 import { FAQ_ITEMS, moreFaqItems } from "./faq";
+import { learnLlmsLines } from "./learn";
+import { buildNewsLlmsSection } from "@/lib/news-feed";
+import type { NewsRow } from "@/lib/news";
 
 export type LlmsInput = {
   /** 오늘(KST) 기준 유효한 농장 인증. */
@@ -42,6 +45,8 @@ export type LlmsInput = {
   cardPayment: boolean;
   /** 손님에게 보이는 제품(가격은 DB 값 — lib/seo/live-catalog.ts). 생략하면 정적 PUBLIC_PRODUCTS. */
   products?: readonly Product[];
+  /** 게시된 목장 소식(최신 먼저). 없으면 '목장 소식' 섹션을 내지 않는다. */
+  news?: readonly NewsRow[];
 };
 
 const url = (path: string) => `${SITE_URL}${path}`;
@@ -72,6 +77,12 @@ function paymentSentence(cardPayment: boolean): string {
   return cardPayment
     ? "결제는 무통장입금과 카드·간편결제로 할 수 있으며, 콜드체인 냉장 택배로 발송합니다."
     : "결제는 무통장입금으로 하며, 콜드체인 냉장 택배로 발송합니다.";
+}
+
+/** 게시된 소식이 있을 때만 '## 목장 소식' 섹션(+빈 줄). */
+function newsSection(news: readonly NewsRow[] | undefined): string[] {
+  const block = news && news.length > 0 ? buildNewsLlmsSection([...news]) : "";
+  return block ? [...block.trimEnd().split("\n"), ""] : [];
 }
 
 /** /llms.txt — 요약판.
@@ -130,6 +141,11 @@ export function buildLlmsTxt(input: LlmsInput): string {
     `- [브랜드 홈페이지](${BRAND_HOME}): 송영신목장 소개`,
     `- [안성팜랜드 Hey Hay Milk Café](${CAFE_HOME}): 안성팜랜드 입장 후 바로 좌측`,
     "",
+    "## 알아보기",
+    "",
+    ...learnLlmsLines(),
+    "",
+    ...newsSection(input.news),
     "## Optional",
     "",
     `- [전체 문답·제품 표시사항](${url("/llms-full.txt")}): 모든 FAQ 와 제품 라벨·영양정보`,

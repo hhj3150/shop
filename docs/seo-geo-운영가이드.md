@@ -18,6 +18,8 @@
 | 제품 공유 카드 | `app/products/[id]/opengraph-image.tsx` | 1200×630 PNG, 빌드 때 생성(카카오톡은 WEBP 를 못 읽는다) |
 | IndexNow | `lib/seo/indexnow.ts`, `public/<키>.txt`, `netlify/functions/indexnow.mts`, `scripts/indexnow.mjs` | Bing·네이버 등에 변경 알림(공용 엔드포인트 1곳 → 참여 엔진에 공유) |
 | 비공개 noindex | `app/{login,account,checkout,orders,admin,forgot-password,reset-password}/layout.tsx` | robots.txt 로 막지 않는다(막으면 noindex 를 못 읽음) |
+| 해설 페이지 | `lib/seo/learn.ts`(+`learn-schema.ts`) → `/learn`, `/learn/<slug>` | 첫 문단 = 결론, 출처 필수, `learn.test.ts` 가 금지어·사실 검사. 내용을 고치면 그 글의 `updated` 를 바꾼다 |
+| 목장 소식 | `lib/news-server.ts`·`lib/news-feed.ts` → `/story/news/<id>`, `/rss.xml` | 관리자(/admin/news)에서 게시하면 1시간 안에 글 주소·RSS·사이트맵·llms 에 반영 |
 
 ## 2. 평소 운영 규칙
 
@@ -67,11 +69,15 @@
 
 함께 고칠 것: 푸터 영문명 'Song Young Shin Dairy Farm' → 'Song Young Shin Farm', 주소·전화·사업자번호를 쇼핑몰(`lib/site.ts` BUSINESS)과 같은 값으로(목장 주소와 법인 주소가 다르면 둘 다 밝힌다), '대한민국 0.1%'·'최상급' 문구 삭제.
 
-## 5. 다음 단계 (2차, 콘텐츠)
+## 5. 2단계(콘텐츠) — 2026-11-12 완료분과 남은 일
 
-- **목장 소식 개별 주소 + RSS** — 지금 소식(NewsBand)은 브라우저에서만 불러와 네이버·AI 봇이 못 읽고, 글마다 주소가 없어 RSS 를 낼 수 없다.
-  `/story/news/[id]` 서버 렌더 + BlogPosting 구조화데이터 + `/rss.xml` → 네이버 서치어드바이저 RSS 제출.
-- **해설 페이지** — 'a2 우유 뜻/차이', '저지우유', '헤이밀크(건초우유)', '동물복지·저탄소 인증 목장'에 답하는 서버 렌더 페이지(질문형 소제목, 첫 문단에 결론, 출처·연도).
-- **/order-once 서버 렌더 소개** — 지금은 첫 HTML 이 '불러오는 중…'뿐이다.
-- **네이버 블로그(78redmoon)** — 같은 주제의 1차 경험 글 + 쇼핑몰 링크(네이버 AI 브리핑 출처의 다수가 블로그).
-- **측정** — 월 1회 ChatGPT·Perplexity·Gemini·네이버 AI 브리핑에 'A2 우유 정기배송', '저지 우유', '송영신목장' 등 20개 질의 → 언급·인용 기록. 서치콘솔·Bing AI Performance 리포트.
+| 항목 | 상태 |
+|---|---|
+| 목장 소식 개별 주소 `/story/news/<id>` + BlogPosting 구조화데이터 + 서버 렌더 | 완료 |
+| `/rss.xml`(본문 전체, 사이트 도메인 링크만) + 홈·/story·소식 글의 RSS 알림 링크 | 완료 — **운영 DB 에 게시된 소식이 0건**이라 네이버 RSS 제출은 첫 소식 게시 후(네이버는 글 1개 이상인 피드만 받는다) |
+| 해설 페이지 `/learn` + A2 우유·저지(1885)·헤이밀크·인증 목장 4편(출처 명시, Article 구조화데이터) | 완료 |
+| 사이트맵·llms.txt 에 해설·소식 연결, 푸터·/faq 내부 링크 | 완료 |
+| 소식 글 문구 검사 | 남은 일 — DB 에서 오는 글은 금지어 검사를 거치지 않는다. 관리자 편집기에 금지어 경고(건초만·방목·소화·면역·일반 우유·최초/최고/유일·'동물복지 우유')를 넣는 것을 권한다 |
+| 소식 게시일 | 남은 일 — 지금은 작성 시각(created_at)을 게시일로 쓴다. 초안을 오래 두었다 게시하면 날짜가 앞당겨진다 → `published_at` 컬럼 추가 권장(운영 DB 확인 후) |
+| /order-once 서버 렌더 소개 | 남은 일(첫 HTML 이 '불러오는 중…') |
+| 네이버 블로그(78redmoon) 연계·월간 AI 인용 측정 | 사람이 할 일 — 보고서의 측정표 사용 |

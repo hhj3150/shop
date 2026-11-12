@@ -247,9 +247,9 @@ describe("llms.txt 절", () => {
     expect(blank).toBe("");
     expect(lines).toHaveLength(1);
     expect(lines[0]).toBe(
-      `- [\\[공지\\] 휴무 안내](${newsUrl(ID1)}): 2026-11-12 · 올해 첫 풀을 베어 건조장에 넣었습니다. 날씨가 좋아 사흘 만에 말렸습니다.`
+      `- [〔공지〕 휴무 안내](${newsUrl(ID1)}): 2026-11-12 · 올해 첫 풀을 베어 건조장에 넣었습니다. 날씨가 좋아 사흘 만에 말렸습니다.`
     );
-    for (const l of lines) expect(l).toMatch(/^- \[.+\]\(https:\/\/[^)]+\)(: .+)?$/);
+    for (const l of lines) expect(l).toMatch(/^- \[[^\]]+\]\(https:\/\/[^)]+\)(: .+)?$/);
   });
 });
 

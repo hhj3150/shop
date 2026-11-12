@@ -19,7 +19,7 @@ export const NEWS_PATH_PREFIX = "/story/news";
 export const RSS_PATH = "/rss.xml";
 export const RSS_TITLE = "송영신목장 목장 소식";
 export const RSS_DESCRIPTION =
-  "경기도 안성 송영신목장이 직접 전하는 목장 소식입니다. A2 저지 젖소와 헤이밀크를 만드는 목장의 하루를 적습니다.";
+  "경기도 안성 송영신목장이 직접 전하는 목장 소식입니다. A2 저지 젖소를 기르고 헤이밀크를 만드는 목장의 하루를 적습니다.";
 
 /** RSS 에 넣는 최근 글 수 — 본문 전체를 담으므로 많이 넣지 않는다(네이버: 10MB 제한, 사이트맵 활용 권장). */
 export const RSS_MAX_ITEMS = 50;
@@ -187,8 +187,9 @@ export function newsSitemapEntries(rows: readonly NewsFeedRow[]): NewsSitemapEnt
 }
 
 /** 마크다운 링크 텍스트 안의 대괄호·역슬래시를 이스케이프하고 한 줄로 편다. */
+// 링크 글자 안의 대괄호는 〔 〕 로 바꾼다 — '\\]' 이스케이프는 llmstxt.org 참조 파서([^\]]+)가 못 읽는다.
 function mdLinkText(s: string): string {
-  return formatTitle(s).replace(/[\\[\]]/g, (c) => `\\${c}`);
+  return formatTitle(s).replace(/\[/g, "〔").replace(/\]/g, "〕");
 }
 
 /**

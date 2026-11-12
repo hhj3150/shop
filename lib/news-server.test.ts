@@ -33,24 +33,41 @@ describe("news-server — 환경변수 없음", () => {
     fetchSpy.mockRestore();
   });
 
-  it("DB 오류면 throw 하지 않고 빈 결과", async () => {
-    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.invalid";
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
-    // 400 + PostgREST 오류 본문(supabase-js 는 네트워크 오류·일부 5xx 를 재시도하므로 즉시 끝나는 400 으로 본다).
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+  // 재생성(ISR) 중 DB 오류는 던져야 Next 가 마지막 정상본을 유지한다(빈 결과를 캐시하면 '있는 글이 404').
+  //   빌드 중에만 빈 결과로 넘겨 배포가 DB 장애에 막히지 않게 한다.
+  const mockDbError = () =>
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify({ code: "22P02", message: "boom", details: null, hint: null }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       })
     );
+
+  it("DB 오류: 빌드 중에는 빈 결과", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.invalid";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
+    process.env.NEXT_PHASE = "phase-production-build";
+    const fetchSpy = mockDbError();
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const m = await import("./news-server");
     await expect(m.fetchPublishedNews()).resolves.toEqual([]);
     await expect(m.fetchNewsById("0b6f1c2a-3d4e-4f50-8a1b-2c3d4e5f6a7b")).resolves.toBeNull();
-    expect(fetchSpy).toHaveBeenCalled();
+    await expect(m.fetchLatestNews(4)).resolves.toEqual([]);
     expect(err).toHaveBeenCalled();
     fetchSpy.mockRestore();
     err.mockRestore();
+    delete process.env.NEXT_PHASE;
+  });
+
+  it("DB 오류: 빌드가 끝난 뒤(재생성)에는 던진다", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.invalid";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
+    delete process.env.NEXT_PHASE;
+    const fetchSpy = mockDbError();
+    const m = await import("./news-server");
+    await expect(m.fetchPublishedNews()).rejects.toThrow();
+    await expect(m.fetchNewsById("0b6f1c2a-3d4e-4f50-8a1b-2c3d4e5f6a7b")).rejects.toThrow();
+    fetchSpy.mockRestore();
   });
 });
 
@@ -62,7 +79,7 @@ describe("NewsBand — 고유 주소 링크가 접힌 상태에서도 HTML 에 �
   it("서버 컴포넌트가 첫 목록을 넣는다(브라우저 전용 조회가 아니다)", () => {
     const band = read("components/NewsBand.tsx");
     expect(band).not.toMatch(/^\s*["']use client["']/m);
-    expect(band).toContain("fetchPublishedNews");
+    expect(band).toContain("fetchLatestNews");
   });
 
   it("목록 아이템: 패널은 hidden 으로 접고, 링크는 그 안에 항상 있다", () => {
@@ -70,7 +87,12 @@ describe("NewsBand — 고유 주소 링크가 접힌 상태에서도 HTML 에 �
     expect(list).toContain("hidden={!open}");
     expect(list).toContain("href={newsPath(row.id)}");
     // 링크가 {open && (...)} 조건부 블록 안으로 들어가면 안 된다.
-    const openBlock = list.slice(list.indexOf("{open &&"), list.indexOf(": null)}"));
+    const from = list.indexOf("{open &&");
+    const to = list.indexOf(": null)}");
+    // 표지 문자열이 사라지면(리팩터링) 이 검사가 헛돌지 않게 먼저 확인한다.
+    expect(from, "NewsBandList 의 펼침 블록 시작 표지를 찾지 못했다").toBeGreaterThanOrEqual(0);
+    expect(to, "NewsBandList 의 펼침 블록 끝 표지를 찾지 못했다").toBeGreaterThan(from);
+    const openBlock = list.slice(from, to);
     expect(openBlock).not.toContain("newsPath");
   });
 });

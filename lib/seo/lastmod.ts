@@ -8,6 +8,7 @@
 //     DB(product_catalog)에서 가격을 바꿨을 때도 해당 제품 날짜를 올린다.
 //     오타·디자인만 바꿨으면 고치지 않는다. 약관류는 화면의 '시행일'과 같은 값을 쓴다.
 //   ★ 새 공개 페이지·제품을 만들면 여기에 날짜를 더한다(lib/seo/sitemap.test.ts 가 빠진 것을 잡는다).
+//     해설 페이지 날짜는 lib/seo/learn.ts 의 updated, 목장 소식은 DB updated_at 이 출처다.
 
 /** 약관·안내 '시행일' — 화면(LegalLayout updated)과 sitemap 이 같은 값을 쓴다. */
 export const LEGAL_UPDATED = {

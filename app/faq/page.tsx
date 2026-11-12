@@ -39,7 +39,12 @@ export default async function FaqPage() {
         ])}
       />
       <div className="pt-16">
-        <FaqSection items={items} titleAs="h1" />
+        <FaqSection
+          items={items}
+          titleAs="h1"
+          moreHref="/learn"
+          moreLabel="더 자세한 해설 — A2 우유·저지·헤이밀크·인증 목장"
+        />
       </div>
       <Footer />
     </>

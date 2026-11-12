@@ -32,6 +32,7 @@ export function newsMetadata(row: NewsMetaRow): Metadata {
     title,
     description: newsExcerpt(row.body),
     path: newsPath(row.id),
+    rss: true,
   });
   const cover = ogCoverUrl(row.cover_url);
   const published = toIsoOrNull(row.created_at);

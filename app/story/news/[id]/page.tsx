@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
 import { formatTitle, toParagraphs } from "@/lib/news";
-import { fetchNewsById, fetchPublishedNews } from "@/lib/news-server";
+import { fetchNewsById, fetchPublishedNews, fetchLatestNews } from "@/lib/news-server";
 import { newsMetadata } from "@/lib/news-meta";
 import { buildNewsArticle, buildNewsBreadcrumb } from "@/lib/news-schema";
 import {
@@ -52,7 +52,9 @@ export default async function NewsPostPage({ params }: Props) {
   const paragraphs = toParagraphs(row.body);
   const published = toIsoOrNull(row.created_at);
   const youtube = safeYoutubeId(row.youtube_id);
-  const others = (await fetchPublishedNews()).filter((r) => r.id !== row.id).slice(0, OTHER_NEWS_MAX);
+  const others = (await fetchLatestNews(OTHER_NEWS_MAX + 1))
+    .filter((r) => r.id !== row.id)
+    .slice(0, OTHER_NEWS_MAX);
 
   return (
     <>
@@ -86,7 +88,7 @@ export default async function NewsPostPage({ params }: Props) {
               src={row.cover_url}
               alt={title}
               fill
-              priority
+              preload
               sizes="(max-width:768px) 92vw, 760px"
               className="object-cover"
             />

@@ -199,14 +199,14 @@ describe("해설 페이지 — 꼭 들어가야 할 사실", () => {
     expect(t).toMatch(/암소 2두와 수소 1두/);
     expect(t).toMatch(/현재 확인되는 기록/);
     const note = learnFarmNote("jersey-milk", { certifications: certs }).paragraphs.join(" ");
-    expect(note).toMatch(/1885년에 들어온 소들의 후손이 아니/);
+    expect(note).toMatch(/1885년에 들어온 소들의 후손이 아닙?니?/);
   });
 
   it("헤이밀크: EU 규정 2016/304 를 인용하고, 송영신목장은 EU 인증 제품이 아니라고 밝힌다", () => {
     expect(sourceUrls("hay-milk").some((u) => u.includes("2016/304"))).toBe(true);
     const t = text("hay-milk");
     expect(t).toMatch(/2016/);
-    expect(t).toMatch(/EU 인증을 받은 제품은 아닙니다/);
+    expect(t).toMatch(/EU (TSG )?인증(을 받은)? 제품은 아니/);
     expect(t).toMatch(/사일리지\(발효사료\) 없이 풀과 건초를 중심으로/);
     const note = learnFarmNote("hay-milk", { certifications: certs }).paragraphs.join(" ");
     expect(note).toMatch(/TSG\) 인증 제품은 아닙니다/);

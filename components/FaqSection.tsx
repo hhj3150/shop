@@ -9,10 +9,12 @@ import { FAQ_ITEMS, type FaqItem } from "@/lib/seo/faq";
 export function FaqSection({
   items = FAQ_ITEMS,
   moreHref,
+  moreLabel = "질문 전체 보기 — 구입처·인증·보관·가격",
   titleAs: Title = "h2",
 }: {
   items?: readonly FaqItem[];
   moreHref?: string;
+  moreLabel?: string;
   titleAs?: "h1" | "h2";
 } = {}) {
   return (
@@ -47,7 +49,7 @@ export function FaqSection({
               href={moreHref}
               className="t-footnote inline-flex min-h-11 items-center text-gold-deep underline underline-offset-4 hover:text-ink"
             >
-              질문 전체 보기 — 구입처·인증·보관·가격
+              {moreLabel}
             </Link>
           </p>
         )}
