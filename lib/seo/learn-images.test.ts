@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { LEARN_IMAGES, LEARN_HUB_IMAGE } from "./learn-images";
+import { LEARN_IMAGES, LEARN_HUB_IMAGE, LEARN_SECTION_IMAGES, learnSectionImage } from "./learn-images";
 import { LEARN_SLUGS, getLearnPage } from "./learn";
 import { buildLearnArticle, buildLearnHub } from "./learn-schema";
 import { LEARN_PAGES } from "./learn";
@@ -24,6 +24,24 @@ function jpegSize(path: string): { w: number; h: number } {
   throw new Error(`SOF 없음: ${path}`);
 }
 
+// WebP 크기(RIFF 헤더) — 선언한 width/height 가 실제 파일과 같은지(어긋나면 next/image 가 찌그러뜨린다)
+function webpSize(path: string): { w: number; h: number } {
+  const b = readFileSync(path);
+  expect(b.toString("ascii", 0, 4) + b.toString("ascii", 8, 12), `${path} 는 WebP 여야 한다`).toBe("RIFFWEBP");
+  const chunk = b.toString("ascii", 12, 16);
+  if (chunk === "VP8X") return { w: 1 + b.readUIntLE(24, 3), h: 1 + b.readUIntLE(27, 3) };
+  if (chunk === "VP8L") {
+    const bits = b.readUInt32LE(21);
+    return { w: (bits & 0x3fff) + 1, h: ((bits >> 14) & 0x3fff) + 1 };
+  }
+  if (chunk === "VP8 ") return { w: b.readUInt16LE(26) & 0x3fff, h: b.readUInt16LE(28) & 0x3fff };
+  throw new Error(`알 수 없는 WebP 청크 ${chunk}: ${path}`);
+}
+
+// 사진 설명에 쓰면 안 되는 말 — 사료 사실(생풀 급여 없음), 방목(동물복지 인증서 '자유방목 기준 충족 여부: 부'),
+//   사진으로 입증할 수 없는 환경 효능(탄소 흡수·메탄 등).
+const BANNED_IN_PHOTO_TEXT = /풀을\s*(뜯|먹)|풀과\s*건초|방목|메탄|탄소\s*(흡수|저장|격리)/;
+
 const all = [...Object.entries(LEARN_IMAGES), ["(hub)", LEARN_HUB_IMAGE] as const];
 
 describe("해설 사진 — 파일·공유 카드·설명", () => {
@@ -33,13 +51,42 @@ describe("해설 사진 — 파일·공유 카드·설명", () => {
       expect(existsSync(pub(img.src)), img.src).toBe(true);
       expect(img.src).toMatch(/\.webp$/);
       expect(img.width / img.height).toBeCloseTo(3 / 4, 2);
+      expect(webpSize(pub(img.src)), "선언한 크기 = 실제 파일 크기").toEqual({ w: img.width, h: img.height });
       const og = jpegSize(pub(img.og));
       expect(og).toEqual({ w: 1200, h: 630 });
       expect(img.alt.trim().length).toBeGreaterThan(10);
-      // 사료 사실(생풀 급여 없음)과 어긋나는 묘사 금지
-      expect(`${img.alt} ${img.caption ?? ""}`).not.toMatch(/풀을\s*(뜯|먹)|풀과\s*건초|방목/);
+      expect(`${img.alt} ${img.caption ?? ""}`).not.toMatch(BANNED_IN_PHOTO_TEXT);
     });
   }
+});
+
+describe("본문 소제목 사진", () => {
+  const entries = Object.entries(LEARN_SECTION_IMAGES).flatMap(([slug, imgs]) =>
+    imgs.map((img) => [slug, img] as const)
+  );
+  it("하나 이상 있다(인증 목장 — 저탄소)", () => {
+    expect(learnSectionImage("certified-farm", "저탄소 축산물 인증은 무엇을 심사하나요?")).toBeDefined();
+  });
+  for (const [slug, img] of entries) {
+    it(`${slug} · ${img.heading}`, () => {
+      const page = getLearnPage(slug);
+      expect(page, "있는 해설 글").toBeDefined();
+      expect(
+        page!.sections.map((s) => s.heading),
+        "소제목이 글에 그대로 있어야 한다(고치면 사진도 같이 고친다)"
+      ).toContain(img.heading);
+      expect(existsSync(pub(img.src)), img.src).toBe(true);
+      expect(webpSize(pub(img.src))).toEqual({ w: img.width, h: img.height });
+      expect(img.width / img.height).toBeCloseTo(3 / 2, 2);
+      expect(img.alt.trim().length).toBeGreaterThan(10);
+      expect(`${img.alt} ${img.caption ?? ""}`).not.toMatch(BANNED_IN_PHOTO_TEXT);
+    });
+  }
+  it("해설 화면이 소제목 사진을 그린다", () => {
+    const src = readFileSync(join(root, "app/learn/[slug]/page.tsx"), "utf8");
+    expect(src).toMatch(/learnSectionImage\(page\.slug,\s*s\.heading\)/);
+    expect(src).toMatch(/alt=\{sectionImg\.alt\}/);
+  });
 });
 
 describe("구조화데이터·허브가 사진을 쓴다", () => {

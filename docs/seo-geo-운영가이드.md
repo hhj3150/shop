@@ -19,6 +19,7 @@
 | IndexNow | `lib/seo/indexnow.ts`, `public/<키>.txt`, `netlify/functions/indexnow.mts`, `scripts/indexnow.mjs` | Bing·네이버 등에 변경 알림(공용 엔드포인트 1곳 → 참여 엔진에 공유) |
 | 비공개 noindex | `app/{login,account,checkout,orders,admin,forgot-password,reset-password}/layout.tsx` | robots.txt 로 막지 않는다(막으면 noindex 를 못 읽음) |
 | 해설 페이지 | `lib/seo/learn.ts`(+`learn-schema.ts`) → `/learn`, `/learn/<slug>` | 첫 문단 = 결론, 출처 필수, `learn.test.ts` 가 금지어·사실 검사. 내용을 고치면 그 글의 `updated` 를 바꾼다 |
+| 해설 사진 | `lib/seo/learn-images.ts` → `public/learn/` | 글 첫 사진(`LEARN_IMAGES`, 세로 3:4 + 공유 카드 1200×630 JPG)과 소제목 사진(`LEARN_SECTION_IMAGES`, 가로 3:2 — 소제목 글자가 `learn.ts` 와 같아야 함). 설명(alt·caption)에는 보이는 것과 확인된 사실만. 글씨 있는 사진은 AI 업스케일 금지 |
 | 목장 소식 | `lib/news-server.ts`·`lib/news-feed.ts` → `/story/news/<id>`, `/rss.xml` | 관리자(/admin/news)에서 게시하면 글 주소·RSS·사이트맵에는 1시간 안에, llms 에는 하루 안에 반영. **내릴 때도 같다** — 관리자 화면에는 즉시 갱신 수단이 없으니, 급히 내려야 하는 글은 게시 해제 뒤 재배포(Netlify "Clear cache and deploy")로 바로 지운다 |
 
 ## 2. 평소 운영 규칙
@@ -147,4 +148,12 @@ FAQ 헤이밀크·저지 답변, llms 안내, /story Provenance, 홈 WhyBand 안
 **상표 참고(조사 요약 — 변리사 확인 필요)**: The a2 Milk Company 가 국내에 'a2'·'a2 milk' 등 도형·결합 상표를 29류(우유·요구르트)로 등록해 두었다.
 사이트는 설명적 대문자 'A2'(베타카제인 유형)만 쓰고, 소문자 'a2'·'a2 Milk'·하트 도형 같은 표기는 쓰지 않는다(테스트로 막음).
 목장 명의 상표 출원(2025-09, '송영신목장 A2 저지헤이밀크' 등)의 심사 상황은 KIPRIS 에서 확인 필요.
+
+## 9. 인증 목장 해설 사진 (2026-11-13)
+
+회장님이 보낸 목장 사진 2장(원본 1500×2000 — 업스케일 없이 줄이기만)을 `/learn/certified-farm` 에 넣었다.
+- **글 첫 사진·허브 썸네일·공유 카드**: 우사 깔짚 위의 저지 젖소와 귀표를 단 송아지(`public/learn/certified-farm.webp`, `og/certified-farm.jpg`).
+- **'저탄소 축산물 인증은 무엇을 심사하나요?' 소제목 사진**: 이슬 맺힌 어린 싹이 줄지어 난 밭(`public/learn/certified-farm-low-carbon.webp`, 3:2).
+- 설명 원칙: 방목(동물복지 인증서 '자유방목 기준 충족 여부: 부')·탄소 흡수 같은 사진으로 입증할 수 없는 효과·어미와 새끼 관계·작물 이름은 쓰지 않는다(`learn-images.test.ts` 가 금지어 검사).
+- **회장님 확인되면 보강**: 밭의 작물(예: 건초용 호밀·이탈리안 라이그라스 등)과 목장 밭인지 → 사진 설명을 구체적으로.
 

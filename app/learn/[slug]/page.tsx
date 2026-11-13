@@ -15,7 +15,7 @@ import {
   learnPath,
   formatKoDate,
 } from "@/lib/seo/learn";
-import { learnImage, learnOgImage } from "@/lib/seo/learn-images";
+import { learnImage, learnOgImage, learnSectionImage } from "@/lib/seo/learn-images";
 import { activeCertifications } from "@/lib/certifications";
 import { kstYmd } from "@/lib/kst";
 
@@ -116,18 +116,36 @@ export default async function LearnArticlePage({
         <p className="t-body mt-8 text-ink">{page.intro}</p>
 
         <div className="mt-10 space-y-10">
-          {page.sections.map((s) => (
+          {page.sections.map((s) => {
+            const sectionImg = learnSectionImage(page.slug, s.heading);
+            return (
             <section key={s.heading}>
               <h2 className="t-title3 font-serif-kr text-ink">
                 {s.heading}
               </h2>
+              {sectionImg && (
+                <figure className="-mx-5 mt-4 sm:mx-0">
+                  <Image
+                    src={sectionImg.src}
+                    alt={sectionImg.alt}
+                    width={sectionImg.width}
+                    height={sectionImg.height}
+                    sizes="(max-width:768px) 100vw, 768px"
+                    className="h-auto w-full bg-paper sm:rounded-2xl"
+                  />
+                  {sectionImg.caption && (
+                    <figcaption className="t-caption mt-2.5 px-5 text-mute sm:px-0">{sectionImg.caption}</figcaption>
+                  )}
+                </figure>
+              )}
               <div className="t-body mt-3 space-y-3 text-ink-soft">
                 {s.paragraphs.map((para) => (
                   <p key={para}>{para}</p>
                 ))}
               </div>
             </section>
-          ))}
+            );
+          })}
         </div>
 
         {(note.paragraphs.length > 0 || note.list.length > 0) && (
