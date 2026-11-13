@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Reveal } from "./Reveal";
 import { CAFE_HOME, BUSINESS, FARM_HOURS, OFFLINE_STORES, OFFLINE_PRODUCTS_LABEL } from "@/lib/site";
 import { Scatter, HEY, type ConfettiItem } from "./Confetti";
@@ -58,6 +59,20 @@ export function VisitStore() {
                 </div>
               ))}
             </div>
+            {/* 진열 사진 — 회장님 제공 원본(1500×2000, 2026-11-13)에서 우리 제품·안내판·가격표만 잘랐다
+                (같은 진열대의 다른 브랜드 병·표지는 보이지 않게). 글씨가 있는 사진이라 AI 업스케일은 쓰지 않는다(AGENTS.md). */}
+            <figure className="mt-8">
+              <div className="relative aspect-[1328/594] overflow-hidden rounded-2xl bg-paper">
+                <Image
+                  src="/stores/galleria-apgujeong.webp"
+                  alt="갤러리아 명품관 냉장 진열대에 놓인 송영신목장 A2 저지 헤이밀크 180mL·750mL 병과 매장 안내판, 가격표"
+                  fill
+                  sizes="(max-width:1024px) 100vw, 960px"
+                  className="object-cover"
+                />
+              </div>
+              <figcaption className="t-caption mt-2 text-mute">갤러리아 명품관 진열 모습</figcaption>
+            </figure>
           </div>
         </Reveal>
 

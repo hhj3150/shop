@@ -1,6 +1,6 @@
 // 오프라인 판매처(백화점) — 2026-11-13 회장님 확인. 홈·FAQ·llms·고객 도우미가 같은 명단을 말하는지.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { OFFLINE_STORES, offlineStoresSentence, OFFLINE_PRODUCTS_LABEL } from "@/lib/site";
 import { moreFaqItems } from "@/lib/seo/faq";
@@ -40,5 +40,11 @@ describe("백화점 판매처", () => {
     const src = readFileSync(join(__dirname, "..", "components/VisitStore.tsx"), "utf8");
     expect(src).toMatch(/OFFLINE_STORES\.reduce/);
     expect(src).not.toMatch(/두 곳에서도/);
+  });
+  it("백화점 진열 사진 파일이 있고 설명이 붙어 있다", () => {
+    const src = readFileSync(join(__dirname, "..", "components/VisitStore.tsx"), "utf8");
+    expect(src).toMatch(/\/stores\/galleria-apgujeong\.webp/);
+    expect(existsSync(join(__dirname, "..", "public/stores/galleria-apgujeong.webp"))).toBe(true);
+    expect(src).toMatch(/alt="갤러리아 명품관[^"]+"/);
   });
 });
