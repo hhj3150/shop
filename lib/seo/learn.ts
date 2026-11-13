@@ -195,27 +195,40 @@ export const LEARN_PAGES: readonly LearnPage[] = [
     published: "2026-11-12",
     updated: "2026-11-13",
     intro:
-      "헤이밀크(독일어 Heumilch, 영어 Haymilk)는 사일리지(발효사료)를 먹이지 않고, 풀이 자라는 철에는 신선한 풀을, 겨울에는 건초를 중심으로 먹인 소에게서 짠 우유입니다. 유럽연합(EU)은 2016년 오스트리아의 신청을 받아 'Heumilch/Haymilk'를 전통특산물보증(TSG)으로 등록했습니다. 송영신목장은 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹이는 헤이밀크 방식을 따르지만, EU TSG 인증 제품은 아니며 EU 사양의 세부 기준(조사료 비율·GM 사료·부산물 등)을 검증받은 것도 아닙니다.",
+      "헤이밀크(독일어 Heumilch, 영어 Haymilk)는 사일리지(발효사료)를 먹이지 않고, 풀이 자라는 철에는 신선한 풀을, 겨울에는 건초를 중심으로 먹인 소에게서 짠 우유입니다. 유럽연합(EU)은 2016년 오스트리아의 신청(신청 단체 ARGE Heumilch Österreich)을 받아 'Heumilch/Haymilk'를 전통특산물보증(TSG)으로 등록했습니다. 송영신목장은 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹이는 헤이밀크 방식을 따르지만, EU TSG 인증 제품은 아니며 EU 사양의 세부 기준(조사료 비율·GM 사료·부산물 등)을 검증받은 것도 아닙니다.",
     sections: [
       {
         heading: "헤이밀크를 내는 소는 무엇을 먹나요?",
         paragraphs: [
-          "EU에 등록된 헤이밀크 사양(Heumilchregulativ)에 따르면, 소는 풀 사료 철에 신선한 풀과 콩과 식물, 잎을 주로 먹고 겨울에는 건초를 주로 먹습니다. 연간 사료의 대부분을 풀·건초 같은 조사료로 채우도록 정하고 있으며, 밀·보리·귀리·옥수수 같은 곡물도 정해진 범위 안에서 허용됩니다.",
-          "금지되는 것은 사일리지(발효사료)와 젖은 건초, 발효 건초입니다. 양조·증류 부산물 같은 식품 산업 부산물(설탕 제조 부산물인 건조 비트 펄프·당밀과 곡물 가공에서 나온 건조 단백질 사료는 예외)과 유전자변형(GM) 사료도 쓸 수 없습니다. 헤이밀크를 가르는 기준은 무엇을 먹이지 않는가, 특히 발효시킨 사료를 쓰지 않는다는 데 있습니다.",
+          "EU에 등록된 헤이밀크 생산 사양(위원회 시행규정 (EU) 2016/304 부속서)에 따르면, 소는 풀 사료 철에 신선한 풀과 콩과 식물, 잎을 주로 먹고 겨울에는 건초를 주로 먹습니다. 1년 동안 먹이는 사료를 수분을 뺀 무게로 따지면 그 대부분을 조사료로 채워야 하며, 신선한 풀과 건초 말고도 풋베기(청예) 옥수수·사료용 비트, 건초·알팔파 펠릿도 조사료로 칩니다. 밀·보리·귀리·옥수수 같은 곡물과 잠두·완두·루핀 같은 콩류도 허용됩니다.",
+          "금지되는 것은 사일리지(발효사료)와 젖은 건초, 발효 건초입니다. 양조·증류 부산물 같은 식품 산업 부산물(설탕 제조 부산물인 건조 비트 펄프·당밀과 곡물 가공에서 나온 건조 단백질 사료는 예외)과, 유전자변형(GM)으로 표시해야 하는 사료와 동물도 쓸 수 없습니다.",
         ],
       },
       {
         heading: "사일리지(발효사료)는 무엇인가요?",
         paragraphs: [
           "사일리지는 풀이나 옥수수 같은 사료작물을 밀봉해 발효시킨 사료입니다. EU 등록 문서는 1960년대 이후 농업 기계화와 함께 사일리지에 기대는 사육이 늘었고, 헤이밀크는 발효 사료를 쓰지 않던 그 이전의 방식을 잇는다고 설명합니다.",
-          "헤이밀크 농장은 사일리지를 먹이지 않을 뿐 아니라 만들거나 보관하지도 않으며, 비닐로 감싼 원형 곤포(베일)도 만들거나 보관하지 않습니다.",
+          "EU 사양은 헤이밀크 농장에서 사일리지와, 비닐로 감싼 원형 곤포(베일)를 만들거나 보관하는 것도 금지합니다.",
         ],
       },
       {
         heading: "EU 전통특산물보증(TSG)은 무엇인가요?",
         paragraphs: [
-          "전통특산물보증(Traditional Speciality Guaranteed, TSG)은 생산 지역이 아니라 전통적인 생산 방법을 보호하는 EU의 품질 제도입니다. 헤이밀크 생산자 단체인 오스트리아의 ARGE Heumilch 는 이 표시가 제품의 생산 방법에 관한 것이며, '전통'은 그 방법이 30년 이상 쓰여 왔다는 뜻이라고 설명합니다.",
+          "전통특산물보증(Traditional Speciality Guaranteed, TSG)은 생산 지역이 아니라 전통적인 생산 방법을 보호하는 EU의 품질 제도입니다. ARGE Heumilch는 이 표시가 제품의 생산 방법에 관한 것이며, '전통'은 그 방법이 30년 이상 쓰여 왔다는 뜻이라고 설명합니다.",
           "EU는 2016년 3월 2일 위원회 시행규정 (EU) 2016/304 로 'Heumilch/Haymilk/Latte fieno/Lait de foin/Leche de heno'를 TSG로 등록했습니다. 이름 보호를 포함한 등록이어서, EU에서 이 이름은 등록된 사양을 지키는 제품에 쓰도록 되어 있습니다. 등록 문서는 중세부터 알프스 기슭과 티롤 산지에서 헤이밀크로 치즈를 만들어 왔다고 전통의 근거를 적고 있습니다.",
+        ],
+      },
+      {
+        heading: "EU 헤이밀크는 누가 검사하나요?",
+        paragraphs: [
+          "EU 헤이밀크(TSG)는 농장과 가공업체가 모두 독립 기관의 검사를 받는 제도입니다. ARGE Heumilch의 인증 프로그램에 따르면 ISO/IEC 17065 인정 인증기관이 농장마다 처음 현장 검사를 하고, 가공업체는 적어도 1년에 한 번 검사를 받습니다.",
+        ],
+      },
+      {
+        heading: "ARGE Heumilch는 어떤 단체인가요?",
+        paragraphs: [
+          "ARGE Heumilch는 오스트리아 인스브루크에 등록된 헤이밀크 단체로, 약 6,500명의 헤이밀크 농민과 낙농·치즈 가공업체, 유통업체가 모여 있습니다. 단체에 따르면 헤이밀크 산지는 대부분 알프스에 있고, 오스트리아 전체 우유 납품량의 15%가 헤이밀크입니다.",
+          "회원은 EU TSG 기준에 더해 단체 규정을 지키며, 이 규정은 유럽 밖에서 생산된 사료와 팜유·코코넛 지방이 든 사료도 금지합니다. 초록색 헤이밀크 로고는 회원만 쓸 수 있습니다.",
         ],
       },
       {
@@ -233,8 +246,8 @@ export const LEARN_PAGES: readonly LearnPage[] = [
         year: 2016,
       },
       {
-        name: "같은 규정의 부속서(헤이밀크 생산 사양 영문 전문, legislation.gov.uk 보관본)",
-        url: "https://www.legislation.gov.uk/eur/2016/304/annex",
+        name: "같은 규정 전문(부속서 헤이밀크 생산 사양 포함, EUR-Lex 영문 HTML)",
+        url: "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32016R0304",
         year: 2016,
       },
       {
@@ -243,8 +256,35 @@ export const LEARN_PAGES: readonly LearnPage[] = [
         year: 2026,
         accessed: true,
       },
+      {
+        name: "ARGE Heumilch — ARGE Heumilch(단체 소개)",
+        url: "https://www.heumilch.com/en/heumilch/arge-heumilch",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "ARGE Heumilch — Heumilch-Regulativ(단체 규정 요약, 독일어)",
+        url: "https://www.heumilch.com/heumilch/regulativ",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "ARGE Heumilch — Zertifizierungsprogramm Heumilch g.t.S., Version 6(2026-01-01 시행), PDF",
+        url: "https://www.heumilch.com/wp-content/uploads/2025/11/Zertifizierungsprogramm-Heumilch-gtS-V6_2026_01_01_FINAL.pdf",
+        year: 2025,
+      },
+      {
+        name: "ARGE Heumilch 블로그 「Seit 10 Jahren durch EU-Gütesiegel geschützt」(2026-10-14)",
+        url: "https://www.heumilch.com/blog/seit-10-jahren-geschuetzt-wo-heumilch-draufsteht-muss-auch-heumilch-drin-sein",
+        year: 2026,
+      },
+      {
+        name: "ARGE Heumilch 보도자료 「Erfreuliche Bilanz für die ARGE Heumilch」(2020-01-29)",
+        url: "https://www.heumilch.com/presse/erfreuliche-bilanz-fuer-die-arge-heumilch",
+        year: 2020,
+      },
     ],
-    about: ["헤이밀크", "사일리지", "전통특산물보증(TSG)"],
+    about: ["헤이밀크", "사일리지", "전통특산물보증(TSG)", "ARGE Heumilch"],
   },
   {
     slug: "certified-farm",

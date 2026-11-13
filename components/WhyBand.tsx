@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CertList } from "./CertList";
 import { activeCertifications } from "@/lib/certifications";
 import { kstYmd } from "@/lib/kst";
@@ -46,6 +47,13 @@ export function WhyBand() {
             </div>
           ))}
         </dl>
+        {/* 'Hay Milk'가 EU 인증 Haymilk(TSG)로 읽히지 않게 — 배지·마크 없이 텍스트 한 줄과 해설 링크만. */}
+        <p className="t-caption mt-6 text-center leading-relaxed text-mute">
+          Hay Milk는 유럽 헤이밀크 방식을 따른다는 뜻이며, EU 전통특산물보증(TSG) 인증 제품은 아닙니다.{" "}
+          <Link href="/learn/hay-milk" className="underline underline-offset-4 hover:text-ink">
+            헤이밀크란
+          </Link>
+        </p>
 
         <div className="mt-12 border-t border-line pt-9">
           <p className="t-caption uppercase tracking-[0.2em] text-mute">국가·기관 인증</p>
