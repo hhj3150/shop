@@ -45,7 +45,7 @@ describe("TSG 를 말하는 곳에는 '인증 제품이 아니다'가 함께 있
     });
   }
   it("홈 'Hay Milk' 띠는 해설로 잇는다", () => {
-    expect(src("components/WhyBand.tsx")).toMatch(/href="\/learn\/hay-milk"/);
+    expect(src("components/WhyBand.tsx")).toMatch(/href:\s*"\/learn\/hay-milk"/);
   });
 });
 

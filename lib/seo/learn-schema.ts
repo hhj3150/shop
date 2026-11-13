@@ -2,6 +2,7 @@ import { SITE_URL } from "@/lib/site";
 import { ORG_ID, WEBSITE_ID } from "./schema";
 import { DEFAULT_OG_IMAGE } from "./meta";
 import { LEARN_HUB, learnPath, type LearnPage } from "./learn";
+import { LEARN_HUB_IMAGE, learnImage } from "./learn-images";
 
 // /learn 해설 페이지의 구조화데이터(JSON-LD) — 부수효과 없는 순수 함수.
 //   ★ 저자·발행자는 사이트 공통 조직 노드(#organization, 루트 레이아웃이 모든 페이지에 낸다)를
@@ -29,7 +30,8 @@ export function buildLearnArticle(page: LearnPage) {
     dateModified: page.updated,
     author: { "@id": ORG_ID },
     publisher: { "@id": ORG_ID },
-    image: abs(DEFAULT_OG_IMAGE.url),
+    // 글의 첫 사진(목장 실제 사진)이 있으면 그것, 없으면 사이트 기본 공유 이미지.
+    image: abs(learnImage(page.slug)?.src ?? DEFAULT_OG_IMAGE.url),
     about: page.about.map((name) => ({ "@type": "Thing", name })),
     citation: page.sources.map((s) => ({
       "@type": "CreativeWork",
@@ -55,6 +57,7 @@ export function buildLearnHub(pages: readonly LearnPage[]) {
     isPartOf: { "@id": WEBSITE_ID },
     publisher: { "@id": ORG_ID },
     dateModified: LEARN_HUB.updated,
+    image: abs(LEARN_HUB_IMAGE.src),
     mainEntity: {
       "@type": "ItemList",
       itemListElement: pages.map((p, i) => ({
