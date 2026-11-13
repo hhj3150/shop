@@ -24,7 +24,7 @@ export function Provenance() {
           </h2>
           <p className="mt-5 text-[14px] leading-loose text-ink-soft sm:text-[15px]">
             국내 젖소 약 40만 두는 대부분 홀스타인입니다. 저지는 약 1,200두.
-            그중 100% A2 저지만 골라, 사일리지 없이 풀과 건초로 기릅니다 —
+            그중 100% A2 저지만 골라, 사일리지 없이 건초를 중심으로 기릅니다 —
             알프스가 수백 년 이어온 헤이밀크의 방식 그대로.
           </p>
         </Reveal>
@@ -57,7 +57,7 @@ export function Provenance() {
                 Hay-Fed
               </p>
               <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
-                발효사료 없이, 풀과 건초를 중심으로. 유럽 헤이밀크 방식을 따르며, EU 전통특산물보증(TSG) 인증 제품은 아닙니다.
+                발효사료 없이, 건초를 중심으로. 유럽 헤이밀크 방식을 따르며, EU 전통특산물보증(TSG) 인증 제품은 아닙니다.
               </p>
             </div>
             <div>

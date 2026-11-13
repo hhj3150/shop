@@ -195,7 +195,7 @@ export const LEARN_PAGES: readonly LearnPage[] = [
     published: "2026-11-12",
     updated: "2026-11-13",
     intro:
-      "헤이밀크(독일어 Heumilch, 영어 Haymilk)는 사일리지(발효사료)를 먹이지 않고, 풀이 자라는 철에는 신선한 풀을, 겨울에는 건초를 중심으로 먹인 소에게서 짠 우유입니다. 유럽연합(EU)은 2016년 오스트리아의 신청(신청 단체 ARGE Heumilch Österreich)을 받아 'Heumilch/Haymilk'를 전통특산물보증(TSG)으로 등록했습니다. 송영신목장은 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹이는 헤이밀크 방식을 따르지만, EU TSG 인증 제품은 아니며 EU 사양의 세부 기준(조사료 비율·GM 사료·부산물 등)을 검증받은 것도 아닙니다.",
+      "헤이밀크(독일어 Heumilch, 영어 Haymilk)는 사일리지(발효사료)를 먹이지 않고, 풀이 자라는 철에는 신선한 풀을, 겨울에는 건초를 중심으로 먹인 소에게서 짠 우유입니다. 유럽연합(EU)은 2016년 오스트리아의 신청(신청 단체 ARGE Heumilch Österreich)을 받아 'Heumilch/Haymilk'를 전통특산물보증(TSG)으로 등록했습니다. 송영신목장은 사일리지(발효사료) 없이 건초를 중심으로 먹이는 헤이밀크 방식을 따르지만, EU TSG 인증 제품은 아니며 EU 사양의 세부 기준(조사료 비율·GM 사료·부산물 등)을 검증받은 것도 아닙니다.",
     sections: [
       {
         heading: "헤이밀크를 내는 소는 무엇을 먹나요?",
@@ -234,7 +234,8 @@ export const LEARN_PAGES: readonly LearnPage[] = [
       {
         heading: "송영신목장 우유는 EU 인증 헤이밀크인가요?",
         paragraphs: [
-          "아닙니다. 송영신목장은 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹이는 헤이밀크 방식을 따라 소를 기르지만, EU의 TSG 검증·인증을 받은 제품은 아닙니다.",
+          "아닙니다. 송영신목장은 사일리지(발효사료) 없이 건초를 중심으로 먹이는 헤이밀크 방식을 따라 소를 기르지만, EU의 TSG 검증·인증을 받은 제품은 아닙니다.",
+          "송영신목장은 ARGE Heumilch 회원이 아니며, 제품과 포장에 ARGE Heumilch 로고나 EU TSG 표장을 쓰지 않습니다. 현재 국내에는 헤이밀크를 인증하는 제도가 없습니다.",
           "제품 이름의 '헤이밀크'는 이 사육 방식을 따른다는 뜻으로 씁니다. 유기(유기농) 인증을 받은 제품도 아닙니다.",
         ],
       },
@@ -455,7 +456,7 @@ export function learnFarmNote(slug: string, input: LearnFarmNoteInput): LearnFar
     case "hay-milk":
       return {
         paragraphs: [
-          "송영신목장은 사일리지(발효사료) 없이 풀과 건초를 중심으로 먹여 A2/A2 저지를 기릅니다. 유럽 헤이밀크 방식을 따르지만, EU 전통특산물보증(TSG) 인증 제품은 아닙니다.",
+          "송영신목장은 사일리지(발효사료) 없이 건초를 중심으로 먹여 A2/A2 저지를 기릅니다. 유럽 헤이밀크 방식을 따르지만, EU 전통특산물보증(TSG) 인증 제품은 아닙니다.",
           ...(sterilization ? [`우유의 살균 방법은 제품 표시사항 기준 '${sterilization}'입니다.`] : []),
         ],
         list: [],

@@ -31,7 +31,7 @@ const BADGES: Badge[] = [
   },
   {
     title: RAW_MILK_TITLE,
-    desc: "사일리지 없이 풀과 건초로",
+    desc: "사일리지 없이 건초를 중심으로",
     icon: (
       // 물방울 + 체크
       <path
