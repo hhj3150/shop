@@ -17,7 +17,7 @@ import {
   type Product,
 } from "@/lib/products";
 import { SPECIAL_DELIVERY_SHIPPING_KRW } from "@/lib/regions";
-import { BUSINESS, FARM_HOURS } from "@/lib/site";
+import { BUSINESS, FARM_HOURS, OFFLINE_PRODUCTS_LABEL, offlineStoresSentence } from "@/lib/site";
 import { certValidityLabel, type Certification } from "@/lib/certifications";
 
 export type FaqItem = { question: string; answer: string };
@@ -100,7 +100,7 @@ export function moreFaqItems(
   return [
     {
       question: "송영신목장 A2 저지 우유는 어디서 살 수 있나요?",
-      answer: `공식 온라인몰(shop.a2jerseymilk.com)에서 회원 정기구독과 단품(1회) 주문으로 판매합니다. ${BUSINESS.address} 목장 판매장(${FARM_HOURS})과 안성팜랜드 안 Hey Hay Milk Café(입장 후 바로 좌측)에서도 만나실 수 있습니다.`,
+      answer: `공식 온라인몰(shop.a2jerseymilk.com)에서 회원 정기구독과 단품(1회) 주문으로 판매합니다. 백화점에서는 ${offlineStoresSentence()}에서 ${OFFLINE_PRODUCTS_LABEL}를 판매합니다(매장별 재고는 다를 수 있습니다). ${BUSINESS.address} 목장 판매장(${FARM_HOURS})과 안성팜랜드 안 Hey Hay Milk Café(입장 후 바로 좌측)에서도 만나실 수 있습니다.`,
     },
     {
       question: "헤이밀크(Hay Milk)는 무엇인가요?",

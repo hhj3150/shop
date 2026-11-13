@@ -1,5 +1,5 @@
 import { Reveal } from "./Reveal";
-import { CAFE_HOME, BUSINESS, FARM_HOURS } from "@/lib/site";
+import { CAFE_HOME, BUSINESS, FARM_HOURS, OFFLINE_STORES, OFFLINE_PRODUCTS_LABEL } from "@/lib/site";
 import { Scatter, HEY, type ConfettiItem } from "./Confetti";
 
 const VISIT_CONFETTI: ConfettiItem[] = [
@@ -8,6 +8,14 @@ const VISIT_CONFETTI: ConfettiItem[] = [
   { shape: "dot", color: HEY.orange, size: 14, bottom: "18%", right: "12%", opacity: 0.7 },
   { shape: "squiggle", color: HEY.blue, size: 48, bottom: "10%", left: "8%", rotate: 6, opacity: 0.6, className: "hidden sm:block" },
 ];
+
+// 매장 명단을 백화점별로 묶음(OFFLINE_STORES 순서 유지).
+const STORE_GROUPS = OFFLINE_STORES.reduce<[string, (typeof OFFLINE_STORES)[number][]][]>((acc, st) => {
+  const hit = acc.find(([g]) => g === st.group);
+  if (hit) hit[1].push(st);
+  else acc.push([st.group, [st]]);
+  return acc;
+}, []);
 
 export function VisitStore() {
   return (
@@ -20,9 +28,37 @@ export function VisitStore() {
             직접 찾아오시는 분께.
           </h2>
           <p className="mt-5 max-w-xl text-[14px] leading-loose text-ink-soft">
-            온라인 정기구독은 회원께만 엽니다. 목장의 우유가 궁금하시다면, 직접 두 곳에서도
-            만나보실 수 있습니다.
+            목장의 우유가 궁금하시다면, 가까운 백화점과 목장, 카페에서도 직접 만나보실 수 있습니다.
           </p>
+        </Reveal>
+
+        {/* 백화점 판매처 — lib/site.ts OFFLINE_STORES 단일 출처(FAQ·llms·고객 도우미와 같은 명단). */}
+        <Reveal>
+          <div className="mt-10 border-t border-line pt-6">
+            <p className="font-display text-[14px] uppercase tracking-[0.2em] text-gold-deep">
+              Department Store
+            </p>
+            <h3 className="mt-3 font-serif-kr text-lg text-ink">백화점에서 만나기</h3>
+            <p className="mt-3 text-[14px] leading-loose text-ink-soft">
+              {OFFLINE_PRODUCTS_LABEL}를 {OFFLINE_STORES.length}곳의 백화점에서 판매합니다. 매장별 재고는 다를 수
+              있습니다.
+            </p>
+            {/* 백화점별로 묶는다 — 갤러리아 | 현대(4개 점) 나란히. */}
+            <div className="mt-5 grid gap-x-12 gap-y-5 text-[13.5px] sm:grid-cols-2">
+              {STORE_GROUPS.map(([group, stores]) => (
+                <div key={group}>
+                  <p className="text-mute">{group}</p>
+                  <ul className="mt-2 space-y-1.5">
+                    {stores.map((st) => (
+                      <li key={st.name} className="text-ink-soft">
+                        {st.name} <span className="text-mute">· {st.area}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
         </Reveal>
 
         <div className="mt-10 grid gap-x-12 gap-y-10 sm:grid-cols-2">

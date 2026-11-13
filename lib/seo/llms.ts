@@ -22,15 +22,7 @@ import {
   type Product,
 } from "@/lib/products";
 import { SPECIAL_DELIVERY_SHIPPING_KRW } from "@/lib/regions";
-import {
-  SITE_URL,
-  BRAND_HOME,
-  CAFE_HOME,
-  BUSINESS,
-  FARM_HOURS,
-  CS_HOURS,
-  BRAND,
-} from "@/lib/site";
+import { SITE_URL, BRAND_HOME, CAFE_HOME, BUSINESS, FARM_HOURS, CS_HOURS, BRAND, OFFLINE_PRODUCTS_LABEL, offlineStoresSentence } from "@/lib/site";
 import { certValidityLabel, type Certification } from "@/lib/certifications";
 import { ORG_DESCRIPTION } from "./copy";
 import { FAQ_ITEMS, moreFaqItems } from "./faq";
@@ -112,6 +104,7 @@ export function buildLlmsTxt(input: LlmsInput): string {
       ONCE_MIN_KRW
     )} 이상, 배송비 ${formatWon(ONCE_SHIPPING_KRW)}(제주·도서산간 등 ${formatWon(SPECIAL_DELIVERY_SHIPPING_KRW)}).`,
     `- ${paymentSentence(input.cardPayment)}`,
+    `- 백화점: ${offlineStoresSentence()} — ${OFFLINE_PRODUCTS_LABEL} 판매(매장별 재고는 다를 수 있음)`,
     `- 목장 판매장: ${BUSINESS.address}, ${FARM_HOURS}`,
     `- 문의: ${BUSINESS.tel} · 고객센터 ${CS_HOURS.label}`,
     "",
@@ -122,7 +115,7 @@ export function buildLlmsTxt(input: LlmsInput): string {
     "- A2 우유는 A2형 베타카제인만 있는 우유입니다. 유당(락토스)은 그대로 들어 있어 무유당 제품이 아닙니다. 송영신목장은 제품의 소화·건강 효능을 표시하지 않습니다.",
     "- 헤이밀크(Heumilch/Haymilk)는 유럽연합이 2016년 전통특산물보증(TSG)으로 등록한 이름입니다. 송영신목장은 이 방식을 따르지만, 송영신목장 제품은 EU TSG 인증 제품이 아닙니다.",
     "",
-    `**English summary** — ${BRAND.alternateNames[0]} (${BRAND.name}) in Anseong, Gyeonggi-do, South Korea raises A2/A2 Jersey cows on a silage-free, hay-based diet in the European hay-milk tradition (no silage or haylage, no fresh grass; supplementary feed such as grain is given). It sells A2 Jersey Hay Milk (pasteurized cow's milk) and a drinkable plain yogurt with no added sugar at ${SITE_URL} through a weekly members-only subscription (capped at ${SUB_TOTAL_CAP} members) and one-off orders. Operator: ${BUSINESS.company} (D2O). Certifications are farm-level, not product-level; not organic-certified.`,
+    `**English summary** — ${BRAND.alternateNames[0]} (${BRAND.name}) in Anseong, Gyeonggi-do, South Korea raises A2/A2 Jersey cows on a silage-free, hay-based diet in the European hay-milk tradition (no silage or haylage, no fresh grass; supplementary feed such as grain is given). It sells A2 Jersey Hay Milk (pasteurized cow's milk) and a drinkable plain yogurt with no added sugar at ${SITE_URL} through a weekly members-only subscription (capped at ${SUB_TOTAL_CAP} members) and one-off orders, and in Seoul-area department stores (Galleria Luxury Hall in Apgujeong; Hyundai Department Store Apgujeong main store, Mokdong, Pangyo and Trade Center). Operator: ${BUSINESS.company} (D2O). Certifications are farm-level, not product-level; not organic-certified.`,
     "",
     "## 제품",
     "",

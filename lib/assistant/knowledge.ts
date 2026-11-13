@@ -4,7 +4,7 @@
 import { activeCertifications } from "@/lib/certifications";
 import { kstYmd } from "@/lib/kst";
 import { FAQ_ITEMS } from "@/lib/seo/faq";
-import { BUSINESS } from "@/lib/site";
+import { BUSINESS, OFFLINE_PRODUCTS_LABEL, offlineStoresSentence } from "@/lib/site";
 import {
   MIN_ORDER_KRW,
   ONCE_MIN_KRW,
@@ -62,6 +62,7 @@ const FACTS = [
   "플레인 요거트의 장점·특징: 100% A2 저지 헤이밀크 원유에 '덴마크 프리미엄 유산균'만 더해 12시간 동안 천천히 발효합니다. 가장 큰 특징은 '무첨가·무가당' — 증점제·향료·설탕 없이 오직 원유와 유산균 두 가지로만 만든 클린 라벨입니다. 그래서 A2 저지 헤이밀크 특유의 진하고 깨끗한 풍미가 발효로 한층 깊어지고, 무가당이라 원유 본연의 고소함과 은은한 단맛, 발효 특유의 산미가 그대로 살아 있습니다. 떠먹는 꾸덕한 타입이 아니라 '마시는(드링킹) 타입'입니다 — 병째 흔들어 그대로 마시는 제형이라 숟가락이 필요 없습니다. 국내에서 보기 드문 프리미엄 플레인 요거트로, 그대로 마시거나 과일·꿀·그래놀라에 부어 드셔도 좋습니다. (무가당이라 단맛은 기호껏 직접 조절하실 수 있습니다.)",
   "프리미엄 요거트의 가치(일반): 좋은 요거트는 결국 '원유의 질 × 단순한 원재료 × 정직한 발효'에서 나옵니다. 우리 요거트는 국내 유일 A2 저지 목장의 헤이밀크라는 귀한 원유를 바탕으로, 첨가물 없이 유산균만으로 길게 발효해 깊은 풍미를 냅니다. 무가당·무첨가라 당 섭취를 스스로 조절하기 좋고, 원재료가 단순해 무엇을 먹는지 명확합니다. (건강 효능을 단정하지는 않습니다 — 맛과 원재료의 정직함이 핵심입니다.)",
   "판매 방식: 정기구독은 회원제, 단품(1회) 구매는 회원이 아니어도 가능합니다. 결제는 무통장입금만 가능합니다.",
+  `오프라인 판매처: 백화점은 ${offlineStoresSentence()}에서 ${OFFLINE_PRODUCTS_LABEL}를 판매합니다(매장별 재고·진열 위치는 매장에 확인하시도록 안내). 그 밖에 목장 판매장과 안성팜랜드 Hey Hay Milk Café 가 있습니다. 여기 없는 매장(다른 백화점·지점)에서 판다고 말하지 마세요.`,
   `정기구독: 선착순 ${SUB_TOTAL_CAP}인 한정(요일별 ${SUB_DAY_CAP}명 × 월–금). 월–금 중 한 요일을 골라 매주 1회 배송.`,
   `구독 기간: ${SUB_PERIODS.map((m) => PERIOD_LABEL[m]).join("·")} 중 선택해 그 기간분을 한 번에 선납. 기간이 길수록 할인 — ${periodDiscountSentence()}.`,
   `배송비: 회당 ${formatWon(SUB_SHIPPING_KRW)}(주문 금액과 무관하게 자부담). 제주·도서산간 등 특수배송지역은 회당 ${formatWon(SPECIAL_DELIVERY_SHIPPING_KRW)}. 회당 최소 상품 금액 ${formatWon(MIN_ORDER_KRW)}.`,
