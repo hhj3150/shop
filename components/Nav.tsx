@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useCart } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
 import { BRAND_HOME, subscribeStartHref } from "@/lib/site";
+import { BackButton } from "./BackButton";
 
 export function Nav() {
   const { count, open } = useCart();
@@ -31,6 +32,9 @@ export function Nav() {
       }`}
     >
       <nav aria-label="주 메뉴" className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+        {/* 스마트폰: 홈이 아닌 화면에서는 로고 왼쪽에 '이전 화면' 버튼(앱처럼 쓰면 브라우저 뒤로가기가 없다). */}
+        <div className="flex items-center">
+        <BackButton />
         <Link
           href="/"
           aria-label="송영신목장 A2 저지 헤이밀크 홈"
@@ -46,6 +50,7 @@ export function Nav() {
             className="h-10 w-auto sm:h-11"
           />
         </Link>
+        </div>
 
         <div className="hidden items-center gap-9 text-[14px] tracking-wide text-ink-soft md:flex">
           <Link href="/#products" className="transition-colors hover:text-gold">
