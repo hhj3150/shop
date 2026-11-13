@@ -99,7 +99,7 @@ export function VisitStore() {
                       src={t.src}
                       alt={t.alt}
                       fill
-                      sizes="(max-width:640px) 50vw, 480px"
+                      sizes="(max-width:1024px) 50vw, 480px"
                       className="object-cover"
                     />
                   </div>
