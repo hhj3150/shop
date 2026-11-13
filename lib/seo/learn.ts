@@ -57,7 +57,7 @@ export const LEARN_PAGES: readonly LearnPage[] = [
     slug: "a2-milk",
     title: "A2 우유란 — 뜻과 A1형과의 차이",
     description:
-      "A2 우유는 우유 단백질 베타카제인 가운데 A2형만 든 우유입니다. A1형과 다른 점(67번째 아미노산), A2/A2 소의 유전자형, 유당이 그대로 있다는 점을 출처와 함께 정리했습니다.",
+      "A2 우유는 베타카제인 가운데 A2형만 든 우유입니다. A1형과 다른 점, A2/A2 소를 가리는 유전자 검사, 농촌진흥청의 씨수소 유전자형 공개, 우유에서 A1을 찾는 분석법을 출처와 함께 정리했습니다.",
     published: "2026-11-12",
     updated: "2026-11-13",
     intro:
@@ -66,15 +66,36 @@ export const LEARN_PAGES: readonly LearnPage[] = [
       {
         heading: "베타카제인 A1형과 A2형은 무엇이 다른가요?",
         paragraphs: [
-          "우유 단백질은 크게 카제인과 유청 단백질로 나뉘고, 베타카제인은 카제인의 한 종류입니다. 소의 베타카제인에는 유전적으로 여러 변이형이 알려져 있으며, 미국낙농학회(ADSA) 명명위원회가 A1·A2·B 같은 이름으로 정리해 왔습니다.",
-          "A1형과 A2형을 가르는 대표적인 차이는 단백질 사슬의 67번째 아미노산입니다. A2형은 이 자리에 프롤린(Pro)을, A1형은 히스티딘(His)을 가지고 있습니다. 단백질 데이터베이스 UniProt 은 신호 서열까지 세는 번호로 82번째 자리에 이 차이를 기록하고 있습니다.",
+          "베타카제인은 우유 단백질 카제인의 네 종류 가운데 하나입니다. 소의 베타카제인에는 유전 변이형이 열 가지 넘게 알려져 있고, 미국낙농학회(ADSA) 명명위원회가 A1·A2·B 같은 이름으로 정리해 왔습니다.",
+          "A1형과 A2형은 단백질 사슬의 67번째 아미노산이 다릅니다. A2형은 이 자리에 프롤린(Pro)을, A1형은 히스티딘(His)을 가지고 있습니다. 단백질 데이터베이스 UniProt 은 신호 서열까지 세어 이 자리를 82번째로 적습니다.",
         ],
       },
       {
         heading: "어떤 소가 A2 우유를 내나요?",
         paragraphs: [
           "소가 어떤 베타카제인을 만드는지는 부모에게서 하나씩 물려받은 유전자 두 개, 곧 유전자형으로 정해집니다. 유전자형이 A2/A2인 소는 A2형 베타카제인만 만들고, A1/A2인 소는 두 형태를 함께 만듭니다.",
-          "그래서 A2 우유는 유전자 검사로 A2/A2임을 확인한 소의 원유만 모아 만듭니다. 국내에서는 농촌진흥청이 2025년 11월 젖소 씨수소의 유전체 정보에 베타카제인 유전자형을 넣어 공개하면서, A2 우유 생산을 계획하는 농가는 A2A2형으로 표기된 씨수소를 골라 쓸 수 있다고 안내했습니다.",
+          "그래서 A2 우유는 A2/A2 소를 가려내 그 소들의 원유만 모아 만듭니다. A2/A2 소끼리 교배하면 송아지도 언제나 A2/A2입니다.",
+        ],
+      },
+      {
+        heading: "A2/A2 소는 어떻게 가려내나요?",
+        paragraphs: [
+          "소의 털뿌리나 혈액 같은 시료에서 DNA를 뽑아 베타카제인 유전자(CSN2)를 검사합니다. A1과 A2는 이 유전자의 염기 하나가 달라 생기므로, PCR이나 유전체 칩 검사 같은 방법으로 판정합니다.",
+          "미국저지소협회(AJCA)는 베타카제인 검사를 유전체 검사의 추가 항목이나 단독 검사로 안내하며, 결과를 A1/A1, A1/A2, A2/A2로 알려 줍니다.",
+        ],
+      },
+      {
+        heading: "씨수소의 A2 유전자형은 어디에 공개되나요?",
+        paragraphs: [
+          "농촌진흥청은 2025년 11월 젖소 씨수소 1,417두의 유전체 유전능력 정보를 농가에 제공하기 시작했고, 이 정보에는 베타카제인 유전자 정보도 들어 있습니다. A2 우유 생산을 계획하는 농가는 A2A2형으로 표기된 씨수소를 골라 쓸 수 있습니다.",
+          "이 정보는 국립축산과학원 누리집에서 엑셀 파일로 내려받거나, 농협경제지주 젖소개량사업소와 한국종축개량협회를 통해 확인할 수 있습니다.",
+        ],
+      },
+      {
+        heading: "우유만 보고도 A2인지 확인할 수 있나요?",
+        paragraphs: [
+          "우유 속 A1 베타카제인을 찾는 분석법이 연구로 개발되어 있습니다. 2026년 발표된 항체 검사(ELISA)는 A2 우유에 A1 우유가 부피로 1%를 넘게 섞이면 이를 찾아냈고, 초고온(UHT) 살균 우유에서도 검출했습니다. 질량분석(LC-MS)으로 A2 원유에 A1/A1 소의 원유를 0.1% 섞은 시료에서도 A1 베타카제인을 찾아낸 연구도 있습니다.",
+          "다만 이 항체 검사는 A1/A2 소의 우유와 A1/A1 소의 우유를 구분하지 못하고, 이 질량분석법은 원유로만 검증되었습니다.",
         ],
       },
       {
@@ -108,15 +129,42 @@ export const LEARN_PAGES: readonly LearnPage[] = [
         url: "https://www.rda.go.kr/board/board.do?mode=view&prgId=day_farmprmninfoEntry&dataNo=100000806070",
         year: 2025,
       },
+      {
+        name: "Sebastiani C. 외, Frequencies Evaluation of β-Casein Gene Polymorphisms in Dairy Cows Reared in Central Italy, Animals 10(2):252",
+        url: "https://doi.org/10.3390/ani10020252",
+        year: 2020,
+      },
+      {
+        name: "American Jersey Cattle Association(미국저지소협회) — Genotyping",
+        url: "https://usjersey.com/elementor-page-5178/",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "University of Minnesota Extension — A2 milk and A2 genetics",
+        url: "https://extension.umn.edu/dairy-milking-cows/a2-milk-and-a2-genetics",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "Watanabe A. 외, Development of a new sandwich ELISA for the detection of bovine A1 beta-casein, PLOS ONE 21(4):e0345548",
+        url: "https://doi.org/10.1371/journal.pone.0345548",
+        year: 2026,
+      },
+      {
+        name: "Beldarrain L.R. 외, A Flexible Proteomic Approach to A2 Bovine Milk Authentication Through Tryptic, Thermolytic, and Peptic Proteotypic Peptides Elucidated by Routine LC-MS Analysis, Journal of Agricultural and Food Chemistry 74(21):16712",
+        url: "https://doi.org/10.1021/acs.jafc.6c04504",
+        year: 2026,
+      },
     ],
-    about: ["A2 우유", "베타카제인"],
+    about: ["A2 우유", "베타카제인", "CSN2 유전자"],
   },
   {
     slug: "jersey-milk",
     // '한국의 첫 젖소'(범위 없는 '최초')는 쓰지 않는다 — 근거 수준: korea-jersey-1885-history.md.
     title: "저지 우유란 — 그리고 1885년 조선에 온 젖소",
     description:
-      "저지 우유는 영국해협 저지섬에서 생겨난 젖소 품종 저지(Jersey)의 우유입니다. 품종의 유래와, 1885년 미국 외교문서에 남은 조선의 저지 젖소 도입 기록을 출처와 함께 정리했습니다.",
+      "저지 우유는 영국해협 저지섬에서 생겨난 젖소 품종 저지의 우유입니다. 저지섬의 소 반입 제한과 허드북, 혈통 등록의 뜻, 한국의 저지 등록, 1885년 조선의 도입 기록을 출처와 함께 정리했습니다.",
     published: "2026-11-12",
     updated: "2026-11-13",
     intro:
@@ -125,8 +173,23 @@ export const LEARN_PAGES: readonly LearnPage[] = [
       {
         heading: "저지는 어디에서 온 품종인가요?",
         paragraphs: [
-          "저지는 영국과 프랑스 사이 해협에 있는 채널제도의 섬, 저지에서 만들어진 젖소 품종입니다. 저지섬은 200년 넘게 살아 있는 소와 정액·수정란의 반입을 제한해 왔고, 정액 반입은 2008년에야 허용되었습니다.",
-          "저지섬의 소는 세계 여러 나라로 퍼져 각지에 저지 집단을 이루었습니다. 캐나다에는 1868년 퀘벡에 처음 들어왔고, 미국에서는 같은 해 미국저지소협회(AJCA)가 조직될 만큼 19세기에 이미 저지가 자리를 잡고 있었습니다.",
+          "저지는 영국과 프랑스 사이 해협에 있는 채널제도의 섬, 저지에서 만들어진 젖소 품종입니다. 털빛은 황갈색(fawn) 계열이며 흰 무늬가 있기도 합니다. 정부 자료에서는 '갈색 젖소'라고도 부릅니다.",
+          "저지는 19세기에 이미 북미에 자리를 잡았습니다. 캐나다에는 1868년 퀘벡에 처음 들어왔고, 같은 해 미국에서는 미국저지소협회(AJCA)가 조직되었습니다.",
+        ],
+      },
+      {
+        heading: "저지섬은 어떻게 저지 소를 지켜 왔나요?",
+        paragraphs: [
+          "저지섬은 200년 넘게 살아 있는 소와 정액·수정란의 반입을 제한해 왔습니다. 왕립 저지 농업원예협회(RJA&HS)의 연표에 따르면, 저지섬 의회는 1763년 지역 농산물 시장을 지키고 가축 질병을 막으려고 소 수입을 막는 법을 만들었습니다. 정액 반입은 2008년에야 허용되었습니다.",
+          "1833년에 세워진 민간 비영리 단체인 RJA&HS에 따르면, 섬의 저지 소는 모두 1866년에 만들어진 저지 허드북(혈통 등록부)에 혈통이 등록되어 있고, 세계의 순종 저지는 모두 이 허드북으로 조상이 이어집니다.",
+        ],
+      },
+      {
+        heading: "'등록된 저지'는 무슨 뜻인가요?",
+        paragraphs: [
+          "품종 단체가 허드북에 소의 혈통을 기록해 두었다는 뜻입니다. Jersey Canada는 허드북을 영구 식별번호(귀표 번호 등)와 조상, 생년월일, 소유자 등을 공식 기록하는 등록부라고 설명합니다. 이런 나라별 저지 단체 37곳이 1951년에 설립된 세계저지소협회(World Jersey Cattle Bureau)의 회원입니다.",
+          "'순종'의 기준도 단체가 정하며 나라마다 다를 수 있습니다. Jersey Canada는 혈통의 31/32(96.87%) 이상이 등록된 저지인 소를 순종으로 인정하고, 허드북에 오르는 수소는 모두 친자 확인을 거치게 합니다.",
+          "이 글의 해외 품종 단체 이름은 저지의 혈통 제도를 설명하려고 적은 것이며, 송영신목장이나 제품을 인증·보증한다는 뜻이 아닙니다.",
         ],
       },
       {
@@ -144,9 +207,16 @@ export const LEARN_PAGES: readonly LearnPage[] = [
         ],
       },
       {
+        heading: "한국에서도 저지를 등록하나요?",
+        paragraphs: [
+          "네. 국내에서 젖소 혈통등록을 맡는 한국종축개량협회에 저지도 등록됩니다. 농림축산식품부 보도자료에 따르면 협회 등록 기준으로 국내 저지는 510여 마리(2022년 12월)였고, 농촌진흥청은 국내에서 기르는 저지가 2024년 6월 802마리라고 밝혔습니다.",
+          "협회는 수입 저지 정액과 국내에서 생산한 저지 수정란의 혈통도 확인합니다. 국립축산과학원 연구자의 글(2017)에 따르면, 국내에서는 다른 젖소 품종의 수입이 제한되었다가 2010년 규정이 바뀌어 여러 품종을 기를 수 있게 되었습니다.",
+        ],
+      },
+      {
         heading: "저지 우유와 A2 우유는 같은 말인가요?",
         paragraphs: [
-          "아닙니다. '저지'는 소의 품종이고, 'A2'는 소가 만드는 베타카제인의 유전자형에 대한 구분입니다. 저지 품종 안에도 A1/A1, A1/A2, A2/A2 소가 섞여 있어, 저지 우유라고 해서 모두 A2 우유인 것은 아닙니다.",
+          "아닙니다. '저지'는 소의 품종이고, 'A2'는 소가 만드는 베타카제인의 유전자형에 대한 구분입니다. 저지 품종 안에도 A1/A1, A1/A2, A2/A2 소가 섞여 있어, 저지 우유라고 해서 모두 A2 우유인 것은 아닙니다. 에콰도르의 한 연구에서는 저지 86두 가운데 A2/A2가 43두였습니다.",
           "A2 저지 우유는 유전자 검사로 A2/A2임을 확인한 저지 소의 원유로 만든 우유를 말합니다.",
         ],
       },
@@ -184,8 +254,80 @@ export const LEARN_PAGES: readonly LearnPage[] = [
         url: "https://doi.org/10.3389/fvets.2025.1616426",
         year: 2025,
       },
+      {
+        name: "Royal Jersey Agricultural & Horticultural Society — Brief History of the Society",
+        url: "https://www.royaljersey.co.uk/brief-history-of-the-society",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "Royal Jersey Agricultural & Horticultural Society — Jersey Breed Timeline(연표, PDF)",
+        url: "https://royaljersey.co.uk/_files/ugd/35ef7e_77cc45ab261a43e2ad8142ce16660550.pdf",
+        year: 2021,
+      },
+      {
+        name: "Royal Jersey Agricultural & Horticultural Society — Agriculture in Jersey",
+        url: "https://www.royaljersey.co.uk/agriculture-in-jersey",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "Jersey Canada — About Us(허드북 설명)",
+        url: "https://jerseycanada.com/about-us/",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "Jersey Canada — Registration FAQ(순종의 기준)",
+        url: "https://jerseycanada.com/registration-faq/",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "Jersey Canada — Genetic Testing(친자 확인)",
+        url: "https://jerseycanada.com/genetic-testing/",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "World Jersey Cattle Bureau — History",
+        url: "https://www.worldjerseycattle.com/nav-1",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "World Jersey Cattle Bureau — Categories of Membership",
+        url: "https://www.worldjerseycattle.com/categories-of-membership",
+        year: 2026,
+        accessed: true,
+      },
+      {
+        name: "Purebred Dairy Cattle Association — Unified Scorecard(2025 개정)",
+        url: "https://4h.extension.wisc.edu/files/2025/05/PDCA-Unified-Scorecard_2025.pdf",
+        year: 2025,
+      },
+      {
+        name: "농림축산식품부 보도자료 「갈색 젖소 '저지종' 본격 도입, 고부가가치 유가공품 생산으로 낙농 경쟁력 강화」(2023-01-17)",
+        url: "https://www.mafra.go.kr/bbs/home/792/565144/artclView.do",
+        year: 2023,
+      },
+      {
+        name: "농촌진흥청 보도자료 「농촌진흥청, 임실군에 저지종 젖소 수정란 보급 시작」(2024-06-25)",
+        url: "https://www.rda.go.kr/board/board.do?mode=view&prgId=day_farmprmninfoEntry&dataNo=100000796549",
+        year: 2024,
+      },
+      {
+        name: "한국종축개량협회 「2025년도 종축개량사업보고서」(PDF)",
+        url: "https://www.aiak.or.kr/resource/pdf/report_2025.pdf",
+        year: 2026,
+      },
+      {
+        name: "임동현(국립축산과학원), 「저지종 우유의 성분 및 그 특성」, 축산식품과학과 산업 6(1):5–11",
+        url: "https://koreascience.kr/article/JAKO201720861274395.page",
+        year: 2017,
+      },
     ],
-    about: ["저지 (소 품종)", "한국 낙농의 역사"],
+    about: ["저지 (소 품종)", "허드북(혈통 등록부)", "한국 낙농의 역사"],
   },
   {
     slug: "hay-milk",
