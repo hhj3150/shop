@@ -39,8 +39,18 @@ function webpSize(path: string): { w: number; h: number } {
 }
 
 // 사진 설명에 쓰면 안 되는 말 — 사료 사실(생풀 급여 없음), 방목(동물복지 인증서 '자유방목 기준 충족 여부: 부'),
-//   사진으로 입증할 수 없는 환경 효능(탄소 흡수·메탄 등).
-const BANNED_IN_PHOTO_TEXT = /풀을\s*(뜯|먹)|풀과\s*건초|방목|메탄|탄소\s*(흡수|저장|격리)/;
+//   사진으로 입증할 수 없는 환경 효능(탄소 흡수·메탄 등), 확인되지 않은 사실:
+//   어미·새끼 관계(사진의 젖소가 그 송아지의 어미인지 모름), 작물 이름(인증 목장 글의 밭 — 회장님 확인 전).
+//   ★ 작물이 확인되면 그 이름만 이 목록에서 빼고 사진 설명을 고친다.
+const BANNED_IN_PHOTO_TEXT =
+  /풀을\s*(뜯|먹)|풀과\s*건초|방목|메탄|탄소\S{0,2}\s*(흡수|저장|격리)|어미|새끼|호밀|라이그라스|귀리|보리|옥수수|수단그라스|알팔파|티모시/;
+
+it("사진 설명 금지어 검사가 실제로 잡는다", () => {
+  for (const bad of ["어미 소 곁의 송아지", "새끼 송아지", "호밀 싹", "이탈리안 라이그라스 밭", "방목하는 소", "탄소를 흡수하는 밭"]) {
+    expect(bad).toMatch(BANNED_IN_PHOTO_TEXT);
+  }
+  for (const ok of ["저지 젖소와 송아지", "밭에 줄지어 돋아난 어린 싹", "헤이밀크"]) expect(ok).not.toMatch(BANNED_IN_PHOTO_TEXT);
+});
 
 const all = [...Object.entries(LEARN_IMAGES), ["(hub)", LEARN_HUB_IMAGE] as const];
 
