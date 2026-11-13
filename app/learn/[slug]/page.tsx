@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Footer } from "@/components/Footer";
@@ -14,6 +15,7 @@ import {
   learnPath,
   formatKoDate,
 } from "@/lib/seo/learn";
+import { learnImage, learnOgImage } from "@/lib/seo/learn-images";
 import { activeCertifications } from "@/lib/certifications";
 import { kstYmd } from "@/lib/kst";
 
@@ -38,10 +40,12 @@ export async function generateMetadata({
   const { slug } = await params;
   const page = getLearnPage(slug);
   if (!page) return {};
+  const img = learnImage(page.slug);
   return pageMetadata({
     title: page.title,
     description: page.description,
     path: learnPath(page.slug),
+    ...(img ? { ogImage: learnOgImage(img) } : {}),
   });
 }
 
@@ -58,6 +62,7 @@ export default async function LearnArticlePage({
     certifications: activeCertifications(kstYmd(new Date().toISOString())),
   });
   const others = LEARN_PAGES.filter((p) => p.slug !== page.slug);
+  const img = learnImage(page.slug);
 
   return (
     <>
@@ -88,6 +93,25 @@ export default async function LearnArticlePage({
         <p className="t-footnote mt-3 text-mute">
           최종 업데이트 <time dateTime={page.updated}>{formatKoDate(page.updated)}</time>
         </p>
+
+        {img && (
+          <figure className="-mx-5 mt-8 sm:mx-0">
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-paper sm:rounded-2xl">
+              <Image
+                src={img.src}
+                alt={img.alt}
+                fill
+                preload
+                sizes="(max-width:768px) 100vw, 768px"
+                className="object-cover"
+                style={{ objectPosition: img.position }}
+              />
+            </div>
+            {img.caption && (
+              <figcaption className="t-caption mt-2.5 px-5 text-mute sm:px-0">{img.caption}</figcaption>
+            )}
+          </figure>
+        )}
 
         <p className="t-body mt-8 text-ink">{page.intro}</p>
 
