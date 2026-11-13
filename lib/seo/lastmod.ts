@@ -33,7 +33,7 @@ export const PAGE_UPDATED: Record<string, string> = {
 
 /** 제품 id → 마지막 내용 변경일(가격·표시사항·설명). */
 export const PRODUCT_UPDATED: Record<string, string> = {
-  "milk-180": "2026-11-12",
+  "milk-180": "2026-11-13",
   "milk-750": "2026-11-12",
   "yogurt-180": "2026-11-13",
   "yogurt-500": "2026-11-13",

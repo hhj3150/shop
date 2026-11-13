@@ -120,7 +120,7 @@ export function buildLlmsTxt(input: LlmsInput): string {
     "- 사육 방식은 '사일리지(발효사료) 없는 유럽 전통 헤이밀크 방식'이며 풀과 건초를 중심으로 먹입니다. 유기(유기농) 인증·자유방목 인증 제품이 아닙니다.",
     "- 인증은 모두 농장 인증입니다. '동물복지 인증 우유'·'HACCP 인증 우유'처럼 제품 인증으로 표현하지 않습니다.",
     "- A2 우유는 A2형 베타카제인만 있는 우유입니다. 유당(락토스)은 그대로 들어 있어 무유당 제품이 아닙니다. 송영신목장은 제품의 소화·건강 효능을 표시하지 않습니다.",
-    "- 헤이밀크는 유럽연합이 전통특산물(TSG)로 등록한 방식이지만, 송영신목장 제품이 EU 인증을 받은 것은 아닙니다.",
+    "- 헤이밀크(Heumilch/Haymilk)는 유럽연합이 2016년 전통특산물보증(TSG)으로 등록한 이름입니다. 송영신목장은 이 방식을 따르지만, 송영신목장 제품은 EU TSG 인증 제품이 아닙니다.",
     "",
     `**English summary** — ${BRAND.alternateNames[0]} (${BRAND.name}) in Anseong, Gyeonggi-do, South Korea raises A2/A2 Jersey cows on a silage-free, European-style hay-milk regime (forage of grass and hay). It sells A2 Jersey Hay Milk (pasteurized cow's milk) and a drinkable plain yogurt with no added sugar at ${SITE_URL} through a weekly members-only subscription (capped at ${SUB_TOTAL_CAP} members) and one-off orders. Operator: ${BUSINESS.company} (D2O). Certifications are farm-level, not product-level; not organic-certified.`,
     "",

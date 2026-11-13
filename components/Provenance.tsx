@@ -57,7 +57,7 @@ export function Provenance() {
                 Hay-Fed
               </p>
               <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-soft">
-                발효사료 없이, 풀과 건초를 중심으로. 유럽이 전통특산물(TSG)로 지키는 헤이밀크의 방식을 따릅니다.
+                발효사료 없이, 풀과 건초를 중심으로. 유럽 헤이밀크 방식을 따르며, EU 전통특산물보증(TSG) 인증 제품은 아닙니다.
               </p>
             </div>
             <div>
