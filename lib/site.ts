@@ -27,6 +27,30 @@ export const BUSINESS = {
   privacyManager: "송영신",
 } as const;
 
+// 오프라인 판매처(백화점) — 홈 VisitStore·FAQ '어디서 살 수 있나요?'·llms·고객 도우미 공용 단일 출처.
+//   2026-11-13 회장님 확인: 아래 다섯 매장에서 우유·요거트 전 제품 판매 시작. 매장을 더하거나 빼면 여기만 고친다.
+//   ★ 매장 이름은 백화점 공식 명칭으로 적는다(광교는 해당 없음 — 2026-11-13 확인).
+export const OFFLINE_STORES = [
+  { group: "갤러리아백화점", name: "명품관", area: "서울 압구정" },
+  { group: "현대백화점", name: "압구정본점", area: "서울 압구정" },
+  { group: "현대백화점", name: "목동점", area: "서울 목동" },
+  { group: "현대백화점", name: "판교점", area: "경기 성남 판교" },
+  { group: "현대백화점", name: "무역센터점", area: "서울 삼성동" },
+] as const;
+
+/** 백화점에서 파는 품목(전 제품) — 문장용 */
+export const OFFLINE_PRODUCTS_LABEL = "A2 저지 헤이밀크와 플레인 요거트";
+
+/** '갤러리아 명품관(압구정), 현대백화점 압구정본점·목동점·판교점·무역센터점' — 백화점별로 묶은 한 줄 */
+export function offlineStoresSentence(): string {
+  const groups = new Map<string, string[]>();
+  for (const s of OFFLINE_STORES) {
+    const label = s.group === "갤러리아백화점" ? `${s.name}(${s.area.replace(/^서울 /, "")})` : s.name;
+    groups.set(s.group, [...(groups.get(s.group) ?? []), label]);
+  }
+  return [...groups].map(([g, names]) => (g === "갤러리아백화점" ? `갤러리아 ${names.join("·")}` : `${g} ${names.join("·")}`)).join(", ");
+}
+
 // 목장 판매장 영업시간(방문 안내·VisitStore 공용 단일 출처).
 export const FARM_HOURS = "월–금 09:00–18:00";
 
