@@ -44,37 +44,35 @@ export function VisitStore() {
               {OFFLINE_PRODUCTS_LABEL}를 {OFFLINE_STORES.length}곳의 백화점에서 판매합니다. 매장별 재고는 다를 수
               있습니다.
             </p>
-            <div className="mt-5 grid items-start gap-x-10 gap-y-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-              {/* 백화점별로 묶는다 — 갤러리아 | 현대(4개 점) 나란히. */}
-              <div className="grid gap-x-12 gap-y-5 text-[13.5px] sm:grid-cols-2">
-                {STORE_GROUPS.map(([group, stores]) => (
-                  <div key={group}>
-                    <p className="text-mute">{group}</p>
-                    <ul className="mt-2 space-y-1.5">
-                      {stores.map((st) => (
-                        <li key={st.name} className="text-ink-soft">
-                          {st.name} <span className="text-mute">· {st.area}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-              {/* 진열 사진 — 회장님 제공(2026-11-13). 다른 브랜드 병이 보이지 않게 잘랐고, AI 업스케일은
-                  라벨 글씨를 망가뜨려 쓰지 않았다(원본을 Lanczos 2배로만 키움). 고해상도 원본이 오면 바꾼다. */}
-              <figure className="max-w-sm">
-                <div className="relative aspect-[302/214] overflow-hidden rounded-2xl bg-paper">
-                  <Image
-                    src="/stores/galleria-apgujeong.webp"
-                    alt="갤러리아 명품관 냉장 진열대에 놓인 송영신목장 A2 저지 헤이밀크 180mL 병과 매장 안내판"
-                    fill
-                    sizes="(max-width:1024px) 384px, 300px"
-                    className="object-cover"
-                  />
+            {/* 백화점별로 묶는다 — 갤러리아 | 현대(4개 점) 나란히. */}
+            <div className="mt-5 grid gap-x-12 gap-y-5 text-[13.5px] sm:grid-cols-2">
+              {STORE_GROUPS.map(([group, stores]) => (
+                <div key={group}>
+                  <p className="text-mute">{group}</p>
+                  <ul className="mt-2 space-y-1.5">
+                    {stores.map((st) => (
+                      <li key={st.name} className="text-ink-soft">
+                        {st.name} <span className="text-mute">· {st.area}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <figcaption className="t-caption mt-2 text-mute">갤러리아 명품관 진열 모습</figcaption>
-              </figure>
+              ))}
             </div>
+            {/* 진열 사진 — 회장님 제공 원본(1500×2000, 2026-11-13)에서 우리 제품·안내판·가격표만 잘랐다
+                (같은 진열대의 다른 브랜드 병·표지는 보이지 않게). 글씨가 있는 사진이라 AI 업스케일은 쓰지 않는다(AGENTS.md). */}
+            <figure className="mt-8">
+              <div className="relative aspect-[1328/594] overflow-hidden rounded-2xl bg-paper">
+                <Image
+                  src="/stores/galleria-apgujeong.webp"
+                  alt="갤러리아 명품관 냉장 진열대에 놓인 송영신목장 A2 저지 헤이밀크 180mL·750mL 병과 매장 안내판, 가격표"
+                  fill
+                  sizes="(max-width:1024px) 100vw, 960px"
+                  className="object-cover"
+                />
+              </div>
+              <figcaption className="t-caption mt-2 text-mute">갤러리아 명품관 진열 모습</figcaption>
+            </figure>
           </div>
         </Reveal>
 
