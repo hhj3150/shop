@@ -19,7 +19,7 @@ export function FarmBand({ titleAs: Title = "h2" }: { titleAs?: "h1" | "h2" } = 
         <div className="relative col-start-1 row-start-1">
           <Image
             src="/brand/farm-herd.webp"
-            alt="골든아워 목초지에서 풀을 뜯는 송영신목장 A2 저지 젖소 무리"
+            alt="골든아워, 목장 들판에 선 송영신목장 A2 저지 젖소 무리"
             width={1300}
             height={2157}
             sizes="(max-width:1024px) 100vw, 50vw"
@@ -47,7 +47,7 @@ export function FarmBand({ titleAs: Title = "h2" }: { titleAs?: "h1" | "h2" } = 
             {EYEBROW}
           </p>
           <Title className="mt-3 font-serif-kr text-[clamp(1.7rem,6vw,2.4rem)] font-medium leading-[1.16] text-cream lg:mt-5 lg:text-[clamp(2rem,3vw,3rem)] lg:leading-[1.18]">
-            풀과 건초로 기른{" "}
+            건초를 먹여 기른{" "}
             <br />
             <span className="text-gold">100% A2 저지.</span>
           </Title>

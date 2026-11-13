@@ -207,7 +207,7 @@ describe("해설 페이지 — 꼭 들어가야 할 사실", () => {
     const t = text("hay-milk");
     expect(t).toMatch(/2016/);
     expect(t).toMatch(/EU (TSG )?인증(을 받은)? 제품은 아니/);
-    expect(t).toMatch(/사일리지\(발효사료\) 없이 풀과 건초를 중심으로/);
+    expect(t).toMatch(/사일리지\(발효사료\) 없이 건초를 중심으로/);
     const note = learnFarmNote("hay-milk", { certifications: certs }).paragraphs.join(" ");
     expect(note).toMatch(/TSG\) 인증 제품은 아닙니다/);
   });

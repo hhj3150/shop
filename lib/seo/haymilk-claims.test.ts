@@ -91,3 +91,34 @@ describe("/learn/hay-milk 출처·사실", () => {
     expect(feed.paragraphs.join(" ")).not.toMatch(/\d+\s*%/);
   });
 });
+
+// 2026-11-13 회장님 확인: 사일리지·헤일리지 같은 발효 조사료와 생풀은 먹이지 않는다(조사료는 건초, 곡물 등 보조사료는 먹임).
+//   → 우리 목장 사료는 '건초를 중심으로'. '풀과 건초'는 EU 헤이밀크 방식(여름 생풀·겨울 건초)을 설명할 때만 쓴다.
+describe("우리 목장 사료 표현 — '건초를 중심으로'(생풀 급여 없음)", () => {
+  const ours = (t: string) =>
+    t.split(/(?<=[.。!?])\s+|\n/).filter((x) => /송영신목장|우리\s*(우유|목장)|저희/.test(x));
+  for (const [where, t] of surfaces) {
+    it(`${where}: 우리 목장 문장에 '풀과 건초'·'풀을 뜯/먹여'가 없다`, () => {
+      for (const sentence of ours(t)) expect(sentence).not.toMatch(/풀과\s*건초|풀을\s*(뜯|먹)/);
+    });
+  }
+  it("손님 화면 소스(컴포넌트·페이지)에 '풀과 건초'·'풀을 뜯'이 없다", () => {
+    for (const f of ["components/FarmBand.tsx", "components/Provenance.tsx", "components/TrustBadges.tsx", "components/WhyBand.tsx", "components/RegenerativeBand.tsx"]) {
+      expect(src(f), f).not.toMatch(/풀과\s*건초|풀을\s*뜯|풀을\s*먹여/);
+    }
+  });
+  it("도우미는 '건초만'(보조사료 있음)·생풀 급여를 말하지 않도록 지시받는다", () => {
+    const k = buildCustomerSystemPrompt();
+    expect(k).toMatch(/건초를 중심으로/);
+    expect(k).toMatch(/생풀은 먹이지 않습니다/);
+  });
+});
+
+describe("/learn/hay-milk — 비회원·국내 인증 제도 안내(2026-11-13 회장님 확인)", () => {
+  it("ARGE 회원이 아니고 로고·EU 표장을 쓰지 않으며, 국내에는 헤이밀크 인증 제도가 없다고 밝힌다", () => {
+    const last = hay.sections[hay.sections.length - 1].paragraphs.join(" ");
+    expect(last).toMatch(/ARGE Heumilch 회원이 아니며/);
+    expect(last).toMatch(/국내에는 헤이밀크를 인증하는 제도가 없습니다/);
+  });
+});
+

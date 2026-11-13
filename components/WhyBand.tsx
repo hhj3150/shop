@@ -15,7 +15,7 @@ import { BRAND_HOME } from "@/lib/site";
 const WORDS = [
   { word: "A2", lead: "A1 단백질 없는 우유", sub: "100% A2 베타카제인" },
   { word: "Jersey", lead: "진하고 고소한 우유", sub: "유지방·단백질이 높은 품종" },
-  { word: "Hay Milk", lead: "사일리지 없는 우유", sub: "풀과 건초를 중심으로" },
+  { word: "Hay Milk", lead: "사일리지 없는 우유", sub: "건초를 중심으로" },
   { word: "Fresh", lead: "아침에 짜서, 다음 날 발송", sub: "콜드체인 냉장배송 · 0–10℃" },
 ] as const;
 

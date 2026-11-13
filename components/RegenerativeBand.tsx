@@ -20,7 +20,7 @@ export function RegenerativeBand() {
 
         <div className="mt-6 space-y-2.5 text-[clamp(1.05rem,2.4vw,1.3rem)] font-medium leading-relaxed text-ink-soft">
           <p>땅을 쓰는 농사가 아니라, 되살리는 농사.</p>
-          <p>풀과 건초를 중심으로. 사일리지는 없습니다.</p>
+          <p>건초를 중심으로. 사일리지는 없습니다.</p>
           <p className="text-ink">흙에서 마음까지 — From Soil to Soul.</p>
         </div>
 
