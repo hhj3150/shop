@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   backFallback,
+  bootVisitKind,
   canGoBackInSite,
   classifyVisit,
   nextStack,
@@ -103,6 +104,26 @@ describe("2순위 — 이 탭의 주소 기록(Navigation API 없는 브라우�
   });
 });
 
+describe("새 문서(전체 로드)의 첫 기록 — 배포가 바뀌면 Next 가 replace 를 location.replace 로 바꾼다", () => {
+  it("기록 수가 그대로면 replace(전체 로드된 replace) — push 로 세면 '이전'이 사이트 밖으로 나간다", () => {
+    expect(bootVisitKind({ reset: false, navigationType: "navigate", lengthNow: 3, storedLength: 3 })).toBe("replace");
+    // 링크로 바로 들어온 글 → (배포 교체) 목록으로 replace → 새 문서: 여전히 앞 화면 없음
+    let s = nextStack([], "/learn/hay-milk", "push");
+    s = nextStack(s, "/learn", bootVisitKind({ reset: false, navigationType: "navigate", lengthNow: 3, storedLength: 3 }));
+    expect(s).toEqual(["/learn"]);
+    expect(canGoBackInSite(s)).toBe(false);
+  });
+  it("기록 수가 늘었으면 push(사이트 안 전체 로드 링크)", () => {
+    expect(bootVisitKind({ reset: false, navigationType: "navigate", lengthNow: 4, storedLength: 3 })).toBe("push");
+  });
+  it("지난 길이를 모르면 replace(덜 세는 쪽), 다른 곳에서 왔으면 push(빈 기록에 첫 칸), 앞뒤 이동이면 traverse", () => {
+    expect(bootVisitKind({ reset: false, navigationType: "navigate", lengthNow: 4, storedLength: null })).toBe("replace");
+    expect(bootVisitKind({ reset: true, navigationType: "navigate", lengthNow: 2, storedLength: 9 })).toBe("push");
+    expect(bootVisitKind({ reset: false, navigationType: "back_forward", lengthNow: 4, storedLength: 4 })).toBe("traverse");
+    expect(bootVisitKind({ reset: false, navigationType: "reload", lengthNow: 4, storedLength: 4 })).toBe("replace");
+  });
+});
+
 describe("새로 불러온 페이지 — 기록을 새로 시작할지", () => {
   const origin = "https://shop.a2jerseymilk.com";
   it("검색·카카오톡 등 다른 곳에서 들어오면 새로 시작(뒤로가 사이트 밖으로 나가지 않게)", () => {
@@ -132,8 +153,35 @@ describe("상단 바에 붙어 있다", () => {
     expect(btn).toMatch(/router\.replace\(backFallback\(pathname\)\)/);
     expect(btn).not.toMatch(/router\.push\(/);
   });
+  it("state 없는 기록(맨 #앵커 등)에 돌아오면 그 주소로 화면을 다시 맞춘다 · bfcache 복원도 처리", () => {
+    expect(btn).toMatch(/if \(!e\.state && window\.location\.pathname !== renderedPath\.current\)/);
+    expect(btn).toMatch(/addEventListener\("pageshow"/);
+  });
   it("Navigation API 가 있으면 그것으로 고른다(사이트 밖으로 나갈 수 없다)", () => {
     expect(btn).toMatch(/pickBackDelta\(nav\.entries\(\), nav\.currentEntry!\.index\)/);
     expect(btn).toMatch(/classifyVisit\(/);
   });
 });
+
+describe("맨 <a href=\"#…\"> 금지 — 브라우저가 만든 state 없는 기록을 Next 가 무시해 '이전'이 헛돈다", () => {
+  it("app·components 에 없다(next/link 로)", async () => {
+    const { readdirSync, statSync } = await import("node:fs");
+    const root = join(__dirname, "..");
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) walk(p);
+        else if (/\.tsx$/.test(name) && !/\.test\./.test(name)) {
+          // 주석(이 규칙을 설명하는 글)은 빼고 본다
+          const src = readFileSync(p, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+          if (/<a\b[^>]*\bhref=["{`]+#/.test(src)) hits.push(p.slice(root.length + 1));
+        }
+      }
+    };
+    walk(join(root, "app"));
+    walk(join(root, "components"));
+    expect(hits).toEqual([]);
+  });
+});
+

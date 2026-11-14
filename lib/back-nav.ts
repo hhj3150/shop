@@ -76,6 +76,24 @@ export function classifyVisit(input: { traversal: boolean; lengthBefore: number;
   return input.lengthNow > input.lengthBefore ? "push" : "replace";
 }
 
+/**
+ * 새 문서(전체 페이지 로드)의 첫 기록을 어떻게 셀지.
+ *   Next 는 배포가 바뀌었거나 서버 응답이 실패하면 router.replace 를 location.replace(전체 로드)로 바꾼다.
+ *   그 새 문서를 push 로 세면 기록이 실제보다 길어져 '이전'이 사이트 밖으로 나간다(2026-11-14 재검증).
+ *   그래서 지난 문서가 남긴 history.length 와 비교한다 — 늘었으면 push, 아니면 replace, 모르면 replace(덜 세는 쪽).
+ */
+export function bootVisitKind(input: {
+  reset: boolean;
+  navigationType: string | undefined;
+  lengthNow: number;
+  storedLength: number | null;
+}): VisitKind {
+  if (input.reset) return "push"; // 빈 기록에 첫 칸
+  if (input.navigationType === "back_forward") return "traverse";
+  if (input.storedLength !== null && input.lengthNow > input.storedLength) return "push";
+  return "replace";
+}
+
 /** 기록 갱신(최대 50개). */
 export function nextStack(stack: readonly string[], path: string, kind: VisitKind): string[] {
   if (stack.at(-1) === path) return [...stack];

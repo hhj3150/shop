@@ -213,9 +213,11 @@ export default async function ProductPage({
                 {product.volume}
               </span>
             </h1>
-            {/* 별점 · 리뷰 수 — 아래 구매평 섹션으로 바로 이동 */}
+            {/* 별점 · 리뷰 수 — 아래 구매평 섹션으로 바로 이동.
+                ★ 맨 <a href="#…"> 금지: 브라우저가 만든 기록(state 없음)을 Next 가 무시해, '이전'으로
+                  그 기록에 돌아오면 주소만 바뀌고 화면이 안 바뀐다. next/link 는 Next 기록으로 남긴다. */}
             {rating.count > 0 && (
-              <a
+              <Link
                 href="#reviews"
                 className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-[13.5px] text-ink-soft transition-colors hover:text-gold-deep"
               >
@@ -223,7 +225,7 @@ export default async function ProductPage({
                 <span className="font-semibold tabular-nums text-ink">{rating.value.toFixed(1)}</span>
                 <span className="text-mute" aria-hidden>·</span>
                 <span className="underline underline-offset-2">{rating.count}건 리뷰</span>
-              </a>
+              </Link>
             )}
             {/* 가격 블록 — 구매 패널에서 고른 기간을 따라간다. */}
             <div id="hero-cta">

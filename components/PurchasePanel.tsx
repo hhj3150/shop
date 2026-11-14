@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -716,14 +717,15 @@ export function PurchasePanel({ product }: { product: Product }) {
                 담기
               </button>
               {belowMin ? (
-                /* 최소금액 미달이면 죽은 버튼 대신, 고칠 수 있는 자리(수량)로 데려간다. */
-                <a
+                /* 최소금액 미달이면 죽은 버튼 대신, 고칠 수 있는 자리(수량)로 데려간다.
+                   next/link — 맨 <a href="#…">는 Next 가 무시하는 기록을 남겨 '이전' 버튼이 헛돈다. */
+                <Link
                   href="#configure"
                   tabIndex={showStickyBar ? 0 : -1}
                   className="flex min-h-11 items-center rounded-full bg-ink px-5 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
                 >
                   수량 채우기
-                </a>
+                </Link>
               ) : (
                 <button
                   onClick={handleBuyNow}
