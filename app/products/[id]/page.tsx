@@ -10,6 +10,7 @@ import {
 } from "@/lib/products";
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { WishlistButton } from "@/components/WishlistButton";
+import { JumpLink } from "@/components/JumpLink";
 import { Track } from "@/components/Track";
 import { ProductHeroPrice } from "@/components/ProductCommercial";
 import { ProductKicker, ProductHighlights } from "@/components/ProductHighlights";
@@ -213,19 +214,17 @@ export default async function ProductPage({
                 {product.volume}
               </span>
             </h1>
-            {/* 별점 · 리뷰 수 — 아래 구매평 섹션으로 바로 이동.
-                ★ 맨 <a href="#…"> 금지: 브라우저가 만든 기록(state 없음)을 Next 가 무시해, '이전'으로
-                  그 기록에 돌아오면 주소만 바뀌고 화면이 안 바뀐다. next/link 는 Next 기록으로 남긴다. */}
+            {/* 별점 · 리뷰 수 — 아래 구매평 섹션으로 바로 이동(JumpLink: 기록을 남기지 않고 스크롤·포커스). */}
             {rating.count > 0 && (
-              <Link
-                href="#reviews"
+              <JumpLink
+                to="reviews"
                 className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-[13.5px] text-ink-soft transition-colors hover:text-gold-deep"
               >
                 <span className="text-gold" aria-hidden>★</span>
                 <span className="font-semibold tabular-nums text-ink">{rating.value.toFixed(1)}</span>
                 <span className="text-mute" aria-hidden>·</span>
                 <span className="underline underline-offset-2">{rating.count}건 리뷰</span>
-              </Link>
+              </JumpLink>
             )}
             {/* 가격 블록 — 구매 패널에서 고른 기간을 따라간다. */}
             <div id="hero-cta">
@@ -234,7 +233,7 @@ export default async function ProductPage({
 
             {/* 구매 패널 — data-swipe-ignore: 구매 중 좌우 스와이프가 제품 이동으로 잡혀
                 선택이 초기화되지 않도록 제외. */}
-            <div id="configure" data-swipe-ignore className="mt-6 scroll-mt-24 text-left">
+            <div id="configure" data-swipe-ignore className="mt-6 scroll-mt-24 text-left focus:outline-none">
               <PurchasePanel product={product} />
             </div>
             {/* 단품 구매는 구매 패널의 '1회 구매' 탭으로 통합 — 여기는 찜하기만. */}
@@ -292,7 +291,7 @@ export default async function ProductPage({
       </div>
 
       {/* 구매평 — 별점 후기 (제품명 옆 별점 링크의 목적지) */}
-      <div id="reviews" className="scroll-mt-24">
+      <div id="reviews" className="scroll-mt-24 focus:outline-none">
         <ProductReviews productId={product.id} />
       </div>
 

@@ -172,7 +172,8 @@ describe("맨 <a href=\"#…\"> 금지 — 브라우저가 만든 state 없는 �
       for (const name of readdirSync(dir)) {
         const p = join(dir, name);
         if (statSync(p).isDirectory()) walk(p);
-        else if (/\.tsx$/.test(name) && !/\.test\./.test(name)) {
+        // JumpLink 는 onClick 에서 기본 동작을 막아 기록을 남기지 않는 유일한 예외(JS 없을 때를 위한 href).
+        else if (/\.tsx$/.test(name) && !/\.test\./.test(name) && name !== "JumpLink.tsx") {
           // 주석(이 규칙을 설명하는 글)은 빼고 본다
           const src = readFileSync(p, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
           if (/<a\b[^>]*\bhref=["{`]+#/.test(src)) hits.push(p.slice(root.length + 1));
@@ -182,6 +183,22 @@ describe("맨 <a href=\"#…\"> 금지 — 브라우저가 만든 state 없는 �
     walk(join(root, "app"));
     walk(join(root, "components"));
     expect(hits).toEqual([]);
+  });
+});
+
+describe("화면 안 이동(JumpLink) — 기록을 남기지 않고, 누를 때마다 스크롤·포커스", () => {
+  const jump = readFileSync(join(__dirname, "..", "components/JumpLink.tsx"), "utf8");
+  const page = readFileSync(join(__dirname, "..", "app/products/[id]/page.tsx"), "utf8");
+  const panel = readFileSync(join(__dirname, "..", "components/PurchasePanel.tsx"), "utf8");
+  it("기본 동작(기록 추가)을 막고 scrollIntoView + focus", () => {
+    expect(jump).toMatch(/e\.preventDefault\(\)/);
+    expect(jump).toMatch(/scrollIntoView\(/);
+    expect(jump).toMatch(/focus\(\{ preventScroll: true \}\)/);
+  });
+  it("'★ N건 리뷰'·'수량 채우기'가 JumpLink 를 쓴다(next/link #링크는 두 번째 탭이 죽는다)", () => {
+    expect(page).toMatch(/<JumpLink\s+to="reviews"/);
+    expect(panel).toMatch(/<JumpLink\s+to="configure"/);
+    expect(`${page}\n${panel}`).not.toMatch(/<Link\s+href="#/);
   });
 });
 
