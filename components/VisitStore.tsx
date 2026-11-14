@@ -10,6 +10,23 @@ const VISIT_CONFETTI: ConfettiItem[] = [
   { shape: "squiggle", color: HEY.blue, size: 48, bottom: "10%", left: "8%", rotate: 6, opacity: 0.6, className: "hidden sm:block" },
 ];
 
+// 갤러리아 명품관 고메이494 사진 두 장 — 회장님 제공 원본(1500×2000, 2026-11-14)에서 잘랐다.
+//   입구: 간판과 식품관 안쪽까지만(식사하는 손님 얼굴이 나오지 않게 머리 위에서 자름).
+//   진열대: 'Milk, Yogurt' 안내판·우리 매대 안내판·병만(같은 냉장고의 다른 브랜드 병·표지는 보이지 않게).
+//   글씨가 있는 사진이라 AI 업스케일은 쓰지 않는다(AGENTS.md).
+const GALLERIA_TILES = [
+  {
+    src: "/stores/galleria-gourmet494-entrance.webp",
+    alt: "갤러리아 명품관 식품관 입구 위에 걸린 'GOURMET 494' 간판과 안쪽 매장 모습",
+    caption: "고메이494 입구",
+  },
+  {
+    src: "/stores/galleria-gourmet494-shelf.webp",
+    alt: "'Milk, Yogurt' 안내판 아래 냉장 진열대에 놓인 송영신목장 A2 저지 헤이밀크 180mL·750mL 병과 매대 안내판",
+    caption: "고메이494 우유·요거트 냉장 진열대",
+  },
+] as const;
+
 // 매장 명단을 백화점별로 묶음(OFFLINE_STORES 순서 유지).
 const STORE_GROUPS = OFFLINE_STORES.reduce<[string, (typeof OFFLINE_STORES)[number][]][]>((acc, st) => {
   const hit = acc.find(([g]) => g === st.group);
@@ -52,7 +69,8 @@ export function VisitStore() {
                   <ul className="mt-2 space-y-1.5">
                     {stores.map((st) => (
                       <li key={st.name} className="text-ink-soft">
-                        {st.name} <span className="text-mute">· {st.area}</span>
+                        {st.name}
+                        {st.spot ? ` ${st.spot}` : ""} <span className="text-mute">· {st.area}</span>
                       </li>
                     ))}
                   </ul>
@@ -73,6 +91,22 @@ export function VisitStore() {
               </div>
               <figcaption className="t-caption mt-2 text-mute">갤러리아 명품관 진열 모습</figcaption>
             </figure>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4">
+              {GALLERIA_TILES.map((t) => (
+                <figure key={t.src}>
+                  <div className="relative aspect-[665/615] overflow-hidden rounded-2xl bg-paper">
+                    <Image
+                      src={t.src}
+                      alt={t.alt}
+                      fill
+                      sizes="(max-width:1024px) 50vw, 480px"
+                      className="object-cover"
+                    />
+                  </div>
+                  <figcaption className="t-caption mt-2 text-mute">{t.caption}</figcaption>
+                </figure>
+              ))}
+            </div>
           </div>
         </Reveal>
 

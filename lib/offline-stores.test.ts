@@ -22,7 +22,7 @@ describe("백화점 판매처", () => {
     expect(JSON.stringify(OFFLINE_STORES)).not.toMatch(/광교/);
   });
   it("한 줄 문장", () => {
-    expect(offlineStoresSentence()).toBe("갤러리아 명품관(압구정), 현대백화점 압구정본점·목동점·판교점·무역센터점");
+    expect(offlineStoresSentence()).toBe("갤러리아 명품관 고메이494(압구정), 현대백화점 압구정본점·목동점·판교점·무역센터점");
   });
   const surfaces: [string, string][] = [
     ["FAQ 구입처", moreFaqItems(certs).find((f) => f.question.includes("어디서 살 수"))!.answer],
@@ -46,5 +46,20 @@ describe("백화점 판매처", () => {
     expect(src).toMatch(/\/stores\/galleria-apgujeong\.webp/);
     expect(existsSync(join(__dirname, "..", "public/stores/galleria-apgujeong.webp"))).toBe(true);
     expect(src).toMatch(/alt="갤러리아 명품관[^"]+"/);
+  });
+  it("갤러리아 판매 위치는 확인된 '고메이494' — 층수 같은 미확인 정보는 없다", () => {
+    const g = OFFLINE_STORES.find((s) => s.group === "갤러리아백화점")!;
+    expect(g.spot).toBe("고메이494");
+    expect(JSON.stringify(OFFLINE_STORES)).not.toMatch(/지하|[0-9]층|B1/);
+    expect(buildLlmsTxt({ certifications: certs, cardPayment: false })).toMatch(/GOURMET 494/);
+  });
+  it("고메이494 사진 두 장(입구·진열대) 파일과 설명", () => {
+    const src = readFileSync(join(__dirname, "..", "components/VisitStore.tsx"), "utf8");
+    for (const f of ["galleria-gourmet494-entrance.webp", "galleria-gourmet494-shelf.webp"]) {
+      expect(src).toContain(`/stores/${f}`);
+      expect(existsSync(join(__dirname, "..", "public/stores", f)), f).toBe(true);
+    }
+    // 사진 설명은 보이는 것만 — 다른 브랜드 이름이나 손님 묘사를 쓰지 않는다.
+    expect(src).not.toMatch(/the milk|lukt|손님들?이|사람들?이/i);
   });
 });

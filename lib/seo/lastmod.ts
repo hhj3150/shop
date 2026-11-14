@@ -20,9 +20,9 @@ export const LEGAL_UPDATED = {
 
 /** 고정 경로 → 마지막 내용 변경일. */
 export const PAGE_UPDATED: Record<string, string> = {
-  "/": "2026-11-13",
+  "/": "2026-11-14",
   "/story": "2026-11-13",
-  "/faq": "2026-11-13",
+  "/faq": "2026-11-14",
   "/signup": "2026-11-13",
   "/order-once": "2026-11-13",
   "/guide": LEGAL_UPDATED.guide,

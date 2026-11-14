@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
+import { JumpLink } from "@/components/JumpLink";
 import { VacationNotice } from "@/components/VacationNotice";
 import {
   type Product,
@@ -716,14 +717,15 @@ export function PurchasePanel({ product }: { product: Product }) {
                 담기
               </button>
               {belowMin ? (
-                /* 최소금액 미달이면 죽은 버튼 대신, 고칠 수 있는 자리(수량)로 데려간다. */
-                <a
-                  href="#configure"
+                /* 최소금액 미달이면 죽은 버튼 대신, 고칠 수 있는 자리(수량)로 데려간다.
+                   JumpLink — 누를 때마다 스크롤·포커스, 기록은 남기지 않는다('이전' 버튼이 헛돌지 않게). */
+                <JumpLink
+                  to="configure"
                   tabIndex={showStickyBar ? 0 : -1}
                   className="flex min-h-11 items-center rounded-full bg-ink px-5 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep"
                 >
                   수량 채우기
-                </a>
+                </JumpLink>
               ) : (
                 <button
                   onClick={handleBuyNow}

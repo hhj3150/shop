@@ -30,22 +30,33 @@ export const BUSINESS = {
 // 오프라인 판매처(백화점) — 홈 VisitStore·FAQ '어디서 살 수 있나요?'·llms·고객 도우미 공용 단일 출처.
 //   2026-11-13 회장님 확인: 아래 다섯 매장에서 우유·요거트 전 제품 판매 시작. 매장을 더하거나 빼면 여기만 고친다.
 //   ★ 매장 이름은 백화점 공식 명칭으로 적는다(광교는 해당 없음 — 2026-11-13 확인).
-export const OFFLINE_STORES = [
-  { group: "갤러리아백화점", name: "명품관", area: "서울 압구정" },
+//   ★ spot(매장 안 판매 위치)은 사진·회장님 확인으로 확인된 것만 적는다 — 갤러리아는 식품관 '고메이494'
+//     (2026-11-14 회장님 진열 사진: 냉장고 'GOURMET 494' 표지·입구 간판). 층수는 확인 전이라 적지 않는다.
+export type OfflineStore = {
+  group: string;
+  name: string;
+  area: string;
+  /** 매장 안 판매 위치(확인된 것만) */
+  spot?: string;
+};
+
+export const OFFLINE_STORES: readonly OfflineStore[] = [
+  { group: "갤러리아백화점", name: "명품관", area: "서울 압구정", spot: "고메이494" },
   { group: "현대백화점", name: "압구정본점", area: "서울 압구정" },
   { group: "현대백화점", name: "목동점", area: "서울 목동" },
   { group: "현대백화점", name: "판교점", area: "경기 성남 판교" },
   { group: "현대백화점", name: "무역센터점", area: "서울 삼성동" },
-] as const;
+];
 
 /** 백화점에서 파는 품목(전 제품) — 문장용 */
 export const OFFLINE_PRODUCTS_LABEL = "A2 저지 헤이밀크와 플레인 요거트";
 
-/** '갤러리아 명품관(압구정), 현대백화점 압구정본점·목동점·판교점·무역센터점' — 백화점별로 묶은 한 줄 */
+/** '갤러리아 명품관 고메이494(압구정), 현대백화점 압구정본점·목동점·판교점·무역센터점' — 백화점별로 묶은 한 줄 */
 export function offlineStoresSentence(): string {
   const groups = new Map<string, string[]>();
   for (const s of OFFLINE_STORES) {
-    const label = s.group === "갤러리아백화점" ? `${s.name}(${s.area.replace(/^서울 /, "")})` : s.name;
+    const named = s.spot ? `${s.name} ${s.spot}` : s.name;
+    const label = s.group === "갤러리아백화점" ? `${named}(${s.area.replace(/^서울 /, "")})` : named;
     groups.set(s.group, [...(groups.get(s.group) ?? []), label]);
   }
   return [...groups].map(([g, names]) => (g === "갤러리아백화점" ? `갤러리아 ${names.join("·")}` : `${g} ${names.join("·")}`)).join(", ");
