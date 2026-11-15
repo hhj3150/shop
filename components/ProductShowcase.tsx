@@ -7,7 +7,6 @@ import {
   PRODUCTS,
   SUB_PERIODS,
   discountForPeriod,
-  discountRangeLabel,
   formatKRW,
   subscribePrice,
   type ProductLine,
@@ -16,7 +15,6 @@ import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts } from "@/lib/storefront-merge";
 import { Reveal } from "./Reveal";
 import { Scatter, HEY, type ConfettiItem } from "./Confetti";
-import { ProductSticker } from "./ProductSticker";
 
 type Filter = "all" | ProductLine;
 
@@ -87,94 +85,58 @@ export function ProductShowcase() {
       <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-5 lg:grid-cols-4">
         {shown.map((p, i) => (
           <Reveal key={p.id} delay={(i % 2) * 80}>
-            <article className="group flex h-full flex-col items-center rounded-[22px] bg-cream/60 px-3 pt-4 pb-5 text-center transition-all duration-500 hover:-translate-y-1.5 hover:bg-cream hover:shadow-[0_44px_90px_-34px_rgba(40,30,15,0.32)] sm:rounded-[28px] sm:px-6 sm:pt-8 sm:pb-7">
-              <p
-                className="t-caption font-semibold uppercase tracking-[0.18em]"
-                style={{ color: p.accent }}
-              >
-                {p.badge}
-              </p>
-              {/* 한 줄에 네 장이 놓이는 폭에서는 이름 자리를 두 줄로 잡아 둔다 — 요거트만 두 줄이라
-                  그대로 두면 사진 높이가 카드마다 어긋난다. */}
-              <h3 className="mt-2 font-serif-kr text-[clamp(1.02rem,1.8vw,1.45rem)] font-medium leading-snug tracking-[-0.01em] text-ink lg:flex lg:min-h-[2.75em] lg:items-center">
-                {p.name}
-              </h3>
-              <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[14px] text-mute">
-                <span>{p.volume}</span>
-              </div>
-              {p.soldOut && (
-                <span className="mt-2 inline-block rounded-full bg-ink/8 px-3 py-1 text-[12px] font-semibold tracking-wide text-mute">
-                  품절
-                </span>
-              )}
-
+            {/* 진열 카드 — 위에 이름과 값, 아래에 제품 사진을 크게, 오른쪽 아래 화살표. 카드 전체가 링크다.
+                글은 용량·이름·값만 남긴다. 분류 영문 표기, 메모지, 할인·과세 설명, 버튼 글자는
+                상세 페이지에서 본다 — 네 장이 한 줄에 놓이면 글이 많아 복잡해 보였다. */}
+            <article className="h-full">
               <Link
                 href={`/products/${p.id}`}
-                className="mt-4 flex w-full flex-1 flex-col items-center sm:mt-5"
+                aria-label={`${p.name} ${p.volume} ${formatKRW(p.price)}${p.soldOut ? " 품절" : ""}`}
+                className="group relative flex h-full flex-col overflow-hidden rounded-[22px] bg-studio text-left transition-shadow duration-500 hover:shadow-[0_44px_90px_-34px_rgba(40,30,15,0.32)] sm:rounded-[28px]"
               >
-                <div className="relative h-44 w-full overflow-hidden rounded-[16px] bg-studio sm:h-72 sm:rounded-[20px] lg:h-56">
-                  {p.sticker && (
-                    <ProductSticker
-                      title={p.sticker.title}
-                      sub={p.sticker.sub}
-                      className="left-3 top-3 max-sm:hidden sm:left-4 sm:top-4"
-                    />
+                <div className="relative z-10 px-4 pt-4 sm:px-7 sm:pt-7">
+                  <p className="t-caption font-semibold tracking-wide" style={{ color: p.accent }}>
+                    {p.soldOut ? "품절" : p.volume}
+                  </p>
+                  {/* 이름 자리는 두 줄로 잡아 둔다 — 요거트만 두 줄이라 그대로 두면 사진 높이가 카드마다 어긋난다. */}
+                  <h3 className="mt-1 min-h-[2.6em] font-serif-kr text-[clamp(1.05rem,1.9vw,1.5rem)] font-medium leading-[1.3] tracking-[-0.01em] text-ink">
+                    {p.name}
+                  </h3>
+                  {/* 정가가 대표 가격이다 — 누구나 이 값에 한 번 살 수 있다. 예전에는 회원가(4주)를
+                      크게 적어, 1회 구매 손님이 상세에 들어가서야 실제 값을 알았다.
+                      1회 구매 전용(애프터밀크)은 구독 회원가가 없으니 정가만 노출한다. */}
+                  <p className="mt-1.5 text-[15px] text-ink tabular-nums lining-nums sm:text-[17px]">
+                    {formatKRW(p.price)}
+                  </p>
+                  {/* 구독가는 늘 다음 줄에 둔다 — 한 줄에 붙이면 좁은 화면에서 값이 긴 카드만 줄이 바뀌어 높이가 어긋난다. */}
+                  {!p.onceOnly && (
+                    <p className="t-caption mt-0.5 text-gold-deep tabular-nums lining-nums">
+                      정기구독 {formatKRW(subscribePrice(p.price, maxRate))}~
+                    </p>
                   )}
+                </div>
+
+                {/* 사진은 이 칸 안에서만 키운다 — 칸을 넘치면 불투명한 사진 바탕이 위의 이름과 값을 덮는다. */}
+                <div className="relative aspect-[5/6] w-full flex-1 overflow-hidden">
                   <Image
                     src={p.image}
-                    alt={`${p.name} ${p.volume}`}
+                    alt=""
                     width={720}
                     height={720}
-                    sizes="(max-width:640px) 44vw, (max-width:1024px) 44vw, 22vw"
-                    className="product-cut h-full w-full object-contain p-2 transition-transform duration-700 group-hover:scale-[1.04] sm:p-4"
+                    sizes="(max-width:1024px) 48vw, 24vw"
+                    className={`product-cut absolute inset-0 h-full w-full scale-[1.3] object-contain transition-transform duration-700 group-hover:scale-[1.36] ${p.soldOut ? "opacity-60" : ""}`}
                   />
                 </div>
+
+                <span
+                  aria-hidden="true"
+                  className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-cream text-ink shadow-[0_2px_10px_rgba(40,30,15,0.18)] transition-transform group-hover:scale-110 sm:bottom-5 sm:right-5 sm:h-10 sm:w-10"
+                >
+                  <svg width="9" height="14" viewBox="0 0 9 14">
+                    <path d="M1.5 1.5L7 7l-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
               </Link>
-
-              {/* 1회 구매 전용(애프터밀크)은 구독 회원가가 없으니 정가만 노출한다. */}
-              {p.onceOnly ? (
-                <>
-                  <p className="mt-4 text-[clamp(1.1rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums sm:mt-7">
-                    {formatKRW(p.price)}
-                    <span className="ml-1.5 align-baseline text-[13px] font-normal text-mute">정가</span>
-                  </p>
-                  <p className="t-caption mt-1.5 leading-snug text-mute tabular-nums lining-nums">
-                    1회 구매 전용 · {p.taxFree ? "면세품" : "부가세 포함"}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="mt-4 text-[clamp(1.1rem,3vw,1.6rem)] font-semibold leading-none text-ink tabular-nums lining-nums sm:mt-7">
-                    {/* 정가가 대표 가격이다 — 누구나 이 값에 한 번 살 수 있다. 예전에는 회원가(4주)를
-                        크게 적어, 1회 구매 손님이 상세에 들어가서야 실제 값을 알았다. */}
-                    {formatKRW(p.price)}
-                  </p>
-                  <p className="t-caption mt-2 font-medium leading-snug text-gold-deep tabular-nums lining-nums">
-                    정기구독 {formatKRW(subscribePrice(p.price, maxRate))}~
-                  </p>
-                  <p className="t-caption mt-0.5 leading-snug text-mute tabular-nums lining-nums">
-                    {discountRangeLabel()}% 할인 · {p.taxFree ? "면세품" : "부가세 포함"}
-                  </p>
-                </>
-              )}
-
-              <div className="mt-4 w-full max-w-xs sm:mt-7">
-                {p.soldOut ? (
-                  <span
-                    aria-disabled="true"
-                    className="block w-full cursor-not-allowed rounded-full bg-ink/30 px-6 py-3 text-center text-[15px] font-medium text-cream/80"
-                  >
-                    품절
-                  </span>
-                ) : (
-                  <Link
-                    href={`/products/${p.id}`}
-                    className="flex min-h-11 w-full items-center justify-center rounded-full bg-ink px-3 text-center t-footnote font-medium text-cream transition-transform hover:scale-[1.03] active:scale-[0.98] sm:px-6"
-                  >
-                    구매하기
-                  </Link>
-                )}
-              </div>
             </article>
           </Reveal>
         ))}
