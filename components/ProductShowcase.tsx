@@ -41,6 +41,17 @@ const COUNT_KR = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", 
 // 정기구독 최저가(가장 긴 기간)의 할인율 — 카드의 '정기구독 ○○원~' 표기에 쓴다.
 const maxRate = discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]);
 
+// 색 바탕 카드 — 제품마다 라벨 색에서 뽑은 바탕과, 배경을 지운 병 사진(public/products/cut).
+// 병 사진은 원본(assets/product-photos)을 Higgsfield remove_background 로 누끼 딴 뒤 병 둘레만 남겨 잘랐다.
+// 여기에 없는 제품(애프터밀크 등)은 예전처럼 크림 바탕에 원래 사진을 쓴다.
+// label 은 용량 글씨 색 — 지정하지 않으면 제품의 accent 를 쓴다(연한 금색 바탕에서는 accent 대비가 4.5:1 에 못 미친다).
+const TILE: Record<string, { bg: string; cut: string; label?: string }> = {
+  "milk-180": { bg: "#f6e7c8", cut: "/products/cut/milk-180.webp", label: "#6b532c" },
+  "milk-750": { bg: "#efd2a0", cut: "/products/cut/milk-750.webp", label: "#5a4524" },
+  "yogurt-180": { bg: "#d8ebd3", cut: "/products/cut/yogurt-180.webp" },
+  "yogurt-500": { bg: "#bfdcc9", cut: "/products/cut/yogurt-500.webp" },
+};
+
 export function ProductShowcase() {
   const [filter, setFilter] = useState<Filter>("all");
   const { map } = useStorefrontCatalog();
@@ -92,10 +103,11 @@ export function ProductShowcase() {
               <Link
                 href={`/products/${p.id}`}
                 aria-label={`${p.name} ${p.volume} ${formatKRW(p.price)}${p.soldOut ? " 품절" : ""}`}
+                style={TILE[p.id] ? { backgroundColor: TILE[p.id].bg } : undefined}
                 className="group relative flex h-full flex-col overflow-hidden rounded-[22px] bg-studio text-left transition-shadow duration-500 hover:shadow-[0_44px_90px_-34px_rgba(40,30,15,0.32)] sm:rounded-[28px]"
               >
                 <div className="relative z-10 px-4 pt-4 sm:px-7 sm:pt-7">
-                  <p className="t-caption font-semibold tracking-wide" style={{ color: p.accent }}>
+                  <p className="t-caption font-semibold tracking-wide" style={{ color: TILE[p.id]?.label ?? p.accent }}>
                     {p.soldOut ? "품절" : p.volume}
                   </p>
                   {/* 이름 자리는 두 줄로 잡아 둔다 — 요거트만 두 줄이라 그대로 두면 사진 높이가 카드마다 어긋난다. */}
@@ -108,9 +120,10 @@ export function ProductShowcase() {
                   <p className="mt-1.5 text-[15px] text-ink tabular-nums lining-nums sm:text-[17px]">
                     {formatKRW(p.price)}
                   </p>
+                  {/* 색 바탕 위에서는 금색 글씨가 묻힌다 — 구독가는 먹색으로 쓴다. */}
                   {/* 구독가는 늘 다음 줄에 둔다 — 한 줄에 붙이면 좁은 화면에서 값이 긴 카드만 줄이 바뀌어 높이가 어긋난다. */}
                   {!p.onceOnly && (
-                    <p className="t-caption mt-0.5 text-gold-deep tabular-nums lining-nums">
+                    <p className={`t-caption mt-0.5 tabular-nums lining-nums ${TILE[p.id] ? "text-ink/80" : "text-gold-deep"}`}>
                       정기구독 {formatKRW(subscribePrice(p.price, maxRate))}~
                     </p>
                   )}
@@ -118,14 +131,25 @@ export function ProductShowcase() {
 
                 {/* 사진은 이 칸 안에서만 키운다 — 칸을 넘치면 불투명한 사진 바탕이 위의 이름과 값을 덮는다. */}
                 <div className="relative aspect-[5/6] w-full flex-1 overflow-hidden">
+                  {TILE[p.id] ? (
+                    <Image
+                      src={TILE[p.id].cut}
+                      alt=""
+                      width={600}
+                      height={900}
+                      sizes="(max-width:1024px) 48vw, 24vw"
+                      className={`absolute inset-x-0 bottom-0 top-2 mx-auto h-[calc(100%-0.5rem)] w-full translate-y-[6%] object-contain object-bottom drop-shadow-[0_18px_22px_rgba(60,40,10,0.18)] transition-transform duration-700 group-hover:translate-y-[3%] ${p.soldOut ? "opacity-60" : ""}`}
+                    />
+                  ) : (
                   <Image
-                    src={p.image}
-                    alt=""
-                    width={720}
-                    height={720}
-                    sizes="(max-width:1024px) 48vw, 24vw"
-                    className={`product-cut absolute inset-0 h-full w-full scale-[1.3] object-contain transition-transform duration-700 group-hover:scale-[1.36] ${p.soldOut ? "opacity-60" : ""}`}
-                  />
+                      src={p.image}
+                      alt=""
+                      width={720}
+                      height={720}
+                      sizes="(max-width:1024px) 48vw, 24vw"
+                      className={`product-cut absolute inset-0 h-full w-full scale-[1.3] object-contain transition-transform duration-700 group-hover:scale-[1.36] ${p.soldOut ? "opacity-60" : ""}`}
+                    />
+                  )}
                 </div>
 
                 <span
