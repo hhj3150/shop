@@ -42,6 +42,8 @@ const COUNT_KR = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", 
 const maxRate = discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]);
 
 // 색 바탕 카드 — 제품마다 라벨 색에서 뽑은 바탕과, 배경을 지운 병 사진(public/products/cut).
+//   ※ 누끼 넷은 같은 캔버스(560×1100)에 실제 병 높이 비율(750mL 1 : 500mL 0.77 : 180mL 0.53)로 앉혀 둔다.
+//     카드마다 object-contain 으로 꽉 채우면 180mL 가 750mL 보다 커 보인다(2026-11-16 회장님 지적).
 // 병 사진은 원본(assets/product-photos)을 Higgsfield remove_background 로 누끼 딴 뒤 병 둘레만 남겨 잘랐다.
 // 여기에 없는 제품(애프터밀크 등)은 예전처럼 크림 바탕에 원래 사진을 쓴다.
 // label 은 용량 글씨 색 — 지정하지 않으면 제품의 accent 를 쓴다(연한 금색 바탕에서는 accent 대비가 4.5:1 에 못 미친다).
@@ -135,10 +137,10 @@ export function ProductShowcase() {
                     <Image
                       src={TILE[p.id].cut}
                       alt=""
-                      width={600}
-                      height={900}
+                      width={560}
+                      height={1100}
                       sizes="(max-width:1024px) 48vw, 24vw"
-                      className={`absolute inset-x-0 bottom-0 top-2 mx-auto h-[calc(100%-0.5rem)] w-full translate-y-[6%] object-contain object-bottom drop-shadow-[0_18px_22px_rgba(60,40,10,0.18)] transition-transform duration-700 group-hover:translate-y-[3%] ${p.soldOut ? "opacity-60" : ""}`}
+                      className={`absolute inset-x-0 bottom-5 top-2 mx-auto h-[calc(100%-1.75rem)] w-full object-contain object-bottom drop-shadow-[0_14px_16px_rgba(60,40,10,0.18)] transition-transform duration-700 group-hover:-translate-y-[2%] ${p.soldOut ? "opacity-60" : ""}`}
                     />
                   ) : (
                   <Image
