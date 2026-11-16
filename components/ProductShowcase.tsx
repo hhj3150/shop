@@ -42,7 +42,7 @@ const COUNT_KR = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", 
 const maxRate = discountForPeriod(SUB_PERIODS[SUB_PERIODS.length - 1]);
 
 // 색 바탕 카드 — 제품마다 라벨 색에서 뽑은 바탕과, 배경을 지운 병 사진(public/products/cut).
-//   ※ 누끼 넷은 같은 캔버스(560×1100)에 키 순서가 보이는 비율(750mL 1 : 500mL 0.85 : 180mL 0.68)로 앉혀 둔다.
+//   ※ 누끼 넷은 같은 캔버스(560×1100)에 키 순서가 보이는 비율(750mL 1 : 500mL 0.85 : 180mL 0.76)로 앉혀 둔다.
 //     실제 비율(1 : 0.77 : 0.53)을 그대로 쓰면 180mL 가 너무 작아 라벨이 안 읽혀 조금 눌렀다.
 //     카드마다 object-contain 으로 꽉 채우면 180mL 가 750mL 보다 커 보인다(2026-11-16 회장님 지적).
 // 병 사진은 원본(assets/product-photos)을 Higgsfield remove_background 로 누끼 딴 뒤 병 둘레만 남겨 잘랐다.
