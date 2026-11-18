@@ -1,15 +1,17 @@
 "use client";
 
 // 제품 상세 갤러리 — 대표 이미지 + 썸네일 전환(멀티 컷 제품용).
-//   product.gallery 가 있는 제품(애프터밀크 등)에서 단일 Image 대신 쓴다.
+//   product.gallery 가 있는 제품에서 단일 Image 대신 쓴다.
+//   병 사진(cut)만 가장자리를 타일에 녹인다 — 라벨 확대 컷에 걸면 글자 끝이 지워진다.
 import Image from "next/image";
 import { useState } from "react";
+import type { GalleryShot } from "@/lib/products";
 
 export function ProductGallery({
   images,
   alt,
 }: {
-  images: { src: string; label: string }[];
+  images: GalleryShot[];
   alt: string;
 }) {
   const [idx, setIdx] = useState(0);
@@ -25,7 +27,7 @@ export function ProductGallery({
           height={1200}
           priority
           sizes="(max-width:1024px) 92vw, 46vw"
-          className="h-full w-full object-contain p-6 sm:p-10"
+          className={`h-full w-full object-contain p-6 sm:p-10 ${current.cut ? "product-cut" : ""}`}
         />
       </div>
       {images.length > 1 && (

@@ -1,7 +1,11 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
 <!-- END:nextjs-agent-rules -->
 
 # DB 함수는 저장소가 아니라 운영 DB 가 기준이다
@@ -87,5 +91,8 @@ PNG)을 전부 실물 사진으로 바꿨다(원본: `assets/product-photos/`). 
 - 병에 찍힌 소비기한 도장(2026.10.01 / 10.10)은 지웠다 — 지난 날짜가 상품 사진에 보이면 안 된다.
 - 색은 전체에 같은 보정만 건다(밝기 살짝, 조명의 누런 녹색기 완화). 부분 보정·AI 재생성·업스케일 금지.
 - 홈 단체 사진(`hero-row-white.webp`)과 대표 공유 이미지는 회장님 지시로 그대로 뒀다(글자만 교정한 렌더).
+- 2026-11-18 옆·뒷면 실물 사진 8장을 받아 상세 갤러리(정면·옆면·뒷면·표시사항·영양정보)를 만들었다
+  (원본: `assets/product-photos/sides/`). 병 컷은 위와 같은 방식(알파만 + 전체 동일 보정), 표시사항·영양정보
+  컷은 원본을 자르고 90° 돌리기만 했다. 라벨 확대 컷에는 `cut` 을 걸지 않는다 — `.product-cut` 마스크가 글자 끝을 지운다.
 
 `public/detail/*.jpg` 는 쓰이지 않는 옛 상세 이미지이며 같은 종류의 오류가 남아 있으니 되살리지 않는다.
