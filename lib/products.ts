@@ -3,6 +3,10 @@ import {
   isSpecialDeliveryPostcode,
 } from "./regions";
 
+// 제품 사진 한 컷. 병 사진은 전부 실물 촬영본(assets/product-photos/)에서 만든다 —
+//   라벨 확대 컷은 원본을 자르고 돌리기만 했다(글자 재생성·업스케일 없음).
+export type GalleryShot = { src: string; label: string; cut?: boolean };
+
 export type ProductLine = "milk" | "yogurt" | "aftermilk";
 
 export type ProductSpec = {
@@ -101,7 +105,9 @@ export type Product = {
   //     수치가 바뀌어도 사진을 다시 만들지 않는다.
   sticker?: { title: string; sub?: string };
   // 상세 페이지 멀티 컷 갤러리(대표 이미지 포함, 순서대로). 미지정 시 단일 image.
-  gallery?: { src: string; label: string }[];
+  //   cut: 크림 바탕 병 사진이면 true — 가장자리를 타일에 녹인다(.product-cut).
+  //   라벨 확대 컷처럼 사진 전체가 내용인 컷에 걸면 글자 가장자리가 지워지므로 뺀다.
+  gallery?: GalleryShot[];
   accent: string;
 };
 
@@ -323,6 +329,12 @@ export const PRODUCTS: Product[] = [
     price: 3500,
     taxFree: true,
     image: "/products/milk-180-bottle.webp",
+    gallery: [
+      { src: "/products/milk-180-bottle.webp", label: "정면", cut: true },
+      { src: "/products/milk-180-info.webp", label: "뒷면", cut: true },
+      { src: "/products/milk-180-label.webp", label: "표시사항" },
+      { src: "/products/milk-180-nutrition.webp", label: "영양정보" },
+    ],
     accent: "#816536", // 라벨 4254C 를 글자로 쓸 수 있게 어둡게(카드 위 4.8:1). 원색 #c9a46b 은 2.2:1 이라 읽히지 않는다
   },
   {
@@ -378,6 +390,12 @@ export const PRODUCTS: Product[] = [
     price: 12000,
     taxFree: true,
     image: "/products/milk-750-bottle.webp",
+    gallery: [
+      { src: "/products/milk-750-bottle.webp", label: "정면", cut: true },
+      { src: "/products/milk-750-story.webp", label: "옆면", cut: true },
+      { src: "/products/milk-750-info.webp", label: "뒷면", cut: true },
+      { src: "/products/milk-750-label.webp", label: "표시사항·영양정보" },
+    ],
     accent: "#6b532c", // 라벨 4254C 의 더 어두운 변주(750mL)
   },
   {
@@ -435,6 +453,12 @@ export const PRODUCTS: Product[] = [
     price: 4300,
     taxFree: false,
     image: "/products/yogurt-180-bottle.webp",
+    gallery: [
+      { src: "/products/yogurt-180-bottle.webp", label: "정면", cut: true },
+      { src: "/products/yogurt-180-info.webp", label: "뒷면", cut: true },
+      { src: "/products/yogurt-180-label.webp", label: "표시사항" },
+      { src: "/products/yogurt-180-nutrition.webp", label: "영양정보" },
+    ],
     sticker: { title: "드링킹 타입", sub: "유산균 7.2억 CFU/g" },
     accent: "#00694e", // 라벨 3425C — 병 라벨의 요거트 제품명과 같은 초록
   },
@@ -493,6 +517,12 @@ export const PRODUCTS: Product[] = [
     price: 10000,
     taxFree: false,
     image: "/products/yogurt-500-bottle.webp",
+    gallery: [
+      { src: "/products/yogurt-500-bottle.webp", label: "정면", cut: true },
+      { src: "/products/yogurt-500-story.webp", label: "옆면", cut: true },
+      { src: "/products/yogurt-500-info.webp", label: "뒷면", cut: true },
+      { src: "/products/yogurt-500-label.webp", label: "표시사항·영양정보" },
+    ],
     sticker: { title: "드링킹 타입", sub: "유산균 7.2억 CFU/g" },
     accent: "#005a42", // 라벨 3425C 의 어두운 변주(500mL)
   },
