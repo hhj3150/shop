@@ -1,0 +1,4 @@
+# Netlify 정적 파일 응답 헤더(이 파일은 Netlify 가 읽는다 — next.config 의 headers() 는 public/ 정적 파일에 적용되지 않음).
+# 사이트 안 웹폰트: 파일 이름에 내용 해시가 있어 바뀌지 않는다 → 1년 캐시.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
