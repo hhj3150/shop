@@ -22,6 +22,17 @@ export const maxDuration = 30;
 // 완료 페이지로 옮겨 줄 표시용 값(손님 화면 문구용). 금액·주문번호는 서버 값으로 덮어쓴다.
 const PASS_KEYS = ["type", "ship", "guest", "item", "credit", "day", "pos", "wait"];
 
+// 손님이 실제로 접속한 주소. Netlify 는 req.url 을 배포 고유 주소(…--사이트.netlify.app)로 바꿔 넘기므로
+//   그대로 쓰면 결제 후 shop.a2jerseymilk.com 이 아닌 netlify.app 주소로 넘어간다(장바구니도 다른 출처라 안 비워짐).
+function publicOrigin(req: Request): string {
+  const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "").split(",")[0].trim();
+  if (/^[a-z0-9.-]+(:\d+)?$/i.test(host)) {
+    const proto = (req.headers.get("x-forwarded-proto") || "https").split(",")[0].trim() === "http" ? "http" : "https";
+    return `${proto}://${host}`;
+  }
+  return new URL(req.url).origin;
+}
+
 function redirectTo(req: Request, orderNo: string, amount: number | null, mallReserved: string, extra: Record<string, string>) {
   const src = new URLSearchParams(mallReserved || "");
   const q = new URLSearchParams();
@@ -33,7 +44,7 @@ function redirectTo(req: Request, orderNo: string, amount: number | null, mallRe
   }
   q.set("pay", "card");
   for (const [k, v] of Object.entries(extra)) q.set(k, v);
-  const url = new URL(`/orders/complete?${q.toString()}`, req.url);
+  const url = new URL(`/orders/complete?${q.toString()}`, publicOrigin(req));
   return NextResponse.redirect(url, 303);
 }
 

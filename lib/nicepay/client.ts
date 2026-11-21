@@ -85,7 +85,13 @@ export async function startCardPayment(ctx: CardPayContext, onWindowError: (msg:
     buyerTel: p.buyerTel,
     mallReserved,
     fnError: (result: { errorMsg?: string; msg?: string }) => {
-      onWindowError(result?.errorMsg || result?.msg || "결제가 취소되었습니다.");
+      const raw = result?.errorMsg || result?.msg || "";
+      // 손님이 결제창을 닫음(P091 등) — PG 원문 대신 손님 말로.
+      onWindowError(
+        /P091|취소/.test(raw)
+          ? "결제창을 닫아 결제되지 않았습니다. 주문은 그대로 있으니 다시 결제하실 수 있어요."
+          : raw || "결제가 완료되지 않았습니다. 다시 시도해 주세요."
+      );
     },
   });
 }
