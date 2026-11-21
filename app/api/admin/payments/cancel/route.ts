@@ -80,12 +80,16 @@ export async function POST(req: Request) {
 
   // 첫 전액취소는 원 주문번호로, 그 외(부분취소·잔액취소)는 회차마다 새 orderId(매뉴얼: 부분취소는 중복 orderId 재호출 불가).
   const cancelOrderId = plan.full ? orderNo : cancelOrderIdFor(orderNo, (pay.cancel_count ?? 0) + 1);
-  const res = await cancel(cfg, pay.tid, {
-    orderId: cancelOrderId,
-    reason,
-    cancelAmt: plan.full ? undefined : plan.cancelAmt,
-    taxFreeAmt: plan.taxFreeAmt,
-  });
+  // 전체취소: 금액·면세를 모두 빼고 보낸다(매뉴얼: cancelAmt 누락 = 전액취소). 면세금액만 실어 보내면
+  //   나이스페이가 'U318 취소 금액 불일치'로 거절한다(2026-11-21 테스트 상점에서 확인).
+  //   부분취소(잔액 취소 포함)는 취소 금액과 그중 면세금액을 함께 보낸다.
+  const res = await cancel(
+    cfg,
+    pay.tid,
+    plan.full
+      ? { orderId: cancelOrderId, reason }
+      : { orderId: cancelOrderId, reason, cancelAmt: plan.cancelAmt, taxFreeAmt: plan.taxFreeAmt }
+  );
   if (res.kind !== "ok") {
     // 응답을 못 받음 — 취소됐는지 모른다. 나이스페이 관리자에서 확인하도록 안내(자동 재시도는 이중 취소 위험).
     return NextResponse.json(
@@ -94,6 +98,15 @@ export async function POST(req: Request) {
     );
   }
   if (res.data.resultCode !== "0000") {
+    // 원인 대조용(키·서명 없음): 무엇을 보냈고 무엇이 돌아왔는지.
+    console.warn("[admin/payments/cancel] 거절:", orderNo, {
+      full: plan.full,
+      cancelOrderId,
+      cancelAmt: plan.full ? null : plan.cancelAmt,
+      taxFreeAmt: plan.full ? null : plan.taxFreeAmt,
+      resultCode: res.data.resultCode,
+      resultMsg: res.data.resultMsg,
+    });
     return NextResponse.json(
       { ok: false, reason: `취소 실패: ${res.data.resultMsg ?? res.data.resultCode} (${res.data.resultCode})` },
       { status: 400 }
