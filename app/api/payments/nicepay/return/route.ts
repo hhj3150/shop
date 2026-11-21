@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { approve, getPayment, netCancel, nicepayConfig } from "@/lib/nicepay/server";
+import { approve, getPayment, netCancel, nicepayCheckoutConfig } from "@/lib/nicepay/server";
 import {
   parseAuthResult,
   paymentTaxFreeAmount,
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   const fail = (reason: string, amount: number | null = null) =>
     redirectTo(req, r.orderId, amount, r.mallReserved, { payfail: reason });
 
-  const cfg = nicepayConfig();
+  const cfg = nicepayCheckoutConfig();
   const secret = process.env.CONFIRM_PAYMENT_SECRET;
   const sb = anonClient();
   if (!cfg || !secret || !sb) return fail("not_configured");

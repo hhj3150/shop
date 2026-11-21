@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { nicepayConfig } from "@/lib/nicepay/server";
+import { nicepayCheckoutConfig } from "@/lib/nicepay/server";
 import { goodsNameFor, paymentTaxFreeAmount } from "@/lib/nicepay/core";
 import { anonClient, loadOrder } from "@/lib/nicepay/settle";
 import { getProduct } from "@/lib/products";
@@ -12,16 +12,17 @@ export const dynamic = "force-dynamic";
 
 const digits = (s: unknown) => (typeof s === "string" ? s.replace(/\D/g, "") : "");
 
-// 결제수단 화면용: 카드결제를 보여도 되는지(키 설정 여부)만 알려 준다.
+// 결제수단 화면용: 카드결제를 보여도 되는지(스위치 + 키)만 알려 준다. 꺼져 있으면 {enabled:false} — 오류가 아니다.
 export async function GET() {
-  return NextResponse.json({ enabled: Boolean(nicepayConfig() && process.env.CONFIRM_PAYMENT_SECRET) });
+  return NextResponse.json({ enabled: Boolean(nicepayCheckoutConfig() && process.env.CONFIRM_PAYMENT_SECRET) });
 }
 
 export async function POST(req: Request) {
-  const cfg = nicepayConfig();
+  const cfg = nicepayCheckoutConfig();
   const secret = process.env.CONFIRM_PAYMENT_SECRET;
   const sb = anonClient();
   if (!cfg || !secret || !sb) {
+    // 스위치 꺼짐/키 없음: 카드결제 비활성. 화면은 이미 카드를 숨기므로 정상 흐름에선 오지 않는다.
     return NextResponse.json({ ok: false, reason: "not_configured" }, { status: 503 });
   }
 

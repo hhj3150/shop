@@ -8,6 +8,18 @@ import { basicAuthHeader, type NicepayPayment } from "./core";
 
 export type NicepayConfig = { clientId: string; secretKey: string; apiBase: string; sandbox: boolean };
 
+// 카드결제 스위치. NICEPAY_ENABLED=true 일 때만 손님에게 카드결제를 연다(결제수단 화면·결제창·승인).
+//   운영 오픈 전에는 키가 있어도 꺼 둔다. 끄면 손님 화면은 무통장입금만 보인다.
+export function nicepaySwitchOn(): boolean {
+  return (process.env.NICEPAY_ENABLED ?? "").trim().toLowerCase() === "true";
+}
+
+// 손님 결제용 설정 — 스위치가 켜지고 키가 모두 있을 때만.
+export function nicepayCheckoutConfig(): NicepayConfig | null {
+  return nicepaySwitchOn() ? nicepayConfig() : null;
+}
+
+// 키 설정만 본다(스위치 무관). 관리자 취소·웹훅용 — 스위치를 끈 뒤에도 이미 결제된 건은 환불·통보 처리해야 한다.
 export function nicepayConfig(): NicepayConfig | null {
   const clientId = process.env.NICEPAY_CLIENT_ID?.trim();
   const secretKey = process.env.NICEPAY_SECRET_KEY?.trim();
