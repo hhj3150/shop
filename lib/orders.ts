@@ -109,7 +109,7 @@ export type SlotResult = {
 };
 
 // 결제창에 넘길 서버 권위 결제금액을 주문 생성 직후 DB에서 재조회한다.
-// 브라우저가 계산한 금액은 신뢰하지 않는다 → PortOne totalAmount 는 이 값만 사용한다(C1·C3).
+// 브라우저가 계산한 금액은 신뢰하지 않는다 → 카드결제 금액은 서버(prepare)가 DB 에서 다시 읽는다(C1·C3).
 // total_amount 는 추천 적립금 차감 후 값이며, referral_credit_krw 는 차감액(표시용).
 async function fetchOrderAmounts(
   orderId: string

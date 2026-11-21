@@ -12,10 +12,10 @@
 
 /** 약관·안내 '시행일' — 화면(LegalLayout updated)과 sitemap 이 같은 값을 쓴다. */
 export const LEGAL_UPDATED = {
-  guide: "2026-11-12",
+  guide: "2026-11-21",
   // 이용약관 현행 시행일. 개정 시행일은 lib/terms-revision.ts(시행일이 되면 /terms 가 저절로 바뀐다).
-  terms: "2026-06-06",
-  privacy: "2026-11-12",
+  terms: "2026-11-19",
+  privacy: "2026-11-21",
 } as const;
 
 /** 고정 경로 → 마지막 내용 변경일. */
@@ -27,7 +27,7 @@ export const PAGE_UPDATED: Record<string, string> = {
   "/order-once": "2026-11-13",
   "/guide": LEGAL_UPDATED.guide,
   // 개정 공지를 게시한 날(시행 전 공지도 내용 변경이다).
-  "/terms": "2026-11-12",
+  "/terms": "2026-11-21",
   "/privacy": LEGAL_UPDATED.privacy,
 };
 

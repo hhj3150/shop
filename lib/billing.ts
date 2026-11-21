@@ -3,7 +3,7 @@
 // PortOne(포트원) v2 빌링키 발급창 호출 래퍼 (클라이언트 전용).
 //
 // 용도: 카드 "빌링키"를 발급받아 정기결제(주 1회 자동청구)에 사용한다.
-//   1회 결제(가상계좌/카드 단건)는 lib/portone.ts 의 startPayment 가 담당한다.
+//   1회 카드·간편결제는 나이스페이(lib/nicepay)가 담당한다. 이 파일은 미사용 빌링 준비 코드다.
 //
 // 보안: storeId/billingChannelKey 는 공개키라 브라우저 노출이 안전(NEXT_PUBLIC_).
 //   발급된 billingKey 토큰은 서버가 getBillingKeyInfo 로 검증한 뒤에만 신뢰·저장한다.

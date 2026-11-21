@@ -86,6 +86,7 @@ export function Footer() {
           <p className="mt-1">
             대표전화 {BUSINESS.tel} · {BUSINESS.mobile} · 이메일 {BUSINESS.email}
           </p>
+          <p className="mt-1">호스팅서비스 제공자 {BUSINESS.hosting}</p>
           <p className="mt-4 text-mute">
             © {new Date().getFullYear()} Song Young Shin Farm. All rights reserved.
           </p>

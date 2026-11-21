@@ -33,7 +33,7 @@ import type { NewsRow } from "@/lib/news";
 export type LlmsInput = {
   /** 오늘(KST) 기준 유효한 농장 인증. */
   certifications: readonly Certification[];
-  /** 카드·간편결제(PortOne)가 켜져 있으면 true — 결제 수단 안내가 실제와 같도록. */
+  /** 카드·간편결제(나이스페이)가 켜져 있으면 true — 결제 수단 안내가 실제와 같도록. */
   cardPayment: boolean;
   /** 손님에게 보이는 제품(가격은 DB 값 — lib/seo/live-catalog.ts). 생략하면 정적 PUBLIC_PRODUCTS. */
   products?: readonly Product[];

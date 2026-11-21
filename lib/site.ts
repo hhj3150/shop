@@ -25,6 +25,8 @@ export const BUSINESS = {
   mobile: "010-6642-5042",
   email: "d2ovet3150@gmail.com",
   privacyManager: "송영신",
+  // 호스팅서비스 제공자 — 전자상거래법상 사이버몰 운영자 표시 항목. 개인정보처리방침의 처리위탁(웹사이트 호스팅)과 같다.
+  hosting: "Netlify, Inc.",
 } as const;
 
 // 오프라인 판매처(백화점) — 홈 VisitStore·FAQ '어디서 살 수 있나요?'·llms·고객 도우미 공용 단일 출처.

@@ -43,7 +43,7 @@ export default function PrivacyPage() {
         <p>- 웹사이트 호스팅: Netlify</p>
         <p>- 주문·입금·배송 안내 문자 발송: Solapi(솔라피)</p>
         <p>- 무통장입금 자동 확인: PayAction(페이액션)</p>
-        <p>- 카드·간편결제(이용 시): PortOne(포트원)</p>
+        <p>- 카드·간편결제(이용 시): 나이스페이먼츠 주식회사</p>
         <p>- AI 음성·문자 안내(상담 응대): OpenAI</p>
       </Article>
 

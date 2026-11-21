@@ -36,7 +36,7 @@ import { useStorefrontCatalog } from "@/lib/storefront";
 import { mergeProduct, isCatalogRejection } from "@/lib/storefront-merge";
 import { notify } from "@/lib/notify";
 import { idempotencyKeyFor } from "@/lib/idempotency";
-import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
+import { startCardPayment, useCardPayEnabled } from "@/lib/nicepay/client";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
 import { FlowSteps } from "@/components/FlowSteps";
@@ -157,12 +157,13 @@ export default function CheckoutPage() {
     : { useCount: 0, creditKrw: 0, payable: periodTotal };
   const finalPayable = periodTotal - redeem.creditKrw;
 
-  // 카드·간편결제(PortOne)는 PortOne 설정 시에만, 또 선물이 아닐 때만 선택 가능하다.
+  // 카드·간편결제(나이스페이)는 서버에 키가 설정됐을 때만, 또 선물이 아닐 때만 선택 가능하다.
   //   선물은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 무통장(PayAction) 흐름으로 고정한다.
   //   연장(재입금)도 무통장 고정 — 계정 페이지의 연장 흐름과 동일(PayAction 자동확인).
-  const canPortOne = isPortOneConfigured && !isGift && !renewalMode;
-  // 실제 PortOne 결제는 무통장(BANK)이 아닌 결제수단을 골랐을 때만 사용한다.
-  const usePortOne = canPortOne && method !== "BANK";
+  const cardEnabled = useCardPayEnabled();
+  const canCard = cardEnabled && !isGift && !renewalMode;
+  // 실제 카드결제는 무통장(BANK)이 아닌 결제수단을 골랐을 때만 사용한다.
+  const payByCard = canCard && method !== "BANK";
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/checkout");
@@ -401,9 +402,10 @@ export default function CheckoutPage() {
       return;
     }
     // 무통장입금은 입금자명이 있어야 PayAction 자동매칭이 가능하다.
-    if (!usePortOne && !ship.depositorName.trim())
+    if (!payByCard && !ship.depositorName.trim())
       return failField("depositorName", "입금자명을 입력해 주세요. 입금을 자동으로 확인하는 데 필요합니다.");
-    const receiptError = validateCashReceipt(cashReceiptType, cashReceiptId);
+    // 카드결제는 카드 영수증이 나가므로 현금영수증을 받지 않는다.
+    const receiptError = payByCard ? null : validateCashReceipt(cashReceiptType, cashReceiptId);
     if (receiptError) {
       setError(receiptError);
       return;
@@ -416,8 +418,8 @@ export default function CheckoutPage() {
         isGift,
         gifterName: profile?.name ?? ship.depositorName,
         giftMessage,
-        cashReceiptType,
-        cashReceiptId,
+        cashReceiptType: payByCard ? ("발행안함" as const) : cashReceiptType,
+        cashReceiptId: payByCard ? "" : cashReceiptId,
       };
       // nonce 는 지연 생성(이벤트 핸들러 안 — 렌더 중 ref 접근 금지).
       //   키 = nonce + 주문 내용 지문. 같은 내용의 재시도는 같은 키(중복 생성 방지),
@@ -457,30 +459,16 @@ export default function CheckoutPage() {
         params.set("wait", first.waitlisted ? "1" : "0");
       }
 
-      if (usePortOne) {
-        // PortOne 결제창 호출. 모바일은 redirectUrl 로 이동하므로 아래 분기는 PC에서만 도달.
-        // 입금확인 문자는 웹훅이 보내므로 여기서 order_received 를 보내지 않는다.
-        params.set("pay", "portone");
-        const redirectUrl = `${window.location.origin}/orders/complete?${params.toString()}`;
-        const result = await startPayment({
-          paymentId: orderNo,
-          orderName: `${PERIOD_LABEL[period]} 정기구독`,
-          totalAmount: finalTotal,
-          payMethod: method as PayMethod,
-          customerName: ship.name,
-          customerPhone: ship.phone,
-          redirectUrl,
-        });
-        if (result.ok) {
-          idempotencyNonceRef.current = crypto.randomUUID(); // 결제 완료 → 다음 주문은 새 키.
-          clear();
-          router.push(`${redirectUrl}&paid=1`);
-        } else if (result.code !== "REDIRECTING") {
-          // 사용자가 취소했거나 결제 실패. 주문은 입금대기로 남아 재시도 가능.
-          //   nonce 는 회전하지 않는다 → 같은 내용으로 다시 내면 같은 주문을 재사용(중복 방지).
-          //   내용을 고쳐서 다시 내면 지문이 달라져 새 주문이 만들어진다(옛 금액 결제 방지).
-          setError(result.message);
+      if (payByCard) {
+        // 나이스페이 결제창. 결과는 서버(returnUrl)가 승인·검증 후 완료 페이지로 보낸다.
+        //   장바구니는 완료 페이지가 결제 확인 후 비운다. 결제창을 닫으면 주문은 '입금대기'로 남고,
+        //   nonce 를 유지하므로 같은 내용으로 다시 내면 같은 주문을 재사용한다(중복 방지).
+        const display: Record<string, string> = {};
+        for (const k of ["credit", "day", "pos", "wait"]) {
+          const v = params.get(k);
+          if (v) display[k] = v;
         }
+        await startCardPayment({ orderNo, phone: ship.phone, display }, (msg) => setError(msg));
         return;
       }
 
@@ -634,17 +622,17 @@ export default function CheckoutPage() {
         )}
       </div>
 
-      {/* 결제수단: PortOne 설정 시 무통장/카드/간편결제 선택, 무통장(또는 선물·미설정) 시 계좌 안내 */}
+      {/* 결제수단: 나이스페이 키 설정 시 무통장/카드·간편결제 선택, 무통장(또는 선물·미설정) 시 계좌 안내 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
-        {canPortOne && <PayMethodSelect value={method} onChange={setMethod} />}
-        {usePortOne ? (
+        {canCard && <PayMethodSelect value={method} onChange={setMethod} />}
+        {payByCard ? (
           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
             {PERIOD_LABEL[period]}분({weeks}회) {formatKRW(finalPayable)}을 한 번에 결제합니다.
             결제가 확인되는 즉시 발송이 시작됩니다.
           </p>
         ) : (
-          <div className={canPortOne ? "mt-4" : ""}>
-            {!canPortOne && (
+          <div className={canCard ? "mt-4" : ""}>
+            {!canCard && (
               <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
                 무통장입금
               </p>
@@ -751,15 +739,15 @@ export default function CheckoutPage() {
               </>
             )}
 
-            <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." error={errorFor("depositorName")} value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
+            {!payByCard && <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." error={errorFor("depositorName")} value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />}
             <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
-            <CashReceiptFields
+            {!payByCard && (<CashReceiptFields
               type={cashReceiptType}
               id={cashReceiptId}
               onTypeChange={setCashReceiptType}
               onIdChange={setCashReceiptId}
-            />
+            />)}
 
             <p className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-3 text-[14px] leading-relaxed text-gold-deep">
               선택한 요일에 매주 한 번. {PERIOD_LABEL[period]}분({weeks}회)을 한 번에 입금하면
@@ -852,19 +840,19 @@ export default function CheckoutPage() {
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy
-            ? usePortOne
+            ? payByCard
               ? "결제 진행 중…"
               : "신청 접수 중…"
             : renewalMode
               ? "구독 연장하고 입금 안내 받기"
-              : usePortOne
+              : payByCard
                 ? "구독 신청하고 결제하기"
                 : "구독 신청하고 입금 안내 받기"}
         </button>
         <p className="text-center text-[12px] text-mute">
           {renewalMode
             ? "입금이 확인되면 다음 회차 블록부터 연장돼요."
-            : usePortOne
+            : payByCard
               ? "결제가 확인되면 발송이 시작됩니다."
               : "입금이 확인되면 자동으로 발송해 드려요."}
         </p>
@@ -877,7 +865,7 @@ export default function CheckoutPage() {
         watchId="checkout-submit"
         caption={`${PERIOD_LABEL[period]}분(${weeks}회) 입금액`}
         amount={finalPayable}
-        label={busy ? "접수 중…" : renewalMode ? "연장 신청" : usePortOne ? "결제하기" : "신청하기"}
+        label={busy ? "접수 중…" : renewalMode ? "연장 신청" : payByCard ? "결제하기" : "신청하기"}
         disabled={
           busy ||
           hasBlocked ||

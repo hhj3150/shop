@@ -2,14 +2,14 @@
 
 // 체크아웃 결제수단.
 //   - BANK(무통장입금): 농협 계좌 직접입금 → PayAction 이 자동 매칭·확인.
-//   - CARD / EASY_PAY: PortOne 즉시 결제.
-export type CheckoutMethod = "BANK" | "CARD" | "EASY_PAY";
+//   - CARD: 나이스페이 결제창. 기본은 카드만, 간편결제 스위치(NICEPAY_EASYPAY)가 켜지면 카드+간편결제.
+import { useEasyPayEnabled } from "@/lib/nicepay/client";
 
-const OPTIONS: { value: CheckoutMethod; label: string; hint: string }[] = [
-  { value: "BANK", label: "무통장입금", hint: "계좌로 입금하면 자동 확인됩니다" },
-  { value: "CARD", label: "카드", hint: "신용·체크카드 즉시 결제" },
-  { value: "EASY_PAY", label: "간편결제", hint: "카카오페이·네이버페이 등" },
-];
+export type CheckoutMethod = "BANK" | "CARD";
+
+const BANK = { value: "BANK" as const, label: "무통장입금", hint: "계좌로 입금하면 자동 확인됩니다" };
+const CARD_ONLY = { value: "CARD" as const, label: "카드", hint: "신용·체크카드 즉시 결제" };
+const CARD_EASY = { value: "CARD" as const, label: "카드/간편결제", hint: "신용·체크카드, 카카오페이·네이버페이 등 즉시 결제" };
 
 export function PayMethodSelect({
   value,
@@ -18,12 +18,13 @@ export function PayMethodSelect({
   value: CheckoutMethod;
   onChange: (m: CheckoutMethod) => void;
 }) {
+  const OPTIONS = [BANK, useEasyPayEnabled() ? CARD_EASY : CARD_ONLY];
   return (
     <fieldset className="space-y-2">
       <legend className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">
         결제수단
       </legend>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {OPTIONS.map((opt) => {
           const active = value === opt.value;
           return (
