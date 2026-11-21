@@ -69,6 +69,7 @@ import { loadShippedKeys, loadDeliveredKeys } from "@/lib/inventory-data";
 import { loadReschedules } from "@/lib/shipment-reschedule-data";
 import { formatShortDate, type ShipmentReschedule } from "@/lib/shipment-reschedule";
 import { ReturnsPanel } from "@/components/ReturnsPanel";
+import { CardPaymentsPanel } from "@/components/CardPaymentsPanel";
 import { loadReturns, type OrderReturn } from "@/lib/returns";
 import { splitDemandByKind, buildWeeklyMatrix } from "@/lib/production-demand";
 import { duplicateIds, normalizePhone } from "@/lib/duplicates";
@@ -1053,6 +1054,15 @@ export default function AdminPage() {
   }
 
   async function updateStatus(order: OrderRow, status: string) {
+    // 카드·간편결제 주문을 상태만 '취소'로 바꾸면 카드 결제는 그대로 남는다(환불 누락).
+    //   '환불·교환' 탭의 카드·간편결제 취소로 처리해야 PG 취소와 주문 취소가 함께 된다.
+    if (status === "취소" && order.pay_method && !order.pay_method.startsWith("무통장")) {
+      alert(
+        `${order.order_no}는 ${order.pay_method} 결제 주문입니다.\n` +
+          `'환불·교환' 탭의 [카드·간편결제 취소]에서 취소해 주세요. 그래야 카드 결제도 함께 취소됩니다.`
+      );
+      return;
+    }
     // 실수 방지: '취소'는 되돌리기 어렵고 연결된 구독·환불이 자동 처리되지 않으므로 확인받는다.
     if (
       status === "취소" &&
@@ -1611,6 +1621,7 @@ export default function AdminPage() {
       )}
 
       {tab === "환불·교환" && <ReturnsPanel orders={orders} />}
+      {tab === "환불·교환" && <CardPaymentsPanel />}
 
       {tab === "정산·세금" && (
         <>

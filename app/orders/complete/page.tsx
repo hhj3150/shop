@@ -36,7 +36,8 @@ function Complete() {
   const amount = Number(sp.get("amount") ?? "0");
   // 추천 적립금 차감액(있을 때만). amount 는 이미 차감 후 입금액(서버 권위값).
   const credit = Number(sp.get("credit") ?? "0");
-  const isPortOne = sp.get("pay") === "portone";
+  // 카드·간편결제(나이스페이): 서버 returnUrl 이 승인·검증 후 pay=card 로 보낸다(실패면 payfail=사유).
+  const isCard = sp.get("pay") === "card";
   // 비회원 주문: '내 주문 보기'(로그인 필요) 대신 주문번호 보관 안내를 노출한다.
   const isGuest = sp.get("guest") === "1";
   // 1회 구매에서 방금 산 대표 제품(표시용) — 공개 제품이 아니면 null → 일반 문구.
@@ -44,28 +45,28 @@ function Complete() {
   // 구독 연장(재입금): 체크아웃에서 같은 요일 활성 구독이 감지돼 연장으로 접수된 경우.
   //   새 슬롯·선착순 순번이 없고, 입금 확인 시 다음 회차 블록부터 이어진다.
   const isRenew = sp.get("renew") === "1";
-  // PortOne 리디렉션 실패 시 code/message 가 쿼리로 돌아온다.
-  const failCode = sp.get("code");
-  const failMessage = sp.get("message");
+  // 카드결제 실패 사유(서버가 정한 코드) → 손님 문구. 결제 정보는 서버가 정하므로 문구도 코드로만 받는다.
+  const failCode = sp.get("payfail");
+  const failMessage = cardFailMessage(failCode);
 
   // 퍼널: 주문이 실제로 접수된 경우에만(주문번호 있고 결제실패 아님) 1회 기록.
   useEffect(() => {
-    if (orderNo && !(isPortOne && failCode)) track("purchase", { once: true });
-  }, [orderNo, isPortOne, failCode]);
+    if (orderNo && !(isCard && failCode)) track("purchase", { once: true });
+  }, [orderNo, isCard, failCode]);
 
-  // 모바일 PortOne 결제는 redirectUrl 로 페이지가 통째로 이동해 체크아웃의 clear() 에
+  // 카드결제는 결제창 → 서버 → 이 페이지로 통째로 이동해 체크아웃의 clear() 에
   //   도달하지 못한다 → 완료 페이지 도착(주문 접수 확정) 시 장바구니를 비운다.
-  //   데스크톱·무통장 경로는 이미 비워져 있어 no-op. 단품(type=once)은 영속 장바구니를
+  //   (카드결제도 서버 returnUrl 을 거쳐 이 페이지로 온다.) 무통장 경로는 이미 비워져 있어 no-op. 단품(type=once)은 영속 장바구니를
   //   쓰지 않으므로 제외, 결제 실패 리디렉션도 제외. ref 가드로 1회만 실행(무한 루프 방지).
   const { clear } = useCart();
   const clearedRef = useRef(false);
   useEffect(() => {
     if (clearedRef.current) return;
-    if (orderNo && !isOnce && !(isPortOne && failCode)) {
+    if (orderNo && !isOnce && !(isCard && failCode)) {
       clearedRef.current = true;
       clear();
     }
-  }, [orderNo, isOnce, isPortOne, failCode, clear]);
+  }, [orderNo, isOnce, isCard, failCode, clear]);
 
   // 유입 루프 — 막 주문한 peak 순간에 '선물(받는 분=신규 리드)' + '친구 추천(가입=신규 리드)'을
   //   권한다. 사장님 철학("물어물어 찾아옴")의 정공법: 광고가 아니라 만족한 고객이 데려온다.
@@ -88,8 +89,8 @@ function Complete() {
     </>
   );
 
-  // PortOne 결제 실패/취소 → 재시도 안내.
-  if (isPortOne && failCode) {
+  // 카드결제 실패/취소 → 재시도 안내.
+  if (isCard && failCode) {
     return (
       <div className="mx-auto max-w-md px-5 pb-24 pt-32 text-center sm:px-8">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
@@ -98,7 +99,7 @@ function Complete() {
           </svg>
         </div>
         <h1 className="mt-7 font-serif-kr text-[26px] font-medium leading-tight tracking-[-0.01em] text-ink">
-          결제가 완료되지 않았습니다
+          {failCode === "pending_confirm" ? "결제 확인 중입니다" : "결제가 완료되지 않았습니다"}
         </h1>
         {orderNo && (
           <p className="mt-3 inline-block rounded-full border border-line bg-cream/80 px-3.5 py-1.5 text-[13px] tabular-nums text-mute">주문번호 {orderNo}</p>
@@ -106,7 +107,9 @@ function Complete() {
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-[14px] leading-relaxed text-red-700">
           {failMessage || "결제가 취소되었거나 승인되지 않았습니다."}{" "}
           <br className="hidden sm:block" />
-          주문은 입금 대기 상태로 남아 있으니 다시 시도하실 수 있습니다.
+          {failCode === "pending_confirm"
+            ? "같은 주문을 다시 결제하지 마시고, 잠시 후 '내 주문'에서 확인해 주세요."
+            : "주문은 입금 대기 상태로 남아 있으니 다시 시도하실 수 있습니다."}
         </div>
         <div className="mt-9 flex justify-center gap-3">
           <Link href={isOnce ? "/order-once" : "/#subscribe"} className="rounded-full bg-ink px-6 py-3 text-sm text-cream hover:bg-gold-deep">
@@ -137,17 +140,16 @@ function Complete() {
 
         {ship && (
           <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/10 px-5 py-4 text-[14px] leading-relaxed text-gold-deep">
-            {isPortOne ? "결제가 확인되면 " : "입금이 확인되면 "}
+            {isCard ? "결제가 확인되면 " : "입금이 확인되면 "}
             <span className="font-semibold">{ship}</span>에 발송됩니다.{" "}
             <br className="hidden sm:block" />
             (발송은 월–금에만 진행됩니다.)
           </div>
         )}
 
-        {isPortOne ? (
+        {isCard ? (
           <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 px-5 py-4 text-[14px] leading-relaxed text-ink-soft">
-            결제가 접수되었습니다. 가상계좌로 결제하신 경우 안내된 계좌로 입금하시면
-            자동으로 확인되며, 카드·간편결제는 즉시 확인됩니다. 확인 후 발송을 준비하고
+            결제가 완료되었습니다{amount > 0 ? ` (${amount.toLocaleString("ko-KR")}원)` : ""}. 발송을 준비하고
             등록하신 번호로 안내드립니다.
           </div>
         ) : (
@@ -296,10 +298,9 @@ function Complete() {
         </div>
       )}
 
-      {isPortOne ? (
+      {isCard ? (
         <div className="mt-6 rounded-2xl border border-gold/40 bg-gold/5 px-5 py-4 text-[14px] leading-relaxed text-ink-soft">
-          결제가 접수되었습니다. 가상계좌로 결제하신 경우 안내된 계좌로 입금하시면
-          자동으로 확인되며, 카드·간편결제는 즉시 확인됩니다. 확인 후 발송을 준비하고
+          결제가 완료되었습니다{amount > 0 ? ` (${amount.toLocaleString("ko-KR")}원)` : ""}. 발송을 준비하고
           등록하신 번호로 안내드립니다.
         </div>
       ) : (
@@ -349,4 +350,36 @@ function Complete() {
       </div>
     </div>
   );
+}
+
+// 카드결제 실패 사유 코드(app/api/payments/nicepay/return) → 손님 안내 문구.
+function cardFailMessage(code: string | null): string {
+  switch (code) {
+    case "closed":
+      return "결제창이 닫혀 결제되지 않았습니다.";
+    case "approve_failed":
+      return "카드사(간편결제사) 승인이 이뤄지지 않았습니다.";
+    case "amount_mismatch":
+    case "bad_signature":
+    case "client_mismatch":
+    case "bad_input":
+      return "결제 정보가 주문과 맞지 않아 결제를 진행하지 않았습니다. 청구된 금액은 없습니다.";
+    case "unknown":
+      return "결제 응답을 받지 못해 결제를 취소했습니다. 승인 문자를 받으셨다면 자동으로 취소됩니다.";
+    case "verify_failed":
+    case "confirm_failed":
+      return "결제 확인에 실패해 결제를 자동으로 취소했습니다.";
+    case "pending_confirm":
+      return "결제는 완료되었고, 주문 확인이 조금 늦어지고 있습니다.";
+    case "order_cancelled_refunded":
+      return "이미 취소된 주문이라 결제를 자동으로 취소했습니다.";
+    case "order_cancelled":
+      return "이미 취소된 주문입니다. 결제 금액은 확인 후 환불해 드립니다.";
+    case "not_payable":
+      return "이미 결제되었거나 결제할 수 없는 주문입니다.";
+    case "not_configured":
+      return "카드결제를 잠시 이용할 수 없습니다. 무통장입금을 이용해 주세요.";
+    default:
+      return "결제가 취소되었거나 승인되지 않았습니다.";
+  }
 }

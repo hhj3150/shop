@@ -31,7 +31,7 @@ import { useStorefrontCatalog } from "@/lib/storefront";
 import { visibleProducts, isCatalogRejection, type CommercialRow } from "@/lib/storefront-merge";
 import { notify, notifyGuestOrder } from "@/lib/notify";
 import { idempotencyKeyFor } from "@/lib/idempotency";
-import { isPortOneConfigured, startPayment, type PayMethod } from "@/lib/portone";
+import { startCardPayment, useCardPayEnabled } from "@/lib/nicepay/client";
 import { nextDispatchDate, formatDispatch, ONCE_DISPATCH_RULE } from "@/lib/ship-date";
 import { PayMethodSelect, type CheckoutMethod } from "@/components/PayMethodSelect";
 import { Field } from "@/components/Field";
@@ -120,11 +120,12 @@ function OrderOnce({ staticView, initialCatalog }: Props) {
   );
   const map = liveMap.size > 0 ? liveMap : initialMap;
 
-  // 카드·간편결제(PortOne)는 PortOne 설정 시·선물이 아닐 때만 선택 가능하다.
+  // 카드·간편결제(나이스페이)는 서버에 키가 설정됐을 때만, 또 선물이 아닐 때만 선택 가능하다.
   //   선물은 입금확인 문자가 받는 분에게 잘못 갈 수 있어 무통장(PayAction) 흐름으로 고정한다.
-  const canPortOne = isPortOneConfigured && !isGift;
-  // 실제 PortOne 결제는 무통장(BANK)이 아닌 결제수단을 골랐을 때만 사용한다.
-  const usePortOne = canPortOne && method !== "BANK";
+  const cardEnabled = useCardPayEnabled();
+  const canCard = cardEnabled && !isGift;
+  // 실제 카드결제는 무통장(BANK)이 아닌 결제수단을 골랐을 때만 사용한다.
+  const payByCard = canCard && method !== "BANK";
 
   // 단품 1회 구매는 비회원(게스트)도 가능하다 → 로그인 강제 리디렉션 없음.
   // 선물하기·정기구독 등 회원 전용 기능만 user 유무로 분기한다.
@@ -295,9 +296,10 @@ function OrderOnce({ staticView, initialCatalog }: Props) {
       return;
     }
     // 무통장입금은 입금자명이 있어야 PayAction 자동매칭이 가능하다.
-    if (!usePortOne && !ship.depositorName.trim())
+    if (!payByCard && !ship.depositorName.trim())
       return failField("depositorName", "입금자명을 입력해 주세요. 입금을 자동으로 확인하는 데 필요합니다.");
-    const receiptError = validateCashReceipt(cashReceiptType, cashReceiptId);
+    // 카드결제는 카드 영수증이 나가므로 현금영수증을 받지 않는다.
+    const receiptError = payByCard ? null : validateCashReceipt(cashReceiptType, cashReceiptId);
     if (receiptError) {
       setError(receiptError);
       return;
@@ -315,8 +317,8 @@ function OrderOnce({ staticView, initialCatalog }: Props) {
         isGift,
         gifterName: profile?.name ?? ship.depositorName,
         giftMessage,
-        cashReceiptType,
-        cashReceiptId,
+        cashReceiptType: payByCard ? ("발행안함" as const) : cashReceiptType,
+        cashReceiptId: payByCard ? "" : cashReceiptId,
       };
       // nonce 는 지연 생성(이벤트 핸들러 안 — 렌더 중 ref 접근 금지).
       //   키 = nonce + 주문 내용 지문. 같은 내용의 재시도는 같은 키(중복 생성 방지),
@@ -360,32 +362,15 @@ function OrderOnce({ staticView, initialCatalog }: Props) {
       const bridgeItem = isGift ? null : pickBridgeItem(items);
       if (bridgeItem) params.set("item", bridgeItem);
 
-      if (usePortOne) {
-        // PortOne 결제창 호출. 모바일은 redirectUrl 로 이동하므로 아래 분기는 PC에서만 도달.
-        // 입금확인 문자는 웹훅이 보내므로 여기서 order_received 를 보내지 않는다.
-        const firstName = getProduct(items[0].productId)?.name ?? "단품";
-        // '외 N건'은 품목 수 기준(총수량 아님) — 한 상품 3병이 '외 2건'으로 보이지 않게.
-        const orderName =
-          items.length > 1 ? `${firstName} 외 ${items.length - 1}건` : firstName;
-        params.set("pay", "portone");
-        const redirectUrl = `${window.location.origin}/orders/complete?${params.toString()}`;
-        const result = await startPayment({
-          paymentId: orderNo,
-          orderName,
-          totalAmount: finalTotal,
-          payMethod: method as PayMethod,
-          customerName: ship.name,
-          customerPhone: ship.phone,
-          redirectUrl,
-        });
-        if (result.ok) {
-          idempotencyNonceRef.current = crypto.randomUUID(); // 결제 완료 → 다음 주문은 새 키.
-          router.push(`${redirectUrl}&paid=1`);
-        } else if (result.code !== "REDIRECTING") {
-          // 취소·실패: 주문은 입금대기로 남아 재시도 가능. nonce 유지 → 같은 내용이면
-          //   같은 주문 재사용(중복 방지). 내용을 고치면 지문이 달라져 새 주문이 만들어진다.
-          setError(result.message);
+      if (payByCard) {
+        // 나이스페이 결제창. 결과는 서버(returnUrl)가 승인·검증 후 완료 페이지로 보낸다.
+        //   결제창을 닫으면 주문은 '입금대기'로 남고 nonce 유지 → 같은 내용이면 같은 주문 재사용.
+        const display: Record<string, string> = {};
+        for (const k of ["type", "ship", "guest", "item", "credit"]) {
+          const v = params.get(k);
+          if (v) display[k] = v;
         }
+        await startCardPayment({ orderNo, phone: ship.phone, display }, (msg) => setError(msg));
         return;
       }
 
@@ -561,14 +546,14 @@ function OrderOnce({ staticView, initialCatalog }: Props) {
 
       {/* 결제수단: PortOne 설정 시 무통장/카드/간편결제 선택, 무통장(또는 선물·미설정) 시 계좌 안내 */}
       <div className="mt-5 rounded-2xl border border-gold/40 bg-gold/5 p-5">
-        {canPortOne && <PayMethodSelect value={method} onChange={setMethod} />}
-        {usePortOne ? (
+        {canCard && <PayMethodSelect value={method} onChange={setMethod} />}
+        {payByCard ? (
           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
             {formatKRW(finalPayable)}을 결제합니다. 결제가 확인되는 즉시 발송됩니다.
           </p>
         ) : (
-          <div className={canPortOne ? "mt-4" : ""}>
-            {!canPortOne && (
+          <div className={canCard ? "mt-4" : ""}>
+            {!canCard && (
               <p className="text-[13px] uppercase tracking-[0.18em] text-gold-deep">무통장입금</p>
             )}
             <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
@@ -637,15 +622,15 @@ function OrderOnce({ staticView, initialCatalog }: Props) {
           </>
         )}
 
-        <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." error={errorFor("depositorName")} value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />
+        {!payByCard && <Field id="depositorName" label="입금자명" hint="통장에 찍히는 이름 그대로 적어 주세요. 괄호·메모(예: (98예준))는 자동 입금 확인이 안 되니 빼 주세요." error={errorFor("depositorName")} value={ship.depositorName} onChange={(e) => update("depositorName", e.target.value)} />}
         <Field id="memo" label="배송 메모 (선택)" value={ship.memo} onChange={(e) => update("memo", e.target.value)} />
 
-        <CashReceiptFields
+        {!payByCard && (<CashReceiptFields
           type={cashReceiptType}
           id={cashReceiptId}
           onTypeChange={setCashReceiptType}
           onIdChange={setCashReceiptId}
-        />
+        />)}
 
         {error && (
           <p ref={errorRef} role="alert" className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
@@ -674,15 +659,15 @@ function OrderOnce({ staticView, initialCatalog }: Props) {
           className="w-full rounded-full bg-ink py-4 text-sm font-medium tracking-wide text-cream transition-colors hover:bg-gold-deep disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy
-            ? usePortOne
+            ? payByCard
               ? "결제 진행 중…"
               : "주문 접수 중…"
-            : usePortOne
+            : payByCard
               ? `${formatKRW(finalPayable)} 결제하고 주문하기`
               : `${formatKRW(finalPayable)} 입금하고 주문하기`}
         </button>
         <p className="text-center text-[12px] text-mute">
-          {usePortOne
+          {payByCard
             ? `결제가 확인되면 ${dispatch}에 발송됩니다.`
             : `입금이 확인되면 ${dispatch}에 정성껏 발송해 드려요.`}
         </p>
@@ -700,7 +685,7 @@ function OrderOnce({ staticView, initialCatalog }: Props) {
       <StickySubmitBar
         formId="once-form"
         watchId="once-submit"
-        caption={count === 0 ? "수량을 먼저 골라 주세요" : usePortOne ? "결제 금액 · 배송비 포함" : "입금 금액 · 배송비 포함"}
+        caption={count === 0 ? "수량을 먼저 골라 주세요" : payByCard ? "결제 금액 · 배송비 포함" : "입금 금액 · 배송비 포함"}
         amount={finalPayable}
         label={busy ? "접수 중…" : "주문하기"}
         disabled={busy || (!pickup && isSpecialRegion && !acceptFresh)}
