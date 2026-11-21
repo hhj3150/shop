@@ -5,6 +5,15 @@ import path from "node:path";
 // (dev/build 스크립트에 --webpack 지정)
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  // 사이트 안 웹폰트(public/fonts) — 파일 이름에 내용 해시가 있어 바뀌지 않는다. 1년 캐시.
+  async headers() {
+    return [
+      {
+        source: "/fonts/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

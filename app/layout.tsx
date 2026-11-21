@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_KR, Noto_Serif_KR, Cormorant_Garamond } from "next/font/google";
+import { preload } from "react-dom";
+import "./fonts.css";
 import "./globals.css";
 import { SITE_URL } from "@/lib/site";
 import { CartProvider } from "@/lib/cart";
@@ -23,36 +24,10 @@ import { SITE_TITLE_DEFAULT, SITE_DESCRIPTION } from "@/lib/seo/copy";
 import { activeCertifications } from "@/lib/certifications";
 import { kstYmd } from "@/lib/kst";
 
-// ★ 한글 두 서체는 '가변 글꼴(variable)' 하나로 받는다 — weight 를 나열하지 않는다.
-//   한글 웹폰트는 글자 수가 많아 구글이 약 120조각으로 쪼개 주는데, 굵기를 따로 나열하면
-//   조각 × 굵기만큼 @font-face 가 생긴다. 예전 설정(본문 4굵기·명조 3굵기)은 @font-face 가
-//   870개, 화면을 막는(render-blocking) CSS 가 540KB(전송 173KB)였고, 느린 모바일에서
-//   첫 주요 화면(LCP)이 홈 9.4초까지 밀렸다(Lighthouse 실측).
-//   가변 글꼴은 굵기 전 구간이 한 파일이라 @font-face 가 조각 수만큼만 생긴다.
-//   400·500·600·700 은 그대로 다 쓸 수 있다.
-const notoSans = Noto_Sans_KR({
-  variable: "--font-noto-sans",
-  subsets: ["latin"],
-  display: "swap",
-  // 한글 본문 폰트는 latin 서브셋 preload가 무용하고 LCP 이미지와 대역폭을
-  // 경쟁한다. preload 해제 → LCP 우선, display:swap이 폴백으로 첫 페인트 보장.
-  preload: false,
-});
-
-const notoSerif = Noto_Serif_KR({
-  variable: "--font-noto-serif",
-  subsets: ["latin"],
-  display: "swap",
-  preload: false,
-});
-
-const cormorant = Cormorant_Garamond({
-  variable: "--font-cormorant",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  style: ["normal", "italic"],
-  display: "swap",
-});
+// 웹폰트는 사이트 안에 둔다(app/fonts.css + public/fonts) — 빌드 때 구글 폰트에 묻지 않는다.
+//   예전 next/font/google 설정을 그대로 옮겼다: 한글 두 서체는 가변 글꼴(굵기 전 구간 한 파일 × 유니코드 조각),
+//   preload 없음(LCP 이미지와 대역폭 경쟁 방지 — 2026 Lighthouse 실측), 제목용 Cormorant 라틴 조각 2개만 preload.
+const PRELOAD_FONTS = ["/fonts/7b89a4fd5e90ede0-s.p.woff2", "/fonts/e18f83c737786aa7-s.p.woff2"];
 
 // 루트 메타데이터 — 개별 문구가 없는 페이지의 기본값.
 //   ★ openGraph·twitter 에 title/description 을 넣지 않는다. 넣으면 개별 openGraph 가 없는 페이지까지
@@ -93,10 +68,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  for (const href of PRELOAD_FONTS) preload(href, { as: "font", type: "font/woff2", crossOrigin: "" });
   return (
     <html
       lang="ko"
-      className={`${notoSans.variable} ${notoSerif.variable} ${cormorant.variable} h-full`}
+      className="h-full"
     >
       <body className="min-h-full flex flex-col bg-paper text-ink-soft">
         <AuthProvider>
