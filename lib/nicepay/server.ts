@@ -14,6 +14,18 @@ export function nicepaySwitchOn(): boolean {
   return (process.env.NICEPAY_ENABLED ?? "").trim().toLowerCase() === "true";
 }
 
+// 간편결제 스위치. NICEPAY_EASYPAY=true 일 때만 결제창에 간편결제(카카오페이·네이버페이 등)를 함께 띄운다.
+//   상점에서 간편결제가 승인되지 않았는데 띄우면 손님이 고를 수 없는 수단이 보인다(2026-11 기준 운영 상점 간편결제 전부 꺼짐).
+//   기본은 카드만(method=card).
+export function nicepayEasyPayOn(): boolean {
+  return (process.env.NICEPAY_EASYPAY ?? "").trim().toLowerCase() === "true";
+}
+
+// 결제창 method — 매뉴얼 허용값 중 card / cardAndEasyPay.
+export function nicepayWindowMethod(): "card" | "cardAndEasyPay" {
+  return nicepayEasyPayOn() ? "cardAndEasyPay" : "card";
+}
+
 // 손님 결제용 설정 — 스위치가 켜지고 키가 모두 있을 때만.
 export function nicepayCheckoutConfig(): NicepayConfig | null {
   return nicepaySwitchOn() ? nicepayConfig() : null;

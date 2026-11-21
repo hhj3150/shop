@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { nicepayCheckoutConfig } from "@/lib/nicepay/server";
+import { nicepayCheckoutConfig, nicepayEasyPayOn, nicepayWindowMethod } from "@/lib/nicepay/server";
 import { goodsNameFor, paymentTaxFreeAmount } from "@/lib/nicepay/core";
 import { anonClient, loadOrder } from "@/lib/nicepay/settle";
 import { getProduct } from "@/lib/products";
@@ -14,7 +14,8 @@ const digits = (s: unknown) => (typeof s === "string" ? s.replace(/\D/g, "") : "
 
 // 결제수단 화면용: 카드결제를 보여도 되는지(스위치 + 키)만 알려 준다. 꺼져 있으면 {enabled:false} — 오류가 아니다.
 export async function GET() {
-  return NextResponse.json({ enabled: Boolean(nicepayCheckoutConfig() && process.env.CONFIRM_PAYMENT_SECRET) });
+  const enabled = Boolean(nicepayCheckoutConfig() && process.env.CONFIRM_PAYMENT_SECRET);
+  return NextResponse.json({ enabled, easyPay: enabled && nicepayEasyPayOn() });
 }
 
 export async function POST(req: Request) {
@@ -61,6 +62,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     clientId: cfg.clientId,
+    method: nicepayWindowMethod(),
     orderId: order.order_no,
     amount: order.total_amount,
     taxFreeAmt: paymentTaxFreeAmount(order),

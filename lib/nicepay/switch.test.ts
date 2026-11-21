@@ -41,3 +41,15 @@ describe("카드결제 스위치(NICEPAY_ENABLED)", () => {
     expect(nicepayCheckoutConfig()).toBeNull();
   });
 });
+
+import { nicepayWindowMethod } from "./server";
+describe("간편결제 스위치(NICEPAY_EASYPAY)", () => {
+  it("기본은 카드만", () => {
+    vi.stubEnv("NICEPAY_EASYPAY", "");
+    expect(nicepayWindowMethod()).toBe("card");
+  });
+  it("true 면 카드+간편결제", () => {
+    vi.stubEnv("NICEPAY_EASYPAY", "true");
+    expect(nicepayWindowMethod()).toBe("cardAndEasyPay");
+  });
+});

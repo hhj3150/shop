@@ -53,6 +53,7 @@ export async function startCardPayment(ctx: CardPayContext, onWindowError: (msg:
     ok?: boolean;
     reason?: string;
     clientId?: string;
+    method?: string;
     orderId?: string;
     amount?: number;
     taxFreeAmt?: number;
@@ -75,7 +76,7 @@ export async function startCardPayment(ctx: CardPayContext, onWindowError: (msg:
   const mallReserved = new URLSearchParams(ctx.display).toString().slice(0, 500);
   sdk.requestPay({
     clientId: p.clientId,
-    method: "cardAndEasyPay",
+    method: p.method === "cardAndEasyPay" ? "cardAndEasyPay" : "card",
     orderId: p.orderId,
     amount: p.amount,
     taxFreeAmt: p.taxFreeAmt,
@@ -99,19 +100,29 @@ export async function startCardPayment(ctx: CardPayContext, onWindowError: (msg:
 // 카드결제 사용 가능 여부 — 서버에 나이스페이 키가 설정돼 있을 때만 결제수단에 '카드/간편결제'를 보인다.
 //   키가 없는 환경(운영 전환 전 등)에서는 지금처럼 무통장입금만 보인다(라이브 무중단).
 
-let enabledCache: Promise<boolean> | null = null;
-export function useCardPayEnabled(): boolean {
-  const [enabled, setEnabled] = useState(false);
+type PayOptions = { enabled: boolean; easyPay: boolean };
+let optionsCache: Promise<PayOptions> | null = null;
+function usePayOptions(): PayOptions {
+  const [opts, setOpts] = useState<PayOptions>({ enabled: false, easyPay: false });
   useEffect(() => {
     let alive = true;
-    enabledCache ??= fetch("/api/payments/nicepay/prepare", { cache: "no-store" })
+    optionsCache ??= fetch("/api/payments/nicepay/prepare", { cache: "no-store" })
       .then((r) => r.json())
-      .then((j: { enabled?: boolean }) => Boolean(j?.enabled))
-      .catch(() => false);
-    enabledCache.then((v) => alive && setEnabled(v));
+      .then((j: { enabled?: boolean; easyPay?: boolean }) => ({ enabled: Boolean(j?.enabled), easyPay: Boolean(j?.easyPay) }))
+      .catch(() => ({ enabled: false, easyPay: false }));
+    optionsCache.then((v) => alive && setOpts(v));
     return () => {
       alive = false;
     };
   }, []);
-  return enabled;
+  return opts;
+}
+
+export function useCardPayEnabled(): boolean {
+  return usePayOptions().enabled;
+}
+
+// 간편결제까지 열렸는지(NICEPAY_EASYPAY) — 결제수단 이름을 '카드' / '카드/간편결제'로 바꿔 보인다.
+export function useEasyPayEnabled(): boolean {
+  return usePayOptions().easyPay;
 }
