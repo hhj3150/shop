@@ -2,6 +2,7 @@
 //   조회: 재고 현황(product_catalog) · 원장 이력(stock_movements) · 출고 이력(shipment_log).
 import { getSupabase } from "@/lib/supabase";
 import type { MovementKind } from "@/lib/inventory";
+import { fetchAllPages } from "@/lib/fetch-all-pages";
 
 // 재고 현황 1행(현재고·안전재고 포함). product_catalog 의 재고 관점 뷰.
 export type InventoryRow = {
@@ -92,14 +93,20 @@ export async function loadExpiries(): Promise<Map<string, string[]>> {
 export async function loadShippedKeys(): Promise<Map<string, string | null>> {
   try {
     const sb = getSupabase();
-    const { data, error } = await sb
-      .from("shipment_log")
-      .select("order_id, ship_date, shipped_at");
-    if (error) throw error;
+    // ★ 1000행 상한을 넘어도 빠짐없이 — (order_id, ship_date) 가 유일하므로 그 순서로 자른다.
+    const data = await fetchAllPages<{ order_id: string; ship_date: string; shipped_at: string | null }>(
+      (from, to, withCount) =>
+        sb
+          .from("shipment_log")
+          .select("order_id, ship_date, shipped_at", withCount ? { count: "exact" } : undefined)
+          .order("ship_date", { ascending: true })
+          .order("order_id", { ascending: true })
+          .range(from, to)
+    );
     // 값은 '실제 출고 시각'(송장을 기록한 순간). 지난 배송에 안내 문자가 나가지 않도록
     //   배송판이 이 값으로 신선도를 판정한다(서버 /api/notify 와 같은 기준).
     return new Map(
-      (data ?? []).map((r) => [
+      data.map((r) => [
         `${r.order_id}|${r.ship_date}`,
         (r.shipped_at as string | null) ?? null,
       ])
@@ -115,14 +122,16 @@ export async function loadShippedKeys(): Promise<Map<string, string | null>> {
 export async function loadDeliveredKeys(): Promise<Set<string>> {
   try {
     const sb = getSupabase();
-    const { data, error } = await sb
-      .from("shipment_log")
-      .select("order_id, ship_date")
-      .not("delivered_at", "is", null);
-    if (error) throw error;
-    return new Set(
-      (data ?? []).map((r) => `${r.order_id}|${r.ship_date}`)
+    const data = await fetchAllPages<{ order_id: string; ship_date: string }>((from, to, withCount) =>
+      sb
+        .from("shipment_log")
+        .select("order_id, ship_date", withCount ? { count: "exact" } : undefined)
+        .not("delivered_at", "is", null)
+        .order("ship_date", { ascending: true })
+        .order("order_id", { ascending: true })
+        .range(from, to)
     );
+    return new Set(data.map((r) => `${r.order_id}|${r.ship_date}`));
   } catch (error) {
     console.error("배송완료 이력 조회 실패:", error);
     throw new Error("배송완료 이력을 불러오지 못했습니다.");
@@ -137,13 +146,17 @@ export async function loadShipmentStatRows(
 ): Promise<{ shipped_at: string | null; delivered_at: string | null; courier: string | null }[]> {
   try {
     const sb = getSupabase();
-    const { data, error } = await sb
-      .from("shipment_log")
-      .select("shipped_at, delivered_at, courier")
-      .gte("ship_date", fromISO)
-      .lte("ship_date", toISO);
-    if (error) throw error;
-    return data ?? [];
+    return await fetchAllPages<{ shipped_at: string | null; delivered_at: string | null; courier: string | null }>(
+      (from, to, withCount) =>
+        sb
+          .from("shipment_log")
+          .select("shipped_at, delivered_at, courier", withCount ? { count: "exact" } : undefined)
+          .gte("ship_date", fromISO)
+          .lte("ship_date", toISO)
+          .order("ship_date", { ascending: true })
+          .order("order_id", { ascending: true })
+          .range(from, to)
+    );
   } catch (error) {
     console.error("배송 통계 조회 실패:", error);
     throw new Error("배송 통계를 불러오지 못했습니다.");
