@@ -1271,6 +1271,9 @@ export default function AdminPage() {
         .update(shipPatch)
         .eq("user_id", userId)
         .eq("is_gift", false)
+        // 연장분만 따로 정한 받는 곳(ship_to_custom)은 덮지 않는다 — 회원 정보를 고쳤다고
+        //   그 기간의 받는 곳이 조용히 바뀌면 안 된다(손님 sync_my_order_shipping 과 같은 규칙).
+        .eq("ship_to_custom", false)
         .neq("status", "취소");
       if (shipErr) console.error("배송정보 동기화 실패:", shipErr.message);
     }
@@ -1318,6 +1321,9 @@ export default function AdminPage() {
         ship_postcode: values.postcode || null,
         ship_address: values.address,
         ship_address_detail: values.address_detail || null,
+        // 연장 주문의 받는 곳을 이 주문만 고쳤다면 '따로 정한 받는 곳'이다 —
+        //   나중에 회원 정보·내 정보를 저장해도 덮지 않는다. 원주문은 지금처럼 동기화 대상.
+        ...(order.renews_slot_id != null ? { ship_to_custom: true } : {}),
       })
       .eq("id", order.id);
     if (error) throw new Error(error.message);
