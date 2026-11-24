@@ -466,6 +466,19 @@ export type RenewalArgs = {
   items: RenewalItem[];
   period: SubPeriod;
   deliveryDay: DeliveryDay;
+  // 연장분만 다른 곳으로 받을 때의 받는 곳. 없으면 서버가 지금 구독(원주문)의 받는 곳을 복사한다.
+  //   ★ 지금 받는 배송(원주문)은 건드리지 않는다 — 연장분은 지금 기간이 끝난 다음 회차부터
+  //     자기 받는 곳으로 이어진다(2026-11-24 윤화영 거래처: 연장분 주소를 고치려다 지금 배송까지 바뀜).
+  shipTo?: RenewalShipTo | null;
+};
+
+// 연장분 받는 곳(택배). 이름·연락처·주소는 필수, 우편번호·상세주소는 선택.
+export type RenewalShipTo = {
+  name: string;
+  phone: string;
+  postcode: string;
+  address: string;
+  address_detail: string;
 };
 
 // 연장 신청 입력 검증(UX 용). 권위 재검증은 SQL request_renewal 이 수행하므로,
@@ -486,6 +499,15 @@ export function validateRenewalArgs(args: RenewalArgs): void {
   if (!DELIVERY_DAYS.includes(args.deliveryDay)) {
     throw new Error("배송 요일이 올바르지 않습니다.");
   }
+  if (args.shipTo) validateRenewalShipTo(args.shipTo);
+}
+
+export function validateRenewalShipTo(ship: RenewalShipTo): void {
+  if (!ship.name.trim()) throw new Error("받는 분 이름을 입력해 주세요.");
+  if (ship.phone.replace(/[^0-9]/g, "").length < 10) {
+    throw new Error("받는 분 연락처를 정확히 입력해 주세요.");
+  }
+  if (!ship.address.trim()) throw new Error("받는 곳 주소를 입력해 주세요.");
 }
 
 // 활성 구독을 연장 신청(구성·요일·회차 변경 가능). 서버가 입력 품목으로 할인 재계산해
@@ -506,6 +528,8 @@ export async function requestRenewal(
       p_items: args.items,
       p_period: args.period,
       p_delivery_day: args.deliveryDay,
+      // 없으면 null — 서버가 원주문의 받는 곳을 복사한다(지금까지와 같다).
+      p_ship: args.shipTo ?? null,
     }),
     RENEWAL_TIMEOUT_MS,
     "연장 신청이 확인되지 않았습니다. 통신이 느리거나 끊겼을 수 있어요.\n" +
@@ -519,6 +543,17 @@ export async function requestRenewal(
     orderNo: r.order_no ?? "",
     total: r.total ?? 0,
   };
+}
+
+// 아직 시작 전인 연장 주문 한 건의 받는 곳만 바꾼다(지금 받는 배송은 그대로).
+//   서버(set_my_renewal_ship_to)가 본인·연장주문·미발송·도서산간 배송비 변동 여부를 다시 검사한다.
+export async function setMyRenewalShipTo(orderId: string, ship: RenewalShipTo): Promise<void> {
+  validateRenewalShipTo(ship);
+  const { error } = await getSupabase().rpc("set_my_renewal_ship_to", {
+    p_order_id: orderId,
+    p_ship: ship,
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function pauseSubscription(slotId: number): Promise<void> {

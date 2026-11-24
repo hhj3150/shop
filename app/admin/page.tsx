@@ -19,6 +19,7 @@ import {
 import { buildRosterMaps } from "@/lib/roster-maps";
 import { dispatchScheduleForSlot } from "@/lib/dispatch-schedule";
 import { countShippedRoundsBySlot } from "@/lib/dispatch-queue";
+import { startChangeLock } from "@/lib/slot-start-lock";
 import { shippedRoundsBeforeBySlot, type RoundBaseline } from "@/lib/round-baseline";
 import type { RawBlock } from "@/lib/subscription-timeline";
 import { computeCashReceiptAmounts } from "@/lib/cash-receipt-tax";
@@ -470,6 +471,12 @@ export default function AdminPage() {
     }
     return m;
   }, [slots]);
+
+  // 슬롯별 출고 기록 날짜 수(원주문+연장 체인) — '시작일 변경' 잠금 판정용.
+  const shippedCountBySlot = useMemo(
+    () => countShippedRoundsBySlot(shippedKeys, slotIdByOrder),
+    [shippedKeys, slotIdByOrder]
+  );
 
   const confirmedShippedBefore = useMemo(
     () => shippedRoundsBeforeBySlot(shippedKeys.keys(), slotIdByOrder, baselineBySlot),
@@ -1330,10 +1337,15 @@ export default function AdminPage() {
     // 새 앵커에 맞춰 1회차 보정일도 다시 쓴다(앞당김 없음 — 회차 계산은 앵커에서 다시 구하지만,
     //   옛 값이 남아 있으면 '이번 출고가 어느 슬롯 회차인가'(slotShipsOn) 판정이 어긋난다).
     const newFirst = roundShipPlan(newStart, true).ship;
-    const { error } = await getSupabase()
-      .from("subscription_slots")
-      .update({ started_at: newStart, first_ship_date: newFirst === newStart ? null : newFirst })
-      .eq("id", slot.id);
+    // ★ 표를 직접 고치지 않고 서버 함수로만 바꾼다(admin_set_slot_start). 서버가
+    //   '이미 한 번이라도 나간 구독'(확정 회차·방문수령 시작 포함)을 거절하고 order_events 에 남긴다.
+    //   2026-11-19 연장 주문 행에서 이 버튼을 눌러 원주문까지 앵커가 밀렸고, 기록이 없어
+    //   엣지 로그로 겨우 되짚었다(윤화영 거래처 — 11/23 명단에서 빠짐).
+    const { error } = await getSupabase().rpc("admin_set_slot_start", {
+      p_slot_id: slot.id,
+      p_new_start: newStart,
+      p_new_first: newFirst === newStart ? null : newFirst,
+    });
     if (error) {
       alert(`구독 시작일 변경 실패: ${error.message}`);
       return;
@@ -2631,6 +2643,15 @@ export default function AdminPage() {
                           // 요일 변경의 총 회차(block_weeks + extended_weeks)는 원주문 기준이므로,
                           //   연장 주문 행에서 열었어도 핸들러엔 원주문을 넘긴다.
                           const slotOrder = (slot.order_id && orderById.get(slot.order_id)) || o;
+                          // 시작일 변경을 열어도 되는지(안 되면 이유). 최종 판정은 서버 admin_set_slot_start.
+                          const startLock = startChangeLock({
+                            isRenewalRow: o.renews_slot_id != null && slotOrder.id !== o.id,
+                            shippedCount: shippedCountBySlot.get(slot.id) ?? 0,
+                            confirmedCount: slot.rounds_confirmed_count ?? null,
+                            deliveryMethod: slotOrder.delivery_method ?? null,
+                            startedAt: slot.started_at,
+                            todayISO: todayISO(),
+                          });
                           return (
                             <div className="mt-3 border-t border-line/60 pt-3">
                               {o.renews_slot_id != null && slotOrder.id !== o.id && (
@@ -2638,7 +2659,7 @@ export default function AdminPage() {
                                   연장 주문 — 아래 설정은 원주문 {slotOrder.order_no} 의 구독 슬롯에 적용됩니다.
                                 </p>
                               )}
-                              {startDeferOrder === o.id ? (
+                              {startDeferOrder === o.id && !startLock ? (
                                 <div className="flex flex-wrap items-end gap-2">
                                   <label className="text-[13px] text-ink-soft">
                                     <span className="mr-2 text-mute">시작 기준일</span>
@@ -2672,12 +2693,18 @@ export default function AdminPage() {
                                 </div>
                               ) : (
                                 <div className="flex items-start justify-between gap-3">
-                                  <p className="text-[13px] leading-relaxed text-ink-soft">
-                                    <span className="text-mute">구독 시작일 · </span>
-                                    {slot.started_at
-                                      ? `${slot.started_at} (${DELIVERY_DAY_LABEL[slot.delivery_day]})`
-                                      : "미시작"}
-                                  </p>
+                                  <div className="min-w-0">
+                                    <p className="text-[13px] leading-relaxed text-ink-soft">
+                                      <span className="text-mute">구독 시작일 · </span>
+                                      {slot.started_at
+                                        ? `${slot.started_at} (${DELIVERY_DAY_LABEL[slot.delivery_day]})`
+                                        : "미시작"}
+                                    </p>
+                                    {startLock && (
+                                      <p className="mt-0.5 text-[12px] leading-relaxed text-mute">{startLock}</p>
+                                    )}
+                                  </div>
+                                  {!startLock && (
                                   <button
                                     onClick={() => {
                                       setStartDeferOrder(o.id);
@@ -2687,6 +2714,7 @@ export default function AdminPage() {
                                   >
                                     시작일 변경
                                   </button>
+                                  )}
                                 </div>
                               )}
 

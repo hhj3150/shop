@@ -3,6 +3,8 @@ import {
   totalRemainingSeats,
   toMySubscriptions,
   requestRenewal,
+  setMyRenewalShipTo,
+  validateRenewalShipTo,
   canSkipThisWeek,
   type DayCounts,
 } from "./subscriptions";
@@ -247,6 +249,35 @@ describe("requestRenewal — 손수 검증(zod 미도입)", () => {
         deliveryDay: "sat" as never,
       })
     ).rejects.toThrow("배송 요일이 올바르지 않습니다.");
+  });
+
+  // 연장분만 다른 곳으로 받는 경우 — 빈 주소로 신청돼 연장분이 안 나가는 일을 막는다.
+  it("연장분 받는 곳이 비면 RPC 전에 throw", async () => {
+    await expect(
+      requestRenewal(1, {
+        items: [ok],
+        period: 1,
+        deliveryDay: "mon",
+        shipTo: { name: "김", phone: "010-1234-5678", postcode: "", address: " ", address_detail: "" },
+      })
+    ).rejects.toThrow("받는 곳 주소를 입력해 주세요.");
+  });
+});
+
+describe("연장분 받는 곳 검증", () => {
+  const base = { name: "홍길동", phone: "010-1234-5678", postcode: "06000", address: "서울 강남구 1", address_detail: "" };
+
+  it("이름·연락처·주소가 있으면 통과", () => {
+    expect(() => validateRenewalShipTo(base)).not.toThrow();
+  });
+  it("이름이 비면 거절", () => {
+    expect(() => validateRenewalShipTo({ ...base, name: "  " })).toThrow("받는 분 이름");
+  });
+  it("연락처가 10자리 미만이면 거절", () => {
+    expect(() => validateRenewalShipTo({ ...base, phone: "010-12" })).toThrow("연락처");
+  });
+  it("setMyRenewalShipTo 도 RPC 전에 같은 검증을 한다", async () => {
+    await expect(setMyRenewalShipTo("o1", { ...base, address: "" })).rejects.toThrow("주소");
   });
 });
 

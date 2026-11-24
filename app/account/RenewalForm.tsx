@@ -30,7 +30,9 @@ import {
   isWaitlisted,
   type DayCounts,
   type MySubscription,
+  type RenewalShipTo,
 } from "@/lib/subscriptions";
+import { ProfileEditor } from "@/components/ProfileEditor";
 import { renewalQuote } from "@/lib/subscription-timeline";
 import {
   prefillFormItems,
@@ -51,10 +53,15 @@ type Props = {
     items: { product_id: string; qty: number }[];
     period: SubPeriod;
     deliveryDay: DeliveryDay;
+    // 연장분만 다른 곳으로 받을 때. null 이면 지금 구독의 받는 곳을 그대로 잇는다.
+    shipTo: RenewalShipTo | null;
   }) => void;
   onCancel: () => void;
-  // '받는 곳 바꾸기' — 내 정보 수정을 열어 준다. 주소는 연장 폼의 상태가 아니라
-  //   원 구독 주문의 값이라, 여기서 직접 고치지 않고 한 곳(내 정보)에서만 고친다.
+  // 주소가 아예 비어 있을 때만 쓴다 — 내 정보 수정을 열어 준다. 그 경우는 지금 기간도 못 나가는
+  //   상태라 진행 중인 주문까지 함께 고쳐야 맞다.
+  //   ★ 주소가 있는 손님의 '바꾸기'는 내 정보로 보내지 않는다. 내 정보 저장은 본인 주문 전부를
+  //     덮어써서, 연장분만 바꾸려던 손님의 '지금 받는 배송'까지 바뀌었다(2026-11-24 윤화영 거래처).
+  //     연장분 받는 곳은 이 폼 안에서 따로 받아 신청과 함께 보낸다.
   onEditShipTo: () => void;
 };
 
@@ -82,6 +89,22 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel, onEditShipTo 
   //   바꿀 것도 없는 목록을 지나쳐 스크롤해야 신청 버튼에 닿는다.
   //   (판매종료로 빠진 품목이 있으면 아래에서 강제로 펼친다 — 손댈 거리가 생긴 경우다.)
   const [editingItems, setEditingItems] = useState(false);
+
+  // 연장분만의 받는 곳(없으면 지금 받는 곳 그대로). 신청 전까지 어디에도 저장하지 않는다.
+  const [shipOverride, setShipOverride] = useState<RenewalShipTo | null>(null);
+  const [editingShip, setEditingShip] = useState(false);
+  const shipView = shipToView(
+    shipOverride
+      ? {
+          ...sub.shipTo,
+          name: shipOverride.name,
+          phone: shipOverride.phone,
+          postcode: shipOverride.postcode,
+          address: shipOverride.address,
+          addressDetail: shipOverride.address_detail,
+        }
+      : sub.shipTo
+  );
 
   useEffect(() => {
     getDayCounts().then(setCounts).catch(() => setCounts(null));
@@ -174,7 +197,48 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel, onEditShipTo 
       {/* 받는 곳 — 품목·금액보다 먼저 보여준다.
           연장분의 주소는 원 구독 주문에서 그대로 승계되므로, 이사하고 내 정보를 안 고친
           손님은 여기서 보지 못하면 옛 주소로 간다는 걸 결제 후에야 알게 된다. */}
-      <ShipToBlock view={shipToView(sub.shipTo)} onEdit={onEditShipTo} />
+      {editingShip ? (
+        <div className="mt-4 rounded-xl border border-gold/50 bg-cream px-3.5 py-3">
+          <p className="t-caption mb-3 text-mute">연장분 받는 곳</p>
+          <ProfileEditor
+            initial={{
+              name: shipOverride?.name ?? sub.shipTo.name,
+              phone: shipOverride?.phone ?? sub.shipTo.phone,
+              postcode: shipOverride?.postcode ?? sub.shipTo.postcode,
+              address: shipOverride?.address ?? sub.shipTo.address,
+              address_detail: shipOverride?.address_detail ?? sub.shipTo.addressDetail,
+            }}
+            nameLabel="받는 분"
+            saveLabel="연장분은 이 주소로"
+            note={
+              <>
+                여기서 바꾼 주소는 <b className="font-medium text-ink">연장분(다음 기간)에만</b> 쓰입니다.
+                지금 받고 계신 배송은 기존 주소로 끝까지 갑니다. 이사 등으로 지금 배송까지 바꾸시려면
+                위 &lsquo;내 정보&rsquo;에서 고쳐 주세요.
+              </>
+            }
+            onSave={async (v) => {
+              if (!v.address.trim()) throw new Error("받는 곳 주소를 입력해 주세요.");
+              setShipOverride({
+                name: v.name,
+                phone: v.phone,
+                postcode: v.postcode,
+                address: v.address,
+                address_detail: v.address_detail,
+              });
+              setEditingShip(false);
+            }}
+            onCancel={() => setEditingShip(false)}
+          />
+        </div>
+      ) : (
+        <ShipToBlock
+          view={shipView}
+          overridden={shipOverride != null}
+          onEdit={shipView.kind === "주소없음" ? onEditShipTo : () => setEditingShip(true)}
+          onReset={() => setShipOverride(null)}
+        />
+      )}
 
       {/* 회차수 */}
       <div className="mt-5">
@@ -382,7 +446,7 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel, onEditShipTo 
       <div className="mt-4 flex gap-2">
         <button
           type="button"
-          onClick={() => onSubmit({ items, period, deliveryDay })}
+          onClick={() => onSubmit({ items, period, deliveryDay, shipTo: shipOverride })}
           disabled={!canSubmit}
           className="flex-1 rounded-full bg-ink py-2.5 text-[14px] text-cream transition-colors hover:bg-gold-deep disabled:opacity-50"
         >
@@ -406,16 +470,21 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel, onEditShipTo 
 }
 
 // 받는 곳 한 칸. 세 경우가 서로 다른 진실을 갖는다 — 같은 모양으로 뭉뚱그리면 안 된다.
-//   · 택배  : 내 정보 수정이 진행 중인 주문에 반영되므로 바꿀 수 있다.
+//   · 택배  : 연장분 받는 곳을 이 폼에서 따로 바꿀 수 있다(지금 받는 배송은 그대로).
 //   · 선물  : 받는 분 주소다. 동기화(sync_my_order_shipping)가 선물 주문을 제외하므로
 //             내 정보를 고쳐도 안 바뀐다 — '바꾸기'를 걸면 거짓말이 된다.
 //   · 방문수령 : 주소 자체가 없다.
 function ShipToBlock({
   view,
+  overridden,
   onEdit,
+  onReset,
 }: {
   view: ShipToView;
+  // 연장분만 다른 곳으로 받도록 이 폼에서 바꿨는지.
+  overridden: boolean;
   onEdit: () => void;
+  onReset: () => void;
 }) {
   if (view.kind === "방문수령") {
     return (
@@ -449,7 +518,8 @@ function ShipToBlock({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="t-caption text-mute">
-            받는 곳{view.kind === "선물" && " · 선물"}
+            {overridden ? "연장분 받는 곳" : "받는 곳"}
+            {view.kind === "선물" && " · 선물"}
           </p>
           <p className="t-subhead mt-0.5 font-medium text-ink">
             {view.name}
@@ -473,6 +543,14 @@ function ShipToBlock({
           </button>
         )}
       </div>
+      {overridden && (
+        <p className="t-caption mt-2 text-ink-soft">
+          연장분만 이 주소로 받습니다. 지금 받고 계신 배송은 기존 주소 그대로예요.{" "}
+          <button type="button" onClick={onReset} className="text-mute underline hover:text-ink">
+            원래 주소로
+          </button>
+        </p>
+      )}
       {!view.editable && (
         // 여기서 '바꾸기'를 못 거는 이유를 적어 둔다. 버튼만 없으면 손님은 고장으로 읽는다.
         <p className="t-caption mt-2 text-mute">

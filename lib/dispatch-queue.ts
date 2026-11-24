@@ -22,7 +22,12 @@ import {
   type DispatchSlotInfo,
 } from "./dispatch-schedule";
 import { isCarriedOver } from "./dispatch-overdue";
-import { totalWeeks, type RawBlock } from "./subscription-timeline";
+import {
+  totalWeeks,
+  periodRoundForChainRound,
+  type PeriodRound,
+  type RawBlock,
+} from "./subscription-timeline";
 import type { ShipmentReschedule } from "./shipment-reschedule";
 import type { ShippedBefore } from "./round-baseline";
 
@@ -46,6 +51,8 @@ export type DispatchSlice<O, I> = {
   round: number;
   total: number; // 총 회차(구독). 단품 1, 미상 0
   remaining: number;
+  // 연장이 붙은 구독의 '기간 안 회차'(원주문 12회 중 12번째 · 연장 24회 대기 등). 연장이 없거나 미상이면 null.
+  period: PeriodRound | null;
   // ★ 과배송 최종 방어선. 이 구독 슬롯이 결제한 회차만큼 이미 발송됐는데 또 잡힌 행.
   //   날짜 계산(회차 모델)에 어떤 오차가 있어도, 실제 발송 이력이 결제 회차에 도달하면
   //   더 보내면 안 된다. 행을 조용히 지우지 않고 표시해 담당자가 사유를 보고 판단하게 한다.
@@ -181,13 +188,36 @@ function roundInfo<O extends QueueOrderFields, S extends DispatchSlotInfo & { or
   day: DeliveryDay | null,
   shipISO: string,
   beforeISO: string = shipISO
-): Pick<DispatchSlice<O, never>, "round" | "total" | "remaining"> {
-  if (order.order_type === "단품") return { round: 1, total: 1, remaining: 0 };
+): Pick<DispatchSlice<O, never>, "round" | "total" | "remaining" | "period"> {
+  if (order.order_type === "단품") return { round: 1, total: 1, remaining: 0, period: null };
   const sch = scheduleForRow(maps, order, day, shipISO, beforeISO);
   if (!sch) {
-    return { round: roundFor(order.order_type, shipISO, order.created_at), total: 0, remaining: 0 };
+    return {
+      round: roundFor(order.order_type, shipISO, order.created_at),
+      total: 0,
+      remaining: 0,
+      period: null,
+    };
   }
-  return { round: sch.round, total: sch.total, remaining: sch.remaining };
+  // 기간 안 회차 — 블록(원주문 + 입금확인된 연장)이 둘 이상일 때만 의미가 있다.
+  const chainSlotId = maps.slotIdByOrderDay?.get(`${order.id}|${day ?? ""}`) ?? maps.slotIdByOrder?.get(order.id);
+  const blocks = chainSlotId != null ? maps.blocksBySlot?.get(chainSlotId) : undefined;
+  const period =
+    blocks && blocks.length > 1 ? periodRoundForChainRound(blocks, sch.round) : null;
+  return { round: sch.round, total: sch.total, remaining: sch.remaining, period };
+}
+
+// 배송판·엑셀의 회차 칸 표기. 연장이 붙었으면 기간 기준으로 적는다.
+//   · 원주문 마지막 회차: '12/12회 · 연장 24회 대기'
+//   · 연장분 첫 회차   : '연장 1/24회'
+//   · 연장 없음        : '3/12회' (지금과 같다)
+export function roundLabel(r: { round: number; total: number; period: PeriodRound | null }): string {
+  const p = r.period;
+  if (p) {
+    const head = `${p.periodIndex > 0 ? "연장 " : ""}${p.round}/${p.total}회`;
+    return p.nextWeeks > 0 ? `${head} · 연장 ${p.nextWeeks}회 대기` : head;
+  }
+  return r.total > 0 ? `${r.round}/${r.total}회` : `${r.round}회`;
 }
 
 // 이 행이 '결제 회차를 넘긴 발송'인지. 회차 모델(날짜 계산)에 어떤 오차가 있어도
@@ -294,6 +324,7 @@ export function buildDispatchSlicesForDate<
       round: 1,
       total: 1,
       remaining: 0,
+      period: null,
       overPaidRounds: false,
       shippedRounds: 0,
     });
@@ -339,6 +370,7 @@ export function buildDispatchSlicesAll<
         round: 1,
         total: 1,
         remaining: 0,
+        period: null,
         overPaidRounds: false,
         shippedRounds: 0,
       });
