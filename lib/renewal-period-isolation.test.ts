@@ -109,8 +109,8 @@ function sheet(dateISO: string, startedAt: string, confirmed: RoundBaseline | nu
 
 describe("periodRoundForChainRound — 체인 회차를 기간 안 회차로", () => {
   const blocks = [
-    { orderId: "orig", weeks: 12, deliveryDay: "mon" as const, items: [], shippingPerWeek: 0 },
-    { orderId: "renew", weeks: 24, deliveryDay: "mon" as const, items: [], shippingPerWeek: 0 },
+    { orderId: "orig", weeks: 12, deliveryDay: "mon" as const, items: [], shippingPerWeek: 0, creditKrw: 0 },
+    { orderId: "renew", weeks: 24, deliveryDay: "mon" as const, items: [], shippingPerWeek: 0, creditKrw: 0 },
   ];
   it("원주문 마지막 회차 = 12/12, 뒤에 24회 대기", () => {
     expect(periodRoundForChainRound(blocks, 12)).toEqual({ periodIndex: 0, round: 12, total: 12, nextWeeks: 24 });
