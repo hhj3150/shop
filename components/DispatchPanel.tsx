@@ -25,12 +25,13 @@ import * as logenExcel from "@/lib/logen-excel";
 import { matchLogen, type LogenMatchResult } from "@/lib/logen-match";
 import { giftSenderLabel, giftSenderCsv } from "@/lib/gift";
 import { DELIVERY_DAY_LABEL, DELIVERY_DAYS, type DeliveryDay } from "@/lib/cart";
-import type { RawBlock } from "@/lib/subscription-timeline";
+import type { PeriodRound, RawBlock } from "@/lib/subscription-timeline";
 import {
   buildDispatchSlicesForDate,
   buildDispatchSlicesAll,
   SUB_SHIPPABLE,
   type DispatchSlice,
+  roundLabel,
 } from "@/lib/dispatch-queue";
 import { buildTotalsRow } from "@/lib/dispatch-csv";
 import { downloadXlsx } from "@/lib/xlsx-export";
@@ -122,6 +123,7 @@ type DispatchRow = {
   round: number; // 이 발송일 기준 회차(1-base)
   total: number; // 총 회차(구독: block_weeks + extended_weeks, 단품: 1)
   remaining: number; // 남은 회차(구독만 의미, 단품 0)
+  period: PeriodRound | null; // 연장이 붙은 구독의 '기간 안 회차'(표기용)
   shipISO: string; // 이 발송 건의 발송(예정)일
   scheduledISO: string; // 원래 예정일(배송일 변경으로 옮겨 온 회차만 shipISO 와 다르다)
   rescheduled: boolean;
@@ -320,6 +322,7 @@ export function DispatchPanel({
         round: sl.round,
         total: isOnce ? 1 : sl.total,
         remaining: sl.remaining,
+        period: sl.period,
         shipISO: sl.shipISO,
         scheduledISO: sl.scheduledISO,
         rescheduled: sl.rescheduled,
@@ -774,7 +777,7 @@ export function DispatchPanel({
       const isOnce = o.order_type === "단품";
       // 회차/총회차 — 연장(8·12주) 구독도 5회차+ 가 정확히 출력된다.
       //   "회"를 붙여 화면 표기와 맞추고, 엑셀이 "2/8"을 날짜로 자동변환하는 것도 막는다.
-      const roundCell = isOnce ? "단품" : r.total > 0 ? `${r.round}/${r.total}회` : `${r.round}회`;
+      const roundCell = isOnce ? "단품" : roundLabel(r);
       const remainCell = !isOnce && r.total > 0 ? String(r.remaining) : "";
       rows.push([
         "", // 유입경로 — 현재 미수집(담당자 기입용)
@@ -1414,11 +1417,7 @@ export function DispatchPanel({
                     <td data-label="구분·회차" className="py-3 pr-3 text-[13px] text-ink-soft">
                       {o.order_type === "단품" ? "단품" : "구독"}
                       <span className="ml-1 rounded bg-gold/15 px-1.5 py-0.5 text-[11px] font-semibold text-gold-deep">
-                        {o.order_type === "단품"
-                          ? "1회"
-                          : r.total > 0
-                            ? `${r.round}/${r.total}회`
-                            : `${r.round}회`}
+                        {o.order_type === "단품" ? "1회" : roundLabel(r)}
                       </span>
                       {o.order_type !== "단품" && r.total > 0 && (
                         <span className="ml-1 text-[11px] text-mute">남은 {r.remaining}</span>

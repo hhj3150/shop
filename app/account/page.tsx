@@ -19,12 +19,14 @@ import {
   cancelUnpaidOrder,
   requestRenewal,
   getPendingRenewals,
+  setMyRenewalShipTo,
   changeDeliveryDay,
   getDayCounts,
   remaining as seatsLeft,
   type DayCounts,
   type MySubscription,
   type PendingRenewal,
+  type RenewalShipTo,
 } from "@/lib/subscriptions";
 import { planDeliveryDayChange } from "@/lib/delivery-day-change";
 import { computeSchedule } from "@/lib/subscription-schedule";
@@ -184,6 +186,8 @@ export default function AccountPage() {
   );
   // 연장 신청 폼이 펼쳐진 슬롯(없으면 null). 입금 안내와는 별개 단계.
   const [renewSlot, setRenewSlot] = useState<number | null>(null);
+  // 입금 안내에서 '연장분 받는 곳'을 고치는 중인 연장 주문 id.
+  const [editingPendingShip, setEditingPendingShip] = useState<string | null>(null);
 
   useEffect(() => {
     if (ready && !user) router.replace("/login?next=/account");
@@ -396,6 +400,7 @@ export default function AccountPage() {
       items: { product_id: string; qty: number }[];
       period: SubPeriod;
       deliveryDay: DeliveryDay;
+      shipTo: RenewalShipTo | null;
     }
   ) {
     setBusy(slotId);
@@ -464,7 +469,8 @@ export default function AccountPage() {
     setEditingInfo(false);
   }
 
-  // 연장 폼의 '받는 곳 바꾸기' — 내 정보 카드를 펼치고 그 자리로 데려간다.
+  // 연장 폼에서 주소가 '아예 비었을 때'의 '주소 넣기' — 내 정보 카드를 펼치고 그 자리로 데려간다.
+  //   (주소가 있으면 연장분 받는 곳은 연장 폼 안에서 따로 바꾼다 — 지금 배송은 그대로 둔다.)
   //   내 정보 카드는 페이지 맨 위, 연장 폼은 한참 아래에 있다. 열기만 하고 두면
   //   화면에서 아무 일도 일어나지 않은 것처럼 보여 손님이 버튼을 또 누른다.
   function openShipToEditor() {
@@ -560,6 +566,12 @@ export default function AccountPage() {
                 }}
                 onSave={saveMyInfo}
                 onCancel={() => setEditingInfo(false)}
+                note={
+                  <>
+                    저장하면 지금 받고 계신 정기배송(입금 전 연장 신청분 포함)의 받는 곳도 함께
+                    바뀝니다. 연장분만 다른 곳으로 받으시려면 연장 신청 화면에서 바꿔 주세요.
+                  </>
+                }
               />
             </>
           ) : (
@@ -891,7 +903,47 @@ export default function AccountPage() {
                           {/* 받는 곳 — 돈을 보내기 직전에, 그리고 입금될 때까지 며칠이고 보인다.
                               여기서 주소가 틀린 걸 알면 아래 '연장 신청 취소'로 되돌릴 수 있다
                               (입금 전이라 그냥 취소된다). 추가 클릭 없이 확인시키는 가장 싼 자리다. */}
-                          <PendingShipTo view={shipToView(pending.shipTo)} />
+                          {editingPendingShip === pending.orderId ? (
+                            <div className="mt-3 rounded-xl border border-gold/50 bg-cream px-3.5 py-3">
+                              <p className="t-caption mb-3 text-mute">연장분 받는 곳</p>
+                              <ProfileEditor
+                                initial={{
+                                  name: pending.shipTo.name,
+                                  phone: pending.shipTo.phone,
+                                  postcode: pending.shipTo.postcode,
+                                  address: pending.shipTo.address,
+                                  address_detail: pending.shipTo.addressDetail,
+                                }}
+                                nameLabel="받는 분"
+                                saveLabel="연장분 받는 곳 저장"
+                                note={
+                                  <>
+                                    이 연장분에만 적용됩니다. 지금 받고 계신 배송은 기존 주소로 끝까지
+                                    갑니다.
+                                  </>
+                                }
+                                onSave={async (v) => {
+                                  await setMyRenewalShipTo(pending.orderId, v);
+                                  await reloadSubs();
+                                  setEditingPendingShip(null);
+                                }}
+                                onCancel={() => setEditingPendingShip(null)}
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <PendingShipTo view={shipToView(pending.shipTo)} />
+                              {shipToView(pending.shipTo).kind === "택배" && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingPendingShip(pending.orderId)}
+                                  className="mt-2 text-[13px] text-ink-soft underline transition-colors hover:text-ink"
+                                >
+                                  연장분 받는 곳 바꾸기
+                                </button>
+                              )}
+                            </>
+                          )}
                           <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
                             주문번호 <span className="tabular-nums">{pending.orderNo}</span>
                             {pending.deliveryDay

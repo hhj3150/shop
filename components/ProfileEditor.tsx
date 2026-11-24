@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Field } from "@/components/Field";
 import { AddressSearch } from "@/components/AddressSearch";
 import { formatPhoneKR } from "@/lib/signup-format";
@@ -21,12 +21,17 @@ export function ProfileEditor({
   onSave,
   onCancel,
   saveLabel = "저장",
+  note,
+  nameLabel = "이름",
 }: {
   initial: ProfileEditValues;
   // 정제된 값을 받아 저장한다. 실패 시 throw 하면 폼이 오류를 표시한다.
   onSave: (values: ProfileEditValues) => Promise<void>;
   onCancel?: () => void;
   saveLabel?: string;
+  // 저장 버튼 바로 위 안내. '이 저장이 어디까지 바뀌는지'를 누르기 전에 읽게 한다.
+  note?: ReactNode;
+  nameLabel?: string;
 }) {
   const [name, setName] = useState(initial.name ?? "");
   const [phone, setPhone] = useState(formatPhoneKR(initial.phone ?? ""));
@@ -71,7 +76,7 @@ export function ProfileEditor({
     <form onSubmit={onSubmit} className="space-y-4">
       <Field
         id={`${uid}-name`}
-        label="이름"
+        label={nameLabel}
         autoComplete="name"
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -118,6 +123,8 @@ export function ProfileEditor({
         value={addressDetail}
         onChange={(e) => setAddressDetail(e.target.value)}
       />
+
+      {note && <div className="text-[13px] leading-relaxed text-ink-soft">{note}</div>}
 
       {error && (
         <p className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">

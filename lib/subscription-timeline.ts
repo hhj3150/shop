@@ -94,6 +94,34 @@ export function totalWeeks(blocks: RawBlock[]): number {
   return blocks.reduce((s, b) => s + Math.max(0, b.weeks), 0);
 }
 
+// 체인 회차(원주문 1회차부터 이어 센 번호)를 '그 기간 안의 회차'로 바꾼다.
+//   배송판이 연장 구독을 '12/36회'로 적으면, 연장 입금이 확인되는 순간 지금 기간의 표기가
+//   12/12 → 12/36 으로 바뀌어 '연장을 확인했더니 지금 회차가 바뀌었다'로 읽힌다(2026-11-24 윤화영 거래처).
+//   기간별로 '12/12회 · 연장 24회 대기', 다음 주 '연장 1/24회'로 적어야 실제 계약과 맞다.
+export type PeriodRound = {
+  periodIndex: number; // 0 = 원주문, 1 = 첫 연장 …
+  round: number; // 그 기간 안의 회차(1-base)
+  total: number; // 그 기간의 결제 회차
+  nextWeeks: number; // 이 기간 뒤에 이미 결제돼 이어질 회차 합
+};
+
+export function periodRoundForChainRound(
+  blocks: readonly RawBlock[],
+  chainRound: number
+): PeriodRound | null {
+  if (chainRound < 1) return null;
+  let from = 1;
+  for (let i = 0; i < blocks.length; i++) {
+    const weeks = Math.max(0, blocks[i].weeks);
+    if (weeks > 0 && chainRound >= from && chainRound < from + weeks) {
+      const nextWeeks = blocks.slice(i + 1).reduce((s, b) => s + Math.max(0, b.weeks), 0);
+      return { periodIndex: i, round: chainRound - from + 1, total: weeks, nextWeeks };
+    }
+    from += weeks;
+  }
+  return null;
+}
+
 // 발송일의 '활성 블록 주문 id' — 해지·정지면 null. 발송 명단/배송 시트가 한 슬롯의 여러
 //   블록(원구독+연장) 중 그날 발송할 단 하나의 주문만 고르게 하는 게이팅 키.
 //   buildRosterForDate(기간별 명단)와 DispatchPanel(배송 시트)이 같은 SSOT 를 쓰도록 공유한다.

@@ -123,6 +123,13 @@ export function Customer360Drawer({
                     address_detail: profile.address_detail ?? "",
                   }}
                   saveLabel="회원 정보 저장"
+                  note={
+                    <>
+                      저장하면 이 회원의 <b className="font-medium text-ink">진행 중인 주문 전부</b>(지금
+                      기간과 연장 신청분 모두)의 받는 곳이 함께 바뀝니다. 한 기간·한 주문만 고치려면
+                      주문 목록에서 그 주문의 &lsquo;배송지 수정&rsquo;을 쓰세요.
+                    </>
+                  }
                   onSave={async (values) => {
                     await onSaveMember(values);
                     setEditing(false);
