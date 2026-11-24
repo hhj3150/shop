@@ -161,7 +161,47 @@ export type SlotBlockSource = {
   originalOrder: BlockOrderRow;
   renewalOrders: BlockOrderRow[];
   itemsByOrder: Map<string, BlockOrderItemRow[]>;
+  // 마지막 확정 연장(블록 순서상 가장 뒤)의 받는 곳. 확정 연장이 없으면 null → 원주문 값을 쓴다.
+  //   다음 연장의 기본 받는 곳이 이것이다(서버 request_renewal 과 같은 규칙).
+  latestRenewalShipTo?: ShipToFields | null;
 };
+
+// 주문 한 건의 받는 곳 칸(원자료 그대로).
+export type ShipToFields = {
+  name: string;
+  phone: string;
+  postcode: string;
+  address: string;
+  addressDetail: string;
+};
+
+// 다음 연장의 기본 받는 곳 = 마지막 확정 블록의 받는 곳.
+//   #253 으로 연장분이 자기 받는 곳(B)을 가질 수 있게 되자, 원주문(A)을 보여 주면 B 로 받던
+//   손님이 다음 연장에서 A 로 되돌아갔다(2026-11-24 독립 검토). 블록 순서는 배송 명단과 같다
+//   (원주문 → 확정 연장 created_at, id 순).
+export function latestRenewalShipTo(
+  renewals: readonly {
+    id: string;
+    created_at: string;
+    ship_name?: string | null;
+    ship_phone?: string | null;
+    ship_postcode?: string | null;
+    ship_address?: string | null;
+    ship_address_detail?: string | null;
+  }[]
+): ShipToFields | null {
+  if (renewals.length === 0) return null;
+  const last = [...renewals].sort(
+    (a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+  )[renewals.length - 1];
+  return {
+    name: last.ship_name ?? "",
+    phone: last.ship_phone ?? "",
+    postcode: last.ship_postcode ?? "",
+    address: last.ship_address ?? "",
+    addressDetail: last.ship_address_detail ?? "",
+  };
+}
 
 function blocksForSlot(
   slotId: number,
@@ -193,6 +233,7 @@ export function toMySubscriptions(
 
   return rows.map((row) => {
     const blocks = blocksForSlot(row.id, blockSources);
+    const latest = blockSources.find((b) => b.slotId === row.id)?.latestRenewalShipTo ?? null;
     return {
       slotId: row.id,
       deliveryDay: row.delivery_day,
@@ -218,14 +259,18 @@ export function toMySubscriptions(
       // 총 납입액 = 원 주문 + 확정 연장주문 합계(회차와 같은 상태 목록)
       totalAmount: (row.orders?.total_amount ?? 0) + (extBySlot[row.id] ?? 0),
       deliveryMethod: row.orders?.delivery_method ?? "택배",
+      // 받는 곳 = 마지막 확정 블록(확정 연장이 있으면 그 연장, 없으면 원주문). 선물·방문수령
+      //   여부는 연장이 원주문에서 그대로 물려받으므로 원주문 값을 쓴다.
       shipTo: {
         isGift: row.orders?.is_gift === true,
         method: row.orders?.delivery_method ?? "택배",
-        name: row.orders?.ship_name ?? "",
-        phone: row.orders?.ship_phone ?? "",
-        postcode: row.orders?.ship_postcode ?? "",
-        address: row.orders?.ship_address ?? "",
-        addressDetail: row.orders?.ship_address_detail ?? "",
+        ...(latest ?? {
+          name: row.orders?.ship_name ?? "",
+          phone: row.orders?.ship_phone ?? "",
+          postcode: row.orders?.ship_postcode ?? "",
+          address: row.orders?.ship_address ?? "",
+          addressDetail: row.orders?.ship_address_detail ?? "",
+        }),
       },
       // 블록 체인(원주문 먼저, 연장 created_at,id 순) — buildRawBlocks 로 조립.
       blocks,
@@ -301,6 +346,11 @@ type OrderWithItemsRow = {
   shipping_fee: number | null;
   referral_credit_krw: number | null;
   renews_slot_id: number | null;
+  ship_name?: string | null;
+  ship_phone?: string | null;
+  ship_postcode?: string | null;
+  ship_address?: string | null;
+  ship_address_detail?: string | null;
   order_items:
     | {
         delivery_day: DeliveryDay;
@@ -347,10 +397,12 @@ async function loadBlockSources(
           .in("id", originalIds);
   if (origError) throw new Error(origError.message);
 
-  // 확정 연장주문(items 임베드).
+  // 확정 연장주문(items 임베드). 받는 곳도 함께 — 다음 연장의 기본 받는 곳(latestRenewalShipTo).
   const { data: renewData, error: renewError } = await sb
     .from("orders")
-    .select(`id, created_at, block_weeks, shipping_fee, referral_credit_krw, renews_slot_id, ${ITEM_COLS}`)
+    .select(
+      `id, created_at, block_weeks, shipping_fee, referral_credit_krw, renews_slot_id, ship_name, ship_phone, ship_postcode, ship_address, ship_address_detail, ${ITEM_COLS}`
+    )
     .in("renews_slot_id", slotIds)
     .in("status", CONFIRMED_RENEWAL_STATUSES as unknown as string[]);
   if (renewError) throw new Error(renewError.message);
@@ -384,6 +436,7 @@ async function loadBlockSources(
         originalOrder: toBlockOrderRow(orig),
         renewalOrders: renewals.map(toBlockOrderRow),
         itemsByOrder,
+        latestRenewalShipTo: latestRenewalShipTo(renewals),
       },
     ];
   });

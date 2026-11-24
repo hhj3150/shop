@@ -5,6 +5,7 @@ import {
   requestRenewal,
   setMyRenewalShipTo,
   validateRenewalShipTo,
+  latestRenewalShipTo,
   canSkipThisWeek,
   type DayCounts,
 } from "./subscriptions";
@@ -261,6 +262,81 @@ describe("requestRenewal — 손수 검증(zod 미도입)", () => {
         shipTo: { name: "김", phone: "010-1234-5678", postcode: "", address: " ", address_detail: "" },
       })
     ).rejects.toThrow("받는 곳 주소를 입력해 주세요.");
+  });
+});
+
+// #253 후속: 다음 연장의 기본 받는 곳은 원주문이 아니라 '마지막 확정 블록'이다.
+//   연장분을 B 로 받던 손님의 다음 연장 폼에 원주문 주소 A 가 뜨면, 그대로 신청해 옛 주소로 간다.
+describe("latestRenewalShipTo — 다음 연장의 기본 받는 곳", () => {
+  const r = (id: string, created_at: string, address: string) => ({
+    id,
+    created_at,
+    ship_name: "받는분",
+    ship_phone: "01011112222",
+    ship_postcode: "06000",
+    ship_address: address,
+    ship_address_detail: null,
+  });
+
+  it("확정 연장이 없으면 null(원주문 값을 쓴다)", () => {
+    expect(latestRenewalShipTo([])).toBeNull();
+  });
+
+  it("가장 최근 확정 연장의 받는 곳 — 입력 순서와 무관", () => {
+    const got = latestRenewalShipTo([
+      r("b", "2026-11-19T00:00:00Z", "연장2 주소"),
+      r("a", "2026-08-01T00:00:00Z", "연장1 주소"),
+    ]);
+    expect(got?.address).toBe("연장2 주소");
+    expect(got?.addressDetail).toBe("");
+  });
+
+  it("같은 시각이면 id 순(배송 명단의 블록 순서와 같다)", () => {
+    const got = latestRenewalShipTo([
+      r("z", "2026-11-19T00:00:00Z", "z 주소"),
+      r("a", "2026-11-19T00:00:00Z", "a 주소"),
+    ]);
+    expect(got?.address).toBe("z 주소");
+  });
+
+  it("toMySubscriptions 는 그 값을 받는 곳으로 싣는다(선물·방법은 원주문)", () => {
+    const row = {
+      id: 9,
+      delivery_day: "mon" as DeliveryDay,
+      status: "활성",
+      started_at: "2026-06-01",
+      first_ship_date: null,
+      paused: false,
+      paused_at: null,
+      paused_days: 0,
+      skip_resume_on: null,
+      extended_weeks: 4,
+      orders: {
+        block_weeks: 4,
+        period_months: 1,
+        order_no: "SY1",
+        total_amount: 40000,
+        delivery_method: "택배",
+        is_gift: false,
+        ship_name: "원주문",
+        ship_phone: "01000000000",
+        ship_postcode: "30150",
+        ship_address: "원주문 주소 A",
+        ship_address_detail: "",
+      },
+    };
+    const src = {
+      slotId: 9,
+      originalOrder: { id: "o", block_weeks: 4, shipping_fee: 16000, created_at: "2026-06-01T00:00:00Z", referral_credit_krw: 0 },
+      renewalOrders: [],
+      itemsByOrder: new Map(),
+      latestRenewalShipTo: { name: "부모님", phone: "01011112222", postcode: "06000", address: "연장분 주소 B", addressDetail: "" },
+    };
+    const [sub] = toMySubscriptions([row], [], [src]);
+    expect(sub.shipTo.address).toBe("연장분 주소 B");
+    expect(sub.shipTo.method).toBe("택배");
+    const [plain] = toMySubscriptions([row], [], [{ ...src, latestRenewalShipTo: null }]);
+    expect(plain.shipTo.address).toBe("원주문 주소 A");
   });
 });
 

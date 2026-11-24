@@ -33,6 +33,7 @@ import {
   type RenewalShipTo,
 } from "@/lib/subscriptions";
 import { ProfileEditor } from "@/components/ProfileEditor";
+import { isSpecialDeliveryPostcode, SPECIAL_DELIVERY_SHIPPING_KRW } from "@/lib/regions";
 import { renewalQuote } from "@/lib/subscription-timeline";
 import {
   prefillFormItems,
@@ -153,7 +154,9 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel, onEditShipTo 
   );
 
   // 견적 — 카탈로그 정가에 기간 할인 적용(서버가 권위 재계산, C2).
-  //   특수배송지역(제주 5,000) 여부는 클라이언트에서 확실히 알 수 없어 일반 4,000 으로 미리보기한다.
+  //   배송비는 연장분이 실제로 갈 곳(따로 정했으면 그 주소) 기준 — 제주·도서산간이면 회당 5,000.
+  //   서버(request_renewal)도 같은 우편번호로 계산한다. 우편번호를 모르면 일반 4,000(과청구 방지).
+  const shipPostcode = shipOverride?.postcode ?? sub.shipTo.postcode;
   const quote = useMemo(() => {
     const priceOf = (id: string) => {
       const p = PRODUCTS.find((x) => x.id === id);
@@ -165,9 +168,13 @@ export function RenewalForm({ sub, subs, busy, onSubmit, onCancel, onEditShipTo 
     return renewalQuote(
       quoteItems,
       period,
-      sub.deliveryMethod === "방문수령" ? 0 : SUB_SHIPPING_KRW
+      sub.deliveryMethod === "방문수령"
+        ? 0
+        : isSpecialDeliveryPostcode(shipPostcode)
+          ? SPECIAL_DELIVERY_SHIPPING_KRW
+          : SUB_SHIPPING_KRW
     );
-  }, [formItems, period, map, sub.deliveryMethod]);
+  }, [formItems, period, map, sub.deliveryMethod, shipPostcode]);
 
   const items = buildRenewalItems(formItems);
   const hasItems = items.length > 0;

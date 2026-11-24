@@ -90,19 +90,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, reason: "missing_depositor_name" });
   }
 
-  const ordererName = o.is_gift
+  let ordererName = o.is_gift
     ? (o.gifter_name ?? billingName)
     : ((o.ship_name ?? "").trim() || billingName);
   // 입금확인 알림톡 수신처 — DB 권위값. 선물이면 보내는 분(주문한 회원)의 프로필 번호,
   //   없거나 비회원이면 배송 연락처로 떨어진다. 클라이언트가 지정할 수 없다.
+  //   ★ 연장 주문도 회원 프로필이다(2026-11-24). 연장분 받는 분을 부모님 등으로 따로 정하면
+  //     배송 연락처가 그분 번호가 되는데, 돈을 낸 적 없는 분께 '입금 완료'가 가면 안 된다.
+  //     DB 가 이름(orderer_name)도 함께 주면 그 이름을 주문자로 쓴다.
   let ordererPhone = (o.ship_phone ?? "").trim();
   try {
     const { data: contact } = await supabase.rpc("order_orderer_contact", {
       p_order_no: orderNo,
       p_secret: confirmSecret,
     });
-    const c = (contact ?? {}) as { found?: boolean; orderer_phone?: string | null };
+    const c = (contact ?? {}) as {
+      found?: boolean;
+      orderer_phone?: string | null;
+      orderer_name?: string | null;
+    };
     if (c.found && c.orderer_phone) ordererPhone = c.orderer_phone.trim();
+    if (c.found && c.orderer_name?.trim()) ordererName = c.orderer_name.trim();
   } catch {
     // 조회 실패 → 배송 연락처를 쓴다(등록 자체를 막지 않는다).
   }
