@@ -7,6 +7,7 @@ import {
   type ReminderOrder,
   type ReminderItem,
   type ReminderSlot,
+  type ReminderShipment,
 } from "../../lib/ship-reminder";
 import type { ShipmentReschedule } from "../../lib/shipment-reschedule";
 import { logSms } from "../../lib/sms-log";
@@ -19,6 +20,9 @@ type Dataset = {
   reminded: string[];
   dispatched: string[]; // 그 발송일분을 이미 출고(송장 기록)한 주문 — 예고 제외
   reschedules: ShipmentReschedule[]; // 배송일 변경(회차 1회 이동) — 새 날짜 전날에 예고
+  // 확정일 이후 출고 기록 — 확정된 구독의 회차를 관리자 배송판과 똑같이 센다.
+  //   (DB 함수가 아직 옛 버전이면 없다 → 달력 판정으로 떨어져 지금까지와 같다.)
+  shipments: ReminderShipment[];
 };
 
 // 한국시각(KST) 기준 '내일' 발송일(YYYY-MM-DD). 저녁에 돌면 다음 영업일분을 예고한다.
@@ -69,6 +73,8 @@ export default async function handler(): Promise<Response> {
     // 이미 출고돼 '발송 안내' 문자가 나간 건에 예고를 또 보내지 않는다.
     dispatchedOrderIds: new Set(ds.dispatched ?? []),
     reschedules: ds.reschedules ?? [],
+    // 예고 대상을 배송판과 같게 — 확정 회차 + 그 뒤 출고 기록으로 센다.
+    shipments: ds.shipments ?? [],
   });
 
   let sent = 0;

@@ -6,6 +6,7 @@ import { buildRosterForDate } from "./delivery-roster";
 import { deliveryDayHitsDate } from "./ship-date";
 import { DELIVERY_DAY_LABEL, type DeliveryDay } from "./cart";
 import type { ShipmentReschedule } from "./shipment-reschedule";
+import { shippedRoundsBeforeBySlot, type RoundBaseline } from "./round-baseline";
 
 // 서버(보안 RPC)에서 받아오는 원자료 행 타입 — 로스터·문구에 필요한 필드만.
 export type ReminderOrder = {
@@ -44,7 +45,14 @@ export type ReminderSlot = {
   paused_at: string | null;
   paused_days: number;
   extended_weeks: number | null;
+  // 한 주문이 요일별 슬롯을 둘 가질 때 요일로 슬롯을 고르는 키(관리자 배송판과 같은 입력).
+  delivery_day?: string | null;
+  // 관리자가 확정한 '확정일까지 나간 회차'와 그 기준일. 없으면 옛 방식(달력)으로 판정한다.
+  rounds_confirmed_count?: number | null;
+  rounds_confirmed_at?: string | null;
 };
+// 확정일 이후의 출고 기록(주문·발송일) — 확정 회차에 더해 '지금까지 나간 회차'를 센다.
+export type ReminderShipment = { order_id: string; ship_date: string };
 
 export type ReminderTarget = {
   orderId: string;
@@ -87,8 +95,35 @@ export function buildReminderTargets(input: {
   dispatchedOrderIds?: ReadonlySet<string>;
   // 배송일 변경(회차 1회 이동) — 예정일에는 예고를 보내지 않고 새 날짜 전날에 보낸다.
   reschedules?: readonly ShipmentReschedule[];
+  // 확정일 이후 출고 기록. 확정된 구독의 회차를 관리자 배송판과 똑같이 세기 위한 입력.
+  shipments?: readonly ReminderShipment[];
 }): ReminderTarget[] {
   const maps = buildRosterMaps(input.orders, input.items, input.slots);
+
+  // ★ 예고 대상은 관리자 배송판과 같아야 한다 (2026-11-24).
+  //   배송판은 관리자가 확정한 회차(+ 그 뒤 출고 기록)로 '이번에 나갈 회차'를 세는데, 예고는
+  //   달력으로만 셌다. 둘이 갈리면 손님이 받는 문자와 실제 상자가 어긋난다:
+  //     · 12회를 다 받은 구독에 "내일 발송 예정" 문자가 나간다(시작일이 옮겨져 달력이 6회 남았다고 봄)
+  //     · 연장 입금이 늦어 달력이 먼저 끝난 구독은 상자가 가는데 문자가 없다
+  //   그래서 배송판과 같은 함수(shippedRoundsBeforeBySlot)에 같은 입력을 넣는다.
+  //   확정 정보가 없으면(옛 dataset) shippedBefore 가 없어 지금까지와 똑같이 달력으로 판정한다.
+  const baselines = new Map<number, RoundBaseline>();
+  for (const s of input.slots) {
+    if (s.rounds_confirmed_count == null || !s.rounds_confirmed_at) continue;
+    baselines.set(s.id, {
+      confirmedCount: s.rounds_confirmed_count,
+      confirmedAt: s.rounds_confirmed_at.slice(0, 10),
+    });
+  }
+  const shippedBefore =
+    baselines.size > 0
+      ? shippedRoundsBeforeBySlot(
+          (input.shipments ?? []).map((r) => `${r.order_id}|${r.ship_date.slice(0, 10)}`),
+          maps.slotIdByOrder,
+          baselines
+        )
+      : undefined;
+
   const entries = buildRosterForDate({
     dateISO: input.dateISO,
     items: input.items,
@@ -100,6 +135,7 @@ export function buildReminderTargets(input: {
     slotIdByOrder: maps.slotIdByOrder,
     slotById: maps.slotById,
     slotIdByOrderDay: maps.slotIdByOrderDay,
+    shippedBefore,
     reschedules: input.reschedules,
   });
 
