@@ -423,7 +423,7 @@ export const PRODUCTS: Product[] = [
     ],
     label: {
       type: "발효유",
-      ingredients: "A2A2저지 원유 99.997% (국산), 유산균(덴마크) 0.003% · 우유 함유",
+      ingredients: "A2A2저지 원유 99.997% (국산), 유산균(프랑스) 0.003% · 우유 함유",
       content: "180 mL (130 kcal)",
       storage: "0~10℃ 냉장보관",
       packaging: "용기: PET / 뚜껑: PE / 라벨: PS",
@@ -487,7 +487,7 @@ export const PRODUCTS: Product[] = [
     ],
     label: {
       type: "발효유",
-      ingredients: "A2A2저지 원유 99.997% (국산), 유산균(덴마크) 0.003% · 우유 함유",
+      ingredients: "A2A2저지 원유 99.997% (국산), 유산균(프랑스) 0.003% · 우유 함유",
       content: "500 mL (360 kcal)",
       storage: "0~10℃ 냉장보관",
       packaging: "용기: PET / 뚜껑: PE / 라벨: PS",
